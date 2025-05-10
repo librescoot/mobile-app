@@ -1,4 +1,3 @@
-import '../models/scooter.dart';
 import '../repositories/scooter_repository.dart';
 
 /// Enum representing different characteristic types

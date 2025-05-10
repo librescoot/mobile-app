@@ -36,14 +36,14 @@ abstract class ScooterCommand {
   /// Additional parameters for the command
   final Map<String, dynamic> parameters;
   
-  const ScooterCommand({
+  ScooterCommand({
     required this.scooterId,
     required this.type,
     Map<String, dynamic>? parameters,
     DateTime? timestamp,
-  }) : 
-    this.parameters = parameters ?? const {},
-    this.timestamp = timestamp ?? DateTime.now();
+  }) :
+    parameters = parameters ?? const {},
+    timestamp = timestamp ?? DateTime.now();
     
   /// Whether this command can be executed via BLE
   bool get canExecuteViaBle;

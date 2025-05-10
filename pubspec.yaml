@@ -60,6 +60,9 @@ dependencies:
   flutter_email_sender: ^7.0.0
   device_info_plus: ^11.3.0
   appcheck: ^1.5.2
+  # Added for new architecture
+  flutter_bloc: ^8.1.4
+  equatable: ^2.0.5
 
 dev_dependencies:
   flutter_test:

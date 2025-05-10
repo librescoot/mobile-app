@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../scooter_state.dart';
+import '../scooter_power_state.dart';
 import 'battery_status.dart';
 import 'location.dart';
 
@@ -9,49 +10,49 @@ import 'location.dart';
 class Scooter {
   /// Unique identifier for the scooter
   final String id;
-  
+
   /// User-defined name for the scooter
   final String name;
-  
+
   /// Scooter color variant (1-9)
   final int color;
-  
+
   /// Current operational state of the scooter
   final ScooterState state;
-  
+
   /// Whether the seat is closed
   final bool seatClosed;
-  
+
   /// Whether the handlebars are locked
   final bool handlebarsLocked;
-  
+
   /// Primary battery status
   final BatteryStatus primaryBattery;
-  
+
   /// Secondary battery status
   final BatteryStatus secondaryBattery;
-  
+
   /// Central Battery Box status
   final BatteryStatus cbbBattery;
-  
+
   /// Auxiliary battery status
   final BatteryStatus auxBattery;
-  
+
   /// When the scooter was last connected to
   final DateTime? lastConnected;
-  
+
   /// Last recorded location of the scooter
   final Location? lastLocation;
-  
+
   /// Whether this is a favorite scooter
   final bool isFavorite;
-  
+
   /// Signal strength when connected via BLE (-100 to 0, higher is better)
   final int? rssi;
-  
+
   /// Whether the scooter is currently connected
   final bool isConnected;
-  
+
   /// Whether to automatically connect to this scooter when in range
   final bool autoConnect;
 
@@ -164,11 +165,11 @@ class Scooter {
       secondaryBattery: BatteryStatus.fromJson(json['secondaryBattery']),
       cbbBattery: BatteryStatus.fromJson(json['cbbBattery']),
       auxBattery: BatteryStatus.fromJson(json['auxBattery']),
-      lastConnected: json['lastConnected'] != null 
-          ? DateTime.parse(json['lastConnected']) 
+      lastConnected: json['lastConnected'] != null
+          ? DateTime.parse(json['lastConnected'])
           : null,
-      lastLocation: json['lastLocation'] != null 
-          ? Location.fromJson(json['lastLocation']) 
+      lastLocation: json['lastLocation'] != null
+          ? Location.fromJson(json['lastLocation'])
           : null,
       isFavorite: json['isFavorite'] ?? false,
       rssi: json['rssi'],
@@ -203,11 +204,11 @@ class Scooter {
         type: BatteryType.auxiliary,
         soc: savedScooter['lastAuxSOC'],
       ),
-      lastConnected: savedScooter['lastPing'] != null 
-          ? DateTime.fromMicrosecondsSinceEpoch(savedScooter['lastPing']) 
+      lastConnected: savedScooter['lastPing'] != null
+          ? DateTime.fromMicrosecondsSinceEpoch(savedScooter['lastPing'])
           : DateTime.now(),
-      lastLocation: savedScooter['lastLocation'] != null 
-          ? Location.fromJson(savedScooter['lastLocation']) 
+      lastLocation: savedScooter['lastLocation'] != null
+          ? Location.fromJson(savedScooter['lastLocation'])
           : null,
       autoConnect: savedScooter['autoConnect'] ?? true,
     );
@@ -215,14 +216,29 @@ class Scooter {
 
   /// Gets the primary battery SOC or null if not available
   int? get primarySOC => primaryBattery.soc;
-  
+
   /// Gets the secondary battery SOC or null if not available
   int? get secondarySOC => secondaryBattery.soc;
+
+  /// Parses a state string from BLE to a ScooterState
+  static ScooterState parseStateString(String? stateStr, ScooterPowerState? powerState) {
+    // Use the existing fromString method from ScooterState
+    ScooterState? baseState = ScooterState.fromString(stateStr);
+
+    // Combine with power state if available
+    if (powerState != null) {
+      return ScooterState.fromStateAndPowerState(baseState, powerState) ??
+             baseState ??
+             ScooterState.unknown;
+    }
+
+    return baseState ?? ScooterState.unknown;
+  }
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-  
+
     return other is Scooter &&
       other.id == id &&
       other.name == name &&

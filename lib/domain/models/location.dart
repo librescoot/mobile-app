@@ -12,7 +12,7 @@ class Location {
   /// When this location was recorded
   final DateTime timestamp;
 
-  const Location({
+  Location({
     required this.latitude,
     required this.longitude,
     DateTime? timestamp,
