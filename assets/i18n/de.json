@@ -289,5 +289,13 @@
     "lock_state_locked": "Verriegelt",
     "lock_state_unlocked": "Offen",
     "lock_state_unknown": "Unbekannt",
-    "error_generic": "FEHLER"
+    "error_generic": "FEHLER",
+    "stats_title_navigation": "Navigation",
+    "navigation_no_destination": "Bitte wähle ein Ziel auf der Karte",
+    "navigation_sent_success": "Navigation zum Roller gesendet",
+    "navigation_send_failed": "Navigation konnte nicht gesendet werden",
+    "navigation_send_button": "Zum Roller senden",
+    "navigation_search_hint": "Adresse suchen",
+    "navigation_address_not_found": "Adresse nicht gefunden",
+    "navigation_search_error": "Suchfehler aufgetreten"
 }

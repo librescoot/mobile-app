@@ -289,5 +289,13 @@
     "lock_state_locked": "Locked",
     "lock_state_unlocked": "Unlocked",
     "lock_state_unknown": "Unknown",
-    "error_generic": "ERROR"
+    "error_generic": "ERROR",
+    "stats_title_navigation": "Navigation",
+    "navigation_no_destination": "Please select a destination on the map",
+    "navigation_sent_success": "Navigation sent to scooter",
+    "navigation_send_failed": "Failed to send navigation",
+    "navigation_send_button": "Send to scooter",
+    "navigation_search_hint": "Search for an address",
+    "navigation_address_not_found": "Address not found",
+    "navigation_search_error": "Search error occurred"
 }

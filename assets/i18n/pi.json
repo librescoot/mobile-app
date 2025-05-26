@@ -267,5 +267,13 @@
     "lock_state_locked": "Battened down",
     "lock_state_unlocked": "Open seas",
     "lock_state_unknown": "Lost at sea",
-    "error_generic": "BLIMEY!"
+    "error_generic": "BLIMEY!",
+    "stats_title_navigation": "Chart Course",
+    "navigation_no_destination": "Ye need to mark X on the map, matey!",
+    "navigation_sent_success": "Course charted to yer vessel!",
+    "navigation_send_failed": "Failed to send course to ship",
+    "navigation_send_button": "Send to vessel",
+    "navigation_search_hint": "Search fer a port",
+    "navigation_address_not_found": "That port be not on any map!",
+    "navigation_search_error": "The compass be broken!"
 }
