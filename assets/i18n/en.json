@@ -67,6 +67,7 @@
   "state_desc_linking": "Your scooter was found and is connecting to the app...",
   "stats_title": "Info",
   "stats_unknown": "Unknown",
+  "stats_title_navigation": "Navigation",
   "stats_title_battery": "Batteries",
   "stats_primary_name": "Primary battery",
   "stats_primary_desc": "Used for driving",
@@ -204,5 +205,12 @@
   "settings_report_cancel": "Cancel",
   "report_subject": "Issue report",
   "report_placeholder": "Please describe the issue you're having, and how to reproduce it, above the line:",
-  "support_contact_emco": "Report an issue with the scooter"
+  "support_contact_emco": "Report an issue with the scooter",
+  "navigation_no_destination": "Please select a destination on the map",
+  "navigation_sent_success": "Navigation sent to scooter",
+  "navigation_send_failed": "Failed to send navigation",
+  "navigation_send_button": "Send to scooter",
+  "navigation_search_hint": "Search for an address",
+  "navigation_address_not_found": "Address not found",
+  "navigation_search_error": "Search error occurred"
 }

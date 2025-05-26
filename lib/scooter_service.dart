@@ -601,6 +601,10 @@ class ScooterService {
     _sendCommand("scooter:seatbox open");
   }
 
+  void sendNavigationCommand(String command) {
+    _sendCommand(command);
+  }
+
   void blink({required bool left, required bool right}) {
     if (left && !right) {
       _sendCommand("scooter:blinker left");

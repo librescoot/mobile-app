@@ -67,6 +67,7 @@
   "state_desc_linking": "Dein Roller wurde gefunden, Verbindung läuft...",
   "stats_title": "Info",
   "stats_unknown": "Unbekannt",
+  "stats_title_navigation": "Navigation",
   "stats_title_battery": "Akkus",
   "stats_primary_name": "Fahrakku",
   "stats_primary_desc": "Zum Fahren benötigt",
@@ -204,5 +205,12 @@
   "settings_report_cancel": "Abbrechen",
   "report_subject": "Fehlerbericht",
   "report_placeholder": "Bitte beschreibe über den Linie den Fehler, den du hast, und wie man ihn reproduzieren kann:",
-  "support_contact_emco": "Problem mit dem Roller melden"
+  "support_contact_emco": "Problem mit dem Roller melden",
+  "navigation_no_destination": "Bitte wähle ein Ziel auf der Karte",
+  "navigation_sent_success": "Navigation zum Roller gesendet",
+  "navigation_send_failed": "Navigation konnte nicht gesendet werden",
+  "navigation_send_button": "Zum Roller senden",
+  "navigation_search_hint": "Adresse suchen",
+  "navigation_address_not_found": "Adresse nicht gefunden",
+  "navigation_search_error": "Suchfehler aufgetreten"
 }

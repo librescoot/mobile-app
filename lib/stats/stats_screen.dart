@@ -10,6 +10,7 @@ import '../stats/settings_section.dart';
 import '../scooter_service.dart';
 import '../stats/battery_section.dart';
 import '../stats/scooter_section.dart';
+import '../stats/navigation_section.dart';
 
 class StatsScreen extends StatefulWidget {
   const StatsScreen({required this.service, super.key});
@@ -29,7 +30,7 @@ class _StatsScreenState extends State<StatsScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         extendBodyBehindAppBar: true,
         appBar: AppBar(
@@ -47,6 +48,14 @@ class _StatsScreenState extends State<StatsScreen> {
                   indicatorColor: Theme.of(context).colorScheme.onSurface,
                   dividerColor: Colors.transparent,
                   tabs: [
+                    Tab(
+                      child: Text(
+                        FlutterI18n.translate(context, 'stats_title_navigation'),
+                        style: const TextStyle(
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
                     Tab(
                       child: Text(
                         FlutterI18n.translate(context, 'stats_title_battery'),
@@ -111,6 +120,9 @@ class _StatsScreenState extends State<StatsScreen> {
                               5;
                   return TabBarView(
                     children: [
+                      // NAVIGATION TAB
+                      NavigationSection(
+                          service: widget.service, dataIsOld: dataIsOld),
                       // BATTERY TAB
                       BatterySection(
                           service: widget.service, dataIsOld: dataIsOld),

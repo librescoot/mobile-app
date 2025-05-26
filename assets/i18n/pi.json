@@ -67,6 +67,7 @@
     "state_desc_linking": "Yer ship be joinin' forces with the app as we speak!",
     "stats_title": "Info",
     "stats_unknown": "Unknown",
+    "stats_title_navigation": "Chart Course",
     "stats_title_battery": "Battery",
     "stats_primary_name": "Primary battery",
     "stats_primary_desc": "Used for driving",
@@ -204,5 +205,12 @@
     "settings_report_cancel": "Cancel",
     "report_subject": "Error report",
     "report_placeholder": "Please describe the issue you're having, and how to reproduce it, above the line:",
-    "support_contact_emco": "Report an issue with yer ship"
+    "support_contact_emco": "Report an issue with yer ship",
+    "navigation_no_destination": "Ye need to mark X on the map, matey!",
+    "navigation_sent_success": "Course charted to yer vessel!",
+    "navigation_send_failed": "Failed to send course to ship",
+    "navigation_send_button": "Send to vessel",
+    "navigation_search_hint": "Search fer a port",
+    "navigation_address_not_found": "That port be not on any map!",
+    "navigation_search_error": "The compass be broken!"
 }
