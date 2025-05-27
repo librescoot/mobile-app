@@ -382,6 +382,60 @@ class SavedScooterCard extends StatelessWidget {
                   color:
                       Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
                 ),
+                if (connected)
+                  ListTile(
+                    title: Text("Update mode"),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 4,
+                              horizontal: 12,
+                            ),
+                          ),
+                          onPressed: () {
+                            service.sendUpdateCommand("usb:ums");
+                          },
+                          child: Text(
+                            "START",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 4,
+                              horizontal: 12,
+                            ),
+                          ),
+                          onPressed: () {
+                            service.sendUpdateCommand("usb:normal");
+                          },
+                          child: Text(
+                            "STOP",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (connected)
+                  Divider(
+                    indent: 16,
+                    endIndent: 16,
+                    height: 0,
+                    color:
+                        Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+                  ),
                 const SizedBox(height: 8),
                 Padding(
                   padding:
