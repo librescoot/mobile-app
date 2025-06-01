@@ -75,8 +75,7 @@
             android:name="es.antonborri.home_widget.HomeWidgetBackgroundService"
             android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true" />
 
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_icon"
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_bg_service_small" />
 
 
@@ -101,6 +100,10 @@
         <intent>
             <action android:name="android.intent.action.SENDTO" />
             <data android:scheme="mailto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
         </intent>
         <package android:name="com.unumotors.app" />
     </queries>

@@ -49,3 +49,4 @@ app.*.map.json
 *.mocks.dart
 
 scripts/
+devtools_options.yaml

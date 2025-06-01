@@ -335,33 +335,47 @@ class _BatterySectionState extends State<BatterySection> {
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: GestureDetector(
-        child: Container(
-          height: 180,
-          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(16.0),
-            border: (soc <= 15 && !old)
-                ? Border.all(
-                    color: Colors.red,
-                    width: 2,
-                  )
-                : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              Text(
-                type.name(context).toUpperCase(),
-                style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.5)),
+      child: Container(
+        height: 180,
+        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(16.0),
+          border: (soc <= 15 && !old)
+              ? Border.all(
+                  color: Colors.red,
+                  width: 2,
+                )
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            Text(
+              type.name(context).toUpperCase(),
+              style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                  color:
+                      Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
+            ),
+            Text(
+              type.description(context),
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                  color:
+                      Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0, bottom: 24),
+              child: Text(
+                type.socText(soc, context),
+                style: Theme.of(context).textTheme.displaySmall,
+                textScaler: TextScaler.noScaling,
               ),
               Text(
                 type.description(context),
@@ -596,5 +610,80 @@ class _BatterySectionState extends State<BatterySection> {
         ),
       ),
     );
+  }
+}
+
+enum BatteryType { primary, secondary, cbb, aux, nfc }
+
+extension BatteryExtension on BatteryType {
+  String name(BuildContext context) {
+    switch (this) {
+      case BatteryType.primary:
+        return FlutterI18n.translate(context, "stats_primary_name");
+      case BatteryType.secondary:
+        return FlutterI18n.translate(context, "stats_secondary_name");
+      case BatteryType.cbb:
+        return FlutterI18n.translate(context, "stats_cbb_name");
+      case BatteryType.aux:
+        return FlutterI18n.translate(context, "stats_aux_name");
+      case BatteryType.nfc:
+        return FlutterI18n.translate(context, "stats_nfc_name");
+    }
+  }
+
+  String description(BuildContext context) {
+    switch (this) {
+      case BatteryType.primary:
+        return FlutterI18n.translate(context, "stats_primary_desc");
+      case BatteryType.secondary:
+        return FlutterI18n.translate(context, "stats_secondary_desc");
+      case BatteryType.cbb:
+        return FlutterI18n.translate(context, "stats_cbb_desc");
+      case BatteryType.aux:
+        return FlutterI18n.translate(context, "stats_aux_desc");
+      case BatteryType.nfc:
+        return FlutterI18n.translate(context, "stats_nfc_desc");
+    }
+  }
+
+  String socText(int soc, BuildContext context) {
+    if (this == BatteryType.aux) {
+      switch (soc ~/ 25) {
+        case 0:
+          return FlutterI18n.translate(context, "stats_aux_0");
+        case 1:
+          return FlutterI18n.translate(context, "stats_aux_25");
+        case 2:
+          return FlutterI18n.translate(context, "stats_aux_50");
+        case 3:
+          return FlutterI18n.translate(context, "stats_aux_75");
+        case 4:
+          return FlutterI18n.translate(context, "stats_aux_100");
+      }
+    }
+    return "$soc%";
+  }
+
+  String imagePath(int soc) {
+    switch (this) {
+      case BatteryType.primary:
+      case BatteryType.secondary:
+      case BatteryType.nfc:
+        if (soc > 85) {
+          return "images/battery/batt_full.webp";
+        } else if (soc > 60) {
+          return "images/battery/batt_75.webp";
+        } else if (soc > 35) {
+          return "images/battery/batt_50.webp";
+        } else if (soc > 10) {
+          return "images/battery/batt_25.webp";
+        } else {
+          return "images/battery/batt_empty.webp";
+        }
+      case BatteryType.cbb:
+        return "images/battery/batt_internal.webp";
+      case BatteryType.aux:
+        return 'images/battery/batt_internal.webp';
+    }
   }
 }
