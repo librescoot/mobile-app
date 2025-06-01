@@ -275,5 +275,6 @@
     "controls_locate": "Find yer Ship",
     "controls_alarm": "Sound Alarm",
     "controls_ping": "Test the Winds",
-    "controls_refresh": "Demand Update"
+    "controls_refresh": "Demand Update",
+    "stats_title_navigation": "Chart Course"
 }

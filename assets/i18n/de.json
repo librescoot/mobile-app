@@ -274,5 +274,6 @@
     "controls_locate": "Finden",
     "controls_alarm": "Alarm",
     "controls_ping": "Verbindung prüfen",
-    "controls_refresh": "Status aktualisieren"
+    "controls_refresh": "Status aktualisieren",
+    "stats_title_navigation": "Navigation"
 }
