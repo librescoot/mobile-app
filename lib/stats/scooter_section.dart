@@ -398,7 +398,7 @@ class SavedScooterCard extends StatelessWidget {
                             ),
                           ),
                           onPressed: () {
-                            service.sendUpdateCommand("usb:ums");
+                            context.read<ScooterService>().sendUpdateCommand("usb:ums");
                           },
                           child: Text(
                             "START",
@@ -417,7 +417,7 @@ class SavedScooterCard extends StatelessWidget {
                             ),
                           ),
                           onPressed: () {
-                            service.sendUpdateCommand("usb:normal");
+                            context.read<ScooterService>().sendUpdateCommand("usb:normal");
                           },
                           child: Text(
                             "STOP",

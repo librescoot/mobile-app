@@ -121,7 +121,8 @@ class _StatsScreenState extends State<StatsScreen> {
                     children: [
                       // NAVIGATION TAB
                       NavigationSection(
-                          service: widget.service, dataIsOld: dataIsOld),
+                          service: context.read<ScooterService>(), 
+                          dataIsOld: dataIsOld),
                       // BATTERY TAB
                       BatterySection(dataIsOld: dataIsOld),
                       // SCOOTER TAB

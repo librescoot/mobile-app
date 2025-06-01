@@ -237,30 +237,24 @@ class _NavigationSectionState extends State<NavigationSection> {
           child: SizedBox(
             width: double.infinity,
             height: 56,
-            child: StreamBuilder<bool>(
-              stream: widget.service.connected,
-              builder: (context, snapshot) {
-                final isConnected = snapshot.data ?? false;
-                return ElevatedButton(
-                  onPressed: isConnected && _selectedDestination != null
-                      ? _sendNavigationToScooter
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                  ),
-                  child: Text(
-                    FlutterI18n.translate(context, 'navigation_send_button'),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                );
-              },
+            child: ElevatedButton(
+              onPressed: widget.service.connected && _selectedDestination != null
+                  ? _sendNavigationToScooter
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
+                ),
+              ),
+              child: Text(
+                FlutterI18n.translate(context, 'navigation_send_button'),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ),
