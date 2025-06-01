@@ -879,6 +879,10 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     _sendCommand(command);
   }
 
+  void sendUpdateCommand(String command) {
+    _sendCommand(command);
+  }
+
   void blink({required bool left, required bool right}) {
     if (left && !right) {
       _sendCommand("scooter:blinker left");
