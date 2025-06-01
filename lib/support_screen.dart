@@ -1,10 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:convert';
 
 import '../stats/support_section.dart';
+import '../domain/log_helper.dart';
 
 class SupportScreen extends StatelessWidget {
   const SupportScreen({super.key});
+
+  // get the right FAQs
+  Future<Map<String, dynamic>> getSupportMap({
+    required BuildContext context,
+    required String languageCode,
+  }) async {
+    String data = await DefaultAssetBundle.of(context)
+        .loadString("assets/faq_$languageCode.json");
+    return jsonDecode(data);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +151,6 @@ class SupportScreen extends StatelessWidget {
           );
         },
       ),
-      body: const SupportSection(),
     );
   }
 }

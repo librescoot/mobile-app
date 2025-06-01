@@ -57,6 +57,8 @@ class ScooterService with ChangeNotifier {
   String? get currentScooterId => _currentScooterId;
   BLECommandService? _bleCommands;
   late CloudCommandService _cloudCommands;
+  late CloudService _cloudService;
+  CloudService get cloudService => _cloudService;
 
   final FlutterBluePlusMockable flutterBluePlus;
 
@@ -100,7 +102,8 @@ class ScooterService with ChangeNotifier {
 
     // _bleCommands inited on BT connect
 
-    _cloudCommands = CloudCommandService(CloudService(this), () => getCurrentCloudScooterId());
+    _cloudService = CloudService(this);
+    _cloudCommands = CloudCommandService(_cloudService, () => getCurrentCloudScooterId());
     log.info(
         ["setting _cloudCommands", _cloudCommands, getCurrentCloudScooterId()]);
 

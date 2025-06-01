@@ -40,6 +40,177 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+class _PowerButton extends StatefulWidget {
+  const _PowerButton({super.key});
+
+  @override
+  State<_PowerButton> createState() => _PowerButtonState();
+}
+
+class _PowerButtonState extends State<_PowerButton> {
+  bool? _isCloudAuthenticated;
+  CloudService? _cloudService;
+  final log = Logger('_PowerButton');
+  Timer? _authCheckTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkCloudAuth();
+    // Poll for auth status changes
+    _authCheckTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      _checkCloudAuth();
+    });
+  }
+  
+  @override
+  void dispose() {
+    _authCheckTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkCloudAuth() async {
+    final service = context.read<ScooterService>();
+    _cloudService = service.cloudService;
+    final isAuth = await _cloudService!.isAuthenticated;
+    final cloudScooterId = service.getCurrentCloudScooterId();
+    log.info('Auth check: isAuth=$isAuth, cloudScooterId=$cloudScooterId');
+    if (mounted) {
+      setState(() {
+        _isCloudAuthenticated = isAuth;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<ScooterService, ({ScooterState? state, int? cloudScooterId})>(
+      selector: (context, service) => (
+        state: service.state,
+        cloudScooterId: service.getCurrentCloudScooterId(),
+      ),
+      builder: (context, data, _) {
+        final hasCloudScooter = data.cloudScooterId != null;
+        final canUseCloudCommands = (_isCloudAuthenticated ?? false) && hasCloudScooter;
+        
+        // Enable button if connected via BT OR if we have cloud access
+        final isEnabled = (data.state != null && data.state!.isReadyForLockChange) || 
+                         canUseCloudCommands;
+        
+        log.info('PowerButton build: isCloudAuth=${_isCloudAuthenticated}, hasCloudScooter=$hasCloudScooter, canUseCloud=$canUseCloudCommands, isEnabled=$isEnabled, state=${data.state}');
+        
+        return ScooterPowerButton(
+          action: isEnabled
+              ? () => _handlePowerButtonPress(context, data.state)
+              : null,
+          icon: data.state != null && data.state!.isOn
+              ? Icons.lock_open
+              : Icons.lock_outline,
+          label: data.state != null && data.state!.isOn
+              ? FlutterI18n.translate(context, "home_lock_button")
+              : FlutterI18n.translate(context, "home_unlock_button"),
+        );
+      },
+    );
+  }
+
+  Future<void> _handlePowerButtonPress(BuildContext context, ScooterState? state) async {
+    final homeState = context.findAncestorStateOfType<_HomeScreenState>();
+    if (homeState != null) {
+      await homeState._handlePowerButtonPress(state);
+    }
+  }
+}
+
+class _ControlsButton extends StatefulWidget {
+  const _ControlsButton({super.key});
+
+  @override
+  State<_ControlsButton> createState() => _ControlsButtonState();
+}
+
+class _ControlsButtonState extends State<_ControlsButton> {
+  bool? _isCloudAuthenticated;
+  CloudService? _cloudService;
+  final log = Logger('HomeScreen');
+  Timer? _authCheckTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkCloudAuth();
+    // Poll for auth status changes
+    _authCheckTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      _checkCloudAuth();
+    });
+  }
+  
+  @override
+  void dispose() {
+    _authCheckTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkCloudAuth() async {
+    final service = context.read<ScooterService>();
+    _cloudService = service.cloudService;
+    final isAuth = await _cloudService!.isAuthenticated;
+    final cloudScooterId = service.getCurrentCloudScooterId();
+    log.info('Auth check: isAuth=$isAuth, cloudScooterId=$cloudScooterId');
+    if (mounted) {
+      setState(() {
+        _isCloudAuthenticated = isAuth;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<ScooterService, ({bool scanning, bool connected, int? cloudScooterId})>(
+      selector: (context, service) => (
+        scanning: service.scanning,
+        connected: service.connected,
+        cloudScooterId: service.getCurrentCloudScooterId(),
+      ),
+      builder: (context, data, _) {
+        final hasCloudScooter = data.cloudScooterId != null;
+        final canUseCloudCommands = (_isCloudAuthenticated ?? false) && hasCloudScooter;
+        
+        // Show controls if connected via BT OR if we have cloud access
+        final showControls = data.connected || canUseCloudCommands;
+        
+        return ScooterActionButton(
+          onPressed: !data.scanning
+              ? () {
+                  if (showControls) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ControlScreen(),
+                      ),
+                    );
+                  } else {
+                    log.info("Manually reconnecting...");
+                    try {
+                      context.read<ScooterService>().start();
+                    } catch (e, stack) {
+                      log.severe("Reconnect button failed", e, stack);
+                    }
+                  }
+                }
+              : null,
+          icon: showControls
+              ? Icons.more_vert_rounded
+              : Icons.refresh_rounded,
+          label: showControls
+              ? FlutterI18n.translate(context, "home_controls_button")
+              : FlutterI18n.translate(context, "home_reconnect_button"),
+        );
+      },
+    );
+  }
+}
+
 class _HomeScreenState extends State<HomeScreen> {
   final log = Logger('HomeScreen');
   bool _hazards = false;
@@ -153,10 +324,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _handlePowerButtonPress(ScooterState? state) async {
-    if (state == null || !state.isReadyForLockChange) return;
+    // Check if we have cloud access
+    final scooterService = context.read<ScooterService>();
+    final cloudService = scooterService.cloudService;
+    final hasCloudScooter = scooterService.getCurrentCloudScooterId() != null;
+    final isCloudAuthenticated = await cloudService.isAuthenticated;
+    final canUseCloudCommands = isCloudAuthenticated && hasCloudScooter;
+    
+    // Allow execution if either BT connected or cloud available
+    if (state == null || (!state.isReadyForLockChange && !canUseCloudCommands)) return;
 
     try {
-      if (state.isOn) {
+      // For cloud commands when disconnected, we can't know the exact state
+      // so we'll let the user toggle between lock/unlock
+      if (canUseCloudCommands && state == ScooterState.disconnected) {
+        // Show confirmation dialog and let user choose action
+        final confirmed = await showCloudConfirmationDialog(context);
+        if (!confirmed) return;
+        
+        // Since we don't know the state, try unlock (most common action)
+        // The cloud API will handle the actual state appropriately
+        await context.read<ScooterService>().executeCommand(
+              CommandType.unlock,
+              onNeedConfirmation: () => Future.value(true), // Already confirmed
+            );
+      } else if (state.isOn) {
         // Lock flow
         await context.read<ScooterService>().executeCommand(
               CommandType.lock,
@@ -305,17 +497,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           aprilFools: _forceHover,
                         ),
                       ),
-                      ScooterActionButton(
-                          onPressed: () {
-                            try {
-                              context.read<ScooterService>().start();
-                            } catch (e) {
-                              print(e.toString());
-                            }
-                          },
-                          icon: Icons.refresh_rounded,
-                          label: FlutterI18n.translate(
-                              context, "home_reconnect_button")),
                       const SizedBox(height: 16),
                       // main action buttons
                       Row(
@@ -323,192 +504,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisSize: MainAxisSize.max,
                         children: [
                           SeatButton(onPressed: _handleSeatButtonPress),
-                          Selector<ScooterService, ScooterState?>(
-                              selector: (context, service) => service.state,
-                              builder: (context, state, _) {
-                                return Expanded(
-                                  child: ScooterPowerButton(
-                                      action: state != null &&
-                                              state.isReadyForLockChange
-                                          ? (state.isOn
-                                              ? () async {
-                                                  try {
-                                                    await context
-                                                        .read<ScooterService>()
-                                                        .lock();
-                                                    if (context.mounted &&
-                                                        context
-                                                            .read<
-                                                                ScooterService>()
-                                                            .hazardLocking) {
-                                                      _flashHazards(1);
-                                                    }
-                                                  } on SeatOpenException catch (_) {
-                                                    log.warning(
-                                                        "Seat is open, showing alert");
-                                                    showSeatWarning();
-                                                  } on HandlebarLockException catch (_) {
-                                                    log.warning(
-                                                        "Handlebars are still unlocked, showing alert");
-                                                    showHandlebarWarning(
-                                                      didNotUnlock: false,
-                                                    );
-                                                  } catch (e, stack) {
-                                                    log.severe(
-                                                        "Problem opening the seat",
-                                                        e,
-                                                        stack);
-                                                    Fluttertoast.showToast(
-                                                        msg: e.toString());
-                                                  }
-                                                }
-                                              : (state == ScooterState.standby
-                                                  ? () async {
-                                                      try {
-                                                        await context
-                                                            .read<
-                                                                ScooterService>()
-                                                            .unlock();
-                                                        if (context.mounted &&
-                                                            context
-                                                                .read<
-                                                                    ScooterService>()
-                                                                .hazardLocking) {
-                                                          _flashHazards(2);
-                                                        }
-                                                      } on HandlebarLockException catch (_) {
-                                                        log.warning(
-                                                            "Handlebars are still locked, showing alert");
-                                                        showHandlebarWarning(
-                                                          didNotUnlock: true,
-                                                        );
-                                                      }
-                                                    }
-                                                  : (state ==
-                                                          ScooterState.standby
-                                                      ? () {
-                                                          context
-                                                              .read<
-                                                                  ScooterService>()
-                                                              .unlock();
-                                                          // TODO: Flash hazards in visual
-                                                        }
-                                                      : context
-                                                          .read<
-                                                              ScooterService>()
-                                                          .wakeUpAndUnlock)))
-                                          : null,
-                                      icon: state != null && state.isOn
-                                          ? Icons.lock_open
-                                          : Icons.lock_outline,
-                                      label: state != null && state.isOn
-                                          ? FlutterI18n.translate(
-                                              context, "home_lock_button")
-                                          : FlutterI18n.translate(
-                                              context, "home_unlock_button")),
-                                );
-                              }),
-                          Selector<ScooterService,
-                                  ({bool scanning, bool connected})>(
-                              selector: (context, service) => (
-                                    scanning: service.scanning,
-                                    connected: service.connected
-                                  ),
-                              builder: (context, state, _) {
-                                return Expanded(
-                                  child: ScooterActionButton(
-                                      onPressed: !state.scanning
-                                          ? () {
-                                              if (!state.connected) {
-                                                log.info(
-                                                    "Manually reconnecting...");
-                                                try {
-                                                  context
-                                                      .read<ScooterService>()
-                                                      .start();
-                                                } catch (e, stack) {
-                                                  log.severe(
-                                                      "Reconnect button failed",
-                                                      e,
-                                                      stack);
-                                                }
-                                              } else {
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        const ControlScreen(),
-                                                  ),
-                                                );
-                                              }
-                                            }
-                                          : null,
-                                      icon: !state.connected
-                                          ? Icons.refresh_rounded
-                                          : Icons.more_vert_rounded,
-                                      label: !state.connected
-                                          ? FlutterI18n.translate(
-                                              context, "home_reconnect_button")
-                                          : FlutterI18n.translate(
-                                              context, "home_controls_button")),
-                                );
-                              }),
                           Expanded(
-                              child: ScooterActionButton(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const ControlScreen(),
-                                      ),
-                                    );
-                                  },
-                                  icon: Icons.more_vert_rounded,
-                                  label: FlutterI18n.translate(
-                                      context, "home_controls_button"))),
-                          // Selector<ScooterService,
-                          //         ({bool scanning, bool connected})>(
-                          //     selector: (context, service) => (
-                          //           scanning: service.scanning,
-                          //           connected: service.connected
-                          //         ),
-                          //     builder: (context, state, _) {
-                          //       return Expanded(
-                          //         child: ScooterActionButton(
-                          //             onPressed: !state.scanning
-                          //                 ? () {
-                          //                     if (!state.connected) {
-                          //                       print(
-                          //                           "Manually reconnecting...");
-                          //                       try {
-                          //                         context
-                          //                             .read<ScooterService>()
-                          //                             .start();
-                          //                       } catch (e) {
-                          //                         print(e.toString());
-                          //                       }
-                          //                     } else {
-                          //                       Navigator.push(
-                          //                         context,
-                          //                         MaterialPageRoute(
-                          //                           builder: (context) =>
-                          //                               const ControlScreen(),
-                          //                         ),
-                          //                       );
-                          //                     }
-                          //                   }
-                          //                 : null,
-                          //             icon: !state.connected
-                          //                 ? Icons.refresh_rounded
-                          //                 : Icons.more_vert_rounded,
-                          //             label: !state.connected
-                          //                 ? FlutterI18n.translate(
-                          //                     context, "home_reconnect_button")
-                          //                 : FlutterI18n.translate(
-                          //                     context, "home_controls_button")),
-                          //       );
-                          //     }),
+                            child: _PowerButton(),
+                          ),
+                          Expanded(
+                            child: _ControlsButton(),
+                          ),
                         ],
                       )
                     ],
@@ -802,7 +803,7 @@ class StatusText extends StatelessWidget {
   }
 
   Widget _buildCloudStatus(BuildContext context) {
-    final cloudService = CloudService(context.read<ScooterService>());
+    final cloudService = context.read<ScooterService>().cloudService;
     final log = Logger('HomeScreen/CloudStatus');
 
     return StreamBuilder<bool>(

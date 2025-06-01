@@ -335,23 +335,42 @@ class _BatterySectionState extends State<BatterySection> {
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Container(
-        height: 180,
-        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(16.0),
-          border: (soc <= 15 && !old)
-              ? Border.all(
-                  color: Colors.red,
-                  width: 2,
-                )
-              : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.max,
-          children: [
+      child: GestureDetector(
+        onLongPress: () {
+          HapticFeedback.mediumImpact();
+          switch (type) {
+            case ScooterBatteryType.aux:
+              showDialog(
+                  context: context,
+                  builder: (context) => _auxDiagnosticDialog(context));
+              break;
+            case ScooterBatteryType.cbb:
+              showDialog(
+                  context: context,
+                  builder: (context) => _cbbDiagnosticDialog(context));
+              break;
+            default:
+              // no diagnostics for NFC
+              break;
+          }
+        },
+        child: Container(
+          height: 180,
+          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(16.0),
+            border: (soc <= 15 && !old)
+                ? Border.all(
+                    color: Colors.red,
+                    width: 2,
+                  )
+                : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.max,
+            children: [
             Text(
               type.name(context).toUpperCase(),
               style: TextStyle(
@@ -377,58 +396,21 @@ class _BatterySectionState extends State<BatterySection> {
                 style: Theme.of(context).textTheme.displaySmall,
                 textScaler: TextScaler.noScaling,
               ),
-              Text(
-                type.description(context),
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.5)),
+            ),
+            const SizedBox(height: 4),
+            Expanded(
+              child: Image.asset(
+                width: double.infinity,
+                type.imagePath(soc),
+                fit: BoxFit.contain,
+                alignment: Alignment.bottomCenter,
               ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0, bottom: 24),
-                child: Text(
-                  type.socText(soc, context),
-                  style: Theme.of(context).textTheme.displaySmall,
-                  textScaler: TextScaler.noScaling,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Expanded(
-                child: Image.asset(
-                  width: double.infinity,
-                  type.imagePath(soc),
-                  fit: BoxFit.contain,
-                  alignment: Alignment.bottomCenter,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-        onLongPress: () {
-          HapticFeedback.mediumImpact();
-          switch (type) {
-            case ScooterBatteryType.aux:
-              showDialog(
-                  context: context,
-                  builder: (context) => _auxDiagnosticDialog(context));
-              break;
-            case ScooterBatteryType.cbb:
-              showDialog(
-                  context: context,
-                  builder: (context) => _cbbDiagnosticDialog(context));
-              break;
-            default:
-              // no diagnostics for NFC
-              break;
-          }
-        },
       ),
-    );
+    ),
+  );
   }
 
   AlertDialog _auxDiagnosticDialog(BuildContext context) {

@@ -28,12 +28,14 @@ class CloudService {
   }
 
   Future<void> init() async {
-    log.info("init");
+    log.info("init - starting");
     _token = await storage.read(key: 'sunshine_token');
+    log.info("init - token loaded: ${_token != null}");
     if (_token != null) {
       try {
         // refresh scooters if needed
         await getScooters();
+        log.info("init - scooters loaded: ${_cachedScooters?.length ?? 0}");
       } catch (e, stack) {
         log.warning('Failed to get scooters during init', e, stack);
         // Token might be invalid, clear it
@@ -43,7 +45,9 @@ class CloudService {
   }
 
   Future<bool> get isAuthenticated async {
-    return _token != null && _cachedScooters != null;
+    final result = _token != null && _cachedScooters != null;
+    log.info('isAuthenticated check: token=${_token != null}, cachedScooters=${_cachedScooters != null}, result=$result');
+    return result;
   }
 
   Future<void> setToken(String token) async {

@@ -157,5 +157,5 @@ MaterialColor createMaterialColor(Color color) {
       1,
     );
   }
-  return MaterialColor(color.toARGB32(), swatch);
+  return MaterialColor(color.value, swatch);
 }
