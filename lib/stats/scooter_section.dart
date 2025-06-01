@@ -471,6 +471,16 @@ class SavedScooterCard extends StatelessWidget {
                     color:
                         Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
                   ),
+                if (connected)
+                  APNInput(scooterService: context.read<ScooterService>()),
+                if (connected)
+                  Divider(
+                    indent: 16,
+                    endIndent: 16,
+                    height: 0,
+                    color:
+                        Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+                  ),
                 const SizedBox(height: 8),
                 Padding(
                   padding:
@@ -896,5 +906,90 @@ class SavedScooterCard extends StatelessWidget {
         return char;
       }
     }).join('');
+  }
+}
+
+class APNInput extends StatefulWidget {
+  final ScooterService scooterService;
+
+  const APNInput({
+    super.key,
+    required this.scooterService,
+  });
+
+  @override
+  State<APNInput> createState() => _APNInputState();
+}
+
+class _APNInputState extends State<APNInput> {
+  final TextEditingController _apnController = TextEditingController();
+
+  @override
+  void dispose() {
+    _apnController.dispose();
+    super.dispose();
+  }
+
+  void _sendAPNCommand() {
+    final apnValue = _apnController.text.trim();
+    if (apnValue.isEmpty) {
+      Fluttertoast.showToast(
+        msg: "Please enter an APN value",
+      );
+      return;
+    }
+
+    try {
+      widget.scooterService.sendUpdateCommand("apn $apnValue");
+      Fluttertoast.showToast(
+        msg: "APN command sent",
+      );
+    } catch (e) {
+      Fluttertoast.showToast(
+        msg: "Failed to send APN command",
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      title: const Text("APN"),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _apnController,
+                decoration: const InputDecoration(
+                  hintText: "Enter APN",
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 16,
+                ),
+              ),
+              onPressed: _sendAPNCommand,
+              child: Text(
+                "SET",
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
