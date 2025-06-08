@@ -74,6 +74,7 @@ android {
             signingConfig signingConfigs.release
         }
         debug {
+            applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
         }
     }
@@ -85,7 +86,6 @@ android {
     composeOptions {	
         kotlinCompilerExtensionVersion = "1.5.4"
     }
-
 }
 
 flutter {

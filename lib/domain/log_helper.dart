@@ -14,8 +14,9 @@ import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:unustasis/domain/scooter_keyless_distance.dart';
-import 'package:unustasis/scooter_service.dart';
+
+import '../domain/scooter_keyless_distance.dart';
+import '../scooter_service.dart';
 
 class LogHelper {
   // Private constructor

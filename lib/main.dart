@@ -10,7 +10,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:workmanager/workmanager.dart';
 
 import '../background/bg_service.dart';
 import '../domain/log_helper.dart';
@@ -44,7 +43,6 @@ void main() async {
     savedLocale = Locale(Platform.localeName.split('_').first);
   }
 
-  // here goes nothing...
   if (Platform.isAndroid) {
     setupBackgroundService();
   }

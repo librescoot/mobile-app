@@ -35,7 +35,6 @@ Future<void> setupWidgetTasks() async {
 
 Future<void> setupBackgroundService() async {
   final log = Logger("setupBackgroundService");
-  log.onRecord.listen((record) => print(record));
   final service = FlutterBackgroundService();
 
   backgroundScanEnabled =
@@ -118,7 +117,7 @@ void workmanagerCallback() {
 
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) async {
-  print("Background service started!");
+  Logger("bgservice").info("Background service started!");
   DartPluginRegistrant.ensureInitialized();
 
   backgroundScanEnabled =
@@ -128,10 +127,10 @@ void onStart(ServiceInstance service) async {
   if (service is AndroidServiceInstance &&
       await service.isForegroundService()) {
     if (backgroundScanEnabled) {
-      print("Running first connection cycle");
+      Logger("bgservice").info("Running first connection cycle");
       _enableScanning();
     } else {
-      print("Dismissing initial notification");
+      Logger("bgservice").info("Dismissing initial notification");
       _disableScanning();
     }
   }
@@ -151,13 +150,13 @@ void onStart(ServiceInstance service) async {
   });
 
   service.on("autoUnlockCooldown").listen((data) async {
-    print("Received autoUnlockCooldown command");
+    Logger("bgservice").info("Received autoUnlockCooldown command");
     scooterService.autoUnlockCooldown();
   });
 
   // listen for commands
   service.on("update").listen((data) async {
-    print("Received update command: $data");
+    Logger("bgservice").info("Received update command: $data");
     try {
       if (data?["autoUnlock"] != null) {
         scooterService.setAutoUnlock(data!["autoUnlock"]);
@@ -190,7 +189,7 @@ void onStart(ServiceInstance service) async {
           _disableScanning();
         } else if (data["backgroundScan"] == true && !backgroundScanEnabled) {
           // was false, now is true. Start it up!
-          print("Enabling BG scanning");
+          Logger("bgservice").info("Enabling BG scanning");
           _enableScanning();
         }
       }
@@ -213,42 +212,73 @@ void onStart(ServiceInstance service) async {
         seatClosed: scooterService.seatClosed,
       );
     } catch (e, stack) {
-      print("Something bad happened on command: $e");
+      Logger("bgservice")
+          .severe("Something bad happened on command: $e", e, stack);
     }
   });
 
   service.on("lock").listen((data) async {
-    print("Received lock command");
-    scooterService.lock();
+    Logger("bgservice").info("Received lock command");
+    if (scooterService.connected) {
+      setWidgetUnlocking(true);
+      await scooterService.lock(checkHandlebars: false);
+      Future.delayed(const Duration(seconds: 3), () {
+        setWidgetUnlocking(false);
+      });
+    } else {
+      // scan first, then lock
+      setWidgetScanning(true);
+      await attemptConnectionCycle();
+      setWidgetScanning(false);
+      if (scooterService.connected) {
+        setWidgetUnlocking(true);
+        await scooterService.lock(checkHandlebars: false);
+        Future.delayed(const Duration(seconds: 3), () {
+          setWidgetUnlocking(false);
+        });
+      }
+    }
   });
 
   service.on("unlock").listen((data) async {
-    print("Received unlock command");
+    Logger("bgservice").info("Received unlock command");
     if (scooterService.connected) {
-      scooterService.unlock();
+      setWidgetUnlocking(true);
+      await scooterService.unlock(checkHandlebars: false);
+      Future.delayed(const Duration(seconds: 3), () {
+        setWidgetUnlocking(false);
+      });
     } else {
       // scan first, then unlock
       setWidgetScanning(true);
       await attemptConnectionCycle();
-      if (scooterService.connected) scooterService.unlock();
+      setWidgetScanning(false);
+      if (scooterService.connected) {
+        setWidgetUnlocking(true);
+        await scooterService.unlock(checkHandlebars: false);
+        Future.delayed(const Duration(seconds: 3), () {
+          setWidgetUnlocking(false);
+        });
+      }
     }
   });
 
   service.on("openseat").listen((data) async {
-    print("Received openseat command");
+    Logger("bgservice").info("Received openseat command");
     if (scooterService.connected) {
       scooterService.openSeat();
     } else {
       // scan first, then open seat
       setWidgetScanning(true);
       await attemptConnectionCycle();
+      setWidgetScanning(false);
       if (scooterService.connected) scooterService.openSeat();
     }
   });
 
   // listen to changes
   scooterService.addListener(() async {
-    print("ScooterService updated");
+    Logger("bgservice").info("ScooterService updated");
     passToWidget(
       connected: scooterService.connected,
       lastPing: scooterService.lastPing,
@@ -267,7 +297,8 @@ void onStart(ServiceInstance service) async {
 
   _rescanTimer = PausableTimer.periodic(const Duration(seconds: 35), () async {
     if (!backgroundScanEnabled) {
-      print("Oh boy, the timer must've killed itself/been killed. Resetting!");
+      Logger("bgservice").info(
+          "Oh boy, the timer must've killed itself/been killed. Resetting!");
       _rescanTimer
         ?..pause()
         ..reset();
@@ -281,7 +312,7 @@ void onStart(ServiceInstance service) async {
         !scooterService.connected) {
       attemptConnectionCycle();
     } else {
-      print(
+      Logger("bgservice").info(
           "Some conditions for rescanning not met. backgroundScanEnabled: $backgroundScanEnabled, scooterService.scanning: ${scooterService.scanning}, scooterService.connected: ${scooterService.connected}");
     }
   });
