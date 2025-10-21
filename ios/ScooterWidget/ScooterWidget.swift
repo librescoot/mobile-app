@@ -25,7 +25,7 @@ struct Provider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ScooterStatusEntry) -> Void) {
-        let prefs = UserDefaults(suiteName: "group.de.freal.unustasis")
+        let prefs = UserDefaults(suiteName: "group.com.librescoot.app")
         let connected = prefs?.bool(forKey: "connected")
         let lastPingDifference = prefs?.string(forKey: "lastPingDifference")
         let lastPingText = prefs?.string(forKey: "iOSlastPingText")
@@ -175,9 +175,9 @@ struct ScooterWidgetSmallView: View {
                                 Button(
                                     intent: BackgroundIntent(
                                         url: URL(
-                                            string: "unustasis://ping"
+                                            string: "librescoot://ping"
                                         ),
-                                        appGroup: "group.de.freal.unustasis"
+                                        appGroup: "group.com.librescoot.app"
                                     )
                                 ) {
                                     Image(systemName: "lock")

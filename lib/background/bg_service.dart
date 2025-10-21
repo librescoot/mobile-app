@@ -130,7 +130,7 @@ void onStart(ServiceInstance service) async {
 
   Logger("bgservice").info("Seeding widget with initial data");
   // seed widget
-  await HomeWidget.setAppGroupId("group.de.freal.unustasis");
+  await HomeWidget.setAppGroupId("group.com.librescoot.app");
   Future.delayed(const Duration(seconds: 5), () {
     passToWidget(
         connected: scooterService.connected,

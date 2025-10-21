@@ -1,4 +1,4 @@
-package de.freal.unustasis
+package com.librescoot.app
 
 import HomeWidgetGlanceWidgetReceiver
 

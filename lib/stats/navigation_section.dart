@@ -200,7 +200,7 @@ class _NavigationSectionState extends State<NavigationSection> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'de.freal.unustasis',
+                userAgentPackageName: 'com.librescoot.app',
               ),
               MarkerLayer(
                 markers: [

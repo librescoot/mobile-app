@@ -33,7 +33,7 @@ Future<void> showWidgetOnboarding(BuildContext context) async {
                 HomeWidget.requestPinWidget(
                   name: 'HomeWidgetReceiver',
                   androidName: 'HomeWidgetReceiver',
-                  qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
+                  qualifiedAndroidName: 'com.librescoot.app.HomeWidgetReceiver',
                 );
               }
               if (context.mounted) Navigator.of(context).pop();

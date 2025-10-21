@@ -1,4 +1,4 @@
-package de.freal.unustasis
+package com.librescoot.app
 
 import HomeWidgetGlanceState
 import HomeWidgetGlanceStateDefinition
@@ -21,32 +21,32 @@ import androidx.glance.color.ColorProvider
 import androidx.glance.layout.*
 import androidx.glance.layout.padding
 import androidx.glance.text.*
-import de.freal.unustasis.R.drawable.ic_lock
-import de.freal.unustasis.R.drawable.ic_unlock
-import de.freal.unustasis.R.drawable.ic_lock_disabled
-import de.freal.unustasis.R.drawable.ic_battery_0
-import de.freal.unustasis.R.drawable.ic_battery_10
-import de.freal.unustasis.R.drawable.ic_battery_25
-import de.freal.unustasis.R.drawable.ic_battery_40
-import de.freal.unustasis.R.drawable.ic_battery_60
-import de.freal.unustasis.R.drawable.ic_battery_75
-import de.freal.unustasis.R.drawable.ic_battery_85
-import de.freal.unustasis.R.drawable.ic_battery_100
-import de.freal.unustasis.R.drawable.ic_location
-import de.freal.unustasis.R.drawable.ic_location_disabled
-import de.freal.unustasis.R.drawable.ic_seatbox
-import de.freal.unustasis.R.drawable.ic_seatbox_open
-import de.freal.unustasis.R.drawable.ic_seatbox_disabled
-import de.freal.unustasis.R.drawable.base_0
-import de.freal.unustasis.R.drawable.base_1
-import de.freal.unustasis.R.drawable.base_2
-import de.freal.unustasis.R.drawable.base_3
-import de.freal.unustasis.R.drawable.base_4
-import de.freal.unustasis.R.drawable.base_5
-import de.freal.unustasis.R.drawable.base_6
-import de.freal.unustasis.R.drawable.base_7
-import de.freal.unustasis.R.drawable.base_8
-import de.freal.unustasis.R.drawable.base_9
+import com.librescoot.app.R.drawable.ic_lock
+import com.librescoot.app.R.drawable.ic_unlock
+import com.librescoot.app.R.drawable.ic_lock_disabled
+import com.librescoot.app.R.drawable.ic_battery_0
+import com.librescoot.app.R.drawable.ic_battery_10
+import com.librescoot.app.R.drawable.ic_battery_25
+import com.librescoot.app.R.drawable.ic_battery_40
+import com.librescoot.app.R.drawable.ic_battery_60
+import com.librescoot.app.R.drawable.ic_battery_75
+import com.librescoot.app.R.drawable.ic_battery_85
+import com.librescoot.app.R.drawable.ic_battery_100
+import com.librescoot.app.R.drawable.ic_location
+import com.librescoot.app.R.drawable.ic_location_disabled
+import com.librescoot.app.R.drawable.ic_seatbox
+import com.librescoot.app.R.drawable.ic_seatbox_open
+import com.librescoot.app.R.drawable.ic_seatbox_disabled
+import com.librescoot.app.R.drawable.base_0
+import com.librescoot.app.R.drawable.base_1
+import com.librescoot.app.R.drawable.base_2
+import com.librescoot.app.R.drawable.base_3
+import com.librescoot.app.R.drawable.base_4
+import com.librescoot.app.R.drawable.base_5
+import com.librescoot.app.R.drawable.base_6
+import com.librescoot.app.R.drawable.base_7
+import com.librescoot.app.R.drawable.base_8
+import com.librescoot.app.R.drawable.base_9
 
 import es.antonborri.home_widget.HomeWidgetBackgroundIntent
 
@@ -592,21 +592,21 @@ class HomeWidgetGlanceAppWidget : GlanceAppWidget() {
 
 class LockAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val backgroundIntent = HomeWidgetBackgroundIntent.getBroadcast(context, Uri.parse("unustasis://lock"))
+        val backgroundIntent = HomeWidgetBackgroundIntent.getBroadcast(context, Uri.parse("librescoot://lock"))
         backgroundIntent.send()
     }
 }
 
 class UnlockAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val backgroundIntent = HomeWidgetBackgroundIntent.getBroadcast(context, Uri.parse("unustasis://unlock"))
+        val backgroundIntent = HomeWidgetBackgroundIntent.getBroadcast(context, Uri.parse("librescoot://unlock"))
         backgroundIntent.send()
     }
 }
 
 class OpenSeatAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val backgroundIntent = HomeWidgetBackgroundIntent.getBroadcast(context, Uri.parse("unustasis://openseat"))
+        val backgroundIntent = HomeWidgetBackgroundIntent.getBroadcast(context, Uri.parse("librescoot://openseat"))
         backgroundIntent.send()
     }
 }

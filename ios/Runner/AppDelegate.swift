@@ -11,13 +11,13 @@ import workmanager_apple
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
 
-    SwiftFlutterBackgroundServicePlugin.taskIdentifier = "de.freal.unustasis.background"
+    SwiftFlutterBackgroundServicePlugin.taskIdentifier = "com.librescoot.app.background"
 
     WorkmanagerPlugin.setPluginRegistrantCallback { registry in
       GeneratedPluginRegistrant.register(with: registry)
     }
     WorkmanagerPlugin.registerPeriodicTask(
-      withIdentifier: "de.freal.unustasis.widget_refresh",
+      withIdentifier: "com.librescoot.app.widget_refresh",
       frequency: NSNumber(value: 20 * 60)  // 20 minutes
     )
     // WorkmanagerDebug.setCurrent(NotificationDebugHandler())
