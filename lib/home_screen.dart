@@ -8,12 +8,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:home_widget/home_widget.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:logging/logging.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../helper_widgets/leaves.dart';
+import '../helper_widgets/scooter_action_button.dart';
+import '../helper_widgets/onboarding_popups.dart';
 import '../handlebar_warning.dart';
 
 import '../cloud_service.dart';
@@ -24,17 +27,18 @@ import '../domain/theme_helper.dart';
 import '../onboarding_screen.dart';
 import '../scooter_service.dart';
 import '../scooter_visual.dart';
-import '../stats/stats_screen.dart';
+import '../battery_screen.dart';
+import '../scooter_screen.dart';
+import '../settings_screen.dart';
+import '../support_screen.dart';
 import '../helper_widgets/snowfall.dart';
+import '../helper_widgets/clouds.dart';
 import '../helper_widgets/grassscape.dart';
 import '../command_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool? forceOpen;
-  const HomeScreen({
-    this.forceOpen,
-    super.key,
-  });
+  const HomeScreen({this.forceOpen, super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -219,6 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _snowing = false;
   bool _forceHover = false;
   bool _spring = false;
+  bool _fall = false;
 
   @override
   void initState() {
@@ -230,8 +235,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _startSeasonal() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool("seasonal") ?? true) {
+    SharedPreferencesAsync prefs = SharedPreferencesAsync();
+    if (await prefs.getBool("seasonal") ?? true) {
       switch (DateTime.now().month) {
         case 12:
           // December, snow season!
@@ -244,61 +249,21 @@ class _HomeScreenState extends State<HomeScreen> {
             // Easter season, place some easter eggs!
             setState(() => _spring = true);
           }
+        case 10:
+          // October, it's fall by day and halloween by night
+          setState(() => _fall = true);
         // who knows what else might be in the future?
       }
     }
   }
 
-  Future<void> _showOnboardings() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    if (Platform.isAndroid && prefs.getBool("widgetOnboarded") != true) {
-      await showWidgetOnboarding();
-      prefs.setBool("widgetOnboarded", true);
+  Future<void> _showNotifications() async {
+    SharedPreferencesAsync prefs = SharedPreferencesAsync();
+    if (Platform.isAndroid && await prefs.getBool("widgetOnboarded") != true && mounted) {
+      await showWidgetOnboarding(context);
+      await prefs.setBool("widgetOnboarded", true);
     }
-  }
-
-  Future<void> showWidgetOnboarding() async {
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false, // user must tap button!
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title:
-              Text(FlutterI18n.translate(context, "widget_onboarding_title")),
-          content: SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                Text(FlutterI18n.translate(context, "widget_onboarding_body")),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: Text(
-                  FlutterI18n.translate(context, "widget_onboarding_place")),
-              onPressed: () async {
-                if ((await HomeWidget.isRequestPinWidgetSupported()) == true) {
-                  HomeWidget.requestPinWidget(
-                    name: 'HomeWidgetReceiver',
-                    androidName: 'HomeWidgetReceiver',
-                    qualifiedAndroidName:
-                        'de.freal.unustasis.HomeWidgetReceiver',
-                  );
-                }
-                if (context.mounted) Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: Text(
-                  FlutterI18n.translate(context, "widget_onboarding_dismiss")),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
+    if (mounted) await showServerNotifications(context);
   }
 
   void _flashHazards(int times) async {
@@ -397,11 +362,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ? const SystemUiOverlayStyle(
                 statusBarColor: Colors.transparent,
                 statusBarIconBrightness: Brightness.light,
-                systemNavigationBarColor: Colors.transparent)
+                systemNavigationBarColor: Colors.transparent,
+              )
             : const SystemUiOverlayStyle(
                 statusBarColor: Colors.transparent,
                 statusBarIconBrightness: Brightness.dark,
-                systemNavigationBarColor: Colors.transparent),
+                systemNavigationBarColor: Colors.transparent,
+              ),
         child: Container(
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
@@ -410,110 +377,240 @@ class _HomeScreenState extends State<HomeScreen> {
             alignment: Alignment.center,
             children: [
               StateCircle(
-                connected: context
-                    .select((ScooterService service) => service.connected),
-                scooterState:
-                    context.select((ScooterService service) => service.state),
-                scanning: context
-                    .select((ScooterService service) => service.scanning),
+                connected: context.select(
+                  (ScooterService service) => service.connected,
+                ),
+                scooterState: context.select(
+                  (ScooterService service) => service.state,
+                ),
+                scanning: context.select(
+                  (ScooterService service) => service.scanning,
+                ),
+                halloween: _fall && context.isDarkMode,
+                fall: _fall && !context.isDarkMode,
               ),
+              if (_fall && !context.isDarkMode)
+                LeavesBackground(
+                  backgroundColor: Colors.transparent,
+                  leafColors: const [
+                    Color(0xFF8B4000), // brown
+                    Color(0xFFFF8C00), // dark orange
+                    Color(0xFFFFC107), // amber
+                    Color(0xFFB7410E), // russet
+                  ],
+                  leafCount: 15,
+                ),
               if (_snowing)
                 SnowfallBackground(
                   backgroundColor: Colors.transparent,
-                  snowflakeColor: context.isDarkMode
-                      ? Colors.white.withValues(alpha: 0.15)
-                      : Colors.black.withValues(alpha: 0.05),
+                  snowflakeColor:
+                      context.isDarkMode ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.05),
+                ),
+              if (_fall && context.isDarkMode)
+                AnimatedOpacity(
+                  opacity: context.watch<ScooterService>().connected == true ? 1.0 : 0.5,
+                  duration: Duration(milliseconds: 500),
+                  child: Clouds(),
                 ),
               if (_spring)
                 AnimatedOpacity(
-                  opacity: context.watch<ScooterService>().connected == true
-                      ? 1.0
-                      : 0.0,
+                  opacity: context.watch<ScooterService>().connected == true ? 1.0 : 0.0,
                   duration: Duration(milliseconds: 500),
                   child: GrassScape(),
                 ),
               SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 40,
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.max,
-                    children: [
-                      InkWell(
-                        onTap: () => Navigator.push(
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: 0,
+                      left: 8,
+                      child: IconButton(
+                        icon: const Icon(Icons.help_outline),
+                        onPressed: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const StatsScreen(),
+                            builder: (context) => const SupportScreen(),
                           ),
                         ),
-                        // Hidden for stable release, but useful for various debugging
-                        // onLongPress: () =>
-                        //     showHandlebarWarning(didNotUnlock: false),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                                width: context.select(
-                                        (ScooterService service) =>
-                                            service.connected)
-                                    ? 32
-                                    : 0),
-                            Text(
-                              context.select<ScooterService, String?>(
-                                      (service) => service.scooterName) ??
-                                  FlutterI18n.translate(
-                                      context, "stats_no_name"),
-                              style: Theme.of(context).textTheme.headlineLarge,
-                            ),
-                            const SizedBox(width: 16),
-                            const Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              size: 16,
-                            ),
-                          ],
+                      ),
+                    ),
+                    Positioned(
+                      top: 0,
+                      right: 8,
+                      child: IconButton(
+                        icon: const Icon(Icons.settings_outlined),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SettingsScreen(),
+                          ),
                         ),
                       ),
-                      const StatusText(),
-                      const SizedBox(height: 16),
-                      if (context.select<ScooterService, int?>(
-                              (service) => service.primarySOC) !=
-                          null)
-                        const BatteryBars(),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: ScooterVisual(
-                          color: context.select<ScooterService, int?>(
-                                  (service) => service.scooterColor) ??
-                              1,
-                          state: context.select(
-                              (ScooterService service) => service.state),
-                          scanning: context.select(
-                              (ScooterService service) => service.scanning),
-                          blinkerLeft: _hazards,
-                          blinkerRight: _hazards,
-                          winter: _snowing,
-                          aprilFools: _forceHover,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      // main action buttons
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 40, bottom: 40),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         mainAxisSize: MainAxisSize.max,
                         children: [
-                          SeatButton(onPressed: _handleSeatButtonPress),
-                          Expanded(
-                            child: _PowerButton(),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const ScooterScreen(),
+                                  ),
+                                ),
+                                // Hidden for stable release, but useful for various debugging
+                                // onLongPress: () => context.read<ScooterService>().addDemoData(),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: context.select(
+                                        (ScooterService service) => service.connected,
+                                      )
+                                          ? 32
+                                          : 0,
+                                    ),
+                                    Flexible(
+                                      child: Text(
+                                        context.select<ScooterService, String?>(
+                                              (service) => service.scooterName,
+                                            ) ??
+                                            FlutterI18n.translate(
+                                              context,
+                                              "stats_no_name",
+                                            ),
+                                        style: Theme.of(context).textTheme.headlineLarge?.copyWith(height: 1.1),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    const Icon(
+                                      Icons.arrow_forward_ios_rounded,
+                                      size: 16,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
+                          const StatusText(),
+                          if (context.select<ScooterService, String?>(
+                                    (service) => service.scooterName,
+                                  ) !=
+                                  null &&
+                              context.select<ScooterService, String?>(
+                                    (service) => service.scooterName,
+                                  ) !=
+                                  FlutterI18n.translate(
+                                    context,
+                                    "stats_no_name",
+                                  ) &&
+                              (context.select<ScooterService, int?>(
+                                        (service) => service.primarySOC,
+                                      ) !=
+                                      null ||
+                                  context.select<ScooterService, int?>(
+                                        (service) => service.secondarySOC,
+                                      ) !=
+                                      null))
+                            Material(
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const BatteryScreen(),
+                                  ),
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const SizedBox(width: 16),
+                                      BatteryBars(
+                                        primarySOC: context.select<ScooterService, int?>(
+                                          (service) => service.primarySOC,
+                                        ),
+                                        secondarySOC: context.select<ScooterService, int?>(
+                                          (service) => service.secondarySOC,
+                                        ),
+                                        dataIsOld: context.select<ScooterService, DateTime?>(
+                                                  (service) => service.lastPing,
+                                                ) ==
+                                                null
+                                            ? true
+                                            : context
+                                                    .select<ScooterService, DateTime?>(
+                                                      (service) => service.lastPing,
+                                                    )!
+                                                    .difference(
+                                                      DateTime.now(),
+                                                    )
+                                                    .inMinutes
+                                                    .abs() >
+                                                5,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Icon(
+                                        Icons.arrow_forward_ios_rounded,
+                                        size: 12,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
                           Expanded(
-                            child: _ControlsButton(),
+                            child: ScooterVisual(
+                              color: context.select<ScooterService, int?>(
+                                    (service) => service.scooterColor,
+                                  ) ??
+                                  1,
+                              state: context.select(
+                                (ScooterService service) => service.state,
+                              ),
+                              scanning: context.select(
+                                (ScooterService service) => service.scanning,
+                              ),
+                              blinkerLeft: _hazards,
+                              blinkerRight: _hazards,
+                              winter: _snowing,
+                              aprilFools: _forceHover,
+                              halloween: _fall && context.isDarkMode,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            mainAxisSize: MainAxisSize.max,
+                            children: [
+                              SeatButton(onPressed: _handleSeatButtonPress),
+                              Expanded(
+                                child: _PowerButton(),
+                              ),
+                              Expanded(
+                                child: _ControlsButton(),
+                              ),
+                            ],
                           ),
                         ],
-                      )
-                    ],
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -555,15 +652,15 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       barrierDismissible: false, // user must tap button!
       builder: (BuildContext context) {
-        return HandlebarWarning(
-          didNotUnlock: didNotUnlock,
-        );
+        return HandlebarWarning(didNotUnlock: didNotUnlock);
       },
     ).then((dontShowAgain) async {
       if (dontShowAgain == true) {
         Logger("").info("Not showing unlocked handlebar warning again");
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        prefs.setBool("unlockedHandlebarsWarning", false);
+        await SharedPreferencesAsync().setBool(
+          "unlockedHandlebarsWarning",
+          false,
+        );
       }
     });
   }
@@ -592,28 +689,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void redirectOrStart() async {
-    List<String> ids =
-        await context.read<ScooterService>().getSavedScooterIds();
+    List<String> ids = await context.read<ScooterService>().getSavedScooterIds();
     log.info("Saved scooters: $ids");
     if (mounted && ids.isEmpty && !kDebugMode) {
       FlutterNativeSplash.remove();
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (context) => const OnboardingScreen(),
-        ),
+        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
       );
     } else {
       // already onboarded, set up and proceed with home page
       _startSeasonal();
-      _showOnboardings();
+      _showNotifications();
       // start the scooter service if we're not coming from onboarding
       if (mounted && context.read<ScooterService>().myScooter == null) {
         context.read<ScooterService>().start();
       }
     }
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    if ((prefs.getBool("biometrics") ?? false) && mounted) {
+    if ((await SharedPreferencesAsync().getBool("biometrics") ?? false) && mounted) {
       context.read<ScooterService>().optionalAuth = false;
       final LocalAuthentication auth = LocalAuthentication();
       try {
@@ -623,7 +716,8 @@ class _HomeScreenState extends State<HomeScreen> {
         if (!mounted) return;
         if (!didAuthenticate) {
           Fluttertoast.showToast(
-              msg: FlutterI18n.translate(context, "biometrics_failed"));
+            msg: FlutterI18n.translate(context, "biometrics_failed"),
+          );
           Navigator.of(context).pop();
           SystemNavigator.pop();
         } else {
@@ -633,7 +727,8 @@ class _HomeScreenState extends State<HomeScreen> {
         log.info("Biometrics failed", e, stack);
 
         Fluttertoast.showToast(
-            msg: FlutterI18n.translate(context, "biometrics_failed"));
+          msg: FlutterI18n.translate(context, "biometrics_failed"),
+        );
         Navigator.of(context).pop();
 
         SystemNavigator.pop();
@@ -691,75 +786,80 @@ class SeatButton extends StatelessWidget {
 
 class BatteryBars extends StatelessWidget {
   const BatteryBars({
+    required this.primarySOC,
+    required this.secondarySOC,
+    required this.dataIsOld,
+    this.compact = false,
+    this.alignment = MainAxisAlignment.center,
     super.key,
   });
 
+  final int? primarySOC;
+  final int? secondarySOC;
+  final bool? dataIsOld;
+  final bool compact;
+  final MainAxisAlignment alignment;
+
   @override
   Widget build(BuildContext context) {
-    return Selector<ScooterService,
-            ({DateTime? lastPing, int? primarySOC, int? secondarySOC})>(
-        selector: (context, service) => (
-              lastPing: service.lastPing,
-              primarySOC: service.primarySOC,
-              secondarySOC: service.secondarySOC
+    return Row(
+      mainAxisAlignment: alignment,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (primarySOC != null) ...[
+          SizedBox(
+            width: compact ? 40 : MediaQuery.of(context).size.width / 6,
+            child: LinearProgressIndicator(
+              backgroundColor: Colors.black26,
+              minHeight: compact ? 6 : 8,
+              borderRadius: BorderRadius.circular(8),
+              value: primarySOC! / 100.0,
+              color: (dataIsOld ?? true) // if null or true, data is old
+                  ? Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.4)
+                  : primarySOC! <= 15
+                      ? Theme.of(context).colorScheme.error
+                      : Theme.of(context).colorScheme.primary,
             ),
-        builder: (context, data, _) {
-          bool dataIsOld = data.lastPing == null ||
-              data.lastPing!.difference(DateTime.now()).inMinutes.abs() > 5;
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                  width: MediaQuery.of(context).size.width / 6,
-                  child: LinearProgressIndicator(
-                    backgroundColor: Colors.black26,
-                    minHeight: 8,
-                    borderRadius: BorderRadius.circular(8),
-                    value: data.primarySOC! / 100.0,
-                    color: dataIsOld
-                        ? Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.4)
-                        : data.primarySOC! <= 15
-                            ? Theme.of(context).colorScheme.error
-                            : Theme.of(context).colorScheme.primary,
-                  )),
-              const SizedBox(width: 8),
-              Text("${data.primarySOC}%"),
-              if (data.secondarySOC != null && data.secondarySOC! > 0)
-                const VerticalDivider(),
-              if (data.secondarySOC != null && data.secondarySOC! > 0)
-                SizedBox(
-                    width: MediaQuery.of(context).size.width / 6,
-                    child: LinearProgressIndicator(
-                      backgroundColor: Colors.black26,
-                      minHeight: 8,
-                      borderRadius: BorderRadius.circular(8),
-                      value: data.secondarySOC! / 100.0,
-                      color: dataIsOld
-                          ? Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.4)
-                          : data.secondarySOC! <= 15
-                              ? Theme.of(context).colorScheme.error
-                              : Theme.of(context).colorScheme.primary,
-                    )),
-              if (data.secondarySOC != null && data.secondarySOC! > 0)
-                const SizedBox(width: 8),
-              if (data.secondarySOC != null && data.secondarySOC! > 0)
-                Text("${data.secondarySOC}%"),
-            ],
-          );
-        });
+          ),
+          const SizedBox(width: 8),
+          Text(
+            "$primarySOC%",
+            style: compact ? Theme.of(context).textTheme.bodySmall : null,
+          ),
+        ],
+        if (primarySOC != null && secondarySOC != null && secondarySOC! > 0) const VerticalDivider(),
+        if (secondarySOC != null && secondarySOC! > 0) ...[
+          SizedBox(
+            width: compact ? 40 : MediaQuery.of(context).size.width / 6,
+            child: LinearProgressIndicator(
+              backgroundColor: Colors.black26,
+              minHeight: compact ? 6 : 8,
+              borderRadius: BorderRadius.circular(8),
+              value: secondarySOC! / 100.0,
+              color: (dataIsOld ?? true) // if null or true, data is old
+                  ? Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.4)
+                  : secondarySOC! <= 15
+                      ? Theme.of(context).colorScheme.error
+                      : Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            "$secondarySOC%",
+            style: compact ? Theme.of(context).textTheme.bodySmall : null,
+          ),
+        ],
+      ],
+    );
   }
 }
 
 class StatusText extends StatelessWidget {
-  const StatusText({
-    super.key,
-  });
+  const StatusText({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -865,13 +965,19 @@ class StateCircle extends StatelessWidget {
     super.key,
     required bool scanning,
     required bool connected,
+    bool halloween = false,
+    bool fall = false,
     required ScooterState? scooterState,
   })  : _scanning = scanning,
         _connected = connected,
+        _halloween = halloween,
+        _fall = fall,
         _scooterState = scooterState;
 
   final bool _scanning;
   final bool _connected;
+  final bool _halloween;
+  final bool _fall;
   final ScooterState? _scooterState;
 
   @override
@@ -892,19 +998,35 @@ class StateCircle extends StatelessWidget {
         width: MediaQuery.of(context).size.width,
         height: MediaQuery.of(context).size.width,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(999),
+          boxShadow: _halloween && _scooterState?.isOn == true
+              ? [
+                  BoxShadow(
+                    color: Color(0xFFFFCD6F).withAlpha(150),
+                    blurRadius: 100,
+                    spreadRadius: 10,
+                  ),
+                ]
+              : null,
+          image: _halloween
+              ? DecorationImage(
+                  image: AssetImage("images/decoration/moon.webp"), fit: BoxFit.cover, opacity: _connected ? 0.2 : 0.05)
+              : null,
+          shape: BoxShape.circle,
           color: _scooterState?.isOn == true
               ? context.isDarkMode
-                  ? HSLColor.fromColor(Theme.of(context).colorScheme.primary)
-                      .withLightness(0.18)
-                      .toColor()
-                  : HSLColor.fromColor(Theme.of(context).colorScheme.primary)
-                      .withAlpha(0.3)
-                      .toColor()
-              : Theme.of(context)
-                  .colorScheme
-                  .surfaceContainer
-                  .withValues(alpha: context.isDarkMode ? 0.5 : 0.7),
+                  ? _halloween
+                      ? Color(0xFFFFCD6F).withAlpha(50)
+                      : HSLColor.fromColor(
+                          Theme.of(context).colorScheme.primary,
+                        ).withLightness(0.18).toColor()
+                  : _fall
+                      ? Color(0xFFFF8400).withAlpha(100)
+                      : HSLColor.fromColor(
+                          Theme.of(context).colorScheme.primary,
+                        ).withAlpha(0.3).toColor()
+              : Theme.of(context).colorScheme.surfaceContainer.withValues(
+                    alpha: context.isDarkMode ? 0.5 : 0.7,
+                  ),
         ),
       ),
     );
@@ -933,10 +1055,11 @@ class ScooterPowerButton extends StatefulWidget {
   State<ScooterPowerButton> createState() => _ScooterPowerButtonState();
 }
 
-class _ScooterPowerButtonState extends State<ScooterPowerButton> {
+class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTickerProviderStateMixin {
   bool loading = false;
   bool disabled = false;
   int? randomEgg = Random().nextInt(8);
+  double scale = 1.0;
 
   @override
   Widget build(BuildContext context) {
@@ -944,77 +1067,116 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> {
         ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2)
         : Theme.of(context).colorScheme.primary;
     disabled = widget._action == null;
+
     return Column(
       children: [
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(width: 2, color: mainColor),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                elevation: 0,
-                padding: EdgeInsets.zero,
-                backgroundColor: loading
-                    ? Theme.of(context).colorScheme.surface
-                    : (widget._easterEgg == true
-                        ? disabled
-                            ? Colors.white38
-                            : Colors.white
-                        : mainColor),
+        GestureDetector(
+          onTapDown: (_) {
+            if (disabled || loading) return;
+            setState(() {
+              scale = 0.8; // Shrink the button immediately on tapdown
+            });
+          },
+          onLongPressCancel: () {
+            if (disabled || loading) return;
+            setState(() {
+              scale = 1.0; // Return to full size on cancel
+            });
+          },
+          //onTapUp: (_) {
+          //  setState(() {
+          //    scale = 1.0; // Return to full size after tapup
+          //  });
+          //},
+          child: AnimatedScale(
+            scale: scale,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOutBack,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(width: 2, color: mainColor),
+                borderRadius: BorderRadius.circular(999),
               ),
-              onPressed: () {
-                Fluttertoast.showToast(msg: widget._label);
-              },
-              onLongPress: disabled
-                  ? null
-                  : () {
-                      setState(() {
-                        loading = true;
-                      });
-                      widget._action!();
-                      Future.delayed(const Duration(seconds: 5), () {
-                        setState(() {
-                          loading = false;
-                        });
-                      });
-                    },
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-                decoration: widget._easterEgg == true
-                    ? BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            width: 2,
-                            color: !disabled && widget._easterEgg == true
-                                ? mainColor
-                                : Colors.transparent),
-                        image: DecorationImage(
-                            image: AssetImage(
-                                "images/decoration/egg_$randomEgg.webp"),
-                            fit: BoxFit.cover,
-                            opacity: disabled ? 0.3 : 1),
-                      )
-                    : null,
-                child: loading
-                    ? SizedBox(
-                        height: 28,
-                        width: 28,
-                        child: CircularProgressIndicator(
-                          color: mainColor,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : Icon(
-                        widget._icon,
-                        color: widget._easterEgg == true && !context.isDarkMode
-                            ? (disabled ? Colors.black26 : Colors.black87)
-                            : Theme.of(context).colorScheme.surface,
-                        size: 28,
-                      ),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    elevation: 0,
+                    padding: EdgeInsets.zero,
+                    backgroundColor: loading
+                        ? Theme.of(context).colorScheme.surface
+                        : (widget._easterEgg == true
+                            ? disabled
+                                ? Colors.white38
+                                : Colors.white
+                            : mainColor),
+                  ),
+                  onPressed: disabled
+                      ? null
+                      : () {
+                          Fluttertoast.showToast(msg: widget._label);
+                        },
+                  onLongPress: disabled
+                      ? null
+                      : () {
+                          setState(() {
+                            loading = true;
+                          });
+                          widget._action!();
+                          Future.delayed(const Duration(seconds: 5), () {
+                            setState(() {
+                              loading = false;
+                              scale = 1.1; // Overshoot bounce
+                            });
+                            Future.delayed(
+                              const Duration(milliseconds: 200),
+                              () {
+                                setState(() {
+                                  scale = 1.0; // Return to normal size
+                                });
+                              },
+                            );
+                          });
+                        },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 24,
+                    ),
+                    decoration: widget._easterEgg == true
+                        ? BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              width: 2,
+                              color: !disabled && widget._easterEgg == true ? mainColor : Colors.transparent,
+                            ),
+                            image: DecorationImage(
+                              image: AssetImage(
+                                "images/decoration/egg_$randomEgg.webp",
+                              ),
+                              fit: BoxFit.cover,
+                              opacity: disabled ? 0.3 : 1,
+                            ),
+                          )
+                        : null,
+                    child: loading
+                        ? SizedBox(
+                            height: 28,
+                            width: 28,
+                            child: CircularProgressIndicator(
+                              color: mainColor,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Icon(
+                            widget._icon,
+                            color: widget._easterEgg == true && !context.isDarkMode
+                                ? (disabled ? Colors.black26 : Colors.black87)
+                                : Theme.of(context).colorScheme.surface,
+                            size: 28,
+                          ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -1022,62 +1184,10 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> {
         const SizedBox(height: 16),
         Text(
           widget._label,
-          style: Theme.of(context)
-              .textTheme
-              .labelLarge
-              ?.copyWith(color: mainColor),
+          style: Theme.of(
+            context,
+          ).textTheme.labelLarge?.copyWith(color: mainColor),
           textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-}
-
-class ScooterActionButton extends StatelessWidget {
-  const ScooterActionButton({
-    super.key,
-    required void Function()? onPressed,
-    required IconData icon,
-    Color? iconColor,
-    required String label,
-  })  : _onPressed = onPressed,
-        _icon = icon,
-        _iconColor = iconColor,
-        _label = label;
-
-  final void Function()? _onPressed;
-  final IconData _icon;
-  final String _label;
-  final Color? _iconColor;
-
-  @override
-  Widget build(BuildContext context) {
-    Color mainColor = _iconColor ??
-        (_onPressed == null
-            ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2)
-            : Theme.of(context).colorScheme.onSurface);
-    return Column(
-      children: [
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.all(24),
-            side: BorderSide(
-              color: mainColor,
-            ),
-          ),
-          onPressed: _onPressed,
-          child: Icon(
-            _icon,
-            color: mainColor,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          _label,
-          style: Theme.of(context)
-              .textTheme
-              .labelLarge
-              ?.copyWith(color: mainColor),
         ),
       ],
     );

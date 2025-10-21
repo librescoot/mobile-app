@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:provider/provider.dart';
 
-import '../home_screen.dart';
+import '../helper_widgets/scooter_action_button.dart';
 import '../scooter_service.dart';
 import 'command_service.dart';
 
@@ -128,8 +128,7 @@ class _ControlScreenState extends State<ControlScreen> {
                           );
                     },
                     icon: Icons.arrow_back_ios_new_rounded,
-                    label:
-                        FlutterI18n.translate(context, "controls_blink_left"),
+                    label: FlutterI18n.translate(context, "controls_blink_left"),
                   ),
                 ),
                 Expanded(
@@ -142,8 +141,7 @@ class _ControlScreenState extends State<ControlScreen> {
                           );
                     },
                     icon: Icons.arrow_forward_ios_rounded,
-                    label:
-                        FlutterI18n.translate(context, "controls_blink_right"),
+                    label: FlutterI18n.translate(context, "controls_blink_right"),
                   ),
                 ),
               ],
@@ -294,19 +292,17 @@ class Header extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style: Theme.of(context).textTheme.headlineSmall!.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7))),
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineSmall!
+                  .copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7))),
           if (subtitle != null) const SizedBox(height: 2),
           if (subtitle != null)
             Text(subtitle!,
-                style: Theme.of(context).textTheme.titleMedium!.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.7))),
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium!
+                    .copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7))),
         ],
       ),
     );

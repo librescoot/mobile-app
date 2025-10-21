@@ -6,15 +6,14 @@ import 'package:http/http.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class GeoHelper {
-  static Future<String?> getAddress(
-      LatLng? position, BuildContext context) async {
+  static Future<String?> getAddress(LatLng? position, BuildContext context) async {
     if (position == null) {
       return null;
     }
 
     // see if user hasn't disabled Nominatim
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool("osmConsent") == false) {
+    SharedPreferencesAsync prefs = SharedPreferencesAsync();
+    if (await prefs.getBool("osmConsent") == false) {
       return null;
     }
 

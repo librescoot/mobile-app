@@ -222,8 +222,8 @@
     "bgscan_warning_accidentalturnon": "If ye have the ghost ship enabled, yer magic talkbox might unwittin’ unlock or open yer ship just by driftin’ past. Always make sure yer ship be locked tight ‘fore leavin’ her in the treacherous waters o’ the public!",
     "bgscan_warning_battery": "Yer magic talkbox’ll be burnin’ through its lifeblood faster—up to 5 to 10 percent lost with each charge, dependin’ on the beast ye carry. Worry not, though—yer ship’s heart stays untouched.",
     "bgscan_warning_confirm": "Yarr, sail ahead!",
-    "bgscan_warning_intro": "Background scannin’ be in the beta brig, and may stir up trouble such as one or more o’ these cursed effects:",
-    "bgscan_warning_lostpairing": "Loss o’ pairin’! If ye linger too long on the edge o’ yer ship’s ghostly range, the bond may break, and ye’ll need yer keycard to unlock ‘er and forge the link anew.",
+    "bgscan_warning_intro": "Background scannin' be in the beta brig, and may stir up trouble such as one or more o' these cursed effects:",
+    "bgscan_warning_lostpairing": "Loss o' pairin'! If ye linger too long on the edge o' yer ship's ghostly range, the bond may break, and ye'll need yer keycard to unlock 'er and forge the link anew.",
     "bgscan_warning_title": "Uncharted waters!",
     "navigation_no_destination": "Ye need to mark X on the map, matey!",
     "navigation_sent_success": "Course charted to yer vessel!",
@@ -276,5 +276,7 @@
     "controls_alarm": "Sound Alarm",
     "controls_ping": "Test the Winds",
     "controls_refresh": "Demand Update",
-    "stats_title_navigation": "Chart Course"
+    "stats_title_navigation": "Chart Course",
+    "stats_auto_connect_off": "Will only board ship on your command, captain!",
+    "stats_auto_connect_on": "Will board ship as soon as it's in the port"
 }

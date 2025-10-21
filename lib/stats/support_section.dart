@@ -36,8 +36,7 @@ class _SupportSectionState extends State<SupportSection> {
         ),
         Header(
           FlutterI18n.translate(context, "support_garages"),
-          subtitle:
-              FlutterI18n.translate(context, "support_garages_description"),
+          subtitle: FlutterI18n.translate(context, "support_garages_description"),
         ),
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 8),
@@ -143,8 +142,7 @@ class FaqWidget extends StatelessWidget {
     required BuildContext context,
     required String languageCode,
   }) async {
-    String data = await DefaultAssetBundle.of(context)
-        .loadString("assets/faq_$languageCode.json");
+    String data = await DefaultAssetBundle.of(context).loadString("assets/faq_$languageCode.json");
     return jsonDecode(data);
   }
 
@@ -169,21 +167,24 @@ class FaqWidget extends StatelessWidget {
           return ListView.separated(
             physics: const NeverScrollableScrollPhysics(),
             shrinkWrap: true,
+            padding: EdgeInsets.zero,
             itemCount: faq.length,
             separatorBuilder: (context, index) => Divider(
               indent: 16,
               endIndent: 16,
               height: 24,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.1),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
             ),
             itemBuilder: (context, index) {
               MapEntry category = faq.entries.elementAt(index);
               return ExpansionTile(
                 shape: const RoundedRectangleBorder(),
+                expansionAnimationStyle: AnimationStyle(
+                  duration: Durations.medium4,
+                  curve: Curves.easeInOutCubicEmphasized,
+                ),
                 initiallyExpanded: false,
+                maintainState: false,
                 iconColor: Theme.of(context).colorScheme.onSurface,
                 leading: index == 0
                     ? const Icon(Icons.bluetooth)
@@ -194,26 +195,27 @@ class FaqWidget extends StatelessWidget {
                 title: Text(
                   category.key.toString(),
                 ),
+                childrenPadding: EdgeInsets.zero,
                 children: [
                   for (MapEntry question in category.value.entries)
                     ExpansionTile(
                         shape: const RoundedRectangleBorder(),
+                        expansionAnimationStyle: AnimationStyle(
+                          duration: Durations.medium4,
+                          curve: Curves.easeInOutCubicEmphasized,
+                        ),
+                        maintainState: false,
                         iconColor: Theme.of(context).colorScheme.onSurface,
-                        backgroundColor:
-                            Theme.of(context).colorScheme.surfaceContainer,
-                        tilePadding: const EdgeInsets.only(
-                            left: 32, right: 16, top: 8, bottom: 8),
+                        backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+                        tilePadding: const EdgeInsets.only(left: 32, right: 16, top: 8, bottom: 8),
                         title: Text(question.key.toString()),
+                        childrenPadding: EdgeInsets.zero,
                         children: [
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(32, 0, 16, 32),
+                            padding: const EdgeInsets.fromLTRB(32, 0, 16, 16),
                             child: Text(
                               question.value.toString(),
-                              style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withValues(alpha: 0.6)),
+                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
                             ),
                           )
                         ]),
@@ -229,8 +231,7 @@ class GarageWidget extends StatelessWidget {
   const GarageWidget({super.key});
 
   Future<List<Garage>> getGarages() async {
-    final response = await http
-        .get(Uri.parse('https://unumotors.com/page-data/sq/d/2596243890.json'));
+    final response = await http.get(Uri.parse('https://unumotors.com/page-data/sq/d/2596243890.json'));
     if (response.statusCode == 200) {
       Map<String, dynamic> json = jsonDecode(utf8.decode(response.bodyBytes));
       Map<String, dynamic> data = json['data'];
@@ -238,8 +239,7 @@ class GarageWidget extends StatelessWidget {
       List<dynamic> garages = content['garages'];
       return garages.map((garage) => Garage.fromJson(garage)).toList();
     } else {
-      Logger("GarageWidget")
-          .severe('Failed to load garages', response.toString());
+      Logger("GarageWidget").severe('Failed to load garages', response.toString());
       throw Exception('Failed to load garages');
     }
   }
@@ -250,8 +250,7 @@ class GarageWidget extends StatelessWidget {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        throw const PermissionDeniedException(
-            "Location permissions are/were denied");
+        throw const PermissionDeniedException("Location permissions are/were denied");
       }
     }
     // get both location and garage data
@@ -266,10 +265,7 @@ class GarageWidget extends StatelessWidget {
     // set the distance of each garage
     for (Garage garage in garages) {
       double distance = Geolocator.distanceBetween(
-          currentPosition.latitude,
-          currentPosition.longitude,
-          garage.location.latitude,
-          garage.location.longitude);
+          currentPosition.latitude, currentPosition.longitude, garage.location.latitude, garage.location.longitude);
       garage.distance = distance;
     }
     // sort by distance
@@ -316,8 +312,7 @@ class GarageWidget extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             scrollDirection: Axis.horizontal,
             itemCount: garages.length,
-            itemBuilder: (context, index) =>
-                _GarageTile(garage: garages[index]),
+            itemBuilder: (context, index) => _GarageTile(garage: garages[index]),
           );
         },
       ),
@@ -350,20 +345,14 @@ class _GarageTile extends StatelessWidget {
           children: [
             Text(
               garage.name,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyLarge
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
             const SizedBox(height: 8),
-            Text("${garage.street}, ${garage.city}",
-                overflow: TextOverflow.ellipsis),
+            Text("${garage.street}, ${garage.city}", overflow: TextOverflow.ellipsis),
             Text(FlutterI18n.translate(context, "support_garage_distance",
-                translationParams: {
-                  "dist": (garage.distance! / 1000).toStringAsFixed(1)
-                })),
+                translationParams: {"dist": (garage.distance! / 1000).toStringAsFixed(1)})),
             const SizedBox(height: 16),
             Row(
               mainAxisSize: MainAxisSize.max,
@@ -375,11 +364,9 @@ class _GarageTile extends StatelessWidget {
                       foregroundColor: Theme.of(context).colorScheme.surface,
                     ),
                     onPressed: () {
-                      MapsLauncher.launchQuery(
-                          "${garage.name} ${garage.street}, ${garage.zipCode}");
+                      MapsLauncher.launchQuery("${garage.name} ${garage.street}, ${garage.zipCode}");
                     },
-                    label: Text(
-                        FlutterI18n.translate(context, "support_garage_map")),
+                    label: Text(FlutterI18n.translate(context, "support_garage_map")),
                     icon: const Icon(Icons.map_outlined),
                   ),
                 ),
@@ -396,8 +383,7 @@ class _GarageTile extends StatelessWidget {
                         path: garage.phone,
                       ));
                     },
-                    label: Text(
-                        FlutterI18n.translate(context, "support_garage_call")),
+                    label: Text(FlutterI18n.translate(context, "support_garage_call")),
                     icon: const Icon(Icons.phone_outlined),
                   ),
                 ),
@@ -436,31 +422,15 @@ class Garage {
     try {
       return Garage(
         name: json["name"]?.isNotEmpty == true ? json['name'] : "Unnamed",
-        phone: json["Phone"]?.isNotEmpty == true
-            ? json['Phone'].toString()
-            : "Unknown",
-        street: json["ShippingStreet"]?.isNotEmpty == true
-            ? json['ShippingStreet']
-            : "Unknown street",
-        city: json["ShippingCity"]?.isNotEmpty == true
-            ? json['ShippingCity']
-            : "Unknown city",
-        country: json["ShippingCountry"]?.isNotEmpty == true
-            ? json['ShippingCountry']
-            : "Unknown country",
-        countryCode: json["ShippingCountryCode"]?.isNotEmpty == true
-            ? json['ShippingCountryCode']
-            : "??",
-        zipCode: json["ShippingPostalCode"]?.isNotEmpty == true
-            ? json['ShippingPostalCode'].toString()
-            : "?????",
+        phone: json["Phone"]?.isNotEmpty == true ? json['Phone'].toString() : "Unknown",
+        street: json["ShippingStreet"]?.isNotEmpty == true ? json['ShippingStreet'] : "Unknown street",
+        city: json["ShippingCity"]?.isNotEmpty == true ? json['ShippingCity'] : "Unknown city",
+        country: json["ShippingCountry"]?.isNotEmpty == true ? json['ShippingCountry'] : "Unknown country",
+        countryCode: json["ShippingCountryCode"]?.isNotEmpty == true ? json['ShippingCountryCode'] : "??",
+        zipCode: json["ShippingPostalCode"]?.isNotEmpty == true ? json['ShippingPostalCode'].toString() : "?????",
         location: LatLng(
-          double.parse(json['ShippingLatitude']?.isNotEmpty == true
-              ? json['ShippingLatitude']
-              : "0"),
-          double.parse(json['ShippingLongitude']?.isNotEmpty == true
-              ? json['ShippingLongitude']
-              : "0"),
+          double.parse(json['ShippingLatitude']?.isNotEmpty == true ? json['ShippingLatitude'] : "0"),
+          double.parse(json['ShippingLongitude']?.isNotEmpty == true ? json['ShippingLongitude'] : "0"),
         ),
       );
     } catch (e) {

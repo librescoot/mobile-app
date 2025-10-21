@@ -44,7 +44,14 @@ class LogHelper {
   void addLog(LogRecord record) {
     if (kDebugMode && record.level >= Level.INFO) {
       Fluttertoast.showToast(
-          msg: record.message, fontSize: 6, toastLength: Toast.LENGTH_SHORT);
+        msg: record.message,
+        fontSize: 12.0,
+        backgroundColor:
+            Colors.black.withValues(alpha: 0.7), // fluttertoast android logspams if no background color is set
+        textColor: Colors.white,
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.CENTER,
+      );
     }
     // ignore: avoid_print
     print(record);
@@ -64,8 +71,7 @@ class LogHelper {
   void _startLogCleanup() {
     _cleanupTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       final cutoff = DateTime.now().subtract(const Duration(minutes: 15));
-      _logBuffer
-          .removeWhere((log) => DateTime.parse(log['time']!).isBefore(cutoff));
+      _logBuffer.removeWhere((log) => DateTime.parse(log['time']!).isBefore(cutoff));
     });
   }
 
@@ -81,17 +87,14 @@ class LogHelper {
         context: context,
         builder: (context) => AlertDialog(
               title: Text(FlutterI18n.translate(context, "settings_report")),
-              content: Text(FlutterI18n.translate(
-                  context, "settings_report_description")),
+              content: Text(FlutterI18n.translate(context, "settings_report_description")),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.of(context).pop(false),
-                    child: Text(FlutterI18n.translate(
-                        context, "settings_report_cancel"))),
+                    child: Text(FlutterI18n.translate(context, "settings_report_cancel"))),
                 TextButton(
                     onPressed: () => Navigator.of(context).pop(true),
-                    child: Text(FlutterI18n.translate(
-                        context, "settings_report_proceed"))),
+                    child: Text(FlutterI18n.translate(context, "settings_report_proceed"))),
               ],
             )).then((confirmed) async {
       if (confirmed == true) {
@@ -114,7 +117,7 @@ class LogHelper {
           os = "unsupported";
         }
 
-        SharedPreferences prefs = await SharedPreferences.getInstance();
+        SharedPreferencesAsync prefs = SharedPreferencesAsync();
         if (context.mounted) {
           ScooterService service = context.read<ScooterService>();
           final Email email = Email(
@@ -124,16 +127,15 @@ class LogHelper {
 Device: $device
 OS: $os
 Settings: 
-      backgroundScan = ${prefs.getBool("backgroundScan") ?? false}
-      biometrics = ${prefs.getBool("biometrics") ?? false}
+      backgroundScan = ${await prefs.getBool("backgroundScan") ?? false}
+      biometrics = ${await prefs.getBool("biometrics") ?? false}
       autoUnlock = ${service.autoUnlock}
       autoUnlockDistance = ${ScooterKeylessDistance.fromThreshold(service.autoUnlockThreshold) ?? ScooterKeylessDistance.regular.threshold}
       openSeatOnUnlock = ${service.openSeatOnUnlock}
       hazardLocking = ${service.hazardLocking}
-      osmConsent = ${prefs.getBool("osmConsent") ?? true}
-      seasonal = ${prefs.getBool("seasonal") ?? true}
-Saved scooters: 
-      ${(await SharedPreferences.getInstance()).getString("savedScooters") ?? 'none'}
+      osmConsent = ${await prefs.getBool("osmConsent") ?? true}
+      seasonal = ${await prefs.getBool("seasonal") ?? true}
+Saved scooters: ${await prefs.getString("savedScooters") ?? 'none'}
 ''',
             subject: FlutterI18n.translate(context, "report_subject"),
             recipients: ['unu@freal.de'],
