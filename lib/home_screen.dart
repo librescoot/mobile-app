@@ -31,6 +31,7 @@ import '../battery_screen.dart';
 import '../scooter_screen.dart';
 import '../settings_screen.dart';
 import '../support_screen.dart';
+import '../navigation_screen.dart';
 import '../helper_widgets/snowfall.dart';
 import '../helper_widgets/clouds.dart';
 import '../helper_widgets/grassscape.dart';
@@ -430,6 +431,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           context,
                           MaterialPageRoute(
                             builder: (context) => const SupportScreen(),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 0,
+                      left: 56,
+                      child: IconButton(
+                        icon: const Icon(Icons.map_outlined),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const NavigationScreen(),
                           ),
                         ),
                       ),
