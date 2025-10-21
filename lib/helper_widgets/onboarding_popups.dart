@@ -34,7 +34,7 @@ Future<void> showWidgetOnboarding(BuildContext context) async {
                 HomeWidget.requestPinWidget(
                   name: 'HomeWidgetReceiver',
                   androidName: 'HomeWidgetReceiver',
-                  qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
+                  qualifiedAndroidName: 'com.librescoot.app.HomeWidgetReceiver',
                 );
               }
               if (context.mounted) Navigator.of(context).pop();
@@ -56,10 +56,10 @@ Future<void> showWidgetOnboarding(BuildContext context) async {
 Future<void> showServerNotifications(BuildContext context) async {
   final log = Logger('ServerNotifications');
   log.info("Fetching server notifications");
-  // get the notifications json from https://reunu.github.io/unustasis/notifications.json
+  // get the notifications json from https://librescoot.github.io/mobile-app/notifications.json
   List<dynamic> notifications;
   try {
-    final response = await get(Uri.parse("https://reunu.github.io/unustasis/notifications.json"));
+    final response = await get(Uri.parse("https://librescoot.github.io/mobile-app/notifications.json"));
     if (response.statusCode != 200) {
       log.warning("Failed to fetch notifications: ${response.statusCode}");
       return;

@@ -1,4 +1,4 @@
-package de.freal.unustasis
+package com.librescoot.app
 
 import android.content.BroadcastReceiver
 import android.content.Context

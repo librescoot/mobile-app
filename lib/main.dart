@@ -31,7 +31,7 @@ void main() async {
     ),
   );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  await HomeWidget.setAppGroupId("group.de.freal.unustasis");
+  await HomeWidget.setAppGroupId("group.com.librescoot.app");
 
   Locale? savedLocale;
 
@@ -110,7 +110,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'unustasis',
+      title: 'librescoot',
       theme: ThemeData(
         appBarTheme: const AppBarTheme(
           centerTitle: true,

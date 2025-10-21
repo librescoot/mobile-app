@@ -26,7 +26,7 @@ struct Provider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ScooterStatusEntry) -> Void) {
-        let prefs = UserDefaults(suiteName: "group.de.freal.unustasis")
+        let prefs = UserDefaults(suiteName: "group.com.librescoot.app")
         let connected = prefs?.bool(forKey: "connected")
         let lastPingDifference = prefs?.string(forKey: "lastPingDifference")
         let lastPingText = prefs?.string(forKey: "iOSlastPingText")
@@ -172,7 +172,7 @@ struct ScooterWidgetSmallView: View {
         ZStack(alignment: .topLeading) {
             VStack(alignment: .leading, spacing: 6) {
                 // Scooter name and last ping
-                Text(entry.lastPingText ?? "unustasis")
+                Text(entry.lastPingText ?? "librescoot")
                     .font(.system(size: 12, weight: .regular))
                     .multilineTextAlignment(.leading)
                     .foregroundColor(Color.secondary)

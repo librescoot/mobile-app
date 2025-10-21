@@ -25,7 +25,7 @@ jobs:
           **Status:** ${{ github.event.pull_request.state }}
           **Merged:** ${{ github.event.pull_request.merged }}
           **Link:** ${{ github.event.pull_request.html_url }}
-        username: Unustasis Bot
+        username: LibreScoot Bot
 
   Notify-Discord-Tag:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -43,4 +43,4 @@ jobs:
           **Repository:** ${{ github.repository }}
           **Pushed by:** ${{ github.actor }}
           **Link:** https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
-        username: Unustasis Bot
+        username: LibreScoot Bot

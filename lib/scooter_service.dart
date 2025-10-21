@@ -575,7 +575,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
       // Save scooter ID directly for iOS widget native Bluetooth access
       if (Platform.isIOS) {
-        await HomeWidget.setAppGroupId('group.de.freal.unustasis');
+        await HomeWidget.setAppGroupId('group.com.librescoot.app');
         passToWidget(
           scooterId: myScooter!.remoteId.toString(),
         );

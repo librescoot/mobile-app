@@ -176,7 +176,7 @@ class _SupportScreenState extends State<SupportScreen> {
               onTap: () {
                 showLicensePage(
                   context: context,
-                  applicationName: packageInfo.hasData ? packageInfo.data!.appName : "unustasis",
+                  applicationName: packageInfo.hasData ? packageInfo.data!.appName : "librescoot",
                   applicationVersion: packageInfo.hasData ? packageInfo.data!.version : "?.?.?",
                 );
               },
@@ -305,7 +305,7 @@ class GarageWidget extends StatelessWidget {
   const GarageWidget({super.key});
 
   Future<List<Garage>> getGarages() async {
-    final response = await http.get(Uri.parse('https://reunu.github.io/unustasis-data/garages.json'));
+    final response = await http.get(Uri.parse('https://librescoot.github.io/mobile-app-data/garages.json'));
     if (response.statusCode == 200) {
       List<dynamic> garages = jsonDecode(utf8.decode(response.bodyBytes));
       return garages.map((garage) => Garage.fromJson(garage)).toList();

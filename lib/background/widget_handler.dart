@@ -57,12 +57,12 @@ Future<void> seedCachesFromWidget() async {
 }
 
 void setupWidget() {
-  HomeWidget.setAppGroupId('group.de.freal.unustasis');
+  HomeWidget.setAppGroupId('group.com.librescoot.app');
   HomeWidget.registerInteractivityCallback(backgroundCallback);
   setupWidgetTasks();
 }
 
-String widgetTaskID = "de.freal.unustasis.widget_refresh";
+String widgetTaskID = "com.librescoot.app.widget_refresh";
 
 Future<void> setupWidgetTasks() async {
   Workmanager().initialize(workmanagerCallback);
@@ -79,7 +79,7 @@ Future<void> setupWidgetTasks() async {
 Future<void> updateWidgetPing() async {
   setWidgetScanning(false);
   setWidgetUnlocking(false);
-  HomeWidget.setAppGroupId('group.de.freal.unustasis');
+  HomeWidget.setAppGroupId('group.com.librescoot.app');
   if (_lastPing != null) {
     // just use the cached ping
     _lastPingDifference = _lastPing?.calculateTimeDifferenceInShort();
@@ -102,7 +102,7 @@ Future<void> updateWidgetPing() async {
     _iOSlastPingText,
   );
   await HomeWidget.updateWidget(
-    qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
+    qualifiedAndroidName: 'com.librescoot.app.HomeWidgetReceiver',
     iOSName: "ScooterWidget",
   );
   return;
@@ -132,7 +132,7 @@ void passToWidget({
 
   // Set app group ID first on iOS (required before any saveWidgetData calls)
   if (Platform.isIOS) {
-    await HomeWidget.setAppGroupId('group.de.freal.unustasis');
+    await HomeWidget.setAppGroupId('group.com.librescoot.app');
   }
 
   bool updateiOS = primarySOC != _primarySOC ||
@@ -201,10 +201,10 @@ void passToWidget({
   if (Platform.isAndroid && updateAndroid) {
     // once everything is set, rebuild the widget
     await HomeWidget.updateWidget(
-      qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
+      qualifiedAndroidName: 'com.librescoot.app.HomeWidgetReceiver',
     );
   } else if (Platform.isIOS && updateiOS) {
-    await HomeWidget.setAppGroupId('group.de.freal.unustasis');
+    await HomeWidget.setAppGroupId('group.com.librescoot.app');
     await HomeWidget.updateWidget(
       iOSName: "ScooterWidget",
     );
@@ -224,7 +224,7 @@ String? getStateNameForWidget(ScooterState? state) {
 Future<void> setWidgetUnlocking(bool unlocking) async {
   await HomeWidget.saveWidgetData<bool>("scanning", unlocking);
   await HomeWidget.updateWidget(
-    qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
+    qualifiedAndroidName: 'com.librescoot.app.HomeWidgetReceiver',
     iOSName: "ScooterWidget",
   );
 }
@@ -243,7 +243,7 @@ Future<void> setWidgetScanning(bool scanning) async {
   // will write the correct state. This avoids a brief flash of
   // "Disconnected" between the scan ending and the real state arriving.
   await HomeWidget.updateWidget(
-    qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
+    qualifiedAndroidName: 'com.librescoot.app.HomeWidgetReceiver',
     iOSName: "ScooterWidget",
   );
 }
@@ -253,7 +253,7 @@ FutureOr<void> backgroundCallback(Uri? data) async {
   WidgetsFlutterBinding.ensureInitialized();
   DartPluginRegistrant.ensureInitialized();
   await BackgroundI18n.instance.init();
-  await HomeWidget.setAppGroupId('group.de.freal.unustasis');
+  await HomeWidget.setAppGroupId('group.com.librescoot.app');
 
   // Determine the action to perform
   String? action;
@@ -307,7 +307,7 @@ FutureOr<void> backgroundCallback(Uri? data) async {
     print("Error starting background service: $e");
   }
   await HomeWidget.updateWidget(
-    qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
+    qualifiedAndroidName: 'com.librescoot.app.HomeWidgetReceiver',
     iOSName: "ScooterWidget",
   );
 }
