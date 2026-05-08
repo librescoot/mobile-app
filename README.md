@@ -1,32 +1,71 @@
-<img src='images/readme_logo.png' width='360'>
+<p align="center">
+  <img src="images/librescoot_logo.png" width="200" alt="Librescoot logo">
+</p>
 
-```
-Anastasis, noun - a recovery from a debilitating condition. Rebirth, resurrection.
-```
-  
-This is an open-source, BLE-only app for the Unu Scooter Pro, created as an alternative by the community after unu motors filed for bankruptcy.
-This app does not use any offical code by unu, but has since been endorsed and supported by emco electroroller as new owners of the unu brand.
+<h1 align="center">Librescoot mobile app</h1>
 
-## Getting Started
+<p align="center">
+  This is the <a href="https://github.com/reunu/unustasis">unustasis</a> app with Librescoot adaptations.<br>
+  Open-source, BLE-only companion app for the unu Scooter Pro.
+</p>
 
-### Using this app
+<p align="center">
+  <a href="https://librescoot.org">librescoot.org</a> ·
+  <a href="https://discord.gg/BmY2P2T9j3">Discord</a> ·
+  <a href="../../releases/latest">Latest release</a>
+</p>
 
-If you just want to use this app, go into the "Releases" section on this page and download the latest APK file. The app is also available as proe-release through Google Play and Apple TestFlight, but that will change shortly.
+---
 
-### Building this app yourself
+## Install
 
-This app is made in Flutter for cross-platform functionality, UI performance, and rapid development. To build it on your system, [follow this getting-started guide](https://docs.flutter.dev/get-started/install) to install the Flutter SDK and required Android or iOS SDKs.
+- **Android APK** — grab the latest build from [Releases](../../releases/latest) and side-load it.
+- **Google Play** / **iOS TestFlight** — pre-release builds may be available; ask in Discord for current status.
 
-Run the following command in the root of this project to install and start the development version on your device:
+The app needs Bluetooth, location (Android requires it for BLE scanning), and notification permissions.
 
-```
+## Build
+
+Flutter app targeting Android and iOS. Follow the [Flutter install guide](https://docs.flutter.dev/get-started/install) for the SDK and platform toolchains.
+
+Pinned: Flutter `3.38.6`, Dart SDK `>=3.5.0 <4.0.0` (see `pubspec.yaml`).
+
+```bash
+git clone https://github.com/librescoot/mobile-app.git
+cd mobile-app
+flutter pub get
 flutter run
 ```
 
-### Contributing
+Release APK:
 
-Interested in contributing? Join the [Unu Community Discord](https://discord.gg/fa63HJYaP4) or create an issue right here on GitHub!
-Pull requests are also very welcome, as my test devices are pretty limited and therefore I depend on any help I can get.
+```bash
+flutter build apk --release
+```
 
+iOS builds need Xcode and a paid Apple developer account for on-device runs.
 
+## Project layout
 
+```
+lib/                         # Dart source
+assets/i18n/                 # translation JSON files
+assets/faq_*.json            # in-app FAQ content
+images/                      # scooter sprites, battery icons, decoration
+android/, ios/               # platform projects
+```
+
+## Contributing
+
+- **Bugs and feature requests:** open a [GitHub issue](../../issues).
+- **Chat:** [Librescoot Discord](https://discord.gg/BmY2P2T9j3).
+- **Translations:** edit `assets/i18n/<lang>.json` and the matching `assets/faq_<lang>.json`. Run `dart run build_runner build` if you touch annotated classes.
+- Run `flutter analyze` before opening a PR.
+
+## Upstream
+
+Fork of [reunu/unustasis](https://github.com/reunu/unustasis). The upstream history is preserved in `git log`.
+
+## License
+
+See [LICENSE](LICENSE).
