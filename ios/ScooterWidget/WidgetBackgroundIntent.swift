@@ -17,7 +17,7 @@ import WidgetKit
         }
 
         public func perform() async throws -> some IntentResult {
-            let prefs = UserDefaults(suiteName: "group.de.freal.unustasis")
+            let prefs = UserDefaults(suiteName: "group.com.librescoot.app")
 
             guard let action = action else {
                 return .result()

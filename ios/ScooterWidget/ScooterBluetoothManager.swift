@@ -50,7 +50,7 @@ class ScooterBluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralD
     ///   - completion: Callback with success status and optional error message
     func executeCommand(_ command: String, completion: @escaping (Bool, String?) -> Void) {
         // Get the saved scooter ID from UserDefaults
-        guard let prefs = UserDefaults(suiteName: "group.de.freal.unustasis") else {
+        guard let prefs = UserDefaults(suiteName: "group.com.librescoot.app") else {
             completion(false, "Cannot access app group")
             return
         }
@@ -161,7 +161,7 @@ class ScooterBluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralD
     }
 
     private func updateWidgetState(locked: Bool?) {
-        guard let prefs = UserDefaults(suiteName: "group.de.freal.unustasis") else { return }
+        guard let prefs = UserDefaults(suiteName: "group.com.librescoot.app") else { return }
 
         if let locked = locked {
             prefs.set(locked, forKey: "locked")

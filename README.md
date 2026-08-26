@@ -1,11 +1,28 @@
-<img src='images/readme_logo.png' width='360'>
+# Librescoot App for unu
 
+The Librescoot-branded build of the community app for the unu Scooter Pro.
+
+This is a rebrand of [reunu/unustasis](https://github.com/reunu/unustasis) ("stasis for unu"),
+tracking it closely. All app development happens upstream; this repository carries
+only the Librescoot branding on top, plus the release pipeline that publishes to
+Google Play and TestFlight.
+
+Ships as `com.librescoot.app`, so it installs alongside the upstream build rather
+than replacing it.
+
+## Keeping in sync
+
+The branding lives in a single commit on top of upstream `main`. To take new
+upstream work:
+
+```bash
+git fetch upstream                      # git@github.com:reunu/unustasis.git
+git rebase --onto upstream/main <previous-upstream-main> main
 ```
-Anastasis, noun - a recovery from a debilitating condition. Rebirth, resurrection.
-```
-  
-This is an open-source, BLE-only app for the Unu Scooter Pro, created as an alternative by the community after unu motors filed for bankruptcy.
-This app does not use any offical code by unu, but has since been endorsed and supported by emco electroroller as new owners of the unu brand.
+
+Resolve conflicts in favour of upstream for anything that is not a brand string
+or an identifier. Never merge upstream into this branch: the history is meant to
+stay a thin, rebasable layer.
 
 ## Getting Started
 

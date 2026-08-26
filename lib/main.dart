@@ -32,7 +32,7 @@ void main() async {
     ),
   );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  await HomeWidget.setAppGroupId("group.de.freal.unustasis");
+  await HomeWidget.setAppGroupId("group.com.librescoot.app");
 
   Locale? savedLocale;
 
@@ -153,7 +153,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navigatorKey,
-      title: 'stasis for unu',
+      title: 'Librescoot App for unu',
       theme: ThemeData(
         appBarTheme: const AppBarTheme(
           centerTitle: true,
