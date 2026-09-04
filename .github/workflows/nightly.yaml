@@ -74,20 +74,12 @@ jobs:
         id: facts
         run: |
           echo "date=$(date -u +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+          echo "tag=nightly-$(date -u +'%Y%m%d-%H%M%S')" >> "$GITHUB_OUTPUT"
           echo "version=$(grep '^version:' pubspec.yaml | sed 's/version: //')" >> "$GITHUB_OUTPUT"
-
-      # The nightly tag is deliberately reused, so the old release has to go
-      # first or the tag push below is rejected.
-      - name: Drop the previous nightly
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release delete nightly --yes || true
-          git push origin :refs/tags/nightly || true
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: nightly
+          tag_name: ${{ steps.facts.outputs.tag }}
           name: Nightly ${{ steps.facts.outputs.date }}
           body: |
             Automated build from `main`. Unsigned for release channels and not
@@ -97,3 +89,16 @@ jobs:
             **Commit:** ${{ github.sha }}
           files: app-release.apk
           prerelease: true
+
+      # Each nightly gets its own tag, so without this they accumulate forever.
+      - name: Prune old nightlies
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --limit 200 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("nightly-"))]
+                  | sort_by(.createdAt) | reverse | .[10:] | .[].tagName' \
+          | while read -r tag; do
+              echo "Removing $tag"
+              gh release delete "$tag" --yes --cleanup-tag
+            done
