@@ -32,8 +32,16 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       prerelease: ${{ steps.v.outputs.prerelease }}
       play_track: ${{ steps.v.outputs.play_track }}
+      has_ios: ${{ steps.ios.outputs.has_ios }}
     steps:
       - uses: actions/checkout@v4
+
+      # Job-level `if` cannot see the secrets context, so the presence check
+      # has to happen in a step and travel to the iOS job as an output.
+      - id: ios
+        env:
+          HAS_IOS: ${{ secrets.APPSTORE_KEY_ID != '' && secrets.IOS_DIST_CERT_P12 != '' && secrets.APPLE_TEAM_ID != '' }}
+        run: echo "has_ios=$HAS_IOS" >> "$GITHUB_OUTPUT"
       - id: v
         run: |
           VERSION="${GITHUB_REF_NAME}"
@@ -137,6 +145,7 @@ jobs:
     name: iOS
     runs-on: macos-latest
     needs: meta
+    if: needs.meta.outputs.has_ios == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -174,6 +183,14 @@ jobs:
 
       # Generated here rather than committed: the team ID is account data, and
       # Xcode's $(VAR) syntax does not expand inside an export options plist.
+      - name: Fetch share extension profile
+        uses: apple-actions/download-provisioning-profiles@v3
+        with:
+          bundle-id: com.librescoot.app.Share-Extension
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+
       - name: Write export options
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}

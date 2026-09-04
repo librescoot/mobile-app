@@ -1,8 +1,9 @@
 # Releasing
 
-Two workflows. `nightly.yaml` builds an APK from every push to `main` and
-replaces the rolling `nightly` prerelease. `release.yaml` fires on a version tag
-and is the one that reaches the stores.
+Three workflows. `ci.yaml` analyzes and tests every push and PR. `nightly.yaml`
+builds an APK from every push to `main` and publishes it as its own
+`nightly-<timestamp>` prerelease, keeping the last 10. `release.yaml` fires on a
+version tag and is the one that reaches the stores.
 
 ## Cutting a release
 
@@ -57,15 +58,77 @@ already: Play rejects the first upload of a package from the API.
 | `IOS_DIST_CERT_PASSWORD` | Password used when exporting that `.p12` |
 | `APPLE_TEAM_ID` | Ten-character team ID |
 
+The iOS job is skipped when `APPSTORE_KEY_ID`, `IOS_DIST_CERT_P12` or
+`APPLE_TEAM_ID` is missing, so Android can release before Apple's side is set
+up.
+
 Provisioning profiles are fetched from App Store Connect at build time rather
-than stored, so they cannot drift out of step with the certificate. Both
-`com.librescoot.app` and `com.librescoot.app.ScooterWidget` need App Store
-provisioning profiles that include the `group.com.librescoot.app` app group.
+than stored, so they cannot drift out of step with the certificate. All three
+embedded bundle IDs need an App Store provisioning profile:
+`com.librescoot.app`, `com.librescoot.app.ScooterWidget`, and
+`com.librescoot.app.Share-Extension`. The first two need the
+`group.com.librescoot.app` app group.
+
+## Where each secret comes from
+
+### Upload keystore
+
+Generate once, then guard it. Play will not accept a bundle signed with a
+different key later without a support request.
+
+```bash
+keytool -genkey -v -keystore upload-keystore.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+base64 -i upload-keystore.jks | pbcopy   # -> KEYSTORE
+```
+
+### Play service account
+
+1. Play Console -> Setup -> API access, link a Google Cloud project.
+2. In that project: IAM & Admin -> Service Accounts -> Create, then
+   Keys -> Add key -> JSON. The whole downloaded file is
+   `PLAY_SERVICE_ACCOUNT_JSON`.
+3. Back in Play Console -> Users and permissions, invite the service account's
+   email and give it Release manager, or app-level release permissions on
+   `com.librescoot.app`.
+4. Upload one bundle by hand first. Play rejects the API's first upload of a
+   package it has never seen.
+
+### App Store Connect API key
+
+App Store Connect -> Users and Access -> Integrations -> App Store Connect API
+-> Team Keys, generate a key with the App Manager role.
+
+- `APPSTORE_ISSUER_ID`: the issuer UUID shown above the key list
+- `APPSTORE_KEY_ID`: the key's ID in its row
+- `APPSTORE_PRIVATE_KEY`: contents of the `.p8`, BEGIN/END lines included.
+  It downloads exactly once, so save it somewhere before closing the tab.
+
+### Distribution certificate
+
+Xcode -> Settings -> Accounts -> your team -> Manage Certificates -> + ->
+Apple Distribution. Then in Keychain Access, under My Certificates, right-click
+"Apple Distribution: ..." -> Export as `.p12` and set a password.
+
+```bash
+base64 -i dist.p12 | pbcopy   # -> IOS_DIST_CERT_P12
+```
+
+The export password is `IOS_DIST_CERT_PASSWORD`.
+
+### Team ID
+
+developer.apple.com -> Membership details -> Team ID, ten characters.
+
+### Discord webhook
+
+Discord server settings -> Integrations -> Webhooks -> New Webhook -> Copy
+Webhook URL. Only used by `discord.yaml` for PR and tag notifications.
 
 ## Known gaps
 
 The iOS job is allowed to fail without blocking the Android release. Two
-reasons it currently might:
+reasons it might once the credentials are in place:
 
 - The UIScene migration (reunu/unustasis#157) is not merged upstream. Apple
   requires UIKit apps built against the post-iOS 26 SDK to adopt the scene
