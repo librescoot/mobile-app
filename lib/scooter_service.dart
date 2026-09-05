@@ -878,7 +878,6 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     required String scooterId,
   }) {
     var chars = characteristicRepository;
-    final wiredScooter = myScooter;
     bool isCurrentConnection() =>
         connectionAttemptGeneration == _connectionAttemptGeneration && myScooter?.remoteId.toString() == scooterId;
 
@@ -921,7 +920,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     identity.wireOdometer(
       chars,
       onUpdate: notifyListeners,
-      isCurrent: () => identical(myScooter, wiredScooter),
+      isCurrent: isCurrentConnection,
     );
 
     identity.wireNrfVersion(
