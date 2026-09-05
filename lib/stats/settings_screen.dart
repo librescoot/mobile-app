@@ -658,7 +658,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onChanged: _isSendingBatteryKeepActive ? null : _setBatteryKeepActive,
                   ),
           ),
-        ...alarmItems(),
         ListTile(
           leading: const Icon(Icons.vpn_key_outlined),
           title: _lsTitle(FlutterI18n.translate(context, "ls_keycard_title")),
@@ -746,6 +745,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool isLibrescoot,
     required bool supportsScheduledHibernation,
     required bool supportsBatteryKeepActive,
+    required bool supportsAlarmControl,
     required bool supportsApnConfig,
     required UsbMode? usbMode,
     required bool connected,
@@ -903,6 +903,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.history_outlined),
             trailing: const Icon(Icons.chevron_right),
           ),
+        if (isLibrescoot && supportsAlarmControl) ...[
+          Header(FlutterI18n.translate(context, "ls_settings_section_alarm")),
+          ...alarmItems(),
+        ],
         if (isLibrescoot) ...[
           Header(FlutterI18n.translate(context, "ls_settings_section_maintenance")),
           ..._librescootMaintenanceSettingsItems(
@@ -1155,6 +1159,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           bool isLibrescoot,
           bool supportsScheduled,
           bool supportsBatteryKeepActive,
+          bool supportsAlarmControl,
           bool supportsApn,
           UsbMode? usbMode,
           bool connected,
@@ -1164,6 +1169,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         isLibrescoot: service.identity.isLibrescoot == true,
         supportsScheduled: service.identity.supportsScheduledHibernation == true,
         supportsBatteryKeepActive: service.identity.supportsBatteryKeepActive == true,
+        supportsAlarmControl: service.identity.supportsAlarmControl == true,
         supportsApn: service.identity.supportsApnConfig == true,
         usbMode: service.vehicle.usbMode,
         connected: service.connected,
@@ -1175,6 +1181,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       isLibrescoot: ls.isLibrescoot,
       supportsScheduledHibernation: ls.supportsScheduled,
       supportsBatteryKeepActive: ls.supportsBatteryKeepActive,
+      supportsAlarmControl: ls.supportsAlarmControl,
       supportsApnConfig: ls.supportsApn,
       usbMode: ls.usbMode,
       connected: ls.connected,
