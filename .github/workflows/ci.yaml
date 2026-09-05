@@ -32,3 +32,20 @@ jobs:
       - run: flutter analyze
 
       - run: flutter test
+
+      # analyze and test never parse assets, so a merge that leaves the locale
+      # files malformed ships an app that renders raw i18n keys.
+      - name: Validate JSON assets
+        run: |
+          python3 - <<'EOF'
+          import json, glob, sys
+          bad = []
+          for path in sorted(glob.glob('assets/**/*.json', recursive=True)):
+              try:
+                  json.load(open(path, encoding='utf-8'))
+              except Exception as e:
+                  bad.append(f"{path}: {e}")
+          for line in bad:
+              print(line)
+          sys.exit(1 if bad else 0)
+          EOF
