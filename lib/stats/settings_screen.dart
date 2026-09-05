@@ -680,14 +680,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (connected && otaAvailable)
           ListTile(
             leading: const Icon(Icons.system_update_alt_outlined),
-            title: _lsTitle(FlutterI18n.translate(context, "ls_settings_ota_title")),
+            title: Text(FlutterI18n.translate(context, "ls_settings_ota_title")),
             subtitle: Text(FlutterI18n.translate(context, "ls_settings_ota_subtitle")),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LsOtaScreen())),
           ),
         ListTile(
           leading: const Icon(Icons.usb_outlined),
-          title: _lsTitle(FlutterI18n.translate(context, "ls_settings_update_mode_title")),
+          title: Text(FlutterI18n.translate(context, "ls_settings_update_mode_title")),
           subtitle: Text(usbMode == UsbMode.massStorage
               ? FlutterI18n.translate(context, "ls_settings_update_mode_on_subtitle")
               : FlutterI18n.translate(context, "ls_settings_update_mode_off_subtitle")),
@@ -732,7 +732,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (supportsApnConfig)
           ListTile(
             leading: const Icon(Icons.cell_tower_outlined),
-            title: _lsTitle(FlutterI18n.translate(context, "ls_settings_apn_title")),
+            title: Text(FlutterI18n.translate(context, "ls_settings_apn_title")),
             subtitle: Text(_apnSubtitle(context)),
             trailing: _isSendingApn
                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
@@ -911,7 +911,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ...alarmItems(),
         ],
         if (isLibrescoot) ...[
-          Header(FlutterI18n.translate(context, "ls_settings_section_maintenance")),
+          Header(
+            FlutterI18n.translate(context, "ls_settings_section_maintenance"),
+            icon: Icons.local_fire_department_outlined,
+          ),
           ..._librescootMaintenanceSettingsItems(
             supportsApnConfig: supportsApnConfig,
             usbMode: usbMode,
