@@ -204,6 +204,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
               icon: const Icon(Icons.help_outline))
         ],
         backgroundColor: Colors.transparent,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
       extendBodyBehindAppBar: true,
       body: AnimatedContainer(
@@ -358,16 +359,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
           androidCheckLocationServices: needsLocation,
         )
         .listen(
-          (List<ScooterCandidate> candidates) {
-            if (mounted) setState(() => _candidates = candidates);
-          },
-          onError: (Object e, StackTrace stack) {
-            log.severe("Error finding scooters!", e, stack);
-            _stopSearching();
-          },
-          onDone: _stopSearching,
-          cancelOnError: true,
-        );
+      (List<ScooterCandidate> candidates) {
+        if (mounted) setState(() => _candidates = candidates);
+      },
+      onError: (Object e, StackTrace stack) {
+        log.severe("Error finding scooters!", e, stack);
+        _stopSearching();
+      },
+      onDone: _stopSearching,
+      cancelOnError: true,
+    );
   }
 
   void _stopSearching() {

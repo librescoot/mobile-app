@@ -121,10 +121,8 @@ class _ScooterScreenState extends State<ScooterScreen> {
     final bool single = scooters.length == 1;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: Text(FlutterI18n.translate(context, 'stats_title_scooter')),
-        backgroundColor: Theme.of(context).colorScheme.surface,
         actions: [
           Consumer<ScooterService>(
             builder: (context, scooterService, child) {

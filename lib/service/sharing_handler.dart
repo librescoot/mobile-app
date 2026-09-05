@@ -194,7 +194,7 @@ class SharingHandler with WidgetsBindingObserver {
             onPressed: () {
               Navigator.of(ctx).pop();
               launchUrl(
-                Uri.parse("https://github.com/reunu/unustasis/wiki/Librescoot"),
+                Uri.parse("https://librescoot.org/handbook/getting-started.html"),
                 mode: LaunchMode.externalApplication,
               );
             },

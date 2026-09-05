@@ -516,6 +516,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       appBar: AppBar(
         title: Text(FlutterI18n.translate(context, "nav_title")),
         forceMaterialTransparency: true,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         scrolledUnderElevation: 0,
       ),
       floatingActionButton: _osmConsent &&
@@ -636,7 +637,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         icon = Icons.star_border_rounded;
     }
     return Material(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       color: Theme.of(context).colorScheme.surfaceContainer,
       clipBehavior: Clip.antiAlias,
       elevation: 1,
@@ -1045,7 +1046,7 @@ class _PhotonAutocompleteState extends State<_PhotonAutocomplete> {
                   },
                 )
               : null,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
       ),

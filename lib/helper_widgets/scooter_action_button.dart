@@ -22,49 +22,61 @@ class ScooterActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color mainColor = _iconColor ??
-        (_onPressed == null
-            ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2)
-            : Theme.of(context).colorScheme.onSurface);
-    return Column(
-      children: [
-        Stack(
-          children: [
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                shape: CircleBorder(),
-                padding: const EdgeInsets.all(20),
-                side: BorderSide(
-                  color: mainColor,
+    final colors = Theme.of(context).colorScheme;
+    final enabled = _onPressed != null;
+    final mainColor = _iconColor ?? (enabled ? colors.primary : colors.onSurface.withValues(alpha: 0.28));
+
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: _label,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              SizedBox(
+                width: 68,
+                height: 56,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    foregroundColor: mainColor,
+                    backgroundColor: enabled ? colors.surface.withValues(alpha: 0.92) : Colors.transparent,
+                    side: BorderSide(color: mainColor),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  onPressed: _onPressed,
+                  child: Icon(_icon, color: mainColor, size: 26),
                 ),
               ),
-              onPressed: _onPressed,
-              child: Icon(
-                _icon,
-                color: mainColor,
-              ),
-            ),
-            if (_showBubble)
-              Positioned(
-                right: 2,
-                top: 2,
-                child: Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary,
-                    shape: BoxShape.circle,
+              if (_showBubble)
+                Positioned(
+                  right: -4,
+                  top: -4,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: colors.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colors.surface, width: 2),
+                    ),
                   ),
                 ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text(
-          _label,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(color: mainColor),
-        ),
-      ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(color: mainColor),
+          ),
+        ],
+      ),
     );
   }
 }

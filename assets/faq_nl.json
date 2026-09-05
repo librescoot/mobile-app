@@ -1,16 +1,22 @@
 {
-    "Instellen": {
-        "Moet ik de officiële unu-app verwijderen?": "Nee, beide apps werken volledig onafhankelijk van elkaar. Je moet wel de achtergrondverbinding in de oude app uitschakelen. Op iOS moet je mogelijk ook de scooter uit je opgeslagen apparaten in de systeeminstellingen verwijderen om hem opnieuw via deze app te kunnen koppelen.",
-        "Kunnen meerdere apparaten dezelfde scooter bedienen?": "Ja! Je kunt de scooter met maximaal zes apparaten tegelijk koppelen. Dit betekent dat bij gedeelde scooters iedereen zijn eigen telefoon kan koppelen om te ontgrendelen. Er kan echter maar één app tegelijk de scooter bedienen. Zolang jij deze app open hebt, heeft geen andere app (en geen ander apparaat) toegang tot de scooter.",
-        "Mijn scooter maakt geen verbinding": "Als je de scooter voor het eerst wilt koppelen met Librescoot App for unu, moet je naast de ingeschakelde scooter staan. Als je een koppelingsverzoek ontvangt maar de scooter nog geen code toont, kun je het verzoek in de meeste gevallen gewoon wegklikken en doorgaan met het koppelingsproces. Zorg er wel voor dat er geen andere ingeschakelde unu-scooter in de buurt is.\n\nJe kunt alleen verbinding maken met een scooter die niet al verbonden is met een andere telefoon. Als je scooter linksboven in het scherm een Bluetooth-symbool toont, is hij momenteel verbonden met een ander apparaat en niet klaar voor andere verbindingen of koppelingen.\n\nAls je scooter plotseling geen verbinding meer maakt, controleer dan of hij nog met de sleutelkaart te openen is. Zo niet, dan kan er een defect zijn aan de scooter."
+    "Aan de slag": {
+        "Heb ik Librescoot nodig om de app te gebruiken?": "Nee. De app kan een unu Scooter Pro met de originele software bedienen. Een scooter met Librescoot biedt extra functies zoals navigatie, keycards, energie-instellingen, alarm en Bluetooth-updates.",
+        "Kan de officiële app geïnstalleerd blijven?": "Ja. De apps werken onafhankelijk, maar er kan maar één app tegelijk met de scooter verbonden zijn. Schakel de achtergrondverbinding in de oude app uit. Verwijder op iOS de bestaande koppeling in de systeeminstellingen als koppelen met deze app mislukt.",
+        "Kunnen meerdere telefoons één scooter gebruiken?": "Ja. Er kunnen maximaal zes apparaten aan de scooter worden gekoppeld, maar slechts één apparaat kan hem tegelijk bedienen. Iedere gebruiker moet een keycard bij de hand houden voor het geval de koppeling moet worden hersteld."
     },
-    "Veelgestelde vragen": {
-        "Kan deze app de klok op mijn display repareren?": "Helaas niet. De scooter kan de tijd alleen ophalen uit de unu-cloud, die is afgesloten. Als je een werkende klok op je scooter wilt, kijk dan eens naar het project 'librescoot'.",
-        "Waarom toont deze app geen rijstatistieken?": "De scooter geeft geen rijstatistieken door via Bluetooth. Hoewel de scooter sommige gegevens via Bluetooth doorgeeft, zijn zaken als de kilometerstand, snelheid en vermogen daar niet bij.",
-        "Mijn scooter heeft problemen sinds ik deze app heb geïnstalleerd": "Librescoot App for unu communiceert alleen via Bluetooth met de scooter. De app wijzigt geen instellingen op de scooter en heeft geen invloed op het gedrag ervan. Als je problemen hebt met je scooter, houdt dat waarschijnlijk geen verband met de app. Bij twijfel kun je de app altijd verwijderen om te kijken of de problemen aanhouden."
+    "Verbinding en koppeling": {
+        "Waarom vindt de app mijn scooter niet?": "Ga naast de ingeschakelde scooter staan en controleer of Bluetooth aanstaat en er geen andere telefoon verbonden is. Een Bluetooth-symbool op het dashboard betekent meestal dat een ander apparaat de verbinding al gebruikt.",
+        "Waarom verschijnt een koppelingsverzoek vóór de code?": "Sommige telefoons tonen te vroeg een koppelingsverzoek, voordat de scooter de code laat zien. Sluit dit verzoek en ga verder in de app. Accepteer het verzoek dat verschijnt wanneer de code op de scooter zichtbaar is.",
+        "Wat kan ik doen als opnieuw verbinden blijft mislukken?": "Sluit andere scooterapps, schakel Bluetooth uit en weer in en probeer het opnieuw in de buurt van de scooter. Controleer of de scooter nog met een keycard ontgrendelt. Zo niet, dan ligt het probleem mogelijk bij de scooter."
+    },
+    "Librescoot": {
+        "Wat is Librescoot?": "Librescoot is een onafhankelijk, open-sourcebesturingssysteem voor de unu Scooter Pro. Het vervangt beëindigde cloudservices door lokale bediening, navigatie, updates en functies die door de community worden onderhouden.",
+        "Installeert deze app Librescoot?": "Nee. Volg de installatiehandleiding in het Librescoot-handboek. Nadat Librescoot is geïnstalleerd, kan de app ondersteunde instellingen beheren en compatibele firmware-updates via Bluetooth installeren.",
+        "Waar kan ik hulp krijgen?": "Begin met het handboek en de probleemoplossing. Vraag voor persoonlijke hulp in de Librescoot Discord. Gebruik GitHub-issues voor reproduceerbare softwarefouten en concrete functieverzoeken."
     },
     "Over de app": {
-        "Is deze app gemaakt door unu?": "Librescoot App for unu is oorspronkelijk gemaakt door onafhankelijke unu-rijders. Emco electroroller GmbH, als nieuwe eigenaren van het merk unu, hebben de ontwikkeling van de app tijdelijk ondersteund. Inmiddels is de app weer volledig onafhankelijk en wordt hij verder ontwikkeld door de community.",
-        "Hoe kan ik bijdragen?": "Librescoot App for unu is een open-sourceproject. Je bent dus van harte welkom om bij te dragen aan de broncode, kijk gewoon op GitHub! Als je problemen tegenkomt of suggesties hebt, kun je daar gerust een issue openen."
+        "Wie ontwikkelt deze app?": "Dit is een onafhankelijk open-sourcecommunityproject voor gebruikers van de unu Scooter Pro. Het is geen officiële app van de scooterfabrikant of merkeigenaar.",
+        "Welke gegevens verlaten mijn telefoon?": "De scooter wordt rechtstreeks via Bluetooth bediend. Optionele online functies kunnen kaarten, adresgegevens, meldingen of firmware-informatie ophalen. Appdiagnostiek wordt alleen gedeeld wanneer je zelf een rapport start.",
+        "Hoe kan ik bijdragen?": "De broncode en probleemregistratie staan op GitHub. Bijdragen aan code, vertalingen, documentatie, tests en ontwerp zijn welkom."
     }
 }

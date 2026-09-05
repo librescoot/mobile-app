@@ -63,7 +63,6 @@ class _BatteryScreenState extends State<BatteryScreen> {
         return Scaffold(
             appBar: AppBar(
               title: Text(FlutterI18n.translate(context, 'stats_title_battery')),
-              backgroundColor: Theme.of(context).colorScheme.surface,
             ),
             body: ListView(
               padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(context).viewPadding.bottom),
@@ -98,7 +97,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
                           Expanded(
                             child: LinearProgressIndicator(
                               value: secondarySoc / 100,
-                              borderRadius: BorderRadius.circular(16.0),
+                              borderRadius: BorderRadius.circular(6),
                               minHeight: 24,
                               backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
                               color: dataIsOld
@@ -112,7 +111,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
                         Expanded(
                           child: LinearProgressIndicator(
                             value: primarySoc / 100,
-                            borderRadius: BorderRadius.circular(16.0),
+                            borderRadius: BorderRadius.circular(6),
                             minHeight: 24,
                             backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
                             color: dataIsOld
@@ -329,7 +328,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
           padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(16.0),
+            borderRadius: BorderRadius.circular(6),
             border: (soc <= 15 && !old)
                 ? Border.all(
                     color: Colors.red,
@@ -504,7 +503,7 @@ class _BatteryScreenState extends State<BatteryScreen> {
           padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(16.0),
+            borderRadius: BorderRadius.circular(6),
             border: (soc <= 15 && !old)
                 ? Border.all(
                     color: Colors.red,

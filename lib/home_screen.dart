@@ -29,6 +29,7 @@ import '../stats/battery_screen.dart';
 import '../stats/scooter_screen.dart';
 import '../stats/settings_screen.dart';
 import '../stats/support_screen.dart';
+import '../theme/librescoot_theme.dart';
 import '../control_sheet.dart';
 import '../helper_widgets/snowfall.dart';
 import '../helper_widgets/clouds.dart';
@@ -61,7 +62,6 @@ class _HomeScreenState extends State<HomeScreen> {
       redirectOrStart();
     }
   }
-
 
   Future<void> _startSeasonal() async {
     SharedPreferencesAsync prefs = SharedPreferencesAsync();
@@ -124,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
         child: Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
+            color: Theme.of(context).scaffoldBackgroundColor,
           ),
           child: Stack(
             alignment: Alignment.center,
@@ -178,6 +178,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       top: 0,
                       left: 8,
                       child: IconButton(
+                        tooltip: FlutterI18n.translate(context, "stats_title_support"),
+                        style: IconButton.styleFrom(
+                          backgroundColor: LibrescootColors.charcoal,
+                          foregroundColor: LibrescootColors.accentBright,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        ),
                         icon: const Icon(Icons.help_outline),
                         onPressed: () => Navigator.push(
                           context,
@@ -191,6 +197,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       top: 0,
                       right: 8,
                       child: IconButton(
+                        tooltip: FlutterI18n.translate(context, "stats_title_settings"),
+                        style: IconButton.styleFrom(
+                          backgroundColor: LibrescootColors.charcoal,
+                          foregroundColor: LibrescootColors.accentBright,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        ),
                         icon: const Icon(Icons.settings_outlined),
                         onPressed: () => Navigator.push(
                           context,
@@ -460,7 +472,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                                   : () async {
                                                       try {
                                                         await context.read<ScooterService>().wakeUpAndUnlock();
-                                                        if (context.mounted && context.read<ScooterService>().hazardLocking) {
+                                                        if (context.mounted &&
+                                                            context.read<ScooterService>().hazardLocking) {
                                                           _flashHazards(2);
                                                         }
                                                       } catch (e, stack) {
@@ -687,7 +700,7 @@ class BatteryBars extends StatelessWidget {
           SizedBox(
             width: compact ? 40 : MediaQuery.of(context).size.width / 6,
             child: LinearProgressIndicator(
-              backgroundColor: Colors.black26,
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
               minHeight: compact ? 6 : 8,
               borderRadius: BorderRadius.circular(8),
               value: primarySOC! / 100.0,
@@ -711,7 +724,7 @@ class BatteryBars extends StatelessWidget {
           SizedBox(
             width: compact ? 40 : MediaQuery.of(context).size.width / 6,
             child: LinearProgressIndicator(
-              backgroundColor: Colors.black26,
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
               minHeight: compact ? 6 : 8,
               borderRadius: BorderRadius.circular(8),
               value: secondarySOC! / 100.0,
@@ -747,8 +760,7 @@ class StatusText extends StatelessWidget {
           bool scanning,
           ScooterState? state,
           ScooterVehicleState? vehicleState,
-          ScooterPowerState? powerState,
-          bool isLibrescoot
+          ScooterPowerState? powerState
         })>(
       selector: (context, service) => (
         state: service.state,
@@ -756,7 +768,6 @@ class StatusText extends StatelessWidget {
         connected: service.connected,
         vehicleState: service.vehicleState,
         powerState: service.powerState,
-        isLibrescoot: service.identity.isLibrescoot == true,
       ),
       builder: (context, data, _) {
         String stateText;
@@ -786,17 +797,27 @@ class StatusText extends StatelessWidget {
           stateText += FlutterI18n.translate(context, "home_unlocked");
         }
 
+        final statusColor = data.connected
+            ? Theme.of(context).colorScheme.primary
+            : data.scanning
+                ? const Color(0xFFEAB308)
+                : Theme.of(context).colorScheme.outline;
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              stateText,
-              style: Theme.of(context).textTheme.titleMedium,
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
             ),
-            if (data.isLibrescoot) ...[
-              const SizedBox(width: 6),
-              const Icon(Icons.local_fire_department_outlined, size: 18),
-            ],
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                stateText,
+                style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+            ),
           ],
         );
       },

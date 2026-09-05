@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:easy_dynamic_theme/easy_dynamic_theme.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +18,7 @@ import '../flutter/blue_plus_mockable.dart';
 import '../home_screen.dart';
 import '../scooter_service.dart';
 import '../service/sharing_handler.dart';
+import '../theme/librescoot_theme.dart';
 import '../background/widget_handler.dart';
 
 void main() async {
@@ -154,47 +154,8 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       navigatorKey: navigatorKey,
       title: 'Librescoot App for unu',
-      theme: ThemeData(
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-        ),
-        textTheme: _librescootTextTheme(Brightness.light),
-        brightness: Brightness.light,
-        useMaterial3: true,
-        colorScheme: ColorScheme.light(
-          primary: createMaterialColor(const Color(0xFF099768)),
-          onPrimary: Colors.black,
-          secondary: Colors.green,
-          onSecondary: Colors.black,
-          surface: Colors.white,
-          onTertiary: Colors.white,
-          onSurface: Colors.black,
-          surfaceContainer: Colors.grey.shade200,
-          error: Colors.red,
-          onError: Colors.black,
-        ),
-        /* dark theme settings */
-      ),
-      darkTheme: ThemeData(
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-        ),
-        textTheme: _librescootTextTheme(Brightness.dark),
-        brightness: Brightness.dark,
-        useMaterial3: true,
-        colorScheme: ColorScheme.dark(
-          primary: createMaterialColor(const Color(0xFF3DCC9D)),
-          onPrimary: Colors.white,
-          secondary: Colors.green,
-          onSecondary: Colors.white,
-          surface: const Color.fromARGB(255, 20, 20, 20),
-          onTertiary: Colors.black,
-          onSurface: Colors.white,
-          surfaceContainer: Colors.grey.shade900,
-          error: Colors.red,
-          onError: Colors.white,
-        ),
-      ),
+      theme: buildLibrescootTheme(Brightness.light),
+      darkTheme: buildLibrescootTheme(Brightness.dark),
       themeMode: EasyDynamicTheme.of(context).themeMode,
       localizationsDelegates: [_localizationsDelegate],
       home: const HomeScreen(),
@@ -207,36 +168,4 @@ class _MyAppState extends State<MyApp> {
     _sharingHandler?.dispose();
     super.dispose();
   }
-}
-
-TextTheme _librescootTextTheme(Brightness brightness) {
-  final inter = GoogleFonts.interTextTheme(ThemeData(brightness: brightness).textTheme);
-  return inter.copyWith(
-    displayLarge: GoogleFonts.abel(textStyle: inter.displayLarge),
-    displayMedium: GoogleFonts.abel(textStyle: inter.displayMedium),
-    displaySmall: GoogleFonts.abel(textStyle: inter.displaySmall),
-    titleLarge: inter.titleLarge?.copyWith(fontWeight: FontWeight.w500),
-    titleMedium: inter.titleMedium?.copyWith(fontWeight: FontWeight.w500),
-    titleSmall: inter.titleSmall?.copyWith(fontWeight: FontWeight.w500),
-  );
-}
-
-MaterialColor createMaterialColor(Color color) {
-  List strengths = <double>[.05];
-  Map<int, Color> swatch = {};
-  final int r = color.r.round(), g = color.g.round(), b = color.b.round();
-
-  for (int i = 1; i < 10; i++) {
-    strengths.add(0.1 * i);
-  }
-  for (var strength in strengths) {
-    final double ds = 0.5 - strength;
-    swatch[(strength * 1000).round()] = Color.fromRGBO(
-      r + ((ds < 0 ? r : (255 - r)) * ds).round(),
-      g + ((ds < 0 ? g : (255 - g)) * ds).round(),
-      b + ((ds < 0 ? b : (255 - b)) * ds).round(),
-      1,
-    );
-  }
-  return MaterialColor(color.toARGB32(), swatch);
 }

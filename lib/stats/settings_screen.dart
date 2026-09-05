@@ -1222,7 +1222,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(FlutterI18n.translate(context, 'stats_title_settings')),
-        backgroundColor: Theme.of(context).colorScheme.surface,
       ),
       body: SafeArea(
         child: ListView.separated(
