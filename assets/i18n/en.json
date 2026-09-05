@@ -445,7 +445,7 @@
     "ls_settings_alarm_honk_on_success": "The horn now joins the alarm.",
     "ls_settings_alarm_honk_off_success": "The alarm sounds without the horn.",
     "ls_settings_alarm_honk_error": "Failed to change the horn setting: {error}",
-    "ls_settings_alarm_watch_title": "Right now",
+    "ls_settings_alarm_watch_title": "Alarm status",
     "ls_settings_alarm_watch_loading": "Checking what the scooter is watching for...",
     "ls_settings_alarm_watch_motion_on": "Picking the scooter up or moving it would set the alarm off.",
     "ls_settings_alarm_watch_motion_off": "The scooter would not notice being moved.",

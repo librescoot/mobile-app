@@ -445,7 +445,7 @@
     "ls_settings_alarm_honk_on_success": "Le klaxon accompagne maintenant l'alarme.",
     "ls_settings_alarm_honk_off_success": "L'alarme sonne sans le klaxon.",
     "ls_settings_alarm_honk_error": "Impossible de changer le réglage du klaxon : {error}",
-    "ls_settings_alarm_watch_title": "En ce moment",
+    "ls_settings_alarm_watch_title": "État de l'alarme",
     "ls_settings_alarm_watch_loading": "Vérification de ce que le scooter surveille...",
     "ls_settings_alarm_watch_motion_on": "Soulever ou déplacer le scooter déclencherait l'alarme.",
     "ls_settings_alarm_watch_motion_off": "Le scooter ne remarquerait pas qu'on le déplace.",

@@ -445,7 +445,7 @@
     "ls_settings_alarm_honk_on_success": "Die Hupe läuft jetzt beim Alarm mit.",
     "ls_settings_alarm_honk_off_success": "Der Alarm läuft ohne Hupe.",
     "ls_settings_alarm_honk_error": "Hupen-Einstellung konnte nicht geändert werden: {error}",
-    "ls_settings_alarm_watch_title": "Gerade jetzt",
+    "ls_settings_alarm_watch_title": "Alarmstatus",
     "ls_settings_alarm_watch_loading": "Wird geprüft, worauf der Roller achtet...",
     "ls_settings_alarm_watch_motion_on": "Den Roller anzuheben oder zu bewegen würde den Alarm auslösen.",
     "ls_settings_alarm_watch_motion_off": "Der Roller würde nicht merken, dass er bewegt wird.",

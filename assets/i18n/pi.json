@@ -425,7 +425,7 @@
     "ls_settings_alarm_honk_on_success": "The foghorn joins the racket, arr!",
     "ls_settings_alarm_honk_off_success": "The foghorn holds its peace.",
     "ls_settings_alarm_honk_error": "Failed to change the foghorn settin': {error}",
-    "ls_settings_alarm_watch_title": "This very moment",
+    "ls_settings_alarm_watch_title": "State o' the alarum",
     "ls_settings_alarm_watch_loading": "Askin' the lookout what she be watchin' for...",
     "ls_settings_alarm_watch_motion_on": "Haul yer ship off her mooring now and she'd raise the whole harbor.",
     "ls_settings_alarm_watch_motion_off": "Ye could carry her off and she'd sleep right through it.",

@@ -308,7 +308,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return [
       ListTile(
         leading: Icon(Icons.notifications_active_outlined),
-        title: _lsTitle(FlutterI18n.translate(context, "ls_settings_alarm_title")),
+        title: Text(FlutterI18n.translate(context, "ls_settings_alarm_title")),
         subtitle: Text(live && status != null
             ? status.name(context)
             : FlutterI18n.translate(context, "ls_settings_alarm_subtitle")),
@@ -325,7 +325,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       ListTile(
         leading: Icon(Icons.campaign_outlined),
-        title: _lsTitle(FlutterI18n.translate(context, "ls_settings_alarm_honk_title")),
+        title: Text(FlutterI18n.translate(context, "ls_settings_alarm_honk_title")),
         subtitle: Text(FlutterI18n.translate(context, "ls_settings_alarm_honk_subtitle")),
         trailing: _alarmHonk == null
             ? const SizedBox(
@@ -341,7 +341,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (live)
         ListTile(
           leading: Icon(Icons.visibility_outlined),
-          title: _lsTitle(FlutterI18n.translate(context, "ls_settings_alarm_watch_title")),
+          title: Text(FlutterI18n.translate(context, "ls_settings_alarm_watch_title")),
           subtitle: Text(_alarmWatchSubtitle(context, service.vehicle)),
         ),
     ];
@@ -904,7 +904,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right),
           ),
         if (isLibrescoot && supportsAlarmControl) ...[
-          Header(FlutterI18n.translate(context, "ls_settings_section_alarm")),
+          Header(
+            FlutterI18n.translate(context, "ls_settings_section_alarm"),
+            icon: Icons.local_fire_department_outlined,
+          ),
           ...alarmItems(),
         ],
         if (isLibrescoot) ...[

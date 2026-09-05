@@ -445,7 +445,7 @@
     "ls_settings_alarm_honk_on_success": "De claxon doet nu mee met het alarm.",
     "ls_settings_alarm_honk_off_success": "Het alarm gaat af zonder claxon.",
     "ls_settings_alarm_honk_error": "Claxoninstelling kon niet worden gewijzigd: {error}",
-    "ls_settings_alarm_watch_title": "Op dit moment",
+    "ls_settings_alarm_watch_title": "Alarmstatus",
     "ls_settings_alarm_watch_loading": "Aan het kijken waar de scooter op let...",
     "ls_settings_alarm_watch_motion_on": "De scooter optillen of verplaatsen zou het alarm laten afgaan.",
     "ls_settings_alarm_watch_motion_off": "De scooter zou niet merken dat hij verplaatst wordt.",
