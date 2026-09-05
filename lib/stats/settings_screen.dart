@@ -7,18 +7,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../domain/alarm_status.dart';
 import '../domain/theme_helper.dart';
 import '../domain/scooter_keyless_distance.dart';
-import '../scooter_service.dart';
 import '../helper_widgets/header.dart';
+import '../scooter_service.dart';
 import '../ls_keycard_screen.dart';
 import '../ls_ota_screen.dart';
 import '../ls_scheduled_hibernation_screen.dart';
@@ -138,11 +140,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() => _batteryKeepActive = enabled);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(FlutterI18n.translate(
-              context,
-              enabled
-                  ? "ls_settings_battery_keep_active_on_success"
-                  : "ls_settings_battery_keep_active_off_success")),
+          content: Text(FlutterI18n.translate(context,
+              enabled ? "ls_settings_battery_keep_active_on_success" : "ls_settings_battery_keep_active_off_success")),
         ),
       );
     } catch (e) {
@@ -200,8 +199,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(FlutterI18n.translate(context, "ls_settings_alarm_error",
-              translationParams: {"error": e.toString()})),
+          content: Text(
+              FlutterI18n.translate(context, "ls_settings_alarm_error", translationParams: {"error": e.toString()})),
         ),
       );
       unawaited(_getAlarmSettings());
@@ -384,15 +383,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Widget _lsTitle(String title) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(child: Text(title)),
-          const SizedBox(width: 6),
-          const Icon(Icons.local_fire_department_outlined, size: 16),
-        ],
-      );
-
   String _apnSubtitle(BuildContext context) {
     if (!_apnLoaded) return FlutterI18n.translate(context, "ls_settings_apn_loading");
     if (_apn == null) return FlutterI18n.translate(context, "ls_settings_apn_unknown");
@@ -506,13 +496,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  List<Widget> _librescootScooterSettingsItems({
+  List<Widget> _librescootAccessSettingsItems() => [
+        ListTile(
+          leading: const Icon(Icons.vpn_key_outlined),
+          title: Text(FlutterI18n.translate(context, "ls_keycard_title")),
+          subtitle: Text(_keycardCount != null
+              ? FlutterI18n.translate(context, "ls_settings_keycards_count",
+                  translationParams: {"count": _keycardCount.toString()})
+              : FlutterI18n.translate(context, "ls_settings_keycards_loading")),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LsKeycardScreen())),
+        ),
+      ];
+
+  List<Widget> _librescootPowerSettingsItems({
     required bool supportsScheduledHibernation,
     required bool supportsBatteryKeepActive,
-  }) => [
+  }) =>
+      [
         ListTile(
           leading: const Icon(Icons.hourglass_bottom_rounded),
-          title: _lsTitle(FlutterI18n.translate(context, "ls_settings_auto_lock_title")),
+          title: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_title")),
           subtitle: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_subtitle")),
           trailing: SizedBox(
             width: 128,
@@ -568,7 +572,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         ListTile(
           leading: const Icon(Icons.bedtime_outlined),
-          title: _lsTitle(FlutterI18n.translate(context, "ls_settings_auto_hibernate_title")),
+          title: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_title")),
           subtitle: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_subtitle")),
           trailing: SizedBox(
             width: 128,
@@ -638,7 +642,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            title: _lsTitle(FlutterI18n.translate(context, "ls_scheduled_hibernation_title")),
+            title: Text(FlutterI18n.translate(context, "ls_scheduled_hibernation_title")),
             subtitle: Text(FlutterI18n.translate(context, "ls_settings_scheduled_hibernation_subtitle")),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(
@@ -649,7 +653,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (supportsBatteryKeepActive)
           ListTile(
             leading: const Icon(Icons.battery_charging_full_outlined),
-            title: _lsTitle(FlutterI18n.translate(context, "ls_settings_battery_keep_active_title")),
+            title: Text(FlutterI18n.translate(context, "ls_settings_battery_keep_active_title")),
             subtitle: Text(FlutterI18n.translate(context, "ls_settings_battery_keep_active_subtitle")),
             trailing: _batteryKeepActive == null
                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
@@ -658,20 +662,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onChanged: _isSendingBatteryKeepActive ? null : _setBatteryKeepActive,
                   ),
           ),
-        ListTile(
-          leading: const Icon(Icons.vpn_key_outlined),
-          title: _lsTitle(FlutterI18n.translate(context, "ls_keycard_title")),
-          subtitle: Text(_keycardCount != null
-              ? FlutterI18n.translate(context, "ls_settings_keycards_count",
-                  translationParams: {"count": _keycardCount.toString()})
-              : FlutterI18n.translate(context, "ls_settings_keycards_loading")),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LsKeycardScreen())),
-        ),
       ];
 
-  List<Widget> _librescootMaintenanceSettingsItems({
+  List<Widget> _librescootConnectivitySettingsItems({
     required bool supportsApnConfig,
+  }) =>
+      [
+        if (supportsApnConfig)
+          ListTile(
+            leading: const Icon(Icons.cell_tower_outlined),
+            title: Text(FlutterI18n.translate(context, "ls_settings_apn_title")),
+            subtitle: Text(_apnSubtitle(context)),
+            trailing: _isSendingApn
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.chevron_right),
+            onTap: _isSendingApn ? null : _editApn,
+          ),
+      ];
+
+  List<Widget> _librescootUpdateSettingsItems({
     required UsbMode? usbMode,
     required bool connected,
     required bool otaAvailable,
@@ -688,9 +697,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ListTile(
           leading: const Icon(Icons.usb_outlined),
           title: Text(FlutterI18n.translate(context, "ls_settings_update_mode_title")),
-          subtitle: Text(usbMode == UsbMode.massStorage
-              ? FlutterI18n.translate(context, "ls_settings_update_mode_on_subtitle")
-              : FlutterI18n.translate(context, "ls_settings_update_mode_off_subtitle")),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                usbMode == UsbMode.massStorage
+                    ? FlutterI18n.translate(context, "ls_settings_update_mode_on_subtitle")
+                    : FlutterI18n.translate(context, "ls_settings_update_mode_off_subtitle"),
+              ),
+              const SizedBox(height: 4),
+              TextButton(
+                style: TextButton.styleFrom(
+                  alignment: Alignment.centerLeft,
+                  minimumSize: Size.zero,
+                  padding: EdgeInsets.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: () => launchUrl(Uri.parse("https://librescoot.org/docs/ums.html")),
+                child: Text(FlutterI18n.translate(context, "ls_settings_update_mode_learn_more")),
+              ),
+            ],
+          ),
           trailing: Switch(
             value: usbMode == UsbMode.massStorage,
             onChanged: _isUpdatingUsbMode
@@ -729,16 +756,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
           ),
         ),
-        if (supportsApnConfig)
-          ListTile(
-            leading: const Icon(Icons.cell_tower_outlined),
-            title: Text(FlutterI18n.translate(context, "ls_settings_apn_title")),
-            subtitle: Text(_apnSubtitle(context)),
-            trailing: _isSendingApn
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.chevron_right),
-            onTap: _isSendingApn ? null : _editApn,
-          ),
       ];
 
   List<Widget> settingsItems({
@@ -753,14 +770,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) =>
       [
         Header(
-          FlutterI18n.translate(context, "stats_settings_section_scooter"),
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          FlutterI18n.translate(context, "settings_section_access_parking"),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
         ),
-        if (isLibrescoot)
-          ..._librescootScooterSettingsItems(
-            supportsScheduledHibernation: supportsScheduledHibernation,
-            supportsBatteryKeepActive: supportsBatteryKeepActive,
-          ),
         SwitchListTile(
           secondary: const Icon(Icons.lock_open),
           title: Text(FlutterI18n.translate(context, "settings_auto_unlock")),
@@ -851,9 +863,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         SwitchListTile(
-          secondary: const ImageIcon(
-            AssetImage("assets/icons/librescoot-seatbox-open.png"),
-            size: 24,
+          secondary: SvgPicture.asset(
+            "assets/icons/librescoot-seatbox-open.svg",
+            width: 24,
+            height: 24,
+            colorFilter: ColorFilter.mode(
+              IconTheme.of(context).color ?? Theme.of(context).colorScheme.onSurfaceVariant,
+              BlendMode.srcIn,
+            ),
           ),
           title: Text(
             FlutterI18n.translate(context, "settings_open_seat_on_unlock"),
@@ -889,40 +906,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
             });
           },
         ),
-        if (kDebugMode)
-          ListTile(
-            title: Text(FlutterI18n.translate(context, "activity_log_title")),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const LogScreen(),
-                ),
-              );
-            },
-            leading: const Icon(Icons.history_outlined),
-            trailing: const Icon(Icons.chevron_right),
+        if (isLibrescoot) ..._librescootAccessSettingsItems(),
+        if (isLibrescoot) ...[
+          Header(FlutterI18n.translate(context, "settings_section_power")),
+          ..._librescootPowerSettingsItems(
+            supportsScheduledHibernation: supportsScheduledHibernation,
+            supportsBatteryKeepActive: supportsBatteryKeepActive,
           ),
+        ],
         if (isLibrescoot && supportsAlarmControl) ...[
-          Header(
-            FlutterI18n.translate(context, "ls_settings_section_alarm"),
-            icon: Icons.local_fire_department_outlined,
-          ),
+          Header(FlutterI18n.translate(context, "ls_settings_section_alarm")),
           ...alarmItems(),
         ],
-        if (isLibrescoot) ...[
-          Header(
-            FlutterI18n.translate(context, "ls_settings_section_maintenance"),
-            icon: Icons.local_fire_department_outlined,
-          ),
-          ..._librescootMaintenanceSettingsItems(
-            supportsApnConfig: supportsApnConfig,
-            usbMode: usbMode,
-            connected: connected,
-            otaAvailable: otaAvailable,
-          ),
+        if (Platform.isAndroid || (isLibrescoot && supportsApnConfig)) ...[
+          Header(FlutterI18n.translate(context, "settings_section_connectivity")),
+          if (isLibrescoot)
+            ..._librescootConnectivitySettingsItems(
+              supportsApnConfig: supportsApnConfig,
+            ),
         ],
-        Header(FlutterI18n.translate(context, "stats_settings_section_app")),
         if (Platform.isAndroid)
           SwitchListTile(
             secondary: const Icon(Icons.find_replace_outlined),
@@ -971,6 +973,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
+        if (isLibrescoot) ...[
+          Header(FlutterI18n.translate(context, "settings_section_updates_service")),
+          ..._librescootUpdateSettingsItems(
+            usbMode: usbMode,
+            connected: connected,
+            otaAvailable: otaAvailable,
+          ),
+        ],
+        Header(FlutterI18n.translate(context, "stats_settings_section_app")),
         FutureBuilder<List<BiometricType>>(
           future: LocalAuthentication().getAvailableBiometrics(),
           builder: (context, biometricsOptionsSnap) {
@@ -1022,7 +1033,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           leading: const Icon(Icons.wb_sunny_outlined),
           title: Text(FlutterI18n.translate(context, "settings_theme")),
           subtitle: Padding(
-            padding: const EdgeInsets.only(top: 12.0),
+            padding: const EdgeInsets.only(top: 4),
             child: SegmentedButton<ThemeMode>(
               onSelectionChanged: (newTheme) {
                 context.setThemeMode(newTheme.first);
@@ -1145,7 +1156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SwitchListTile(
             secondary: const Icon(Icons.star),
             title: Text(FlutterI18n.translate(context, "settings_seasonal")),
-            subtitle: Text(FlutterI18n.translate(context, "settings_color_info")),
+            subtitle: Text(FlutterI18n.translate(context, "settings_seasonal_description")),
             value: seasonal,
             onChanged: (value) async {
               await prefs.setBool("seasonal", value);
@@ -1154,7 +1165,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               });
             },
           ),
-        Container(), // to force another divider at the end
+        if (kDebugMode)
+          ListTile(
+            title: Text(FlutterI18n.translate(context, "activity_log_title")),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LogScreen(),
+                ),
+              );
+            },
+            leading: const Icon(Icons.history_outlined),
+            trailing: const Icon(Icons.chevron_right),
+          ),
+        Container(),
       ];
 
   @override

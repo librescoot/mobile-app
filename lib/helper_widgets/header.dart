@@ -5,7 +5,7 @@ class Header extends StatelessWidget {
     this.title, {
     this.subtitle,
     this.icon,
-    this.padding = const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+    this.padding = const EdgeInsets.fromLTRB(16, 24, 16, 4),
     super.key,
   });
 
@@ -24,11 +24,14 @@ class Header extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Flexible(
-                child: Text(title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineSmall!
-                        .copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7))),
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 18,
+                        fontWeight: FontWeight.normal,
+                      ),
+                ),
               ),
               if (icon != null) ...[
                 const SizedBox(width: 8),
@@ -38,11 +41,12 @@ class Header extends StatelessWidget {
           ),
           if (subtitle != null) const SizedBox(height: 2),
           if (subtitle != null)
-            Text(subtitle!,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium!
-                    .copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7))),
+            Text(
+              subtitle!,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
         ],
       ),
     );

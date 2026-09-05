@@ -158,7 +158,7 @@ class _MyAppState extends State<MyApp> {
         appBarTheme: const AppBarTheme(
           centerTitle: true,
         ),
-        textTheme: GoogleFonts.nunitoTextTheme(ThemeData(brightness: Brightness.light).textTheme),
+        textTheme: _librescootTextTheme(Brightness.light),
         brightness: Brightness.light,
         useMaterial3: true,
         colorScheme: ColorScheme.light(
@@ -179,7 +179,7 @@ class _MyAppState extends State<MyApp> {
         appBarTheme: const AppBarTheme(
           centerTitle: true,
         ),
-        textTheme: GoogleFonts.nunitoTextTheme(ThemeData(brightness: Brightness.dark).textTheme),
+        textTheme: _librescootTextTheme(Brightness.dark),
         brightness: Brightness.dark,
         useMaterial3: true,
         colorScheme: ColorScheme.dark(
@@ -207,6 +207,18 @@ class _MyAppState extends State<MyApp> {
     _sharingHandler?.dispose();
     super.dispose();
   }
+}
+
+TextTheme _librescootTextTheme(Brightness brightness) {
+  final inter = GoogleFonts.interTextTheme(ThemeData(brightness: brightness).textTheme);
+  return inter.copyWith(
+    displayLarge: GoogleFonts.abel(textStyle: inter.displayLarge),
+    displayMedium: GoogleFonts.abel(textStyle: inter.displayMedium),
+    displaySmall: GoogleFonts.abel(textStyle: inter.displaySmall),
+    titleLarge: inter.titleLarge?.copyWith(fontWeight: FontWeight.w500),
+    titleMedium: inter.titleMedium?.copyWith(fontWeight: FontWeight.w500),
+    titleSmall: inter.titleSmall?.copyWith(fontWeight: FontWeight.w500),
+  );
 }
 
 MaterialColor createMaterialColor(Color color) {
