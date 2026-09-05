@@ -24,6 +24,7 @@ class ScooterIdentity {
   bool? supportsApnConfig;
   bool? supportsBondForget;
   bool? supportsBatteryKeepActive;
+  bool? supportsAlarmControl;
 
   void resetLsCapabilities() {
     supportsHibernateFor = null;
@@ -31,6 +32,7 @@ class ScooterIdentity {
     supportsApnConfig = null;
     supportsBondForget = null;
     supportsBatteryKeepActive = null;
+    supportsAlarmControl = null;
   }
 
   void wireOdometer(

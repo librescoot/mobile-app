@@ -14,6 +14,7 @@ import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../domain/alarm_status.dart';
 import '../domain/theme_helper.dart';
 import '../domain/scooter_keyless_distance.dart';
 import '../scooter_service.dart';
@@ -55,6 +56,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _apn;
   bool _isSendingBatteryKeepActive = false;
   bool? _batteryKeepActive;
+  bool _isSendingAlarmEnabled = false;
+  bool? _alarmEnabled;
+  bool _isSendingAlarmHonk = false;
+  bool? _alarmHonk;
   final TextEditingController _apnController = TextEditingController();
   final SharedPreferencesAsync prefs = SharedPreferencesAsync();
 
@@ -103,6 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _getTimerDurations();
       _getApn();
       _getBatteryKeepActive();
+      _getAlarmSettings();
     });
   }
 
@@ -153,6 +159,192 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } finally {
       if (mounted) setState(() => _isSendingBatteryKeepActive = false);
     }
+  }
+
+  Future<void> _getAlarmSettings() async {
+    if (!mounted) return;
+    bool? enabled;
+    bool? honk;
+    try {
+      final service = context.read<ScooterService>();
+      enabled = await service.getAlarmEnabled();
+      honk = await service.getAlarmHonk();
+    } catch (e) {
+      enabled = null;
+      honk = null;
+    }
+    if (!mounted) return;
+    setState(() {
+      _alarmEnabled = enabled;
+      _alarmHonk = honk;
+    });
+  }
+
+  Future<void> _setAlarmEnabled(bool enabled) async {
+    setState(() {
+      _isSendingAlarmEnabled = true;
+    });
+    try {
+      await context.read<ScooterService>().setAlarmEnabled(enabled);
+      if (!mounted) return;
+      setState(() {
+        _alarmEnabled = enabled;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(FlutterI18n.translate(
+              context, enabled ? "ls_settings_alarm_on_success" : "ls_settings_alarm_off_success")),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(FlutterI18n.translate(context, "ls_settings_alarm_error",
+              translationParams: {"error": e.toString()})),
+        ),
+      );
+      unawaited(_getAlarmSettings());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingAlarmEnabled = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _setAlarmHonk(bool enabled) async {
+    setState(() {
+      _isSendingAlarmHonk = true;
+    });
+    try {
+      await context.read<ScooterService>().setAlarmHonk(enabled);
+      if (!mounted) return;
+      setState(() {
+        _alarmHonk = enabled;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(FlutterI18n.translate(
+              context, enabled ? "ls_settings_alarm_honk_on_success" : "ls_settings_alarm_honk_off_success")),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(FlutterI18n.translate(context, "ls_settings_alarm_honk_error",
+              translationParams: {"error": e.toString()})),
+        ),
+      );
+      unawaited(_getAlarmSettings());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingAlarmHonk = false;
+        });
+      }
+    }
+  }
+
+  /// Answers "would the scooter notice if someone moved it right now?", plus
+  /// the wake timer and last trigger when there are any.
+  String _alarmWatchSubtitle(BuildContext context, VehicleStatus vehicle) {
+    final sources = vehicle.alarmWakeSources;
+    final parts = <String>[];
+    if (sources != null) {
+      parts.add(FlutterI18n.translate(context,
+          sources.motionWouldWake ? "ls_settings_alarm_watch_motion_on" : "ls_settings_alarm_watch_motion_off"));
+      if (sources.wakeTimerDuration != null) {
+        parts.add(FlutterI18n.translate(context, "ls_settings_alarm_watch_timer",
+            translationParams: {"duration": _formatDuration(sources.wakeTimerDuration!)}));
+      }
+    }
+    final trigger = vehicle.alarmLastTrigger;
+    if (trigger != null) {
+      final source = FlutterI18n.translate(context, "alarm_trigger_${trigger.source}");
+      if (trigger.timestamp != null) {
+        parts.add(FlutterI18n.translate(context, "ls_settings_alarm_watch_last_trigger",
+            translationParams: {"source": source, "when": _formatTimestamp(context, trigger.timestamp!)}));
+      } else {
+        parts.add(FlutterI18n.translate(context, "ls_settings_alarm_watch_last_trigger_unknown_time",
+            translationParams: {"source": source}));
+      }
+    }
+    if (parts.isEmpty) {
+      return FlutterI18n.translate(context, "ls_settings_alarm_watch_loading");
+    }
+    return parts.join(" ");
+  }
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    final parts = [
+      if (hours > 0) "${hours}h",
+      if (minutes > 0) "${minutes}m",
+    ];
+    return parts.isEmpty ? "${duration.inSeconds}s" : parts.join(" ");
+  }
+
+  String _formatTimestamp(BuildContext context, DateTime timestamp) {
+    final local = timestamp.toLocal();
+    final loc = MaterialLocalizations.of(context);
+    final time = loc.formatTimeOfDay(
+      TimeOfDay.fromDateTime(local),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
+    return "${loc.formatMediumDate(local)} $time";
+  }
+
+  List<Widget> alarmItems() {
+    if (context.watch<ScooterService>().identity.supportsAlarmControl != true) return [];
+    final service = context.watch<ScooterService>();
+    // The two switches ride the extended channel; everything else needs the
+    // alarm service, which older firmware doesn't have.
+    final bool live = service.characteristicRepository.alarmAvailable;
+    final AlarmStatus? status = service.vehicle.alarmStatus;
+    return [
+      ListTile(
+        leading: Icon(Icons.notifications_active_outlined),
+        title: _lsTitle(FlutterI18n.translate(context, "ls_settings_alarm_title")),
+        subtitle: Text(live && status != null
+            ? status.name(context)
+            : FlutterI18n.translate(context, "ls_settings_alarm_subtitle")),
+        trailing: _alarmEnabled == null
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Switch(
+                value: _alarmEnabled!,
+                onChanged: _isSendingAlarmEnabled ? null : _setAlarmEnabled,
+              ),
+      ),
+      ListTile(
+        leading: Icon(Icons.campaign_outlined),
+        title: _lsTitle(FlutterI18n.translate(context, "ls_settings_alarm_honk_title")),
+        subtitle: Text(FlutterI18n.translate(context, "ls_settings_alarm_honk_subtitle")),
+        trailing: _alarmHonk == null
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Switch(
+                value: _alarmHonk!,
+                onChanged: _isSendingAlarmHonk ? null : _setAlarmHonk,
+              ),
+      ),
+      if (live)
+        ListTile(
+          leading: Icon(Icons.visibility_outlined),
+          title: _lsTitle(FlutterI18n.translate(context, "ls_settings_alarm_watch_title")),
+          subtitle: Text(_alarmWatchSubtitle(context, service.vehicle)),
+        ),
+    ];
   }
 
   Future<void> _getTimerDurations() async {
@@ -466,6 +658,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onChanged: _isSendingBatteryKeepActive ? null : _setBatteryKeepActive,
                   ),
           ),
+        ...alarmItems(),
         ListTile(
           leading: const Icon(Icons.vpn_key_outlined),
           title: _lsTitle(FlutterI18n.translate(context, "ls_keycard_title")),
