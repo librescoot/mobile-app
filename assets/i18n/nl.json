@@ -514,7 +514,6 @@
     "nav_destination_fallback": "Bestemming",
     "nav_rename": "Hernoemen",
     "nav_status_active_title": "Navigatie actief",
-    "nav_status_active_target": "Navigeren naar {destination}",
     "nav_stop_button": "Stoppen",
     "nav_status_pending_title": "Navigatie in de wacht",
     "nav_status_active_subtitle": "Volg de aanwijzingen op het scherm van je scooter.",

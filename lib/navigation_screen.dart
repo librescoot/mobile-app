@@ -880,12 +880,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
             color: Theme.of(context).colorScheme.onPrimaryContainer,
           ),
           title: Text(
-            isNavigating && activeName != null
-                ? FlutterI18n.translate(
-                    context,
-                    "nav_status_active_target",
-                    translationParams: {"destination": activeName},
-                  )
+            isNavigating && activeName?.trim().isNotEmpty == true
+                ? activeName!
                 : isNavigating
                     ? FlutterI18n.translate(context, "nav_status_active_title")
                     : FlutterI18n.translate(context, "nav_status_pending_title"),
