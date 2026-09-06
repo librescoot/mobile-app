@@ -132,37 +132,41 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
             ),
           ),
-          SegmentedButton<_ScooterControlAction>(
-            expandedInsets: EdgeInsets.zero,
-            style: const ButtonStyle(
-              padding: WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 16)),
-            ),
-            emptySelectionAllowed: true,
-            showSelectedIcon: false,
-            selected: const <_ScooterControlAction>{},
-            segments: [
-              ButtonSegment(
-                value: _ScooterControlAction.unlock,
-                icon: Icon(Icons.lock_open_outlined, color: Theme.of(context).colorScheme.primary),
-                label: Text(FlutterI18n.translate(context, "controls_unlock")),
+          SizedBox(
+            height: 56,
+            child: SegmentedButton<_ScooterControlAction>(
+              expandedInsets: EdgeInsets.zero,
+              style: const ButtonStyle(
+                fixedSize: WidgetStatePropertyAll(Size.fromHeight(56)),
+                padding: WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 16)),
               ),
-              ButtonSegment(
-                value: _ScooterControlAction.lock,
-                icon: Icon(Icons.lock_outline_rounded, color: Theme.of(context).colorScheme.primary),
-                label: Text(FlutterI18n.translate(context, "controls_lock")),
-              ),
-            ],
-            onSelectionChanged: (selection) {
-              try {
-                if (selection.first == _ScooterControlAction.unlock) {
-                  context.read<ScooterService>().unlock();
-                } else {
-                  context.read<ScooterService>().lock();
+              emptySelectionAllowed: true,
+              showSelectedIcon: false,
+              selected: const <_ScooterControlAction>{},
+              segments: [
+                ButtonSegment(
+                  value: _ScooterControlAction.unlock,
+                  icon: Icon(Icons.lock_open_outlined, color: Theme.of(context).colorScheme.primary),
+                  label: Text(FlutterI18n.translate(context, "controls_unlock")),
+                ),
+                ButtonSegment(
+                  value: _ScooterControlAction.lock,
+                  icon: Icon(Icons.lock_outline_rounded, color: Theme.of(context).colorScheme.primary),
+                  label: Text(FlutterI18n.translate(context, "controls_lock")),
+                ),
+              ],
+              onSelectionChanged: (selection) {
+                try {
+                  if (selection.first == _ScooterControlAction.unlock) {
+                    context.read<ScooterService>().unlock();
+                  } else {
+                    context.read<ScooterService>().lock();
+                  }
+                } catch (e) {
+                  Fluttertoast.showToast(msg: e.toString());
                 }
-              } catch (e) {
-                Fluttertoast.showToast(msg: e.toString());
-              }
-            },
+              },
+            ),
           ),
           const SizedBox(height: 16),
           Selector<ScooterService, bool?>(
@@ -171,57 +175,61 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
               final probing = supportsHibernateFor == null;
               final warningColor =
                   Theme.of(context).brightness == Brightness.dark ? const Color(0xFFF59E0B) : const Color(0xFFD97706);
-              return SegmentedButton<_ScooterControlAction>(
-                expandedInsets: EdgeInsets.zero,
-                style: const ButtonStyle(
-                  padding: WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 16)),
-                ),
-                emptySelectionAllowed: true,
-                showSelectedIcon: false,
-                selected: const <_ScooterControlAction>{},
-                segments: [
-                  ButtonSegment(
-                    value: _ScooterControlAction.wake,
-                    icon: Icon(Icons.power_settings_new_rounded, color: Theme.of(context).colorScheme.primary),
-                    label: Text(FlutterI18n.translate(context, "controls_wake_up")),
+              return SizedBox(
+                height: 56,
+                child: SegmentedButton<_ScooterControlAction>(
+                  expandedInsets: EdgeInsets.zero,
+                  style: const ButtonStyle(
+                    fixedSize: WidgetStatePropertyAll(Size.fromHeight(56)),
+                    padding: WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 16)),
                   ),
-                  ButtonSegment(
-                    value: _ScooterControlAction.hibernate,
-                    enabled: !probing,
-                    icon: Icon(Icons.nightlight_outlined, color: warningColor),
-                    label: Text(FlutterI18n.translate(context, "controls_hibernate")),
-                  ),
-                ],
-                onSelectionChanged: (selection) async {
-                  if (selection.first == _ScooterControlAction.wake) {
-                    try {
-                      context.read<ScooterService>().wakeUp();
-                      Navigator.of(context).pop();
-                    } catch (e) {
-                      Fluttertoast.showToast(msg: e.toString());
+                  emptySelectionAllowed: true,
+                  showSelectedIcon: false,
+                  selected: const <_ScooterControlAction>{},
+                  segments: [
+                    ButtonSegment(
+                      value: _ScooterControlAction.wake,
+                      icon: Icon(Icons.power_settings_new_rounded, color: Theme.of(context).colorScheme.primary),
+                      label: Text(FlutterI18n.translate(context, "controls_wake_up")),
+                    ),
+                    ButtonSegment(
+                      value: _ScooterControlAction.hibernate,
+                      enabled: !probing,
+                      icon: Icon(Icons.nightlight_outlined, color: warningColor),
+                      label: Text(FlutterI18n.translate(context, "controls_hibernate")),
+                    ),
+                  ],
+                  onSelectionChanged: (selection) async {
+                    if (selection.first == _ScooterControlAction.wake) {
+                      try {
+                        context.read<ScooterService>().wakeUp();
+                        Navigator.of(context).pop();
+                      } catch (e) {
+                        Fluttertoast.showToast(msg: e.toString());
+                      }
+                      return;
                     }
-                    return;
-                  }
 
-                  final service = context.read<ScooterService>();
-                  if (supportsHibernateFor == true) {
-                    final done = await showModalBottomSheet<bool>(
-                      context: context,
-                      showDragHandle: true,
-                      isScrollControlled: true,
-                      builder: (context) => const HibernateSheet(),
-                    );
-                    if (!context.mounted) return;
-                    if (done == true || !service.connected) Navigator.of(context).pop();
-                  } else {
-                    try {
-                      service.hibernate();
-                      Navigator.of(context).pop();
-                    } catch (e) {
-                      Fluttertoast.showToast(msg: e.toString());
+                    final service = context.read<ScooterService>();
+                    if (supportsHibernateFor == true) {
+                      final done = await showModalBottomSheet<bool>(
+                        context: context,
+                        showDragHandle: true,
+                        isScrollControlled: true,
+                        builder: (context) => const HibernateSheet(),
+                      );
+                      if (!context.mounted) return;
+                      if (done == true || !service.connected) Navigator.of(context).pop();
+                    } else {
+                      try {
+                        service.hibernate();
+                        Navigator.of(context).pop();
+                      } catch (e) {
+                        Fluttertoast.showToast(msg: e.toString());
+                      }
                     }
-                  }
-                },
+                  },
+                ),
               );
             },
           ),
@@ -236,50 +244,54 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
                   Selector<ScooterService, bool>(
                     selector: (context, s) => s.state?.permitsHardReboot == true,
                     builder: (context, permitsHardReboot, _) {
-                      return SegmentedButton<_ScooterControlAction>(
-                        expandedInsets: EdgeInsets.zero,
-                        style: const ButtonStyle(
-                          padding: WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 16)),
-                        ),
-                        emptySelectionAllowed: true,
-                        showSelectedIcon: false,
-                        selected: const <_ScooterControlAction>{},
-                        segments: [
-                          ButtonSegment(
-                            value: _ScooterControlAction.reboot,
-                            icon: const Icon(Icons.restart_alt_rounded),
-                            label: Text(FlutterI18n.translate(context, "controls_reboot")),
+                      return SizedBox(
+                        height: 56,
+                        child: SegmentedButton<_ScooterControlAction>(
+                          expandedInsets: EdgeInsets.zero,
+                          style: const ButtonStyle(
+                            fixedSize: WidgetStatePropertyAll(Size.fromHeight(56)),
+                            padding: WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 16)),
                           ),
-                          if (permitsHardReboot)
+                          emptySelectionAllowed: true,
+                          showSelectedIcon: false,
+                          selected: const <_ScooterControlAction>{},
+                          segments: [
                             ButtonSegment(
-                              value: _ScooterControlAction.hardReboot,
-                              icon: Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error),
-                              label: Text(FlutterI18n.translate(context, "controls_hard_reboot")),
+                              value: _ScooterControlAction.reboot,
+                              icon: const Icon(Icons.restart_alt_rounded),
+                              label: Text(FlutterI18n.translate(context, "controls_reboot")),
                             ),
-                        ],
-                        onSelectionChanged: (selection) async {
-                          if (selection.first == _ScooterControlAction.reboot) {
+                            if (permitsHardReboot)
+                              ButtonSegment(
+                                value: _ScooterControlAction.hardReboot,
+                                icon: Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error),
+                                label: Text(FlutterI18n.translate(context, "controls_hard_reboot")),
+                              ),
+                          ],
+                          onSelectionChanged: (selection) async {
+                            if (selection.first == _ScooterControlAction.reboot) {
+                              try {
+                                await context.read<ScooterService>().reboot();
+                                if (!context.mounted) return;
+                                Navigator.of(context).pop();
+                              } catch (e) {
+                                Fluttertoast.showToast(msg: e.toString());
+                              }
+                              return;
+                            }
+
+                            final confirmed = await _confirmHardReboot(context);
+                            if (!mounted || !confirmed) return;
                             try {
-                              await context.read<ScooterService>().reboot();
+                              if (!context.mounted) return;
+                              await context.read<ScooterService>().hardReboot();
                               if (!context.mounted) return;
                               Navigator.of(context).pop();
                             } catch (e) {
                               Fluttertoast.showToast(msg: e.toString());
                             }
-                            return;
-                          }
-
-                          final confirmed = await _confirmHardReboot(context);
-                          if (!mounted || !confirmed) return;
-                          try {
-                            if (!context.mounted) return;
-                            await context.read<ScooterService>().hardReboot();
-                            if (!context.mounted) return;
-                            Navigator.of(context).pop();
-                          } catch (e) {
-                            Fluttertoast.showToast(msg: e.toString());
-                          }
-                        },
+                          },
+                        ),
                       );
                     },
                   ),

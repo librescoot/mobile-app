@@ -42,6 +42,7 @@
     "home_unlocked": " · Unlocked, arrr!",
     "home_seat_button_closed": "Open chest",
     "home_seat_button_open": "Chest open",
+    "home_hold_to_open_seat": "Hold to open the treasure hold.",
     "home_unlock_button": "Unlock her",
     "home_unlock_failed": "Couldn't wake and unlock the scooter. Try again.",
     "home_lock_button": "Lock her",

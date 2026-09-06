@@ -42,6 +42,7 @@
     "home_unlocked": " · Entriegelt",
     "home_seat_button_closed": "Sitz öffnen",
     "home_seat_button_open": "Sitz ist offen",
+    "home_hold_to_open_seat": "Zum Öffnen des Sitzfachs gedrückt halten.",
     "home_unlock_button": "Entriegeln",
     "home_unlock_failed": "Der Roller konnte nicht aufgeweckt und entriegelt werden. Bitte versuche es erneut.",
     "home_lock_button": "Verriegeln",

@@ -42,6 +42,7 @@
     "home_unlocked": " · Ontgrendeld",
     "home_seat_button_closed": "Buddy openen",
     "home_seat_button_open": "Buddy is open",
+    "home_hold_to_open_seat": "Houd ingedrukt om de buddybak te openen.",
     "home_unlock_button": "Ontgrendelen",
     "home_unlock_failed": "De scooter kon niet worden gewekt en ontgrendeld. Probeer opnieuw.",
     "home_lock_button": "Vergrendelen",

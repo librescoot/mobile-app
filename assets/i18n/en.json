@@ -42,6 +42,7 @@
     "home_unlocked": " · Unlocked",
     "home_seat_button_closed": "Open seat",
     "home_seat_button_open": "Seat is open!",
+    "home_hold_to_open_seat": "Hold to open the seatbox.",
     "home_unlock_button": "Unlock",
     "home_unlock_failed": "Couldn't wake and unlock the scooter. Try again.",
     "home_lock_button": "Lock",
