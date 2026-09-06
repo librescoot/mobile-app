@@ -69,6 +69,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   int _connectionIntentGeneration = 0;
   int _connectionAttemptGeneration = 0;
   NavDestination? _pendingNavigation;
+  NavDestination? _activeNavigation;
   bool _foundSth = false; // whether we've found a scooter yet
   bool _autoRestarting = false;
   String? _targetScooterId; // specific scooter ID to connect to during auto-restart
@@ -301,6 +302,12 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   // PENDING NAVIGATION
   NavDestination? get pendingNavigation => _pendingNavigation;
+  NavDestination? get activeNavigation => _activeNavigation;
+
+  void setActiveNavigation(NavDestination? destination) {
+    _activeNavigation = destination;
+    notifyListeners();
+  }
 
   Future<void> setPendingNavigation(NavDestination? dest) async {
     _pendingNavigation = dest;
@@ -323,6 +330,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       );
 
       log.info('Pending navigation dispatched to ${_pendingNavigation!.name}');
+      setActiveNavigation(_pendingNavigation);
       await setPendingNavigation(null);
     } catch (e) {
       log.warning('Pending navigation dispatch failed: $e');
@@ -891,6 +899,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         notifyListeners();
       },
       onNavigationChanged: () {
+        if (vehicle.navigationActive != true) _activeNavigation = null;
         ping();
         notifyListeners();
       },

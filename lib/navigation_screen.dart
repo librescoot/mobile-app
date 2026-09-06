@@ -218,6 +218,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         service.characteristicRepository,
         destination.id!,
       );
+      service.setActiveNavigation(destination);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -287,6 +288,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         service.characteristicRepository,
         dest,
       );
+      service.setActiveNavigation(dest);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -559,9 +561,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
               Expanded(child: _pullDownDismiss(_destinationList(connected))),
           ],
         ),
-        Selector<ScooterService, ({String? pendingName, bool isNavigating})>(
+        Selector<ScooterService, ({String? pendingName, String? activeName, bool isNavigating})>(
           selector: (_, s) => (
             pendingName: s.pendingNavigation?.name,
+            activeName: s.activeNavigation?.name,
             isNavigating: s.vehicle.navigationActive == true,
           ),
           builder: (context, state, _) {
@@ -573,6 +576,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
               child: _navigationStatusCard(
                 isNavigating: state.isNavigating,
                 pendingName: state.pendingName,
+                activeName: state.activeName,
               ),
             );
           },
@@ -845,17 +849,25 @@ class _NavigationScreenState extends State<NavigationScreen> {
     );
   }
 
-  Widget _navigationStatusCard({required bool isNavigating, String? pendingName}) {
+  Future<void> _cancelActiveNavigation(ScooterService service) async {
+    try {
+      await cancelNavigationCommand(
+        service.myScooter,
+        service.characteristicRepository,
+      );
+    } finally {
+      service.setActiveNavigation(null);
+    }
+  }
+
+  Widget _navigationStatusCard({required bool isNavigating, String? pendingName, String? activeName}) {
     final service = context.read<ScooterService>();
     return Dismissible(
       key: const Key("navigation_status_card"),
       direction: DismissDirection.horizontal,
       onDismissed: (_) {
         if (isNavigating) {
-          cancelNavigationCommand(
-            service.myScooter,
-            service.characteristicRepository,
-          );
+          _cancelActiveNavigation(service);
         } else {
           service.setPendingNavigation(null);
         }
@@ -868,9 +880,15 @@ class _NavigationScreenState extends State<NavigationScreen> {
             color: Theme.of(context).colorScheme.onPrimaryContainer,
           ),
           title: Text(
-            isNavigating
-                ? FlutterI18n.translate(context, "nav_status_active_title")
-                : FlutterI18n.translate(context, "nav_status_pending_title"),
+            isNavigating && activeName != null
+                ? FlutterI18n.translate(
+                    context,
+                    "nav_status_active_target",
+                    translationParams: {"destination": activeName},
+                  )
+                : isNavigating
+                    ? FlutterI18n.translate(context, "nav_status_active_title")
+                    : FlutterI18n.translate(context, "nav_status_pending_title"),
             style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer),
           ),
           subtitle: Text(
@@ -895,10 +913,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             ),
             onPressed: () {
               if (isNavigating) {
-                cancelNavigationCommand(
-                  service.myScooter,
-                  service.characteristicRepository,
-                );
+                _cancelActiveNavigation(service);
               } else {
                 service.setPendingNavigation(null);
               }
