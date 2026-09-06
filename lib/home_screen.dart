@@ -46,6 +46,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final log = Logger('HomeScreen');
   bool _hazards = false;
+  double _navigationDragDistance = 0;
 
   // Seasonal
   bool _snowing = false;
@@ -159,9 +160,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onVerticalDragEnd: (details) {
-                  if ((details.primaryVelocity ?? 0) < -150) _openNavigationSheet();
+                onVerticalDragStart: (_) => _navigationDragDistance = 0,
+                onVerticalDragUpdate: (details) {
+                  _navigationDragDistance = (_navigationDragDistance - details.delta.dy).clamp(0, double.infinity);
                 },
+                onVerticalDragEnd: (details) {
+                  final velocity = details.primaryVelocity ?? 0;
+                  if (_navigationDragDistance >= 96 || (_navigationDragDistance >= 48 && velocity < -500)) {
+                    _openNavigationSheet();
+                  }
+                  _navigationDragDistance = 0;
+                },
+                onVerticalDragCancel: () => _navigationDragDistance = 0,
                 child: SafeArea(
                   child: Stack(
                     children: [
@@ -493,9 +503,6 @@ class _HomeScreenState extends State<HomeScreen> {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _openNavigationSheet,
-            onVerticalDragEnd: (details) {
-              if ((details.primaryVelocity ?? 0) < -150) _openNavigationSheet();
-            },
             child: SizedBox(
               height: 28,
               width: double.infinity,

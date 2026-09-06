@@ -32,6 +32,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _osmConsent = true;
   bool _initialLoad = true;
   bool _showingCached = false;
+  double _dismissPullDistance = 0;
+  bool _dismissTriggered = false;
   final FocusNode _searchFocusNode = FocusNode();
 
   @override
@@ -510,6 +512,34 @@ class _NavigationScreenState extends State<NavigationScreen> {
     }
   }
 
+  bool _handleDismissPull(ScrollNotification notification) {
+    if (!widget.embedded) return false;
+
+    if (notification is ScrollStartNotification) {
+      _dismissPullDistance = 0;
+      _dismissTriggered = false;
+    } else if (notification is OverscrollNotification &&
+        notification.metrics.pixels <= notification.metrics.minScrollExtent &&
+        notification.overscroll < 0) {
+      _dismissPullDistance += -notification.overscroll;
+      if (_dismissPullDistance >= 48 && !_dismissTriggered) {
+        _dismissTriggered = true;
+        Navigator.of(context).maybePop();
+      }
+    } else if (notification is ScrollEndNotification) {
+      _dismissPullDistance = 0;
+      _dismissTriggered = false;
+    }
+    return false;
+  }
+
+  Widget _pullDownDismiss(Widget child) {
+    return NotificationListener<ScrollNotification>(
+      onNotification: _handleDismissPull,
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final connected = context.select<ScooterService, bool>((s) => s.connected);
@@ -524,9 +554,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
             else if (_destinations.isEmpty && !connected && !_showingCached)
               const Expanded(child: _DisconnectedEmpty())
             else if (_destinations.isEmpty)
-              const Expanded(child: _NoDestinationsEmpty())
+              Expanded(child: _pullDownDismiss(const _NoDestinationsEmpty()))
             else
-              Expanded(child: _destinationList(connected)),
+              Expanded(child: _pullDownDismiss(_destinationList(connected))),
           ],
         ),
         Selector<ScooterService, ({String? pendingName, bool isNavigating})>(
@@ -649,6 +679,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   Widget _destinationList(bool connected) {
     final regularDests = _destinations.where((d) => d.type == null).toList();
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
       itemCount: regularDests.length + 1,
       itemBuilder: (context, index) {
@@ -853,9 +884,15 @@ class _NavigationScreenState extends State<NavigationScreen> {
               fontStyle: FontStyle.italic,
             ),
           ),
-          trailing: IconButton(
-            icon: Icon(Icons.close, color: Theme.of(context).colorScheme.onPrimaryContainer),
-            tooltip: FlutterI18n.translate(context, "cancel"),
+          trailing: TextButton.icon(
+            style: TextButton.styleFrom(
+              foregroundColor:
+                  isNavigating ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.onPrimaryContainer,
+            ),
+            icon: Icon(isNavigating ? Icons.stop_circle_outlined : Icons.close, size: 20),
+            label: Text(
+              FlutterI18n.translate(context, isNavigating ? "nav_stop_button" : "cancel"),
+            ),
             onPressed: () {
               if (isNavigating) {
                 cancelNavigationCommand(
@@ -915,6 +952,7 @@ class _NoDestinationsEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       children: [
         const SizedBox(height: 120),
         Center(
