@@ -22,6 +22,24 @@ class ControlSheet extends StatefulWidget {
 class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMixin {
   BlinkerMode _blinkerMode = BlinkerMode.off;
   bool _disconnectedHandled = false;
+
+  Widget _controlLabel(
+    BuildContext context,
+    IconData icon,
+    String translationKey, {
+    Color? iconColor,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, color: iconColor),
+        const SizedBox(width: 8),
+        Text(FlutterI18n.translate(context, translationKey)),
+      ],
+    );
+  }
+
   Future<bool> _confirmHardReboot(BuildContext context) async {
     return await showDialog<bool>(
           context: context,
@@ -138,7 +156,7 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
               expandedInsets: EdgeInsets.zero,
               style: const ButtonStyle(
                 fixedSize: WidgetStatePropertyAll(Size.fromHeight(56)),
-                padding: WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 16)),
+                padding: WidgetStatePropertyAll(EdgeInsets.fromLTRB(0, 18, 0, 14)),
               ),
               emptySelectionAllowed: true,
               showSelectedIcon: false,
@@ -146,13 +164,21 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
               segments: [
                 ButtonSegment(
                   value: _ScooterControlAction.unlock,
-                  icon: Icon(Icons.lock_open_outlined, color: Theme.of(context).colorScheme.primary),
-                  label: Text(FlutterI18n.translate(context, "controls_unlock")),
+                  label: _controlLabel(
+                    context,
+                    Icons.lock_open_outlined,
+                    "controls_unlock",
+                    iconColor: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
                 ButtonSegment(
                   value: _ScooterControlAction.lock,
-                  icon: Icon(Icons.lock_outline_rounded, color: Theme.of(context).colorScheme.primary),
-                  label: Text(FlutterI18n.translate(context, "controls_lock")),
+                  label: _controlLabel(
+                    context,
+                    Icons.lock_outline_rounded,
+                    "controls_lock",
+                    iconColor: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ],
               onSelectionChanged: (selection) {
@@ -181,7 +207,7 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
                   expandedInsets: EdgeInsets.zero,
                   style: const ButtonStyle(
                     fixedSize: WidgetStatePropertyAll(Size.fromHeight(56)),
-                    padding: WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 16)),
+                    padding: WidgetStatePropertyAll(EdgeInsets.fromLTRB(0, 18, 0, 14)),
                   ),
                   emptySelectionAllowed: true,
                   showSelectedIcon: false,
@@ -189,14 +215,22 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
                   segments: [
                     ButtonSegment(
                       value: _ScooterControlAction.wake,
-                      icon: Icon(Icons.power_settings_new_rounded, color: Theme.of(context).colorScheme.primary),
-                      label: Text(FlutterI18n.translate(context, "controls_wake_up")),
+                      label: _controlLabel(
+                        context,
+                        Icons.power_settings_new_rounded,
+                        "controls_wake_up",
+                        iconColor: Theme.of(context).colorScheme.primary,
+                      ),
                     ),
                     ButtonSegment(
                       value: _ScooterControlAction.hibernate,
                       enabled: !probing,
-                      icon: Icon(Icons.nightlight_outlined, color: warningColor),
-                      label: Text(FlutterI18n.translate(context, "controls_hibernate")),
+                      label: _controlLabel(
+                        context,
+                        Icons.nightlight_outlined,
+                        "controls_hibernate",
+                        iconColor: warningColor,
+                      ),
                     ),
                   ],
                   onSelectionChanged: (selection) async {
@@ -250,7 +284,7 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
                           expandedInsets: EdgeInsets.zero,
                           style: const ButtonStyle(
                             fixedSize: WidgetStatePropertyAll(Size.fromHeight(56)),
-                            padding: WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 16)),
+                            padding: WidgetStatePropertyAll(EdgeInsets.fromLTRB(0, 18, 0, 14)),
                           ),
                           emptySelectionAllowed: true,
                           showSelectedIcon: false,
@@ -258,14 +292,17 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
                           segments: [
                             ButtonSegment(
                               value: _ScooterControlAction.reboot,
-                              icon: const Icon(Icons.restart_alt_rounded),
-                              label: Text(FlutterI18n.translate(context, "controls_reboot")),
+                              label: _controlLabel(context, Icons.restart_alt_rounded, "controls_reboot"),
                             ),
                             if (permitsHardReboot)
                               ButtonSegment(
                                 value: _ScooterControlAction.hardReboot,
-                                icon: Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error),
-                                label: Text(FlutterI18n.translate(context, "controls_hard_reboot")),
+                                label: _controlLabel(
+                                  context,
+                                  Icons.warning_amber_rounded,
+                                  "controls_hard_reboot",
+                                  iconColor: Theme.of(context).colorScheme.error,
+                                ),
                               ),
                           ],
                           onSelectionChanged: (selection) async {
