@@ -23,6 +23,21 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
   bool _disconnectedHandled = false;
   bool _isSendingTime = false;
 
+  ButtonStyle _controlButtonStyle(
+    BuildContext context, {
+    required Color background,
+    required Color foreground,
+  }) {
+    return TextButton.styleFrom(
+      backgroundColor: background,
+      foregroundColor: foreground,
+      disabledBackgroundColor: background.withValues(alpha: 0.45),
+      disabledForegroundColor: foreground.withValues(alpha: 0.55),
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+    );
+  }
+
   Future<bool> _confirmHardReboot(BuildContext context) async {
     return await showDialog<bool>(
           context: context,
@@ -132,10 +147,10 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
             children: [
               Expanded(
                 child: TextButton.icon(
-                  style: TextButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.onSurface,
-                    foregroundColor: Theme.of(context).colorScheme.surface,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  style: _controlButtonStyle(
+                    context,
+                    background: Theme.of(context).colorScheme.primary,
+                    foreground: Theme.of(context).colorScheme.onPrimary,
                   ),
                   onPressed: () {
                     try {
@@ -151,10 +166,10 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
               SizedBox(width: 16),
               Expanded(
                 child: TextButton.icon(
-                  style: TextButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.onSurface,
-                    foregroundColor: Theme.of(context).colorScheme.surface,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  style: _controlButtonStyle(
+                    context,
+                    background: Theme.of(context).colorScheme.primaryContainer,
+                    foreground: Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
                   onPressed: () {
                     try {
@@ -174,10 +189,10 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
             children: [
               Expanded(
                 child: TextButton.icon(
-                  style: TextButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.onSurface,
-                    foregroundColor: Theme.of(context).colorScheme.surface,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  style: _controlButtonStyle(
+                    context,
+                    background: Theme.of(context).colorScheme.primary,
+                    foreground: Theme.of(context).colorScheme.onPrimary,
                   ),
                   onPressed: () {
                     try {
@@ -201,10 +216,12 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
                     // whether a wake timer can be scheduled
                     final probing = supportsHibernateFor == null;
                     return TextButton.icon(
-                      style: TextButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.onSurface,
-                        foregroundColor: Theme.of(context).colorScheme.surface,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      style: _controlButtonStyle(
+                        context,
+                        background: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFFF59E0B)
+                            : const Color(0xFFD97706),
+                        foreground: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
                       ),
                       onPressed: probing
                           ? null
@@ -270,10 +287,10 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
                         children: [
                           Expanded(
                             child: TextButton.icon(
-                              style: TextButton.styleFrom(
-                                backgroundColor: Theme.of(context).colorScheme.onSurface,
-                                foregroundColor: Theme.of(context).colorScheme.surface,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                              style: _controlButtonStyle(
+                                context,
+                                background: Theme.of(context).colorScheme.secondaryContainer,
+                                foreground: Theme.of(context).colorScheme.onSecondaryContainer,
                               ),
                               onPressed: () async {
                                 try {
@@ -292,10 +309,10 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
                             const SizedBox(width: 16),
                             Expanded(
                               child: TextButton.icon(
-                                style: TextButton.styleFrom(
-                                  backgroundColor: Theme.of(context).colorScheme.onSurface,
-                                  foregroundColor: Theme.of(context).colorScheme.surface,
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                style: _controlButtonStyle(
+                                  context,
+                                  background: Theme.of(context).colorScheme.error,
+                                  foreground: Theme.of(context).colorScheme.onError,
                                 ),
                                 onPressed: () async {
                                   final confirmed = await _confirmHardReboot(context);
@@ -326,10 +343,10 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
           if (context.select<ScooterService, bool>((service) => service.identity.isLibrescoot == true)) ...[
             const SizedBox(height: 16),
             TextButton.icon(
-              style: TextButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.onSurface,
-                foregroundColor: Theme.of(context).colorScheme.surface,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+              style: _controlButtonStyle(
+                context,
+                background: Theme.of(context).colorScheme.secondaryContainer,
+                foreground: Theme.of(context).colorScheme.onSecondaryContainer,
               ),
               onPressed: _isSendingTime
                   ? null
