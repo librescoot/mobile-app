@@ -29,7 +29,6 @@ import '../stats/battery_screen.dart';
 import '../stats/scooter_screen.dart';
 import '../stats/settings_screen.dart';
 import '../stats/support_screen.dart';
-import '../theme/librescoot_theme.dart';
 import '../control_sheet.dart';
 import '../helper_widgets/snowfall.dart';
 import '../helper_widgets/clouds.dart';
@@ -129,19 +128,6 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              StateCircle(
-                connected: context.select(
-                  (ScooterService service) => service.connected,
-                ),
-                scooterState: context.select(
-                  (ScooterService service) => service.state,
-                ),
-                scanning: context.select(
-                  (ScooterService service) => service.scanning,
-                ),
-                halloween: _fall && context.isDarkMode,
-                fall: _fall && !context.isDarkMode,
-              ),
               if (_fall && !context.isDarkMode)
                 LeavesBackground(
                   backgroundColor: Colors.transparent,
@@ -179,11 +165,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       left: 8,
                       child: IconButton(
                         tooltip: FlutterI18n.translate(context, "stats_title_support"),
-                        style: IconButton.styleFrom(
-                          backgroundColor: LibrescootColors.charcoal,
-                          foregroundColor: LibrescootColors.accentBright,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                        ),
                         icon: const Icon(Icons.help_outline),
                         onPressed: () => Navigator.push(
                           context,
@@ -198,11 +179,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       right: 8,
                       child: IconButton(
                         tooltip: FlutterI18n.translate(context, "stats_title_settings"),
-                        style: IconButton.styleFrom(
-                          backgroundColor: LibrescootColors.charcoal,
-                          foregroundColor: LibrescootColors.accentBright,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                        ),
                         icon: const Icon(Icons.settings_outlined),
                         onPressed: () => Navigator.push(
                           context,
@@ -243,13 +219,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    SizedBox(
-                                      width: context.select(
-                                        (ScooterService service) => service.connected,
-                                      )
-                                          ? 32
-                                          : 0,
-                                    ),
                                     Flexible(
                                       child: Text(
                                         context.select<ScooterService, String?>(
@@ -296,106 +265,89 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ) !=
                                       null))
                             Material(
-                              borderRadius: BorderRadius.circular(8),
-                              color: Colors.transparent,
+                              color: Theme.of(context).colorScheme.surface,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+                              ),
+                              clipBehavior: Clip.antiAlias,
                               child: InkWell(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(6),
                                 onTap: () => Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) => const BatteryScreen(),
                                   ),
                                 ),
-                                child: Container(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const SizedBox(width: 16),
-                                      BatteryBars(
-                                        primarySOC: context.select<ScooterService, int?>(
-                                          (service) => service.battery.primarySOC,
-                                        ),
-                                        secondarySOC: context.select<ScooterService, int?>(
-                                          (service) => service.battery.secondarySOC,
-                                        ),
-                                        dataIsOld: context.select<ScooterService, DateTime?>(
-                                                  (service) => service.identity.lastPing,
-                                                ) ==
-                                                null
-                                            ? true
-                                            : context
-                                                    .select<ScooterService, DateTime?>(
-                                                      (service) => service.identity.lastPing,
-                                                    )!
-                                                    .difference(
-                                                      DateTime.now(),
-                                                    )
-                                                    .inMinutes
-                                                    .abs() >
-                                                5,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      const Icon(
-                                        Icons.arrow_forward_ios_rounded,
-                                        size: 12,
-                                      ),
-                                    ],
+                                child: DashboardBatterySummary(
+                                  primarySOC: context.select<ScooterService, int?>(
+                                    (service) => service.battery.primarySOC,
                                   ),
+                                  secondarySOC: context.select<ScooterService, int?>(
+                                    (service) => service.battery.secondarySOC,
+                                  ),
+                                  dataIsOld: context.select<ScooterService, DateTime?>(
+                                            (service) => service.identity.lastPing,
+                                          ) ==
+                                          null
+                                      ? true
+                                      : context
+                                              .select<ScooterService, DateTime?>(
+                                                (service) => service.identity.lastPing,
+                                              )!
+                                              .difference(DateTime.now())
+                                              .inMinutes
+                                              .abs() >
+                                          5,
                                 ),
                               ),
                             ),
                           Expanded(
-                            child: Stack(
-                              children: [
-                                Positioned.fill(
-                                  child: ScooterVisual(
-                                    color: context.select<ScooterService, int?>(
-                                          (service) => service.identity.color,
-                                        ) ??
-                                        1,
-                                    state: context.select(
-                                      (ScooterService service) => service.state,
-                                    ),
-                                    scanning: context.select(
-                                      (ScooterService service) => service.scanning,
-                                    ),
-                                    blinkerLeft: _hazards,
-                                    blinkerRight: _hazards,
-                                    winter: _snowing,
-                                    aprilFools: _forceHover,
-                                    halloween: _fall && context.isDarkMode,
-                                  ),
-                                ),
-                                Selector<ScooterService, ({bool? isLibrescoot, bool hasNavigation})>(
-                                  selector: (context, service) => (
-                                    isLibrescoot: service.identity.isLibrescoot,
-                                    hasNavigation:
-                                        service.navigationActive == true || service.pendingNavigation != null,
-                                  ),
-                                  builder: (context, value, child) {
-                                    if (value.isLibrescoot != true) return const SizedBox.shrink();
-                                    return Positioned(
-                                      right: 36,
-                                      bottom: 4,
-                                      child: ScooterActionButton(
-                                        icon: Icons.navigation_outlined,
-                                        label: FlutterI18n.translate(context, 'nav_title'),
-                                        showBubble: value.hasNavigation,
-                                        onPressed: () => Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            settings: const RouteSettings(name: 'navigation'),
-                                            builder: (context) => const NavigationScreen(),
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
+                            child: ScooterVisual(
+                              color: context.select<ScooterService, int?>(
+                                    (service) => service.identity.color,
+                                  ) ??
+                                  1,
+                              state: context.select(
+                                (ScooterService service) => service.state,
+                              ),
+                              scanning: context.select(
+                                (ScooterService service) => service.scanning,
+                              ),
+                              blinkerLeft: _hazards,
+                              blinkerRight: _hazards,
+                              winter: _snowing,
+                              aprilFools: _forceHover,
+                              halloween: _fall && context.isDarkMode,
                             ),
+                          ),
+                          Selector<ScooterService, bool>(
+                            selector: (context, service) => service.identity.isLibrescoot == true || kDebugMode,
+                            builder: (context, isLibrescoot, child) {
+                              if (!isLibrescoot) return const SizedBox(height: 8);
+                              return Semantics(
+                                button: true,
+                                label: FlutterI18n.translate(context, 'nav_title'),
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: _openNavigationSheet,
+                                  onVerticalDragEnd: (details) {
+                                    if ((details.primaryVelocity ?? 0) < -150) _openNavigationSheet();
+                                  },
+                                  child: SizedBox(
+                                    height: 32,
+                                    width: double.infinity,
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.keyboard_arrow_up_rounded,
+                                        size: 24,
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -406,6 +358,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 selector: (context, service) => service.state,
                                 builder: (context, state, _) {
                                   return Expanded(
+                                    flex: 2,
                                     child: ScooterPowerButton(
                                       action: state != null && state.isReadyForLockChange
                                           ? (state.isOn
@@ -486,16 +439,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                                       }
                                                     }))
                                           : null,
-                                      icon: state != null && state.isOn ? Icons.lock_open : Icons.lock_outline,
+                                      icon: state != null && state.isOn ? Icons.lock_outline : Icons.lock_open,
                                       label: state != null && state.isOn
-                                          ? FlutterI18n.translate(
-                                              context,
-                                              "home_lock_button",
-                                            )
-                                          : FlutterI18n.translate(
-                                              context,
-                                              "home_unlock_button",
-                                            ),
+                                          ? FlutterI18n.translate(context, "home_lock_button")
+                                          : FlutterI18n.translate(context, "home_unlock_button"),
+                                      instruction: state != null && state.isOn
+                                          ? FlutterI18n.translate(context, "home_hold_to_lock")
+                                          : FlutterI18n.translate(context, "home_hold_to_unlock"),
                                     ),
                                   );
                                 },
@@ -535,7 +485,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               }
                                             }
                                           : null,
-                                      icon: !state.connected ? Icons.refresh_rounded : Icons.more_vert_rounded,
+                                      icon: !state.connected ? Icons.refresh_rounded : Icons.tune_rounded,
                                       label: !state.connected
                                           ? FlutterI18n.translate(
                                               context,
@@ -560,6 +510,19 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _openNavigationSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const FractionallySizedBox(
+        heightFactor: 0.9,
+        child: NavigationScreen(embedded: true),
       ),
     );
   }
@@ -670,6 +633,70 @@ class SeatButton extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class DashboardBatterySummary extends StatelessWidget {
+  const DashboardBatterySummary({
+    required this.primarySOC,
+    required this.secondarySOC,
+    required this.dataIsOld,
+    super.key,
+  });
+
+  final int? primarySOC;
+  final int? secondarySOC;
+  final bool dataIsOld;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final totalRange = ((primarySOC ?? 0) * 0.45 + (secondarySOC ?? 0) * 0.45).round();
+    final batteryValues = <String>[
+      if (primarySOC != null) '${FlutterI18n.translate(context, 'home_primary_battery_short')} $primarySOC%',
+      if (secondarySOC != null && secondarySOC! > 0)
+        '${FlutterI18n.translate(context, 'home_secondary_battery_short')} $secondarySOC%',
+    ];
+
+    return SizedBox(
+      width: (MediaQuery.sizeOf(context).width - 40).clamp(0.0, 320.0),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
+        child: Row(
+          children: [
+            Icon(
+              Icons.battery_charging_full_outlined,
+              color: dataIsOld ? colors.onSurfaceVariant : colors.primary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$totalRange km · ${FlutterI18n.translate(context, 'stats_estimated_range')}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    batteryValues.join('  ·  '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 18, color: colors.onSurfaceVariant),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -825,79 +852,6 @@ class StatusText extends StatelessWidget {
   }
 }
 
-class StateCircle extends StatelessWidget {
-  const StateCircle({
-    super.key,
-    required bool scanning,
-    required bool connected,
-    bool halloween = false,
-    bool fall = false,
-    required ScooterState? scooterState,
-  })  : _scanning = scanning,
-        _connected = connected,
-        _halloween = halloween,
-        _fall = fall,
-        _scooterState = scooterState;
-
-  final bool _scanning;
-  final bool _connected;
-  final bool _halloween;
-  final bool _fall;
-  final ScooterState? _scooterState;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedScale(
-      duration: const Duration(milliseconds: 800),
-      curve: Curves.easeOutBack,
-      scale: _connected
-          ? _scooterState == ScooterState.parked
-              ? 1.5
-              : (_scooterState == ScooterState.ready)
-                  ? 3
-                  : 1.2
-          : _scanning
-              ? 1.5
-              : 0,
-      child: Container(
-        width: MediaQuery.of(context).size.width,
-        height: MediaQuery.of(context).size.width,
-        decoration: BoxDecoration(
-          boxShadow: _halloween && _scooterState?.isOn == true
-              ? [
-                  BoxShadow(
-                    color: Color(0xFFFFCD6F).withAlpha(150),
-                    blurRadius: 100,
-                    spreadRadius: 10,
-                  ),
-                ]
-              : null,
-          image: _halloween
-              ? DecorationImage(
-                  image: AssetImage("images/decoration/moon.webp"), fit: BoxFit.cover, opacity: _connected ? 0.2 : 0.05)
-              : null,
-          shape: BoxShape.circle,
-          color: _scooterState?.isOn == true
-              ? context.isDarkMode
-                  ? _halloween
-                      ? Color(0xFFFFCD6F).withAlpha(50)
-                      : HSLColor.fromColor(
-                          Theme.of(context).colorScheme.primary,
-                        ).withLightness(0.18).toColor()
-                  : _fall
-                      ? Color(0xFFFF8400).withAlpha(100)
-                      : HSLColor.fromColor(
-                          Theme.of(context).colorScheme.primary,
-                        ).withAlpha(0.3).toColor()
-              : Theme.of(context).colorScheme.surfaceContainer.withValues(
-                    alpha: context.isDarkMode ? 0.5 : 0.7,
-                  ),
-        ),
-      ),
-    );
-  }
-}
-
 class ScooterPowerButton extends StatefulWidget {
   const ScooterPowerButton({
     super.key,
@@ -905,14 +859,17 @@ class ScooterPowerButton extends StatefulWidget {
     Widget? child,
     required IconData icon,
     required String label,
+    required String instruction,
     bool? easterEgg,
   })  : _action = action,
         _icon = icon,
         _label = label,
+        _instruction = instruction,
         _easterEgg = easterEgg;
 
   final void Function()? _action;
   final String _label;
+  final String _instruction;
   final IconData _icon;
   final bool? _easterEgg;
 
@@ -920,141 +877,127 @@ class ScooterPowerButton extends StatefulWidget {
   State<ScooterPowerButton> createState() => _ScooterPowerButtonState();
 }
 
-class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTickerProviderStateMixin {
+class _ScooterPowerButtonState extends State<ScooterPowerButton> {
   bool loading = false;
-  bool disabled = false;
-  int? randomEgg = Random().nextInt(8);
+  final int randomEgg = Random().nextInt(8);
   double scale = 1.0;
+
+  void _restoreScale() {
+    if (!mounted || scale == 1) return;
+    setState(() => scale = 1);
+  }
 
   @override
   Widget build(BuildContext context) {
-    Color mainColor = widget._action == null
-        ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2)
-        : Theme.of(context).colorScheme.primary;
-    disabled = widget._action == null;
+    final colors = Theme.of(context).colorScheme;
+    final disabled = widget._action == null;
+    final mainColor = disabled ? colors.onSurface.withValues(alpha: 0.28) : colors.primary;
+    final buttonColor = loading
+        ? colors.surface
+        : widget._easterEgg == true
+            ? disabled
+                ? colors.surfaceContainerHighest
+                : Colors.white
+            : disabled
+                ? Colors.transparent
+                : colors.primary;
+    final foregroundColor = disabled
+        ? mainColor
+        : widget._easterEgg == true && !context.isDarkMode
+            ? Colors.black87
+            : colors.onPrimary;
 
-    return Column(
-      children: [
-        GestureDetector(
-          onTapDown: (_) {
-            if (disabled || loading) return;
-            setState(() {
-              scale = 0.8; // Shrink the button immediately on tapdown
-            });
-          },
-          onLongPressCancel: () {
-            if (disabled || loading) return;
-            setState(() {
-              scale = 1.0; // Return to full size on cancel
-            });
-          },
-          //onTapUp: (_) {
-          //  setState(() {
-          //    scale = 1.0; // Return to full size after tapup
-          //  });
-          //},
-          child: AnimatedScale(
-            scale: scale,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOutBack,
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(width: 2, color: mainColor),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
+    return Semantics(
+      button: true,
+      enabled: !disabled,
+      label: widget._label,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTapDown: (_) {
+              if (disabled || loading) return;
+              setState(() => scale = 0.94);
+            },
+            onTapUp: (_) => _restoreScale(),
+            onTapCancel: _restoreScale,
+            onLongPressCancel: _restoreScale,
+            child: AnimatedScale(
+              scale: scale,
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+              child: SizedBox(
+                width: 144,
+                height: 56,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     elevation: 0,
                     padding: EdgeInsets.zero,
-                    backgroundColor: loading
-                        ? Theme.of(context).colorScheme.surface
-                        : (widget._easterEgg == true
-                            ? disabled
-                                ? Colors.white38
-                                : Colors.white
-                            : mainColor),
+                    backgroundColor: buttonColor,
+                    disabledBackgroundColor: buttonColor,
+                    side: BorderSide(color: mainColor),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
-                  onPressed: disabled
-                      ? null
-                      : () {
-                          Fluttertoast.showToast(msg: widget._label);
-                        },
+                  onPressed: disabled ? null : () => Fluttertoast.showToast(msg: widget._instruction),
                   onLongPress: disabled
                       ? null
                       : () {
-                          setState(() {
-                            loading = true;
-                          });
+                          setState(() => loading = true);
                           widget._action!();
                           Future.delayed(const Duration(seconds: 5), () {
+                            if (!mounted) return;
                             setState(() {
                               loading = false;
-                              scale = 1.1; // Overshoot bounce
+                              scale = 1;
                             });
-                            Future.delayed(
-                              const Duration(milliseconds: 200),
-                              () {
-                                setState(() {
-                                  scale = 1.0; // Return to normal size
-                                });
-                              },
-                            );
                           });
                         },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 24,
-                    ),
+                  child: Ink(
+                    width: 144,
+                    height: 56,
                     decoration: widget._easterEgg == true
                         ? BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              width: 2,
-                              color: !disabled && widget._easterEgg == true ? mainColor : Colors.transparent,
-                            ),
                             image: DecorationImage(
-                              image: AssetImage(
-                                "images/decoration/egg_$randomEgg.webp",
-                              ),
+                              image: AssetImage("images/decoration/egg_$randomEgg.webp"),
                               fit: BoxFit.cover,
                               opacity: disabled ? 0.3 : 1,
                             ),
                           )
                         : null,
-                    child: loading
-                        ? SizedBox(
-                            height: 28,
-                            width: 28,
-                            child: CircularProgressIndicator(
-                              color: mainColor,
-                              strokeWidth: 2,
+                    child: Center(
+                      child: loading
+                          ? SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(color: mainColor, strokeWidth: 2),
+                            )
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(widget._icon, color: foregroundColor, size: 24),
+                                const SizedBox(width: 8),
+                                Text(
+                                  widget._label,
+                                  style: Theme.of(context).textTheme.labelLarge?.copyWith(color: foregroundColor),
+                                ),
+                              ],
                             ),
-                          )
-                        : Icon(
-                            widget._icon,
-                            color: widget._easterEgg == true && !context.isDarkMode
-                                ? (disabled ? Colors.black26 : Colors.black87)
-                                : Theme.of(context).colorScheme.surface,
-                            size: 28,
-                          ),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          widget._label,
-          style: Theme.of(
-            context,
-          ).textTheme.labelLarge?.copyWith(color: mainColor),
-          textAlign: TextAlign.center,
-        ),
-      ],
+          const SizedBox(height: 8),
+          Text(
+            widget._instruction,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(color: colors.onSurfaceVariant),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 }

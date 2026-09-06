@@ -42,9 +42,9 @@
     "home_unlocked": " · Déverrouillé",
     "home_seat_button_closed": "Ouvrir le coffre",
     "home_seat_button_open": "Coffre ouvert",
-    "home_unlock_button": "Maintenir pour démarrer",
+    "home_unlock_button": "Déverrouiller",
     "home_unlock_failed": "Impossible de réveiller et déverrouiller le scooter. Réessayez.",
-    "home_lock_button": "Maintenir pour veille",
+    "home_lock_button": "Verrouiller",
     "home_controls_button": "Commandes",
     "home_reconnect_button": "Reconnecter",
     "seat_alert_title": "Coffre ouvert !",
@@ -613,5 +613,11 @@
     "support_website": "Site de Librescoot",
     "support_website_description": "Actualités, téléchargements et documentation du projet.",
     "support_source_code": "Code source",
-    "support_source_code_description": "Voir le projet de l'application et contribuer sur GitHub."
+    "support_source_code_description": "Voir le projet de l'application et contribuer sur GitHub.",
+    "home_primary_battery_short": "Principale",
+    "home_secondary_battery_short": "Secondaire",
+    "stats_drive_batteries": "Batteries de traction",
+    "stats_system_batteries": "Batteries système",
+    "home_hold_to_lock": "Maintenir pour verrouiller",
+    "home_hold_to_unlock": "Maintenir pour déverrouiller"
 }

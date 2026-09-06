@@ -42,9 +42,9 @@
     "home_unlocked": " · Ontgrendeld",
     "home_seat_button_closed": "Buddy openen",
     "home_seat_button_open": "Buddy is open",
-    "home_unlock_button": "Vasthouden om te starten",
+    "home_unlock_button": "Ontgrendelen",
     "home_unlock_failed": "De scooter kon niet worden gewekt en ontgrendeld. Probeer opnieuw.",
-    "home_lock_button": "Vasthouden voor standby",
+    "home_lock_button": "Vergrendelen",
     "home_controls_button": "Bediening",
     "home_reconnect_button": "Opnieuw verbinden",
     "seat_alert_title": "Buddy is open!",
@@ -613,5 +613,11 @@
     "support_website": "Librescoot-website",
     "support_website_description": "Nieuws, downloads en projectdocumentatie.",
     "support_source_code": "Broncode",
-    "support_source_code_description": "Bekijk het appproject en draag bij op GitHub."
+    "support_source_code_description": "Bekijk het appproject en draag bij op GitHub.",
+    "home_primary_battery_short": "Primair",
+    "home_secondary_battery_short": "Secundair",
+    "stats_drive_batteries": "Aandrijfaccu’s",
+    "stats_system_batteries": "Systeemaccu’s",
+    "home_hold_to_lock": "Houd vast om te vergrendelen",
+    "home_hold_to_unlock": "Houd vast om te ontgrendelen"
 }

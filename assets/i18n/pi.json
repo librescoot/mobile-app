@@ -42,9 +42,9 @@
     "home_unlocked": " · Unlocked, arrr!",
     "home_seat_button_closed": "Open chest",
     "home_seat_button_open": "Chest open",
-    "home_unlock_button": "Set sail",
+    "home_unlock_button": "Unlock her",
     "home_unlock_failed": "Couldn't wake and unlock the scooter. Try again.",
-    "home_lock_button": "Drop anchor",
+    "home_lock_button": "Lock her",
     "home_controls_button": "The helm",
     "home_reconnect_button": "Reconnect",
     "seat_alert_title": "Arrr! The treasure chest be open!",
@@ -593,5 +593,11 @@
     "support_website": "Librescoot website",
     "support_website_description": "News, downloads, and project documentation.",
     "support_source_code": "Source code",
-    "support_source_code_description": "View the app project and lend a hand on GitHub."
+    "support_source_code_description": "View the app project and lend a hand on GitHub.",
+    "home_primary_battery_short": "Main",
+    "home_secondary_battery_short": "Spare",
+    "stats_drive_batteries": "Sailin’ batteries",
+    "stats_system_batteries": "Ship’s batteries",
+    "home_hold_to_lock": "Hold to lock her",
+    "home_hold_to_unlock": "Hold to unlock her"
 }

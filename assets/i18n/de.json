@@ -42,9 +42,9 @@
     "home_unlocked": " · Entriegelt",
     "home_seat_button_closed": "Sitz öffnen",
     "home_seat_button_open": "Sitz ist offen",
-    "home_unlock_button": "Halten zum Starten",
+    "home_unlock_button": "Entriegeln",
     "home_unlock_failed": "Der Roller konnte nicht aufgeweckt und entriegelt werden. Bitte versuche es erneut.",
-    "home_lock_button": "Halten für Standby",
+    "home_lock_button": "Verriegeln",
     "home_controls_button": "Steuerung",
     "home_reconnect_button": "Suchen",
     "seat_alert_title": "Sitzbank offen!",
@@ -613,5 +613,11 @@
     "support_website": "Librescoot-Website",
     "support_website_description": "Neuigkeiten, Downloads und Projektdokumentation.",
     "support_source_code": "Quellcode",
-    "support_source_code_description": "App-Projekt ansehen und auf GitHub mitwirken."
+    "support_source_code_description": "App-Projekt ansehen und auf GitHub mitwirken.",
+    "home_primary_battery_short": "Hauptakku",
+    "home_secondary_battery_short": "Zweitakku",
+    "stats_drive_batteries": "Antriebsakkus",
+    "stats_system_batteries": "Systembatterien",
+    "home_hold_to_lock": "Zum Verriegeln halten",
+    "home_hold_to_unlock": "Zum Entriegeln halten"
 }

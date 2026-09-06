@@ -42,9 +42,9 @@
     "home_unlocked": " · Unlocked",
     "home_seat_button_closed": "Open seat",
     "home_seat_button_open": "Seat is open!",
-    "home_unlock_button": "Hold to start",
+    "home_unlock_button": "Unlock",
     "home_unlock_failed": "Couldn't wake and unlock the scooter. Try again.",
-    "home_lock_button": "Hold for standby",
+    "home_lock_button": "Lock",
     "home_controls_button": "Controls",
     "home_reconnect_button": "Reconnect",
     "seat_alert_title": "Seat is open!",
@@ -613,5 +613,11 @@
     "support_website": "Librescoot website",
     "support_website_description": "News, downloads, and project documentation.",
     "support_source_code": "Source code",
-    "support_source_code_description": "View the app project and contribute on GitHub."
+    "support_source_code_description": "View the app project and contribute on GitHub.",
+    "home_primary_battery_short": "Primary",
+    "home_secondary_battery_short": "Secondary",
+    "stats_drive_batteries": "Drive batteries",
+    "stats_system_batteries": "System batteries",
+    "home_hold_to_lock": "Hold to lock",
+    "home_hold_to_unlock": "Hold to unlock"
 }

@@ -11,6 +11,7 @@ import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import '../domain/scooter_battery.dart';
+import '../helper_widgets/header.dart';
 import '../scooter_service.dart';
 
 typedef _BatteryScreenViewData = ({
@@ -68,64 +69,22 @@ class _BatteryScreenState extends State<BatteryScreen> {
               padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(context).viewPadding.bottom),
               shrinkWrap: true,
               children: [
-                Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 32.0),
-                      child: Column(
-                        children: [
-                          Text(
-                            "${primaryRange + secondaryRange} km ${FlutterI18n.translate(context, "stats_total_range")}",
-                            style: Theme.of(context).textTheme.headlineLarge,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            (primaryRange == 0 && secondaryRange == 0)
-                                ? FlutterI18n.translate(context, "stats_no_batteries")
-                                : FlutterI18n.translate(context, "stats_range_until_throttled", translationParams: {
-                                    "range": "${math.max(0, primaryRange - 9) + math.max(0, secondaryRange - 9)}"
-                                  }),
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        if (hasSecondaryBattery)
-                          Expanded(
-                            child: LinearProgressIndicator(
-                              value: secondarySoc / 100,
-                              borderRadius: BorderRadius.circular(6),
-                              minHeight: 24,
-                              backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
-                              color: dataIsOld
-                                  ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)
-                                  : secondarySoc <= 15
-                                      ? Colors.red
-                                      : Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                        if (hasSecondaryBattery) const SizedBox(width: 8),
-                        Expanded(
-                          child: LinearProgressIndicator(
-                            value: primarySoc / 100,
-                            borderRadius: BorderRadius.circular(6),
-                            minHeight: 24,
-                            backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
-                            color: dataIsOld
-                                ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4)
-                                : primarySoc <= 15
-                                    ? Colors.red
-                                    : Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                const SizedBox(height: 16),
+                _batteryOverview(
+                  totalRange: primaryRange + secondaryRange,
+                  throttledRange: math.max(0, primaryRange - 9) + math.max(0, secondaryRange - 9),
+                  hasBatteries: hasPrimaryBattery || hasSecondaryBattery,
+                  old: dataIsOld,
                 ),
-                const SizedBox(height: 32),
+                Header(FlutterI18n.translate(context, 'stats_drive_batteries')),
+                if (!hasPrimaryBattery && !hasSecondaryBattery)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      FlutterI18n.translate(context, 'stats_no_batteries'),
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ),
                 if (hasPrimaryBattery)
                   _batteryCard(
                     type: ScooterBatteryType.primary,
@@ -140,27 +99,19 @@ class _BatteryScreenState extends State<BatteryScreen> {
                     cycles: data.secondaryCycles,
                     old: dataIsOld,
                   ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _internalBatteryCard(
-                        type: ScooterBatteryType.cbb,
-                        soc: data.cbbSOC ?? 100,
-                        charging: data.cbbCharging,
-                        old: dataIsOld,
-                        context: context,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _internalBatteryCard(
-                        type: ScooterBatteryType.aux,
-                        soc: data.auxSOC ?? 100,
-                        old: dataIsOld,
-                        context: context,
-                      ),
-                    ),
-                  ],
+                Header(FlutterI18n.translate(context, 'stats_system_batteries')),
+                _internalBatteryCard(
+                  type: ScooterBatteryType.cbb,
+                  soc: data.cbbSOC ?? 100,
+                  charging: data.cbbCharging,
+                  old: dataIsOld,
+                  context: context,
+                ),
+                _internalBatteryCard(
+                  type: ScooterBatteryType.aux,
+                  soc: data.auxSOC ?? 100,
+                  old: dataIsOld,
+                  context: context,
                 ),
 
                 // only available on Android, hidden right now though
@@ -313,6 +264,68 @@ class _BatteryScreenState extends State<BatteryScreen> {
     );
   }
 
+  Widget _batteryOverview({
+    required int totalRange,
+    required int throttledRange,
+    required bool hasBatteries,
+    required bool old,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: colors.primaryContainer,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(Icons.route_outlined, color: colors.onPrimaryContainer),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasBatteries ? '$totalRange km' : '—',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                Text(
+                  hasBatteries
+                      ? FlutterI18n.translate(context, 'stats_estimated_range')
+                      : FlutterI18n.translate(context, 'stats_no_batteries'),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+                ),
+                if (hasBatteries) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    FlutterI18n.translate(
+                      context,
+                      'stats_range_until_throttled',
+                      translationParams: {'range': '$throttledRange'},
+                    ),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: old ? colors.onSurfaceVariant : colors.onSurface,
+                        ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (old) Icon(Icons.history, size: 20, color: colors.onSurfaceVariant),
+        ],
+      ),
+    );
+  }
+
   Widget _internalBatteryCard({
     required ScooterBatteryType type,
     required int soc,
@@ -320,75 +333,81 @@ class _BatteryScreenState extends State<BatteryScreen> {
     bool old = false,
     required BuildContext context,
   }) {
+    final colors = Theme.of(context).colorScheme;
+    final indicatorColor = old
+        ? colors.onSurface.withValues(alpha: 0.35)
+        : soc <= 15
+            ? colors.error
+            : colors.primary;
+
+    void showDetails() {
+      HapticFeedback.mediumImpact();
+      switch (type) {
+        case ScooterBatteryType.aux:
+          showDialog(context: context, builder: (context) => _auxDiagnosticDialog(context));
+        case ScooterBatteryType.cbb:
+          showDialog(context: context, builder: (context) => _cbbDiagnosticDialog(context));
+        default:
+          break;
+      }
+    }
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: GestureDetector(
-        child: Container(
-          height: 180,
-          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(6),
-            border: (soc <= 15 && !old)
-                ? Border.all(
-                    color: Colors.red,
-                    width: 2,
-                  )
-                : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              Text(
-                type.name(context).toUpperCase(),
-                style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
-              ),
-              Text(
-                type.description(context),
-                textAlign: TextAlign.start,
-                style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
-              ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0, bottom: 24),
-                child: Text(
-                  type.socText(soc, context),
-                  style: Theme.of(context).textTheme.headlineLarge,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: soc <= 15 && !old ? colors.error : colors.outlineVariant),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: showDetails,
+          onLongPress: showDetails,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      type == ScooterBatteryType.cbb ? Icons.memory_outlined : Icons.battery_saver_outlined,
+                      color: indicatorColor,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(type.name(context), style: Theme.of(context).textTheme.titleMedium),
+                          Text(
+                            type.description(context),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (charging == true) ...[
+                      Icon(Icons.bolt, size: 18, color: colors.primary),
+                      const SizedBox(width: 4),
+                    ],
+                    Text(type.socText(soc, context), style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(width: 8),
+                    Icon(Icons.info_outline, size: 19, color: colors.onSurfaceVariant),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 4),
-              Expanded(
-                child: Image.asset(
-                  width: double.infinity,
-                  type.imagePath(soc),
-                  fit: BoxFit.contain,
-                  alignment: Alignment.bottomCenter,
+                const SizedBox(height: 12),
+                LinearProgressIndicator(
+                  value: soc.clamp(0, 100) / 100,
+                  minHeight: 7,
+                  borderRadius: BorderRadius.circular(4),
+                  backgroundColor: colors.surfaceContainerHighest,
+                  color: indicatorColor,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-        onLongPress: () {
-          HapticFeedback.mediumImpact();
-          switch (type) {
-            case ScooterBatteryType.aux:
-              showDialog(context: context, builder: (context) => _auxDiagnosticDialog(context));
-              break;
-            case ScooterBatteryType.cbb:
-              showDialog(context: context, builder: (context) => _cbbDiagnosticDialog(context));
-              break;
-            default:
-              // no diagnostics for NFC
-              break;
-          }
-        },
       ),
     );
   }
@@ -480,123 +499,90 @@ class _BatteryScreenState extends State<BatteryScreen> {
     int? cycles,
     bool old = false,
   }) {
+    final colors = Theme.of(context).colorScheme;
+    final range = (45 * (soc / 100)).round();
+    final indicatorColor = old
+        ? colors.onSurface.withValues(alpha: 0.35)
+        : soc <= 15
+            ? colors.error
+            : colors.primary;
+
+    void showDetails() {
+      HapticFeedback.mediumImpact();
+      switch (type) {
+        case ScooterBatteryType.primary:
+        case ScooterBatteryType.secondary:
+          showDialog(
+            context: context,
+            builder: (context) => _mainBatteryDiagnosticDialog(context, type, soc, cycles),
+          );
+        case ScooterBatteryType.nfc:
+          showDialog(context: context, builder: (context) => _nfcBatteryDiagnosticDialog(context, soc, cycles));
+        default:
+          break;
+      }
+    }
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: GestureDetector(
-        onLongPress: () {
-          HapticFeedback.mediumImpact();
-          switch (type) {
-            case ScooterBatteryType.primary:
-            case ScooterBatteryType.secondary:
-              showDialog(
-                  context: context, builder: (context) => _mainBatteryDiagnosticDialog(context, type, soc, cycles));
-              break;
-            case ScooterBatteryType.nfc:
-              showDialog(context: context, builder: (context) => _nfcBatteryDiagnosticDialog(context, soc, cycles));
-              break;
-            default:
-              break;
-          }
-        },
-        child: Container(
-          height: 160,
-          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(6),
-            border: (soc <= 15 && !old)
-                ? Border.all(
-                    color: Colors.red,
-                    width: 2,
-                  )
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            mainAxisSize: MainAxisSize.max,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.max,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: soc <= 15 && !old ? colors.error : colors.outlineVariant),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: showDetails,
+          onLongPress: showDetails,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      type.name(context).toUpperCase(),
-                      style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
-                    ),
-                    const SizedBox(height: 32),
                     Expanded(
-                      child: Image.asset(
-                        type.imagePath(soc),
-                        fit: BoxFit.contain,
-                        alignment: Alignment.bottomCenter,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(type.name(context), style: Theme.of(context).textTheme.titleMedium),
+                          Text(
+                            type.description(context),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+                          ),
+                        ],
                       ),
                     ),
+                    Text(type.socText(soc, context), style: Theme.of(context).textTheme.headlineMedium),
                   ],
                 ),
-              ),
-              const SizedBox(width: 16.0), // for padding
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.max,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                const SizedBox(height: 14),
+                LinearProgressIndicator(
+                  value: soc.clamp(0, 100) / 100,
+                  minHeight: 9,
+                  borderRadius: BorderRadius.circular(5),
+                  backgroundColor: colors.surfaceContainerHighest,
+                  color: indicatorColor,
+                ),
+                const SizedBox(height: 14),
+                Row(
                   children: [
-                    Text(
-                      type.description(context),
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      type.socText(soc, context),
-                      style: Theme.of(context).textTheme.headlineLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      alignment: WrapAlignment.end,
-                      spacing: 8,
-                      children: [
-                        if (cycles != null)
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.refresh,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(cycles.toString()),
-                            ],
-                          ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.navigation_outlined,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 4),
-                            Text("${(45 * (soc / 100)).round()} km")
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
+                    Icon(Icons.route_outlined, size: 17, color: colors.onSurfaceVariant),
+                    const SizedBox(width: 5),
+                    Text('$range km'),
+                    if (cycles != null) ...[
+                      const SizedBox(width: 20),
+                      Icon(Icons.refresh, size: 17, color: colors.onSurfaceVariant),
+                      const SizedBox(width: 5),
+                      Text('${FlutterI18n.translate(context, 'stats_battery_cycles')}: $cycles'),
+                    ],
+                    const Spacer(),
+                    Icon(Icons.info_outline, size: 19, color: colors.onSurfaceVariant),
                   ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

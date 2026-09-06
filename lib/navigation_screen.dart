@@ -18,7 +18,9 @@ import '../service/ble_commands.dart';
 
 class NavigationScreen extends StatefulWidget {
   final NavDestination? initialDestination;
-  const NavigationScreen({this.initialDestination, super.key});
+  final bool embedded;
+
+  const NavigationScreen({this.initialDestination, this.embedded = false, super.key});
 
   @override
   State<NavigationScreen> createState() => _NavigationScreenState();
@@ -511,10 +513,97 @@ class _NavigationScreenState extends State<NavigationScreen> {
   @override
   Widget build(BuildContext context) {
     final connected = context.select<ScooterService, bool>((s) => s.connected);
+    final content = Stack(
+      children: [
+        Column(
+          children: [
+            if (_osmConsent) _searchField(),
+            const SizedBox(height: 8),
+            if (_loading && _initialLoad)
+              const Expanded(child: _DestinationsLoading())
+            else if (_destinations.isEmpty && !connected && !_showingCached)
+              const Expanded(child: _DisconnectedEmpty())
+            else if (_destinations.isEmpty)
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _fetchDestinations,
+                  child: const _NoDestinationsEmpty(),
+                ),
+              )
+            else
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _fetchDestinations,
+                  child: _destinationList(connected),
+                ),
+              ),
+          ],
+        ),
+        Selector<ScooterService, ({String? pendingName, bool isNavigating})>(
+          selector: (_, s) => (
+            pendingName: s.pendingNavigation?.name,
+            isNavigating: s.vehicle.navigationActive == true,
+          ),
+          builder: (context, state, _) {
+            if (state.pendingName == null && !state.isNavigating) return const SizedBox.shrink();
+            return Positioned(
+              bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+              left: 16,
+              right: 16,
+              child: _navigationStatusCard(
+                isNavigating: state.isNavigating,
+                pendingName: state.pendingName,
+              ),
+            );
+          },
+        ),
+      ],
+    );
+
+    if (widget.embedded) {
+      return Material(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        FlutterI18n.translate(context, 'nav_title'),
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(child: content),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(FlutterI18n.translate(context, "nav_title")),
+        title: Text(FlutterI18n.translate(context, 'nav_title')),
         forceMaterialTransparency: true,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
         scrolledUnderElevation: 0,
@@ -524,59 +613,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
               context.watch<ScooterService>().vehicle.navigationActive != true
           ? FloatingActionButton(
               onPressed: () => _searchFocusNode.requestFocus(),
-              tooltip: FlutterI18n.translate(context, "nav_search_tooltip"),
+              tooltip: FlutterI18n.translate(context, 'nav_search_tooltip'),
               child: Icon(
                 Icons.navigation_outlined,
                 color: Theme.of(context).colorScheme.surface,
               ),
             )
           : null,
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              if (_osmConsent) _searchField(),
-              const SizedBox(height: 8),
-              if (_loading && _initialLoad)
-                const Expanded(child: _DestinationsLoading())
-              else if (_destinations.isEmpty && !connected && !_showingCached)
-                const Expanded(child: _DisconnectedEmpty())
-              else if (_destinations.isEmpty)
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _fetchDestinations,
-                    child: const _NoDestinationsEmpty(),
-                  ),
-                )
-              else
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _fetchDestinations,
-                    child: _destinationList(connected),
-                  ),
-                ),
-            ],
-          ),
-          Selector<ScooterService, ({String? pendingName, bool isNavigating})>(
-            selector: (_, s) => (
-              pendingName: s.pendingNavigation?.name,
-              isNavigating: s.vehicle.navigationActive == true,
-            ),
-            builder: (context, state, _) {
-              if (state.pendingName == null && !state.isNavigating) return const SizedBox.shrink();
-              return Positioned(
-                bottom: MediaQuery.of(context).viewInsets.bottom + 32,
-                left: 16,
-                right: 16,
-                child: _navigationStatusCard(
-                  isNavigating: state.isNavigating,
-                  pendingName: state.pendingName,
-                ),
-              );
-            },
-          ),
-        ],
-      ),
+      body: content,
     );
   }
 
@@ -637,10 +681,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
         icon = Icons.star_border_rounded;
     }
     return Material(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-      color: Theme.of(context).colorScheme.surfaceContainer,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      color: Theme.of(context).colorScheme.surface,
       clipBehavior: Clip.antiAlias,
-      elevation: 1,
       child: InkWell(
         onTap: () => _navigateToFav(destination),
         child: Stack(
@@ -649,7 +695,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(icon, size: 40),
+                Icon(icon, size: 36, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(height: 8),
                 Text(
                   destination.name!,
@@ -715,7 +761,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         },
         background: Container(
           decoration: BoxDecoration(
-            borderRadius: const BorderRadius.all(Radius.circular(16)),
+            borderRadius: const BorderRadius.all(Radius.circular(8)),
             color: Theme.of(context).colorScheme.primaryContainer,
           ),
           alignment: Alignment.centerLeft,
@@ -729,7 +775,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         ),
         secondaryBackground: Container(
           decoration: BoxDecoration(
-            borderRadius: const BorderRadius.all(Radius.circular(16)),
+            borderRadius: const BorderRadius.all(Radius.circular(8)),
             color: Theme.of(context).colorScheme.errorContainer,
           ),
           alignment: Alignment.centerRight,
@@ -742,8 +788,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
           ),
         ),
         child: Material(
-          color: Theme.of(context).colorScheme.surfaceContainer,
-          borderRadius: const BorderRadius.all(Radius.circular(16)),
+          color: Theme.of(context).colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+          ),
           clipBehavior: Clip.antiAlias,
           child: ListTile(
             contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -793,12 +842,15 @@ class _NavigationScreenState extends State<NavigationScreen> {
       child: Card(
         color: Theme.of(context).colorScheme.primaryContainer,
         child: ListTile(
-          leading: Icon(isNavigating ? Icons.navigation : Icons.schedule, color: Theme.of(context).colorScheme.surface),
+          leading: Icon(
+            isNavigating ? Icons.navigation : Icons.schedule,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
           title: Text(
             isNavigating
                 ? FlutterI18n.translate(context, "nav_status_active_title")
                 : FlutterI18n.translate(context, "nav_status_pending_title"),
-            style: TextStyle(color: Theme.of(context).colorScheme.surface),
+            style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer),
           ),
           subtitle: Text(
             isNavigating
@@ -807,10 +859,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
                     "destination": pendingName ?? FlutterI18n.translate(context, "nav_your_destination")
                   }),
             style: TextStyle(
-                color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.7), fontStyle: FontStyle.italic),
+              color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.75),
+              fontStyle: FontStyle.italic,
+            ),
           ),
           trailing: IconButton(
-            icon: Icon(Icons.close, color: Theme.of(context).colorScheme.surface),
+            icon: Icon(Icons.close, color: Theme.of(context).colorScheme.onPrimaryContainer),
             tooltip: FlutterI18n.translate(context, "cancel"),
             onPressed: () {
               if (isNavigating) {
