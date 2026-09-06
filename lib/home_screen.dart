@@ -234,10 +234,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    const SizedBox(width: 16),
-                                    const Icon(
-                                      Icons.arrow_forward_ios_rounded,
-                                      size: 16,
+                                    const SizedBox(width: 10),
+                                    Icon(
+                                      Icons.swap_horiz_rounded,
+                                      size: 24,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                                     ),
                                   ],
                                 ),
@@ -255,24 +256,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                   FlutterI18n.translate(
                                     context,
                                     "stats_no_name",
-                                  ) &&
-                              (context.select<ScooterService, int?>(
-                                        (service) => service.battery.primarySOC,
-                                      ) !=
-                                      null ||
-                                  context.select<ScooterService, int?>(
-                                        (service) => service.battery.secondarySOC,
-                                      ) !=
-                                      null))
+                                  ))
                             Material(
-                              color: Theme.of(context).colorScheme.surface,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                                side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-                              ),
-                              clipBehavior: Clip.antiAlias,
+                              color: Colors.transparent,
                               child: InkWell(
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius: BorderRadius.circular(8),
                                 onTap: () => Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -652,50 +640,37 @@ class DashboardBatterySummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final valueColor = dataIsOld ? colors.onSurfaceVariant : colors.onSurface;
+    final accentColor = dataIsOld ? colors.onSurfaceVariant : colors.primary;
     final totalRange = ((primarySOC ?? 0) * 0.45 + (secondarySOC ?? 0) * 0.45).round();
-    final batteryValues = <String>[
-      if (primarySOC != null) '${FlutterI18n.translate(context, 'home_primary_battery_short')} $primarySOC%',
-      if (secondarySOC != null && secondarySOC! > 0)
-        '${FlutterI18n.translate(context, 'home_secondary_battery_short')} $secondarySOC%',
-    ];
 
-    return SizedBox(
-      width: (MediaQuery.sizeOf(context).width - 40).clamp(0.0, 320.0),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
-        child: Row(
+    Widget value(IconData icon, String text) => Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.battery_charging_full_outlined,
-              color: dataIsOld ? colors.onSurfaceVariant : colors.primary,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$totalRange km · ${FlutterI18n.translate(context, 'stats_estimated_range')}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    batteryValues.join('  ·  '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right, size: 18, color: colors.onSurfaceVariant),
+            Icon(icon, size: 17, color: accentColor),
+            const SizedBox(width: 4),
+            Text(text, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: valueColor)),
           ],
-        ),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          value(Icons.route_outlined, '$totalRange km'),
+          const SizedBox(width: 16),
+          value(
+            primarySOC != null && primarySOC! > 0 ? Icons.battery_5_bar_rounded : Icons.battery_unknown_outlined,
+            primarySOC != null && primarySOC! > 0 ? '$primarySOC%' : '—',
+          ),
+          if (secondarySOC != null && secondarySOC! > 0) ...[
+            const SizedBox(width: 12),
+            value(Icons.battery_5_bar_rounded, '$secondarySOC%'),
+          ],
+          const SizedBox(width: 6),
+          Icon(Icons.chevron_right, size: 18, color: colors.onSurfaceVariant),
+        ],
       ),
     );
   }

@@ -614,8 +614,6 @@
     "support_website_description": "News, downloads, and project documentation.",
     "support_source_code": "Source code",
     "support_source_code_description": "View the app project and contribute on GitHub.",
-    "home_primary_battery_short": "Primary",
-    "home_secondary_battery_short": "Secondary",
     "stats_drive_batteries": "Drive batteries",
     "stats_system_batteries": "System batteries",
     "home_hold_to_lock": "Hold to lock",

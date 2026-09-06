@@ -594,8 +594,6 @@
     "support_website_description": "News, downloads, and project documentation.",
     "support_source_code": "Source code",
     "support_source_code_description": "View the app project and lend a hand on GitHub.",
-    "home_primary_battery_short": "Main",
-    "home_secondary_battery_short": "Spare",
     "stats_drive_batteries": "Sailin’ batteries",
     "stats_system_batteries": "Ship’s batteries",
     "home_hold_to_lock": "Hold to lock her",
