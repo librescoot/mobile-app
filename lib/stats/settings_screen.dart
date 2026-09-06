@@ -54,6 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int? _keycardCount;
   bool _isSendingApn = false;
   bool _isUpdatingUsbMode = false;
+  bool _isSendingTime = false;
   bool _apnLoaded = false;
   String? _apn;
   bool _isSendingBatteryKeepActive = false;
@@ -680,12 +681,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
       ];
 
+  Future<void> _syncScooterClock() async {
+    setState(() => _isSendingTime = true);
+    try {
+      final service = context.read<ScooterService>();
+      final result = await sendLsExtendedCommand(
+        service.myScooter,
+        service.characteristicRepository,
+        "time:set ${DateTime.now().millisecondsSinceEpoch ~/ 1000}",
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            FlutterI18n.translate(
+              context,
+              result == "time:ok" ? "ls_settings_clock_success" : "ls_settings_clock_error",
+              translationParams: result == "time:ok" ? null : {"result": result ?? ""},
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSendingTime = false);
+    }
+  }
+
   List<Widget> _librescootUpdateSettingsItems({
     required UsbMode? usbMode,
     required bool connected,
     required bool otaAvailable,
   }) =>
       [
+        ListTile(
+          leading: const Icon(Icons.access_time_outlined),
+          title: Text(FlutterI18n.translate(context, "ls_settings_clock_title")),
+          subtitle: Text(FlutterI18n.translate(context, "ls_settings_clock_subtitle")),
+          trailing: _isSendingTime
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.sync_rounded),
+          onTap: connected && !_isSendingTime ? _syncScooterClock : null,
+        ),
         if (connected && otaAvailable)
           ListTile(
             leading: const Icon(Icons.system_update_alt_outlined),

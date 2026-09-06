@@ -672,21 +672,29 @@ class DashboardBatterySummary extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
         children: [
-          value(Icons.route_outlined, '$totalRange km'),
-          const SizedBox(width: 16),
-          value(
-            primarySOC != null && primarySOC! > 0 ? Icons.battery_5_bar_rounded : Icons.battery_unknown_outlined,
-            primarySOC != null && primarySOC! > 0 ? '$primarySOC%' : '—',
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              value(Icons.route_outlined, '$totalRange km'),
+              const SizedBox(width: 16),
+              value(
+                primarySOC != null && primarySOC! > 0 ? Icons.battery_5_bar_rounded : Icons.battery_unknown_outlined,
+                primarySOC != null && primarySOC! > 0 ? '$primarySOC%' : '—',
+              ),
+              if (secondarySOC != null && secondarySOC! > 0) ...[
+                const SizedBox(width: 12),
+                value(Icons.battery_5_bar_rounded, '$secondarySOC%'),
+              ],
+            ],
           ),
-          if (secondarySOC != null && secondarySOC! > 0) ...[
-            const SizedBox(width: 12),
-            value(Icons.battery_5_bar_rounded, '$secondarySOC%'),
-          ],
-          const SizedBox(width: 6),
-          Icon(Icons.chevron_right, size: 18, color: colors.onSurfaceVariant),
+          Positioned(
+            right: -24,
+            child: Icon(Icons.chevron_right, size: 18, color: colors.onSurfaceVariant),
+          ),
         ],
       ),
     );
@@ -869,14 +877,51 @@ class ScooterPowerButton extends StatefulWidget {
   State<ScooterPowerButton> createState() => _ScooterPowerButtonState();
 }
 
-class _ScooterPowerButtonState extends State<ScooterPowerButton> {
+class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTickerProviderStateMixin {
   bool loading = false;
   final int randomEgg = Random().nextInt(8);
   double scale = 1.0;
+  bool _holdActivated = false;
+  late final AnimationController _holdProgress;
+
+  @override
+  void initState() {
+    super.initState();
+    _holdProgress = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))
+      ..addStatusListener(_onHoldStatusChanged);
+  }
+
+  void _onHoldStatusChanged(AnimationStatus status) {
+    if (status != AnimationStatus.completed || _holdActivated || widget._action == null) return;
+    _holdActivated = true;
+    setState(() => loading = true);
+    widget._action!();
+    Future.delayed(const Duration(seconds: 5), () {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        scale = 1;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _holdProgress.dispose();
+    super.dispose();
+  }
 
   void _restoreScale() {
+    _holdProgress.value = 0;
     if (!mounted || scale == 1) return;
     setState(() => scale = 1);
+  }
+
+  void _finishPress() {
+    if (!_holdActivated) {
+      Fluttertoast.showToast(msg: widget._instruction);
+    }
+    _restoreScale();
   }
 
   @override
@@ -907,80 +952,90 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> {
         mainAxisSize: MainAxisSize.min,
         children: [
           GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTapDown: (_) {
               if (disabled || loading) return;
-              setState(() => scale = 0.94);
+              _holdActivated = false;
+              _holdProgress.forward(from: 0);
+              setState(() => scale = 0.96);
             },
-            onTapUp: (_) => _restoreScale(),
+            onTapUp: (_) => _finishPress(),
             onTapCancel: _restoreScale,
-            onLongPressCancel: _restoreScale,
             child: AnimatedScale(
               scale: scale,
               duration: const Duration(milliseconds: 120),
               curve: Curves.easeOut,
               child: SizedBox(
-                width: 144,
-                height: 56,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    elevation: 0,
-                    padding: EdgeInsets.zero,
-                    backgroundColor: buttonColor,
-                    disabledBackgroundColor: buttonColor,
-                    side: BorderSide(color: mainColor),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                  onPressed: disabled ? null : () => Fluttertoast.showToast(msg: widget._instruction),
-                  onLongPress: disabled
-                      ? null
-                      : () {
-                          setState(() => loading = true);
-                          widget._action!();
-                          Future.delayed(const Duration(seconds: 5), () {
-                            if (!mounted) return;
-                            setState(() {
-                              loading = false;
-                              scale = 1;
-                            });
-                          });
-                        },
-                  child: Ink(
-                    width: 144,
-                    height: 56,
-                    decoration: widget._easterEgg == true
-                        ? BoxDecoration(
-                            image: DecorationImage(
-                              image: AssetImage("images/decoration/egg_$randomEgg.webp"),
-                              fit: BoxFit.cover,
-                              opacity: disabled ? 0.3 : 1,
-                            ),
-                          )
-                        : null,
-                    child: Center(
-                      child: loading
-                          ? SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(color: mainColor, strokeWidth: 2),
+                width: 160,
+                height: 72,
+                child: IgnorePointer(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0,
+                      padding: EdgeInsets.zero,
+                      backgroundColor: buttonColor,
+                      disabledBackgroundColor: buttonColor,
+                      side: BorderSide(color: mainColor),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    onPressed: disabled ? null : () {},
+                    child: Ink(
+                      width: 160,
+                      height: 72,
+                      decoration: widget._easterEgg == true
+                          ? BoxDecoration(
+                              image: DecorationImage(
+                                image: AssetImage("images/decoration/egg_$randomEgg.webp"),
+                                fit: BoxFit.cover,
+                                opacity: disabled ? 0.3 : 1,
+                              ),
                             )
-                          : Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(widget._icon, color: foregroundColor, size: 24),
-                                const SizedBox(width: 8),
-                                Text(
-                                  widget._label,
-                                  style: Theme.of(context).textTheme.labelLarge?.copyWith(color: foregroundColor),
+                          : null,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (!disabled && widget._easterEgg != true)
+                            AnimatedBuilder(
+                              animation: _holdProgress,
+                              builder: (context, child) => Align(
+                                alignment: Alignment.centerLeft,
+                                child: FractionallySizedBox(
+                                  widthFactor: _holdProgress.value,
+                                  heightFactor: 1,
+                                  child: ColoredBox(
+                                    color: colors.onPrimary.withValues(alpha: 0.42),
+                                  ),
                                 ),
-                              ],
+                              ),
                             ),
+                          Center(
+                            child: loading
+                                ? SizedBox(
+                                    height: 24,
+                                    width: 24,
+                                    child: CircularProgressIndicator(color: mainColor, strokeWidth: 2),
+                                  )
+                                : Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(widget._icon, color: foregroundColor, size: 26),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        widget._label,
+                                        style: Theme.of(context).textTheme.titleSmall?.copyWith(color: foregroundColor),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
             widget._instruction,
             maxLines: 1,

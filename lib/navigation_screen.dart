@@ -524,19 +524,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
             else if (_destinations.isEmpty && !connected && !_showingCached)
               const Expanded(child: _DisconnectedEmpty())
             else if (_destinations.isEmpty)
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: _fetchDestinations,
-                  child: const _NoDestinationsEmpty(),
-                ),
-              )
+              const Expanded(child: _NoDestinationsEmpty())
             else
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: _fetchDestinations,
-                  child: _destinationList(connected),
-                ),
-              ),
+              Expanded(child: _destinationList(connected)),
           ],
         ),
         Selector<ScooterService, ({String? pendingName, bool isNavigating})>(
