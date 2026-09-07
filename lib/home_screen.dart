@@ -784,7 +784,8 @@ class StatusText extends StatelessWidget {
           bool scanning,
           ScooterState? state,
           ScooterVehicleState? vehicleState,
-          ScooterPowerState? powerState
+          ScooterPowerState? powerState,
+          bool? handlebarsLocked,
         })>(
       selector: (context, service) => (
         state: service.state,
@@ -792,6 +793,7 @@ class StatusText extends StatelessWidget {
         connected: service.connected,
         vehicleState: service.vehicleState,
         powerState: service.powerState,
+        handlebarsLocked: service.vehicle.handlebarsLocked,
       ),
       builder: (context, data, _) {
         String stateText;
@@ -812,36 +814,45 @@ class StatusText extends StatelessWidget {
               data.state != null ? data.state!.name(context) : FlutterI18n.translate(context, "home_loading_state");
         }
 
-        // Add handlebar unlocked indicator
-        if (data.connected &&
-            context.select<ScooterService, bool?>(
-                  (service) => service.vehicle.handlebarsLocked,
-                ) ==
-                false) {
-          stateText += FlutterI18n.translate(context, "home_unlocked");
-        }
+        final handlebarText =
+            data.connected && data.handlebarsLocked == false ? FlutterI18n.translate(context, "home_unlocked") : null;
 
         final statusColor = data.connected
             ? Theme.of(context).colorScheme.primary
             : data.scanning
                 ? const Color(0xFFEAB308)
                 : Theme.of(context).colorScheme.outline;
-        return Row(
+        return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    stateText,
+                    style: Theme.of(context).textTheme.titleMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                stateText,
-                style: Theme.of(context).textTheme.titleMedium,
+            if (handlebarText != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                handlebarText,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                 textAlign: TextAlign.center,
               ),
-            ),
+            ],
           ],
         );
       },
