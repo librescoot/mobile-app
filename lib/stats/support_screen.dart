@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:geolocator/geolocator.dart';
@@ -10,8 +11,9 @@ import 'package:maps_launcher/maps_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../domain/log_helper.dart';
+import '../domain/nav_destination.dart';
 import '../helper_widgets/header.dart';
+import '../navigation_screen.dart';
 
 const _handbookUrl = 'https://librescoot.org/handbook/';
 const _troubleshootingUrl = 'https://librescoot.org/handbook/troubleshooting.html';
@@ -41,7 +43,10 @@ class _SupportScreenState extends State<SupportScreen> {
   }) {
     return ListTile(
       leading: Icon(icon),
-      title: Text(title),
+      title: Text(
+        title,
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18),
+      ),
       subtitle: Text(subtitle),
       trailing: const Icon(Icons.open_in_new_rounded, size: 20),
       onTap: () => _open(url),
@@ -49,17 +54,19 @@ class _SupportScreenState extends State<SupportScreen> {
   }
 
   Widget _tileGroup(List<Widget> children) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          for (var index = 0; index < children.length; index++) ...[
-            if (index > 0) const Divider(),
-            children[index],
-          ],
+    return Column(
+      children: [
+        for (var index = 0; index < children.length; index++) ...[
+          if (index > 0)
+            Divider(
+              indent: 16,
+              endIndent: 16,
+              height: 24,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+            ),
+          children[index],
         ],
-      ),
+      ],
     );
   }
 
@@ -72,17 +79,10 @@ class _SupportScreenState extends State<SupportScreen> {
         child: ListView(
           padding: EdgeInsets.only(bottom: 24 + MediaQuery.viewPaddingOf(context).bottom),
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 4),
-              child: Text(
-                FlutterI18n.translate(context, 'support_intro'),
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      height: 1.45,
-                    ),
-              ),
+            Header(
+              FlutterI18n.translate(context, 'support_guides'),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
             ),
-            Header(FlutterI18n.translate(context, 'support_guides')),
             _tileGroup([
               _linkTile(
                 icon: Icons.menu_book_outlined,
@@ -98,10 +98,7 @@ class _SupportScreenState extends State<SupportScreen> {
               ),
             ]),
             Header(FlutterI18n.translate(context, 'support_faqs')),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: FaqWidget(),
-            ),
+            const FaqWidget(),
             Header(FlutterI18n.translate(context, 'support_community')),
             _tileGroup([
               _linkTile(
@@ -110,17 +107,10 @@ class _SupportScreenState extends State<SupportScreen> {
                 subtitle: FlutterI18n.translate(context, 'support_discord_description'),
                 url: _discordUrl,
               ),
-              ListTile(
-                leading: const Icon(Icons.bug_report_outlined),
-                title: Text(FlutterI18n.translate(context, 'settings_report')),
-                subtitle: Text(FlutterI18n.translate(context, 'support_report_description')),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => LogHelper.startBugReport(context),
-              ),
               _linkTile(
-                icon: Icons.data_object_rounded,
-                title: FlutterI18n.translate(context, 'support_github_issues'),
-                subtitle: FlutterI18n.translate(context, 'support_github_issues_description'),
+                icon: Icons.bug_report_outlined,
+                title: FlutterI18n.translate(context, 'settings_report'),
+                subtitle: FlutterI18n.translate(context, 'support_report_description'),
                 url: _issuesUrl,
               ),
             ]),
@@ -213,61 +203,125 @@ class FaqWidget extends StatelessWidget {
       future: _load(context, FlutterI18n.currentLocale(context)?.languageCode ?? 'en'),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text(FlutterI18n.translate(context, 'support_faq_load_error')),
-            ),
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Text(FlutterI18n.translate(context, 'support_faq_load_error')),
           );
         }
         if (!snapshot.hasData) {
-          return const Card(
-            child: SizedBox(height: 96, child: Center(child: CircularProgressIndicator())),
-          );
+          return const SizedBox(height: 96, child: Center(child: CircularProgressIndicator()));
         }
 
-        final faq = snapshot.data!;
+        final entries = snapshot.data!.entries.toList();
         return Column(
           children: [
-            for (final entry in faq.entries.indexed)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: ExpansionTile(
-                    leading: Icon(_categoryIcon(entry.$1)),
-                    title: Text(entry.$2.key),
-                    children: [
-                      for (final question in (entry.$2.value as Map<String, dynamic>).entries) ...[
-                        const Divider(),
-                        ExpansionTile(
-                          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                          childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                          backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
-                          collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
-                          title: Text(question.key),
-                          children: [
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: SelectableText(
-                                question.value.toString(),
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      height: 1.5,
-                                    ),
-                              ),
+            for (var index = 0; index < entries.length; index++) ...[
+              if (index > 0)
+                Divider(
+                  indent: 16,
+                  endIndent: 16,
+                  height: 24,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+                ),
+              ExpansionTile(
+                leading: Icon(_categoryIcon(index)),
+                title: Text(
+                  entries[index].key,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18),
+                ),
+                children: [
+                  for (final question in (entries[index].value as Map<String, dynamic>).entries.indexed) ...[
+                    if (question.$1 > 0)
+                      Divider(
+                        indent: 60,
+                        endIndent: 16,
+                        height: 1,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+                      ),
+                    ExpansionTile(
+                      tilePadding: const EdgeInsets.fromLTRB(60, 2, 20, 2),
+                      childrenPadding: const EdgeInsets.fromLTRB(60, 0, 20, 16),
+                      title: Text(
+                        question.$2.key,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
-                          ],
+                      ),
+                      children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _LinkedFaqText(question.$2.value.toString()),
                         ),
                       ],
-                    ],
-                  ),
-                ),
+                    ),
+                  ],
+                ],
               ),
+            ],
           ],
         );
       },
     );
+  }
+}
+
+class _LinkedFaqText extends StatefulWidget {
+  const _LinkedFaqText(this.text);
+
+  final String text;
+
+  @override
+  State<_LinkedFaqText> createState() => _LinkedFaqTextState();
+}
+
+class _LinkedFaqTextState extends State<_LinkedFaqText> {
+  static final _linkPattern = RegExp(r'\[([^\]]+)\]\((https?://[^)]+)\)');
+  final List<TapGestureRecognizer> _recognizers = [];
+
+  @override
+  void didUpdateWidget(covariant _LinkedFaqText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text) _disposeRecognizers();
+  }
+
+  void _disposeRecognizers() {
+    for (final recognizer in _recognizers) {
+      recognizer.dispose();
+    }
+    _recognizers.clear();
+  }
+
+  @override
+  void dispose() {
+    _disposeRecognizers();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _disposeRecognizers();
+    final baseStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          height: 1.5,
+        );
+    final linkStyle = baseStyle?.copyWith(
+      color: Theme.of(context).colorScheme.primary,
+      decoration: TextDecoration.underline,
+      decorationColor: Theme.of(context).colorScheme.primary,
+    );
+    final spans = <InlineSpan>[];
+    var end = 0;
+    for (final match in _linkPattern.allMatches(widget.text)) {
+      if (match.start > end) spans.add(TextSpan(text: widget.text.substring(end, match.start)));
+      final url = match.group(2)!;
+      final recognizer = TapGestureRecognizer()..onTap = () => launchUrl(Uri.parse(url));
+      _recognizers.add(recognizer);
+      spans.add(TextSpan(text: match.group(1), style: linkStyle, recognizer: recognizer));
+      end = match.end;
+    }
+    if (end < widget.text.length) spans.add(TextSpan(text: widget.text.substring(end)));
+
+    return SelectableText.rich(TextSpan(style: baseStyle, children: spans));
   }
 }
 
@@ -283,14 +337,30 @@ class _GarageWidgetState extends State<GarageWidget> {
 
   Future<List<Garage>> _getGarages() async {
     final response = await http
-        .get(Uri.parse('https://reunu.github.io/unustasis-data/garages.json'))
+        .get(Uri.parse('https://reunu.github.io/unustasis-data/garages_overrides.json'))
         .timeout(const Duration(seconds: 12));
     if (response.statusCode != 200) {
-      Logger('GarageWidget').severe('Failed to load garages', response.toString());
-      throw Exception('Failed to load garages');
+      Logger('GarageWidget').severe('Failed to load community garages', response.toString());
+      throw Exception('Failed to load community garages');
     }
-    final garages = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
-    return garages.map((garage) => Garage.fromJson(garage as Map<String, dynamic>)).toList();
+    final overrides = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+    const requiredFields = {
+      'name',
+      'ShippingStreet',
+      'ShippingCity',
+      'ShippingCountry',
+      'ShippingCountryCode',
+      'ShippingPostalCode',
+      'ShippingLatitude',
+      'ShippingLongitude',
+    };
+    return overrides
+        .whereType<Map<String, dynamic>>()
+        .map((override) => override['garage'])
+        .whereType<Map<String, dynamic>>()
+        .where((garage) => requiredFields.every(garage.containsKey))
+        .map(Garage.fromJson)
+        .toList();
   }
 
   Future<Position> _getPosition() async {
@@ -312,22 +382,31 @@ class _GarageWidgetState extends State<GarageWidget> {
   }
 
   Future<List<Garage>> _getClosestGarages() async {
-    final result = await Future.wait([_getGarages(), _getPosition()]);
-    final garages = result[0] as List<Garage>;
-    final position = result[1] as Position;
-    for (final garage in garages) {
-      garage.distance = Geolocator.distanceBetween(
-        position.latitude,
-        position.longitude,
-        garage.location.latitude,
-        garage.location.longitude,
-      );
+    final garages = await _getGarages();
+    if (garages.isEmpty) return garages;
+
+    try {
+      final position = await _getPosition();
+      for (final garage in garages) {
+        garage.distance = Geolocator.distanceBetween(
+          position.latitude,
+          position.longitude,
+          garage.location.latitude,
+          garage.location.longitude,
+        );
+      }
+      garages.sort((a, b) => a.distance!.compareTo(b.distance!));
+    } on Exception catch (error) {
+      Logger('GarageWidget').info('Showing community garages without distance sorting: $error');
     }
-    garages.sort((a, b) => a.distance!.compareTo(b.distance!));
-    return garages.take(5).toList();
+    return garages;
   }
 
-  void _load() => setState(() => _garages = _getClosestGarages());
+  void _load() {
+    setState(() {
+      _garages = _getClosestGarages();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -341,10 +420,13 @@ class _GarageWidgetState extends State<GarageWidget> {
             children: [
               Icon(Icons.location_searching_rounded, size: 32, color: Theme.of(context).colorScheme.primary),
               const SizedBox(height: 12),
-              Text(
-                FlutterI18n.translate(context, 'support_garages_find_description'),
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 240),
+                child: Text(
+                  FlutterI18n.translate(context, 'support_garages_find_description'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
@@ -371,7 +453,7 @@ class _GarageWidgetState extends State<GarageWidget> {
                   Icon(Icons.location_off_outlined, size: 32, color: Theme.of(context).colorScheme.error),
                   const SizedBox(height: 12),
                   Text(
-                    FlutterI18n.translate(context, 'support_garages_none'),
+                    FlutterI18n.translate(context, 'support_garages_load_error'),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
@@ -400,15 +482,36 @@ class _GarageWidgetState extends State<GarageWidget> {
             ),
           );
         }
-        return SizedBox(
-          height: 208,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            scrollDirection: Axis.horizontal,
-            itemCount: snapshot.data!.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 12),
-            itemBuilder: (context, index) => _GarageTile(garage: snapshot.data![index]),
-          ),
+        final garages = snapshot.data!;
+        final closest = garages.first;
+        final nearby =
+            garages.skip(1).where((garage) => garage.distance != null && garage.distance! <= 100000).toList();
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _GarageTile(garage: closest),
+            ),
+            if (nearby.isNotEmpty)
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                leading: const Icon(Icons.list_alt_rounded),
+                title: Text(
+                  FlutterI18n.translate(
+                    context,
+                    'support_garages_more_nearby',
+                    translationParams: {'count': nearby.length.toString()},
+                  ),
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => _GarageListScreen(garages: [closest, ...nearby]),
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );
@@ -422,19 +525,18 @@ class _GarageTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 300,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(garage.name,
-                  style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 6),
-              Text('${garage.street}, ${garage.city}', maxLines: 2, overflow: TextOverflow.ellipsis),
-              const Spacer(),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(garage.name,
+                style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 6),
+            Text('${garage.street}, ${garage.city}', maxLines: 2, overflow: TextOverflow.ellipsis),
+            const Spacer(),
+            if (garage.distance != null) ...[
               Text(
                 FlutterI18n.translate(
                   context,
@@ -446,29 +548,58 @@ class _GarageTile extends StatelessWidget {
                     ),
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => MapsLauncher.launchQuery('${garage.name} ${garage.street}, ${garage.zipCode}'),
-                      icon: const Icon(Icons.map_outlined),
-                      label: Text(FlutterI18n.translate(context, 'support_garage_map')),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed:
-                          garage.phone == 'Unknown' ? null : () => launchUrl(Uri(scheme: 'tel', path: garage.phone)),
-                      icon: const Icon(Icons.phone_outlined),
-                      label: Text(FlutterI18n.translate(context, 'support_garage_call')),
-                    ),
-                  ),
-                ],
-              ),
             ],
-          ),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => NavigationScreen(
+                          initialDestination: NavDestination(location: garage.location, name: garage.name),
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.navigation_outlined),
+                    label: Text(FlutterI18n.translate(context, 'support_garage_navigate')),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.outlined(
+                  tooltip: FlutterI18n.translate(context, 'support_garage_map'),
+                  onPressed: () => MapsLauncher.launchQuery('${garage.name} ${garage.street}, ${garage.zipCode}'),
+                  icon: const Icon(Icons.map_outlined),
+                ),
+                const SizedBox(width: 8),
+                IconButton.outlined(
+                  tooltip: FlutterI18n.translate(context, 'support_garage_call'),
+                  onPressed: garage.phone == 'Unknown' ? null : () => launchUrl(Uri(scheme: 'tel', path: garage.phone)),
+                  icon: const Icon(Icons.phone_outlined),
+                ),
+              ],
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _GarageListScreen extends StatelessWidget {
+  const _GarageListScreen({required this.garages});
+
+  final List<Garage> garages;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(FlutterI18n.translate(context, 'support_garages'))),
+      body: ListView.separated(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + MediaQuery.viewPaddingOf(context).bottom),
+        itemCount: garages.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        itemBuilder: (context, index) => _GarageTile(garage: garages[index]),
       ),
     );
   }

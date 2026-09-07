@@ -1,8 +1,7 @@
 {
     "Premiers pas": {
         "Ai-je besoin de Librescoot pour utiliser l'application ?": "Non. L'application peut contrôler un unu Scooter Pro avec son logiciel d'origine. Un scooter équipé de Librescoot propose des fonctions supplémentaires telles que la navigation, les cartes-clés, les réglages d'énergie, l'alarme et les mises à jour Bluetooth.",
-        "Puis-je conserver l'application officielle ?": "Oui. Les applications fonctionnent indépendamment, mais une seule peut se connecter au scooter à la fois. Désactivez la connexion en arrière-plan dans l'ancienne application. Sous iOS, supprimez l'appairage existant dans les réglages système si l'appairage avec cette application échoue.",
-        "Plusieurs téléphones peuvent-ils utiliser le même scooter ?": "Oui. Jusqu'à six appareils peuvent être appairés au scooter, mais un seul peut le contrôler à la fois. Chaque personne devrait garder une carte-clé à disposition au cas où l'appairage devrait être rétabli."
+        "Plusieurs téléphones peuvent-ils utiliser le même scooter ?": "Oui. Jusqu’à huit appareils peuvent être appairés au scooter, mais un seul peut le contrôler à la fois. Avec Librescoot 1.3.0 ou plus récent, vous pouvez effacer tous les appairages Bluetooth depuis le menu Dashboard du scooter. Gardez une carte-clé disponible au cas où l’appairage devrait être rétabli."
     },
     "Connexion et appairage": {
         "Pourquoi l'application ne trouve-t-elle pas mon scooter ?": "Placez-vous près du scooter allumé et vérifiez que le Bluetooth est activé et qu'aucun autre téléphone n'est connecté. Un symbole Bluetooth sur le tableau de bord indique généralement qu'un autre appareil utilise déjà la connexion.",
@@ -11,11 +10,11 @@
     },
     "Librescoot": {
         "Qu'est-ce que Librescoot ?": "Librescoot est un système d'exploitation indépendant et open source pour le unu Scooter Pro. Il remplace les services cloud abandonnés par le contrôle local, la navigation, les mises à jour et des fonctions maintenues par la communauté.",
-        "Cette application installe-t-elle Librescoot ?": "Non. Suivez le guide d'installation du manuel Librescoot. Une fois Librescoot installé, l'application peut gérer les réglages compatibles et installer les mises à jour de firmware prises en charge via Bluetooth.",
-        "Où puis-je obtenir de l'aide ?": "Commencez par le manuel et le guide de dépannage. Pour une aide personnalisée, rejoignez le Discord Librescoot. Utilisez les issues GitHub pour les bugs reproductibles et les demandes de fonctions précises."
+        "Cette application installe-t-elle Librescoot ?": "Non. Utilisez le [Librescoot Installer](https://downloads.librescoot.org/) pour installer Librescoot. Ensuite, cette application peut gérer les réglages pris en charge et installer les mises à jour compatibles via Bluetooth.",
+        "Où puis-je obtenir de l'aide ?": "Commencez par le [manuel](https://librescoot.org/handbook/) et le [guide de dépannage](https://librescoot.org/handbook/troubleshooting.html). Pour une aide personnalisée, rejoignez le [Discord Librescoot](https://discord.gg/BmY2P2T9j3). Utilisez les [issues GitHub](https://github.com/librescoot/mobile-app/issues) pour les bugs reproductibles de l’application et les demandes précises."
     },
     "À propos de l'application": {
-        "Qui développe cette application ?": "Il s'agit d'un projet communautaire indépendant et open source pour les utilisateurs du unu Scooter Pro. Ce n'est pas une application officielle du fabricant ou du propriétaire de la marque.",
+        "Qui développe cette application ?": "Freal a créé l’application d’origine sous le nom stasis for unu. Les contributeurs de Librescoot maintiennent ce fork communautaire pour les utilisateurs du unu Scooter Pro. Ce n’est pas une application officielle du fabricant ou du propriétaire de la marque.",
         "Quelles données quittent mon téléphone ?": "Le contrôle du scooter s'effectue directement par Bluetooth. Les fonctions en ligne facultatives peuvent demander des cartes, une recherche d'adresse, des notifications ou des informations de firmware. Les diagnostics ne sont partagés que lorsque vous lancez un rapport.",
         "Comment puis-je contribuer ?": "Le code source et le suivi des problèmes sont disponibles sur GitHub. Les contributions au code, aux traductions, à la documentation, aux tests et au design sont les bienvenues."
     }

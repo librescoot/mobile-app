@@ -1,8 +1,7 @@
 {
     "Gettin’ started": {
         "Must me ship run Librescoot to use the app?": "Nay. The app can command an unu Scooter Pro with stock software. A ship runnin’ Librescoot reveals extra treasure such as navigation, keycards, power settings, alarms, and Bluetooth refits.",
-        "Can the old official app stay aboard?": "Aye. The apps sail separately, but only one can link to the ship at a time. Turn off background connection in the old app. On iOS, remove the old pairing in system settings if this app cannot pair.",
-        "Can several phones command one ship?": "Aye. Up to six devices can be paired, but only one may command the ship at a time. Each sailor should keep a keycard handy in case the pairing must be restored."
+        "Can several phones command one ship?": "Aye. Up to eight devices can pair with the ship, but only one can command it at a time. On Librescoot 1.3.0 or newer, clear all Bluetooth bonds from the ship’s Dashboard menu. Keep a keycard aboard in case pairing must be restored."
     },
     "Connection and pairin’": {
         "Why can’t the app find me ship?": "Stand beside the powered-on ship and check that Bluetooth be enabled and no other phone be connected. A Bluetooth mark on the dashboard usually means another device already holds the link.",
@@ -11,11 +10,11 @@
     },
     "Librescoot": {
         "What be Librescoot?": "Librescoot be an independent, open-source operating system for the unu Scooter Pro. It replaces abandoned cloud services with local control, navigation, refits, and features kept afloat by the community.",
-        "Does this app install Librescoot?": "Nay. Follow the installation guide in the Librescoot handbook. Once installed, the app can manage supported settings and deliver compatible firmware refits over Bluetooth.",
-        "Where can a sailor get help?": "Start with the handbook and troubleshooting guide. Ask the Librescoot Discord crew for individual help. Use GitHub issues for repeatable software bugs and clear feature requests."
+        "Does this app install Librescoot?": "Nay. Use the [Librescoot Installer](https://downloads.librescoot.org/) to install Librescoot. Afterward, this app can manage supported rigging and install compatible firmware refits over Bluetooth.",
+        "Where can a sailor get help?": "Start with the [handbook](https://librescoot.org/handbook/) and [troubleshooting guide](https://librescoot.org/handbook/troubleshooting.html). Ask the [Librescoot Discord](https://discord.gg/BmY2P2T9j3) crew for help. Use [GitHub issues](https://github.com/librescoot/mobile-app/issues) for repeatable app bugs and clear feature requests."
     },
     "About the app": {
-        "Who makes this app?": "This be an independent, open-source community project for unu Scooter Pro sailors. It be no official app from the shipbuilder or brand owner.",
+        "Who makes this app?": "Freal built the first app as stasis for unu. Librescoot hands now maintain this community fork for unu Scooter Pro sailors. It be no official app from the shipbuilder or brand owner.",
         "What data leaves me phone?": "Ship commands travel directly over Bluetooth. Optional online features may request charts, address lookup, notices, or firmware information. App diagnostics be shared only when ye start a report.",
         "How can I lend a hand?": "Source code and issue tracking live on GitHub. Contributions to code, translations, documentation, testing, and design be welcome."
     }

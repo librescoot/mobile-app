@@ -1,8 +1,7 @@
 {
     "Aan de slag": {
         "Heb ik Librescoot nodig om de app te gebruiken?": "Nee. De app kan een unu Scooter Pro met de originele software bedienen. Een scooter met Librescoot biedt extra functies zoals navigatie, keycards, energie-instellingen, alarm en Bluetooth-updates.",
-        "Kan de officiële app geïnstalleerd blijven?": "Ja. De apps werken onafhankelijk, maar er kan maar één app tegelijk met de scooter verbonden zijn. Schakel de achtergrondverbinding in de oude app uit. Verwijder op iOS de bestaande koppeling in de systeeminstellingen als koppelen met deze app mislukt.",
-        "Kunnen meerdere telefoons één scooter gebruiken?": "Ja. Er kunnen maximaal zes apparaten aan de scooter worden gekoppeld, maar slechts één apparaat kan hem tegelijk bedienen. Iedere gebruiker moet een keycard bij de hand houden voor het geval de koppeling moet worden hersteld."
+        "Kunnen meerdere telefoons één scooter gebruiken?": "Ja. Er kunnen maximaal acht apparaten met de scooter worden gekoppeld, maar slechts één kan hem tegelijk bedienen. Vanaf Librescoot 1.3.0 kun je alle Bluetooth-koppelingen wissen via het Dashboard-menu van de scooter. Houd een keycard bij de hand voor het geval de koppeling moet worden hersteld."
     },
     "Verbinding en koppeling": {
         "Waarom vindt de app mijn scooter niet?": "Ga naast de ingeschakelde scooter staan en controleer of Bluetooth aanstaat en er geen andere telefoon verbonden is. Een Bluetooth-symbool op het dashboard betekent meestal dat een ander apparaat de verbinding al gebruikt.",
@@ -11,11 +10,11 @@
     },
     "Librescoot": {
         "Wat is Librescoot?": "Librescoot is een onafhankelijk, open-sourcebesturingssysteem voor de unu Scooter Pro. Het vervangt beëindigde cloudservices door lokale bediening, navigatie, updates en functies die door de community worden onderhouden.",
-        "Installeert deze app Librescoot?": "Nee. Volg de installatiehandleiding in het Librescoot-handboek. Nadat Librescoot is geïnstalleerd, kan de app ondersteunde instellingen beheren en compatibele firmware-updates via Bluetooth installeren.",
-        "Waar kan ik hulp krijgen?": "Begin met het handboek en de probleemoplossing. Vraag voor persoonlijke hulp in de Librescoot Discord. Gebruik GitHub-issues voor reproduceerbare softwarefouten en concrete functieverzoeken."
+        "Installeert deze app Librescoot?": "Nee. Gebruik de [Librescoot Installer](https://downloads.librescoot.org/) om Librescoot te installeren. Daarna kan deze app ondersteunde instellingen beheren en compatibele firmware-updates via Bluetooth installeren.",
+        "Waar kan ik hulp krijgen?": "Begin met het [handboek](https://librescoot.org/handbook/) en de [probleemoplossing](https://librescoot.org/handbook/troubleshooting.html). Vraag voor persoonlijke hulp in de [Librescoot Discord](https://discord.gg/BmY2P2T9j3). Gebruik [GitHub-issues](https://github.com/librescoot/mobile-app/issues) voor reproduceerbare appfouten en concrete functieverzoeken."
     },
     "Over de app": {
-        "Wie ontwikkelt deze app?": "Dit is een onafhankelijk open-sourcecommunityproject voor gebruikers van de unu Scooter Pro. Het is geen officiële app van de scooterfabrikant of merkeigenaar.",
+        "Wie ontwikkelt deze app?": "Freal maakte de oorspronkelijke app als stasis for unu. Librescoot-bijdragers onderhouden deze communityfork voor gebruikers van de unu Scooter Pro. Het is geen officiële app van de scooterfabrikant of merkeigenaar.",
         "Welke gegevens verlaten mijn telefoon?": "De scooter wordt rechtstreeks via Bluetooth bediend. Optionele online functies kunnen kaarten, adresgegevens, meldingen of firmware-informatie ophalen. Appdiagnostiek wordt alleen gedeeld wanneer je zelf een rapport start.",
         "Hoe kan ik bijdragen?": "De broncode en probleemregistratie staan op GitHub. Bijdragen aan code, vertalingen, documentatie, tests en ontwerp zijn welkom."
     }

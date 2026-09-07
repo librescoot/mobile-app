@@ -904,7 +904,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             width: 24,
             height: 24,
             colorFilter: ColorFilter.mode(
-              IconTheme.of(context).color ?? Theme.of(context).colorScheme.onSurfaceVariant,
+              Theme.of(context).colorScheme.primary,
               BlendMode.srcIn,
             ),
           ),

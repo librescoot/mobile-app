@@ -1,8 +1,7 @@
 {
     "Getting started": {
         "Do I need Librescoot firmware to use the app?": "No. The app can control an unu Scooter Pro running stock firmware. A scooter running Librescoot exposes additional features such as navigation, keycards, power settings, alarms, and Bluetooth updates.",
-        "Can I keep the official app installed?": "Yes. The apps work independently, but only one app can connect to the scooter at a time. Disable background connection in the old app. On iOS, remove the existing scooter pairing in system settings if pairing with this app fails.",
-        "Can several phones use one scooter?": "Yes. Up to six devices can be paired with the scooter, but only one device can control it at a time. Each rider should keep a keycard available in case pairing needs to be restored."
+        "Can several phones use one scooter?": "Yes. Up to eight devices can be paired with the scooter, but only one can control it at a time. On Librescoot 1.3.0 or newer, you can clear all Bluetooth bonds from the scooter Dashboard menu. Keep a keycard available in case pairing needs to be restored."
     },
     "Connection and pairing": {
         "Why can't the app find my scooter?": "Stand next to the scooter and make sure it is switched on, Bluetooth is enabled, and no other phone is connected. A Bluetooth symbol on the dashboard usually means another device already has the active connection.",
@@ -11,11 +10,11 @@
     },
     "Librescoot": {
         "What is Librescoot?": "Librescoot is an independent, open-source operating system for the unu Scooter Pro. It replaces discontinued cloud-dependent services with local control, navigation, updates, and community-maintained features.",
-        "Does this app install Librescoot?": "No. Follow the installation guide in the Librescoot handbook. After Librescoot is installed, the app can manage supported settings and install compatible Bluetooth firmware updates.",
-        "Where can I get help?": "Start with the handbook and troubleshooting guide. For individual help, ask in the Librescoot Discord. Use GitHub issues for reproducible software bugs and concrete feature requests."
+        "Does this app install Librescoot?": "No. Use the [Librescoot Installer](https://downloads.librescoot.org/) to install Librescoot. After installation, this app can manage supported settings and install compatible firmware updates over Bluetooth.",
+        "Where can I get help?": "Start with the [handbook](https://librescoot.org/handbook/) and [troubleshooting guide](https://librescoot.org/handbook/troubleshooting.html). For individual help, ask in the [Librescoot Discord](https://discord.gg/BmY2P2T9j3). Use [GitHub issues](https://github.com/librescoot/mobile-app/issues) for reproducible app bugs and concrete feature requests."
     },
     "About the app": {
-        "Who makes this app?": "This is an independent, open-source community project for unu Scooter Pro riders. It is not an official app from the scooter manufacturer or brand owner.",
+        "Who makes this app?": "Freal created the original app as stasis for unu. Librescoot contributors maintain this community fork for unu Scooter Pro riders. It is not an official app from the scooter manufacturer or brand owner.",
         "What data leaves my phone?": "Scooter control happens directly over Bluetooth. Optional online features may request maps, address lookup, notifications, or firmware information. App diagnostics are shared only when you start a report.",
         "How can I contribute?": "Source code and issue tracking are available on GitHub. Contributions to code, translations, documentation, testing, and design are welcome."
     }
