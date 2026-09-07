@@ -97,49 +97,58 @@ class BleScanner {
       return;
     }
 
-    if (autoConnectScooterIds.isNotEmpty && preferSavedScooters) {
-      _log.info("Looking for our scooters (saved IDs: $autoConnectScooterIds)");
-      try {
-        _flutterBluePlus.startScan(
-          withRemoteIds: autoConnectScooterIds,
-          timeout: const Duration(seconds: 30),
-        );
-      } catch (e, stack) {
-        _log.severe("Failed to start scan", e, stack);
-      }
-    } else {
-      _log.info("Looking for any scooter, since we have no saved scooters");
-      try {
-        _flutterBluePlus.startScan(
-          withNames: scooterAdvertisedNames,
-          timeout: const Duration(seconds: 30),
-        );
-      } catch (e, stack) {
-        _log.severe("Failed to start scan", e, stack);
-      }
-    }
-
-    // onScanResults is a broadcast stream that never closes, so we wrap it in
-    // a StreamController that closes when isScanning goes false. Without this,
-    // the await-for loop hangs forever when no scooter is found, and start()
-    // never reaches startAutoRestart().
+    // Subscribe before starting the scan so a fast failure or stop cannot be
+    // missed between startScan() and attaching the listeners. The scan stream
+    // is broadcast and never closes on its own.
     final scanResultsController = StreamController<List<ScanResult>>();
+    var scanStarted = false;
+    Timer? watchdog;
 
     final resultsSub = _flutterBluePlus.onScanResults.listen(
       (r) {
         if (!scanResultsController.isClosed) scanResultsController.add(r);
       },
     );
-
-    // isScanning emits the current value immediately on listen. Skip the initial
-    // value and only close when it transitions from true→false.
-    final isScanSub = _flutterBluePlus.isScanning.skip(1).listen((isScanning) {
-      if (!isScanning && !scanResultsController.isClosed) {
+    final isScanSub = _flutterBluePlus.isScanning.listen((isScanning) {
+      if (isScanning) {
+        scanStarted = true;
+      } else if (scanStarted && !scanResultsController.isClosed) {
         scanResultsController.close();
       }
     });
 
     try {
+      try {
+        if (autoConnectScooterIds.isNotEmpty && preferSavedScooters) {
+          _log.info("Looking for our scooters (saved IDs: $autoConnectScooterIds)");
+          await _flutterBluePlus.startScan(
+            withRemoteIds: autoConnectScooterIds,
+            timeout: const Duration(seconds: 30),
+          );
+        } else {
+          _log.info("Looking for any scooter, since we have no saved scooters");
+          await _flutterBluePlus.startScan(
+            withNames: scooterAdvertisedNames,
+            timeout: const Duration(seconds: 30),
+          );
+        }
+        scanStarted |= _flutterBluePlus.isScanningNow;
+      } catch (e, stack) {
+        _log.severe("Failed to start scan", e, stack);
+        return;
+      }
+
+      // Android and iOS can both omit the scan-stopped event when the app is
+      // suspended or the adapter aborts a scan. Without a backstop, start()
+      // remains in progress forever and all later automatic reconnects are
+      // rejected as duplicates, while a manual connection still succeeds.
+      watchdog = Timer(const Duration(seconds: 35), () {
+        if (!scanResultsController.isClosed) {
+          _log.warning("Auto-connect scan didn't report that it stopped; closing it");
+          scanResultsController.close();
+        }
+      });
+
       await for (var scanResult in scanResultsController.stream) {
         if (scanResult.isNotEmpty) {
           ScanResult r = scanResult.last;
@@ -150,9 +159,11 @@ class BleScanner {
         }
       }
     } finally {
-      resultsSub.cancel();
-      isScanSub.cancel();
-      if (!scanResultsController.isClosed) scanResultsController.close();
+      watchdog?.cancel();
+      await resultsSub.cancel();
+      await isScanSub.cancel();
+      if (!scanResultsController.isClosed) await scanResultsController.close();
+      if (_flutterBluePlus.isScanningNow) await _flutterBluePlus.stopScan();
     }
   }
 

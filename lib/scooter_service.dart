@@ -600,9 +600,16 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
           _foundSth = false;
           connected = false;
           this.state = ScooterState.disconnected;
-          log.info("Lost connection to scooter! :(");
+          log.info("Lost connection to scooter: ${attemptedScooter.disconnectReason ?? 'reason unavailable'}");
           updateScooterPing(listeningTo);
-          if (_autoRestarting) unawaited(_attemptAutoRestart());
+          if (_autoRestarting) {
+            // We know exactly which live link was lost. Retry that device
+            // directly instead of waiting for it to advertise and appear in a
+            // scan; bonded scooters can remain connected at Android's system
+            // level and therefore be invisible to scanning.
+            _targetScooterId = listeningTo;
+            unawaited(_attemptAutoRestart());
+          }
         }
       });
     } on _SupersededConnectionAttempt {
