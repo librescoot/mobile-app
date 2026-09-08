@@ -43,7 +43,11 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final log = Logger('ScooterService');
 
   // Composed modules
-  final ScooterStorage store = ScooterStorage();
+  final ScooterStorage store;
+  final BluetoothDevice Function(String) _deviceFromId;
+  final CharacteristicRepository Function(BluetoothDevice) _repositoryFactory;
+  final bool _runtimeInitialized;
+  StreamSubscription<bool>? _scanSubscription;
   late final BleScanner scanner;
   late final UserSettings settings;
 
@@ -107,9 +111,23 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   // On initialization...
-  ScooterService(this.flutterBluePlus, {this.isInBackgroundService = false}) {
+  /// Set [initializeRuntime] to false for manually driven tests: settings and
+  /// scanner remain available, but cache restore, observers and timers do not run.
+  /// In that mode [rssiTimer] is not initialized.
+  ScooterService(
+    this.flutterBluePlus, {
+    this.isInBackgroundService = false,
+    ScooterStorage? storage,
+    BluetoothDevice Function(String)? deviceFromId,
+    CharacteristicRepository Function(BluetoothDevice)? repositoryFactory,
+    bool initializeRuntime = true,
+  }) : store = storage ?? ScooterStorage(),
+       _deviceFromId = deviceFromId ?? BluetoothDevice.fromId,
+       _repositoryFactory = repositoryFactory ?? CharacteristicRepository.new,
+       _runtimeInitialized = initializeRuntime {
     settings = UserSettings(isInBackgroundService: isInBackgroundService);
     scanner = BleScanner(flutterBluePlus);
+    if (!_runtimeInitialized) return;
     _loadCachedData();
 
     // Register for app lifecycle callbacks (only if not in background service)
@@ -128,7 +146,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     });
 
     // update the "scanning" listener
-    flutterBluePlus.isScanning.listen((isScanning) {
+    _scanSubscription = flutterBluePlus.isScanning.listen((isScanning) {
       scanning = isScanning;
     });
 
@@ -504,7 +522,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     state = ScooterState.linking;
     _showCachedScooter(savedScooters[id]);
 
-    final attemptedScooter = BluetoothDevice.fromId(id);
+    final attemptedScooter = _deviceFromId(id);
     final previousAttempt = _attemptedScooter;
     _attemptedScooter = attemptedScooter;
 
@@ -858,7 +876,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       throw "Scooter disconnected, can't set up characteristics!";
     }
     try {
-      final repository = CharacteristicRepository(scooter);
+      final repository = _repositoryFactory(scooter);
       await repository.findAll(additionalLibrescootFeatures: additionalLibrescootFeatures);
       if (connectionAttemptGeneration != _connectionAttemptGeneration) {
         throw const _SupersededConnectionAttempt();
@@ -1381,7 +1399,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
           automatic: true,
           expectedIntentGeneration: _connectionIntentGeneration,
         );
-        if (BluetoothDevice.fromId(latestScooter.id).isConnected) {
+        if (_deviceFromId(latestScooter.id).isConnected) {
           return true;
         }
       } catch (e) {
@@ -1494,7 +1512,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     } else {
       // we're not currently connected to this scooter
       try {
-        await BluetoothDevice.fromId(id).removeBond();
+        await _deviceFromId(id).removeBond();
       } catch (e, stack) {
         log.severe("Couldn't forget scooter", e, stack);
       }
@@ -1581,10 +1599,13 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     _lsProbeGeneration++;
     stopAutoRestart(); // also clears the manual target and tells the background
 
-    _locationTimer.cancel();
-    _manualTargetHeartbeatTimer.cancel();
-    rssiTimer.cancel();
-    _manualRefreshTimer.cancel();
+    if (_runtimeInitialized) {
+      _locationTimer.cancel();
+      _manualTargetHeartbeatTimer.cancel();
+      rssiTimer.cancel();
+      _manualRefreshTimer.cancel();
+    }
+    _scanSubscription?.cancel();
     _connectionStateSubscription?.cancel();
     _autoRestartSubscription?.cancel();
     vehicle.cancelSubscriptions();
@@ -1600,7 +1621,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     }
 
     // Unregister lifecycle observer
-    if (!isInBackgroundService) {
+    if (_runtimeInitialized && !isInBackgroundService) {
       WidgetsBinding.instance.removeObserver(this);
     }
 

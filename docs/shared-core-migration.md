@@ -110,7 +110,33 @@ still own their subscription lifetimes and stale-connection guards. Moving
 readers does not yet make these live state objects immutable or solve connection
 ownership; those are separate slices.
 
+## Persistence characterization gate
+
+The saved-scooter and storage suites exercise the actual implementations with
+in-memory preference/background adapters. They pin JSON fields, microsecond
+precision, nullable flags, auto-connect behavior and stale-instance resurrection
+protection. Shared fakes live under `test/support`.
+
+Some tests intentionally characterize existing flaws rather than endorse them:
+a malformed entry aborts later entries, a missing preference can preserve stale
+local entries, adding before loading can replace persisted data, and recoloring
+an unknown scooter can remain memory-only. Fix those in explicit behavior-change
+commits with updated regression expectations, not incidentally during relocation.
+
 ## Next connection seam
+
+The first executable connection seam is now in place: ScooterService accepts
+optional storage, device and characteristic-repository factories, with unchanged
+production defaults. `initializeRuntime: false` supports manually driven tests
+without cache restoration, observers or timers; it does not bypass the actual
+connection method. The runtime scan subscription is retained and cancelled on
+disposal. Runtime-disabled instances do not initialize the public RSSI timer.
+
+Five tests cover disabled-runtime lifecycle, manual row/intent publication,
+obsolete automatic intent and overlapping attempts with late older failures,
+including while the newer device discovers characteristics. These stop at
+controlled failures. Successful sessions, Android bonding/priority, iOS widget
+calls, late telemetry/probes and same-device ownership still need coverage.
 
 Do not move the constructor's side effects into a new core constructor. The live
 ScooterService currently restores storage asynchronously, observes lifecycle,
