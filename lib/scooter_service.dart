@@ -1374,9 +1374,16 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   void _pollLocation() async {
-    LatLng? position = await _readLocation();
-    if (position != null && myScooter != null) {
-      savedScooters[myScooter!.remoteId.toString()]!.lastLocation = position;
+    final scooter = myScooter;
+    final generation = _connectionAttemptGeneration;
+    if (scooter == null) return;
+    final position = await _readLocation();
+    if (position != null &&
+        generation == _connectionAttemptGeneration &&
+        connected &&
+        scooter.isConnected &&
+        myScooter?.remoteId == scooter.remoteId) {
+      savedScooters[scooter.remoteId.toString()]?.lastLocation = position;
     }
   }
 

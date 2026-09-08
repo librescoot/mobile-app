@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:scooter_core/scooter_core.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
@@ -20,6 +21,13 @@ class _Storage extends Fake implements ScooterStorage {
   };
   int loads = 0;
   final List<String> additions = [];
+  final List<String> pings = [];
+
+  @override
+  void updatePing(String id) {
+    pings.add(id);
+    scooters[id]?.lastPing = DateTime.now();
+  }
 
   @override
   Future<void> load() async {
@@ -68,6 +76,21 @@ class _Device extends Fake implements BluetoothDevice {
   bool get linked => transport.linked;
   set linked(bool value) => transport.linked = value;
   int disconnects = 0;
+  int listens = 0;
+  int cancels = 0;
+  late final states = StreamController<BluetoothConnectionState>.broadcast(
+    onListen: () => listens++,
+    onCancel: () => cancels++,
+  );
+  @override
+  Stream<BluetoothConnectionState> get connectionState => states.stream;
+  @override
+  DisconnectReason? get disconnectReason => null;
+
+  void emitDisconnected() {
+    linked = false;
+    states.add(BluetoothConnectionState.disconnected);
+  }
 
   @override
   bool get isConnected => linked;
@@ -95,7 +118,73 @@ class _Device extends Fake implements BluetoothDevice {
   }
 }
 
-class _Repository extends Fake implements CharacteristicRepository {
+class _Characteristic extends Fake implements BluetoothCharacteristic {
+  _Characteristic(this.bytes);
+  final List<int> bytes;
+  final values = StreamController<List<int>>.broadcast();
+  int reads = 0;
+  int notifications = 0;
+  @override
+  Stream<List<int>> get lastValueStream => values.stream;
+  @override
+  Future<bool> setNotifyValue(bool notify, {int timeout = 15, bool forceIndications = false}) async {
+    notifications++;
+    return true;
+  }
+
+  @override
+  Future<List<int>> read({int timeout = 15}) async {
+    reads++;
+    values.add(bytes);
+    return bytes;
+  }
+}
+
+class _Repository extends CharacteristicRepository {
+  _Repository() : super(_Device('repository-only')) {
+    commandCharacteristic = characteristic([]);
+    hibernationCommandCharacteristic = null;
+    stateCharacteristic = characteristic('parked'.codeUnits);
+    powerStateCharacteristic = characteristic('running'.codeUnits);
+    seatCharacteristic = characteristic('closed'.codeUnits);
+    handlebarCharacteristic = characteristic('locked'.codeUnits);
+    auxSOCCharacteristic = characteristic([70, 0, 0, 0]);
+    auxVoltageCharacteristic = characteristic([0, 0, 0, 0]);
+    auxChargingCharacteristic = characteristic('not-charging'.codeUnits);
+    cbbSOCCharacteristic = characteristic([80]);
+    cbbVoltageCharacteristic = characteristic([0, 0, 0, 0]);
+    cbbCapacityCharacteristic = characteristic([0, 0, 0, 0]);
+    cbbChargingCharacteristic = characteristic('not-charging'.codeUnits);
+    cbbFullCapacityCharacteristic = null;
+    primaryStateCharacteristic = null;
+    primaryPresentCharacteristic = null;
+    primaryCyclesCharacteristic = characteristic([1, 0, 0, 0]);
+    primarySOCCharacteristic = characteristic([90, 0, 0, 0]);
+    secondaryCyclesCharacteristic = characteristic([2, 0, 0, 0]);
+    secondarySOCCharacteristic = characteristic([60, 0, 0, 0]);
+    nrfVersionCharacteristic = characteristic('test-firmware'.codeUnits);
+    imxVersionCharacteristic = null;
+    odometerCharacteristic = characteristic([123, 0, 0, 0]);
+    systemTimeCharacteristic = null;
+    navigationActiveCharacteristic = null;
+    umsStatusCharacteristic = null;
+    extendedCommandCharacteristic = null;
+    extendedResponseCharacteristic = null;
+  }
+  final characteristics = <_Characteristic>[];
+  _Characteristic characteristic(List<int> value) {
+    final result = _Characteristic(value);
+    characteristics.add(result);
+    return result;
+  }
+
+  int completenessChecks = 0;
+  @override
+  bool anyAreNull() {
+    completenessChecks++;
+    return super.anyAreNull();
+  }
+
   final Completer<void> discovery = Completer<void>();
   final List<bool> requests = [];
 
@@ -108,8 +197,10 @@ class _Repository extends Fake implements CharacteristicRepository {
 
 class _Service extends ScooterService {
   _Service(super.flutterBluePlus, _Storage storage, Map<String, _Device> devices, List<String> deviceRequests,
-      _Repository repository, List<BluetoothDevice> repositories)
+      _Repository repository, List<BluetoothDevice> repositories,
+      {Future<LatLng?> Function()? pollLocation})
       : super(
+          pollLocation: pollLocation ?? (() async => null),
           storage: storage,
           initializeRuntime: false,
           deviceFromId: (id) {
@@ -129,9 +220,8 @@ class _Service extends ScooterService {
   }
 }
 
-// Linux exercises the actual connection method but not Android bonding/priority
-// or iOS widgets. Stop at controlled connect/discovery failures, before live
-// characteristic subscriptions, location polling and other native effects.
+// Linux exercises real connection and characteristic subscription wiring, but
+// not Android bonding/priority or iOS widgets. Location is injected explicitly.
 void main() {
   late SharedPreferencesAsyncPlatform? previousPreferences;
   late MemoryPreferences preferences;
@@ -151,6 +241,7 @@ void main() {
   late List<BluetoothDevice> repositories;
   late _Service service;
   late List<Future<Object?>> attempts;
+  late List<Completer<LatLng?>> locations;
   bool disposed = false;
 
   Future<void> drain() => Future<void>.delayed(Duration.zero);
@@ -174,6 +265,7 @@ void main() {
     deviceRequests = [];
     repositories = [];
     attempts = [];
+    locations = [];
     disposed = false;
   });
 
@@ -196,12 +288,174 @@ void main() {
     await Future.wait(attempts);
     await drain();
     if (!disposed) service.dispose();
+    for (final location in locations) {
+      if (!location.isCompleted) location.complete(null);
+    }
+    await drain();
+    for (final device in allDevices) {
+      expect(device.states.hasListener, isFalse);
+      await device.states.close();
+    }
+    for (final characteristic in repository.characteristics) {
+      expect(characteristic.values.hasListener, isFalse);
+      await characteristic.values.close();
+    }
     SharedPreferencesAsyncPlatform.instance = previousPreferences;
   });
 
-  void createService() {
-    service = _Service(bluetooth, storage, devices, deviceRequests, repository, repositories);
+  void createService({Future<LatLng?> Function()? pollLocation}) {
+    service =
+        _Service(bluetooth, storage, devices, deviceRequests, repository, repositories, pollLocation: pollLocation);
   }
+
+  Future<LatLng?> pendingLocation() {
+    final result = Completer<LatLng?>();
+    locations.add(result);
+    return result.future;
+  }
+
+  Future<void> finishConnection(Future<Object?> attempt, _Device device) async {
+    device.connections.last.complete();
+    await drain();
+    if (!repository.discovery.isCompleted) repository.discovery.complete();
+    expect(await attempt, isNull); // Includes the real connect method's finally.
+    await drain();
+    expect(service.connected, isTrue);
+    expect(service.connectingScooterId, isNull);
+    expect(service.myScooter, same(device));
+    expect(device.states.hasListener, isTrue);
+    expect(repository.completenessChecks, greaterThan(0));
+    expect(repository.anyAreNull(), isFalse);
+    expect(service.vehicle.vehicleState, ScooterVehicleState.parked);
+    expect(service.battery.primarySOC, 90);
+    expect(service.identity.nrfVersion, 'test-firmware');
+    expect(service.identity.odometerMeters, 123);
+  }
+
+  for (final reuseWrapper in [false, true]) {
+    for (final olderSucceeds in [false, true]) {
+      test(
+          'same ID ${reuseWrapper ? 'reused wrapper' : 'distinct wrappers'}: '
+          'older ${olderSucceeds ? 'success' : 'failure'} preserves fully connected newer session', () async {
+        createService();
+        final oldDevice = devices['A']!;
+        final older = connect('A');
+        await drain();
+        final newDevice = reuseWrapper ? oldDevice : makeDevice('A', oldDevice.transport);
+        devices['A'] = newDevice;
+        final newer = connect('A');
+        await drain();
+        await finishConnection(newer, newDevice);
+        final state = service.state;
+        final failure = StateError('late older connection failure');
+        if (olderSucceeds) {
+          oldDevice.connection.complete();
+        } else {
+          oldDevice.connection.completeError(failure);
+        }
+        expect(await older, olderSucceeds ? isNull : same(failure));
+        expect(service.connected, isTrue);
+        expect(service.myScooter, same(newDevice));
+        expect(service.connectingScooterId, isNull);
+        expect(service.state, state);
+        expect(oldDevice.transport.disconnects, 0);
+        expect(newDevice.isConnected, isTrue);
+        expect(newDevice.cancels, 0);
+        expect(repositories, [same(newDevice)]);
+      });
+    }
+  }
+
+  test('different ID: late older success disconnects only itself after newer finally', () async {
+    createService();
+    final older = connect('A');
+    await drain();
+    final newer = connect('B');
+    await drain();
+    await finishConnection(newer, devices['B']!);
+    devices['A']!.connection.complete();
+    expect(await older, isNull);
+    expect(devices['A']!.disconnects, 1);
+    expect(devices['A']!.linked, isFalse);
+    expect(devices['B']!.disconnects, 0);
+    expect(devices['B']!.linked, isTrue);
+    expect(service.connected, isTrue);
+    expect(service.myScooter, same(devices['B']));
+    expect(service.connectingScooterId, isNull);
+  });
+
+  test('obsolete disconnect stream is cancelled; current disconnect clears connected', () async {
+    createService();
+    final first = connect('A');
+    await drain();
+    await finishConnection(first, devices['A']!);
+    final second = connect('B');
+    await drain();
+    await finishConnection(second, devices['B']!);
+    expect(devices['A']!.listens, 1);
+    expect(devices['A']!.cancels, 1);
+    expect(devices['A']!.states.hasListener, isFalse);
+    final currentState = service.state;
+    devices['A']!.emitDisconnected();
+    await drain();
+    expect(service.connected, isTrue);
+    expect(service.state, currentState);
+    expect(service.myScooter, same(devices['B']));
+    expect(storage.pings, isEmpty);
+    devices['B']!.emitDisconnected();
+    await drain();
+    expect(service.connected, isFalse);
+    expect(service.state, ScooterState.disconnected);
+    expect(storage.pings, ['B']);
+  });
+
+  test('current location result writes only the connected scooter', () async {
+    createService(pollLocation: pendingLocation);
+    final attempt = connect('B');
+    await drain();
+    await finishConnection(attempt, devices['B']!);
+    const position = LatLng(3, 4);
+    locations.single.complete(position);
+    await drain();
+    expect(storage.scooters['A']!.lastLocation, isNull);
+    expect(storage.scooters['B']!.lastLocation, position);
+  });
+
+  test('superseded location result writes neither scooter; current result writes only B', () async {
+    createService(pollLocation: pendingLocation);
+    final first = connect('A');
+    await drain();
+    await finishConnection(first, devices['A']!);
+    final second = connect('B');
+    await drain();
+    await finishConnection(second, devices['B']!);
+    expect(locations, hasLength(2));
+    locations[0].complete(const LatLng(1, 2));
+    await drain();
+    expect(storage.scooters['A']!.lastLocation, isNull);
+    expect(storage.scooters['B']!.lastLocation, isNull,
+        reason: 'A location must not be attributed to the newer B session');
+    const currentPosition = LatLng(3, 4);
+    locations[1].complete(currentPosition);
+    await drain();
+    expect(storage.scooters['A']!.lastLocation, isNull);
+    expect(storage.scooters['B']!.lastLocation, currentPosition);
+  });
+
+  test('pending location result after disconnect is ignored', () async {
+    createService(pollLocation: pendingLocation);
+    final attempt = connect('A');
+    await drain();
+    await finishConnection(attempt, devices['A']!);
+    expect(locations, hasLength(1));
+    devices['A']!.emitDisconnected();
+    await drain();
+    expect(service.connected, isFalse);
+    locations.single.complete(const LatLng(1, 2));
+    await drain();
+    expect(storage.scooters['A']!.lastLocation, isNull);
+    expect(storage.scooters['B']!.lastLocation, isNull);
+  });
 
   test('disposal during replacement cleans the older published transport', () async {
     createService();
