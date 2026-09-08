@@ -15,7 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../background/widget_handler.dart';
 import '../domain/statistics_helper.dart';
-import '../domain/scooter_battery.dart';
+import 'package:scooter_core/scooter_battery.dart';
 import '../domain/scooter_candidate.dart';
 import '../domain/nav_destination.dart';
 import '../domain/saved_scooter.dart';

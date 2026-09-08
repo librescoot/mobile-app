@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
 import '../domain/saved_scooter.dart';
-import '../domain/scooter_battery.dart';
+import 'package:scooter_core/scooter_battery.dart';
 import '../infrastructure/characteristic_repository.dart';
 import '../infrastructure/scooter_reader.dart';
 

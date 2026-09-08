@@ -97,6 +97,19 @@ hardware tests; Dart extraction does not replace it.
   dBm display formatting belong in app presentation extensions. Invalid threshold
   lookup still throws rather than silently changing existing behavior.
 
+## Telemetry reader boundary
+
+Byte decoding is pure core (`characteristic_values.dart`): string normalization,
+strict uint32 values and padded odometer decoding. The current odometer's unsigned
+32-bit interpretation is retained rather than changing the wire contract during
+extraction. Battery type/charging enums are also core; labels, SOC text and image
+paths remain app presentation extensions.
+
+Characteristic readers/subscriptions live in `scooter_flutter`. State objects
+still own their subscription lifetimes and stale-connection guards. Moving
+readers does not yet make these live state objects immutable or solve connection
+ownership; those are separate slices.
+
 ## Next connection seam
 
 Do not move the constructor's side effects into a new core constructor. The live
