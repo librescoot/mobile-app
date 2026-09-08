@@ -569,6 +569,7 @@
     "ls_ota_status_preparing": "Preparing bundle...",
     "ls_ota_status_contacting": "Contacting scooter...",
     "ls_ota_status_verifying": "Verifying transfer",
+    "ls_ota_awaiting_confirmation": "Reconnect to {scooter} to confirm the installation before starting another update.",
     "ls_ota_status_installing": "Installing",
     "ls_ota_installing_percent": "Installing... {percent}%",
     "ls_ota_closable_note": "The transfer is complete — you can close the app now. The installation continues on the scooter, and this screen picks it up again when you come back.",
