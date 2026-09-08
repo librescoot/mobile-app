@@ -10,7 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:unustasis/ui/screens/home_screen.dart';
-import 'package:unustasis/infrastructure/utils.dart';
+import 'package:unustasis/ui/presentation/relative_time.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/domain/scooter_state.dart';

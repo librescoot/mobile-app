@@ -2,4 +2,5 @@
 library;
 
 export 'src/ble/blue_plus_mockable.dart';
+export 'src/ble/characteristic_subscription.dart';
 export 'src/runtime/state_waiter.dart';

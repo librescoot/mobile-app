@@ -6,7 +6,7 @@ import 'package:logging/logging.dart';
 
 import '../domain/alarm_wake_sources.dart';
 import '../domain/scooter_battery.dart';
-import '../infrastructure/utils.dart';
+import 'package:scooter_flutter/scooter_flutter.dart' show subscribeCharacteristic;
 
 final _log = Logger('ScooterSubscriptions');
 
