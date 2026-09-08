@@ -19,7 +19,8 @@ Future<String?> getInstalledVersionCommand(
   CharacteristicRepository repo,
   String component,
 ) async {
-  final response = await sendLsExtendedCommand(scooter, repo, "status:version:$component");
+  final response =
+      await sendLsExtendedCommand(scooter, repo, "status:version:$component");
   if (response == null) return null;
   final prefix = "status:version:$component:";
   if (!response.startsWith(prefix)) {
@@ -46,48 +47,51 @@ Future<Set<String>> getLsCapabilitiesCommand(
   String category,
 ) =>
     withExtendedChannel(() async {
-  if (scooter == null || scooter.isDisconnected) {
-    throw "Scooter not connected!";
-  }
-  final cmd = repo.extendedCommandCharacteristic;
-  final resp = repo.extendedResponseCharacteristic;
-  if (cmd == null || resp == null) {
-    throw "Extended command characteristics not available";
-  }
+      if (scooter == null || scooter.isDisconnected) {
+        throw "Scooter not connected!";
+      }
+      final cmd = repo.extendedCommandCharacteristic;
+      final resp = repo.extendedResponseCharacteristic;
+      if (cmd == null || resp == null) {
+        throw "Extended command characteristics not available";
+      }
 
-  await ensureExtendedNotify(resp);
-  final listener = ExtendedResponseListener(resp.onValueReceived);
-  try {
-    await sendCommand(scooter, repo, "cap:$category", characteristic: cmd);
-    final stream = listener.responses.timeout(const Duration(seconds: 10));
-    final entries = await readExtendedList(stream, (msg) => parseCapabilityEntry(category, msg));
-    return entries.toSet();
-  } on TimeoutException {
-    _log.info("getLsCapabilitiesCommand: timeout, assuming no $category capabilities");
-    return <String>{};
-  } on ExtendedResponseFormatException catch (e) {
-    // Firmware without the capability query answers with an error string
-    // rather than a count. Treat that as "no capabilities", but log it.
-    _log.info("getLsCapabilitiesCommand: unparseable reply, assuming no $category capabilities ($e)");
-    return <String>{};
-  } finally {
-    await listener.cancel();
-  }
-});
+      await ensureExtendedNotify(resp);
+      final listener = ExtendedResponseListener(resp.onValueReceived);
+      try {
+        await sendCommand(scooter, repo, "cap:$category", characteristic: cmd);
+        final stream = listener.responses.timeout(const Duration(seconds: 10));
+        final entries = await readExtendedList(
+            stream, (msg) => parseCapabilityEntry(category, msg));
+        return entries.toSet();
+      } on TimeoutException {
+        _log.info(
+            "getLsCapabilitiesCommand: timeout, assuming no $category capabilities");
+        return <String>{};
+      } on ExtendedResponseFormatException catch (e) {
+        // Firmware without the capability query answers with an error string
+        // rather than a count. Treat that as "no capabilities", but log it.
+        _log.info(
+            "getLsCapabilitiesCommand: unparseable reply, assuming no $category capabilities ($e)");
+        return <String>{};
+      } finally {
+        await listener.cancel();
+      }
+    });
 
 /// Reads a librescoot settings key via the generic get command. Returns null
 /// if the key or the get command itself is unsupported (or on timeout), and
 /// "" if the key exists but is unset.
 Future<String?> getLsSettingCommand(
-  BluetoothDevice? scooter,
-  CharacteristicRepository repo,
-  String key,
-) async {
-  final response = await sendLsExtendedCommand(scooter, repo, "get:$key");
+    BluetoothDevice? scooter, CharacteristicRepository repo, String key,
+    {bool Function()? isCurrent}) async {
+  final response = await sendLsExtendedCommand(scooter, repo, "get:$key",
+      isCurrent: isCurrent);
   final prefix = "get:$key:";
   if (response == null || !response.startsWith(prefix)) {
     // covers "get:error:unknown key", "error:unknown command" and timeouts
-    _log.info("getLsSettingCommand: '$key' unsupported or failed, response: $response");
+    _log.info(
+        "getLsSettingCommand: '$key' unsupported or failed, response: $response");
     return null;
   }
   // the value is everything after the first colon following the key; it may
@@ -97,16 +101,14 @@ Future<String?> getLsSettingCommand(
 
 /// Writes a librescoot settings key. [value] must not be empty (the firmware
 /// rejects empty values).
-Future<void> setLsSettingCommand(
-  BluetoothDevice? scooter,
-  CharacteristicRepository repo,
-  String key,
-  String value,
-) async {
+Future<void> setLsSettingCommand(BluetoothDevice? scooter,
+    CharacteristicRepository repo, String key, String value,
+    {bool Function()? isCurrent}) async {
   if (value.isEmpty) {
     throw "Setting value must not be empty";
   }
-  final response = await sendLsExtendedCommand(scooter, repo, "set:$key:$value");
+  final response = await sendLsExtendedCommand(scooter, repo, "set:$key:$value",
+      isCurrent: isCurrent);
   if (response != "set:ok:$key") {
     _log.severe("Failed to set $key, response: $response");
     throw "Failed to set $key, response: $response";

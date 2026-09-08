@@ -39,7 +39,9 @@ Future<void> sendCommand(
   String command, {
   BluetoothCharacteristic? characteristic,
   bool allowLongWrite = false,
+  bool Function()? isCurrent,
 }) async {
+  checkCommandCurrent(isCurrent);
   _log.fine("Sending command: $command");
   if (scooter == null) {
     throw "Scooter not found!";
@@ -61,17 +63,16 @@ Future<void> sendCommand(
 /// firmware) and waits for a single response on the extended response
 /// characteristic. Returns null on timeout.
 Future<String?> sendLsExtendedCommand(
-  BluetoothDevice? scooter,
-  CharacteristicRepository repo,
-  String command,
-) =>
-    withExtendedChannel(() => _sendLsExtendedCommandUnguarded(scooter, repo, command));
+        BluetoothDevice? scooter, CharacteristicRepository repo, String command,
+        {bool Function()? isCurrent}) =>
+    withExtendedChannel(() => _sendLsExtendedCommandUnguarded(
+        scooter, repo, command,
+        isCurrent: isCurrent));
 
 Future<String?> _sendLsExtendedCommandUnguarded(
-  BluetoothDevice? scooter,
-  CharacteristicRepository repo,
-  String command,
-) async {
+    BluetoothDevice? scooter, CharacteristicRepository repo, String command,
+    {bool Function()? isCurrent}) async {
+  checkCommandCurrent(isCurrent);
   if (scooter == null || scooter.isDisconnected) {
     throw "Scooter not connected!";
   }
@@ -82,15 +83,23 @@ Future<String?> _sendLsExtendedCommandUnguarded(
   }
 
   await ensureExtendedNotify(resp);
+  checkCommandCurrent(isCurrent);
   final listener = ExtendedResponseListener(resp.onValueReceived);
   try {
-    await sendCommand(scooter, repo, command, characteristic: cmd, allowLongWrite: true);
+    await sendCommand(scooter, repo, command,
+        characteristic: cmd, allowLongWrite: true, isCurrent: isCurrent);
     return await listener.responses.first.timeout(const Duration(seconds: 10));
   } on TimeoutException {
-    _log.warning("sendLsExtendedCommand: timeout waiting for response to '$command'");
+    _log.warning(
+        "sendLsExtendedCommand: timeout waiting for response to '$command'");
     return null;
   } finally {
     await listener.cancel();
   }
 }
 
+void checkCommandCurrent(bool Function()? isCurrent) {
+  if (isCurrent != null && !isCurrent()) {
+    throw StateError("Action session expired");
+  }
+}

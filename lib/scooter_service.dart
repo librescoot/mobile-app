@@ -11,7 +11,8 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:logging/logging.dart';
-import 'package:pausable_timer/pausable_timer.dart';
+import 'package:scooter_flutter/scooter_actions.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../background/widget_handler.dart';
@@ -25,14 +26,12 @@ import '../infrastructure/characteristic_repository.dart';
 import '../service/location_polling.dart' as location;
 import '../state/scooter_identity.dart';
 import '../service/scooter_storage.dart';
-import '../service/state_waiter.dart';
 import '../service/ble_commands.dart' as commands;
 import '../service/ble_scanner.dart';
 import '../service/user_settings.dart';
 
-const keylessCooldownSeconds = 60;
-const handlebarCheckSeconds = 5;
-const wakeAndUnlockTimeout = Duration(seconds: 45);
+export 'package:scooter_flutter/scooter_actions.dart'
+    show ActionPollingTimer, keylessCooldownSeconds, handlebarCheckSeconds, wakeAndUnlockTimeout;
 
 class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final log = Logger('ScooterService');
@@ -66,13 +65,16 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   DateTime? _externalManualTargetSince;
   NavDestination? _pendingNavigation;
   NavDestination? _activeNavigation;
-  bool _autoUnlockCooldown = false;
+  late final ScooterActions actions;
+  final _actionWarnings = StreamController<HandlebarWarning>.broadcast(sync: true);
+  Stream<HandlebarWarning> get actionWarnings => _actionWarnings.stream;
+  bool get autoUnlockCoolingDown => actions.coolingDown;
   AppLifecycleState? _lastLifecycleState;
   bool _wasBackgrounded = false;
 
-  late Timer _locationTimer, _manualRefreshTimer;
+  late Timer _locationTimer;
   late final Timer _manualTargetHeartbeatTimer;
-  late PausableTimer rssiTimer;
+  late ActionPollingTimer rssiTimer;
   late CharacteristicRepository characteristicRepository;
   late bool isInBackgroundService;
   final FlutterBluePlusMockable flutterBluePlus;
@@ -136,6 +138,13 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         Future.delayed(const Duration(milliseconds: 1500), FlutterNativeSplash.remove);
       },
     );
+    actions = ScooterActions(session: _session, telemetry: _telemetry,
+      settings: () => ActionSettings(openSeatOnUnlock: settings.openSeatOnUnlock,
+        hazardLocking: settings.hazardLocking, warnOfUnlockedHandlebars: settings.warnOfUnlockedHandlebars,
+        autoUnlock: settings.autoUnlock, autoUnlockThreshold: settings.autoUnlockThreshold,
+        optionalAuth: settings.optionalAuth),
+      location: () => lastLocation == null ? null : ActionLocation(lastLocation!.latitude, lastLocation!.longitude),
+      effects: _ServiceActionEffects(this));
     if (!_runtimeInitialized) return;
     _loadCachedData();
 
@@ -165,38 +174,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         _pollLocation();
       }
     });
-    rssiTimer = PausableTimer.periodic(const Duration(seconds: 3), () async {
-      if (myScooter != null && myScooter!.isConnected && settings.autoUnlock) {
-        try {
-          rssi = await myScooter!.readRssi();
-        } catch (e) {
-          // probably not connected anymore
-        }
-        if (settings.autoUnlock &&
-            identity.rssi != null &&
-            identity.rssi! > settings.autoUnlockThreshold &&
-            _state == ScooterState.standby &&
-            !_autoUnlockCooldown &&
-            settings.optionalAuth) {
-          unlock(source: EventSource.auto);
-          autoUnlockCooldown();
-        }
-      }
-    })
-      ..start();
-    _manualRefreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-      if (myScooter != null && myScooter!.isConnected) {
-        try {
-          log.info("Auto-refresh...");
-          characteristicRepository.stateCharacteristic!.read();
-          characteristicRepository.seatCharacteristic!.read();
-        } on StateError catch (_) {
-          log.fine(
-            "Characteristics not yet initialized, skipping auto-refresh",
-          );
-        }
-      }
-    });
+    rssiTimer = actions.rssiTimer;
+    actions.startPolling();
   }
 
   Future<SavedScooter?> getMostRecentScooter() async {
@@ -349,6 +328,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   set state(ScooterState? state) {
     _state = state;
     notifyListeners();
+    actions.telemetryChanged();
   }
 
   // Passthrough getters for vehicle status
@@ -480,240 +460,35 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   // SCOOTER ACTIONS
 
-  Future<void> unlock({
-    bool checkHandlebars = true,
-    EventSource source = EventSource.app,
-  }) async {
-    await commands.unlockScooter(
-      myScooter,
-      characteristicRepository,
-      primarySOC: battery.primarySOC,
-      secondarySOC: battery.secondarySOC,
-      source: source,
-    );
-
-    log.info('[wake-timing] unlock command acknowledged');
-
-    if (settings.openSeatOnUnlock) {
-      await Future.delayed(const Duration(seconds: 1), () {
-        openSeat(source: EventSource.auto);
-      });
-    }
-
-    if (settings.hazardLocking) {
-      await Future.delayed(const Duration(seconds: 2), () {
-        hazard(times: 2);
-      });
-    }
-
-    if (checkHandlebars) {
-      await Future.delayed(const Duration(seconds: handlebarCheckSeconds), () {
-        if (vehicle.handlebarsLocked == true) {
-          log.warning("Handlebars didn't unlock, sending warning");
-          throw HandlebarLockException();
-        }
-      });
-    }
+  Future<void> unlock({bool checkHandlebars = true, EventSource source = EventSource.app}) =>
+      actions.unlock(checkHandlebars: checkHandlebars, source: source);
+  Future<void> lock({bool checkHandlebars = true, EventSource source = EventSource.app}) {
+    if (vehicle.seatClosed == false) log.warning("Locking with open seatbox!");
+    return actions.lock(checkHandlebars: checkHandlebars, source: source);
   }
-
-  Future<void> wakeUpAndUnlock({EventSource? source}) async {
-    final stopwatch = Stopwatch()..start();
-    log.info('[wake-timing] wake-and-unlock started');
-    final waiter = StateWaiter<ScooterState?>(
-      notifier: this,
-      value: () => state,
-      expected: ScooterState.standby,
-      timeout: wakeAndUnlockTimeout,
-      isDisconnected: (state) => state == ScooterState.disconnected,
-    );
-    final standby = waiter.wait();
-
-    try {
-      await Future.wait([wakeUp(), standby], eagerError: true);
-      log.info('[wake-timing] standby reached after ${stopwatch.elapsed.inMilliseconds} ms');
-
-      final remaining = wakeAndUnlockTimeout - stopwatch.elapsed;
-      if (remaining <= Duration.zero) {
-        throw TimeoutException('Timed out waking and unlocking the scooter.', wakeAndUnlockTimeout);
-      }
-      await unlock(source: source ?? EventSource.app).timeout(remaining);
-      log.info('[wake-timing] wake-and-unlock completed after ${stopwatch.elapsed.inMilliseconds} ms');
-    } catch (e, stack) {
-      log.warning('[wake-timing] wake-and-unlock failed after ${stopwatch.elapsed.inMilliseconds} ms: $e', e, stack);
-      rethrow;
-    } finally {
-      waiter.cancel();
-    }
+  Future<void> wakeUpAndUnlock({EventSource? source}) => actions.wakeUpAndUnlock(source: source);
+  void autoUnlockCooldown() => actions.autoUnlockCooldown();
+  Future<void> openSeat({EventSource source = EventSource.app}) => actions.openSeat(source: source);
+  Future<void> blink({required bool left, required bool right}) => actions.blink(left: left, right: right);
+  Future<void> hazard({int times = 1}) => actions.hazard(times: times);
+  Future<void> wakeUp() => actions.wakeUp();
+  Future<void> hibernate() => actions.hibernate();
+  Future<void> hibernateFor(Duration wakeAfter) => actions.hibernateFor(wakeAfter);
+  Future<String?> getCellularApn() => actions.getSetting(commands.lsKeyCellularApn);
+  Future<void> setCellularApn(String apn) => actions.setCellularApn(apn);
+  Future<void> clearCellularApn() => actions.clearCellularApn();
+  Future<bool?> _getBoolSetting(String key) async {
+    final value = await actions.getSetting(key);
+    return value == null ? null : value == 'true';
   }
-
-  Future<void> lock({
-    bool checkHandlebars = true,
-    EventSource source = EventSource.app,
-  }) async {
-    if (vehicle.seatClosed == false) {
-      log.warning("Locking with open seatbox!");
-    }
-
-    await commands.lockScooter(
-      myScooter,
-      characteristicRepository,
-      primarySOC: battery.primarySOC,
-      secondarySOC: battery.secondarySOC,
-      source: source,
-      lastLocation: lastLocation,
-    );
-
-    if (settings.hazardLocking) {
-      Future.delayed(const Duration(seconds: 1), () {
-        hazard(times: 1);
-      });
-    }
-
-    if (checkHandlebars) {
-      await Future.delayed(const Duration(seconds: handlebarCheckSeconds), () {
-        if (vehicle.handlebarsLocked == false && settings.warnOfUnlockedHandlebars) {
-          log.warning("Handlebars didn't lock, sending warning");
-          throw HandlebarLockException();
-        }
-      });
-    }
-
-    // don't immediately unlock again automatically
-    autoUnlockCooldown();
-  }
-
-  void autoUnlockCooldown() {
-    try {
-      FlutterBackgroundService().invoke("autoUnlockCooldown");
-    } catch (e) {
-      // closing the loop
-    }
-    _autoUnlockCooldown = true;
-    Future.delayed(const Duration(seconds: keylessCooldownSeconds), () {
-      _autoUnlockCooldown = false;
-    });
-  }
-
-  Future<void> openSeat({EventSource source = EventSource.app}) async {
-    await commands.openSeatCommand(
-      myScooter,
-      characteristicRepository,
-      primarySOC: battery.primarySOC,
-      secondarySOC: battery.secondarySOC,
-      source: source,
-    );
-  }
-
-  Future<void> blink({required bool left, required bool right}) async {
-    await commands.blinkCommand(myScooter, characteristicRepository, left: left, right: right);
-  }
-
-  Future<void> hazard({int times = 1}) async {
-    blink(left: true, right: true);
-    await Future.delayed(Duration(milliseconds: (600 * times)));
-    blink(left: false, right: false);
-  }
-
-  Future<void> wakeUp() async {
-    await commands.wakeUpCommand(myScooter, characteristicRepository);
-    log.info('[wake-timing] wake command acknowledged');
-  }
-
-  Future<void> hibernate() async {
-    await commands.hibernateCommand(myScooter, characteristicRepository);
-  }
-
-  /// Hibernates the scooter with a wake timer (librescoot pm capability).
-  Future<void> hibernateFor(Duration wakeAfter) async {
-    await commands.hibernateForCommand(myScooter, characteristicRepository, wakeAfter);
-  }
-
-  /// Reads the APN the scooter's modem is configured with. Returns "" when no
-  /// APN is set (the modem then uses the SIM operator's defaults), and null
-  /// when the firmware doesn't expose the setting.
-  Future<String?> getCellularApn() async {
-    return commands.getLsSettingCommand(myScooter, characteristicRepository, commands.lsKeyCellularApn);
-  }
-
-  /// Sets the APN the scooter's modem attaches with.
-  Future<void> setCellularApn(String apn) async {
-    await commands.setCellularApnCommand(myScooter, characteristicRepository, apn);
-  }
-
-  /// Reads whether the scooter keeps its running battery active (waking it if
-  /// needed) while the seatbox is open. Returns null when the firmware doesn't
-  /// expose the setting; an unset value counts as off.
-  Future<bool?> getBatteryKeepActive() async {
-    final value = await commands.getLsSettingCommand(
-      myScooter,
-      characteristicRepository,
-      commands.lsKeyBatteryKeepActiveOnSeatboxOpen,
-    );
-    if (value == null) return null;
-    return value == "true";
-  }
-
-  /// Turns the battery keep-active override on or off.
-  Future<void> setBatteryKeepActive(bool enabled) async {
-    await commands.setLsSettingCommand(
-      myScooter,
-      characteristicRepository,
-      commands.lsKeyBatteryKeepActiveOnSeatboxOpen,
-      enabled ? "true" : "false",
-    );
-  }
-
-  /// Returns null when the firmware doesn't expose the setting.
-  Future<bool?> getAlarmEnabled() async {
-    final value = await commands.getLsSettingCommand(
-      myScooter,
-      characteristicRepository,
-      commands.lsKeyAlarmEnabled,
-    );
-    if (value == null) return null;
-    return value == "true";
-  }
-
-  Future<void> setAlarmEnabled(bool enabled) async {
-    await commands.setLsSettingCommand(
-      myScooter,
-      characteristicRepository,
-      commands.lsKeyAlarmEnabled,
-      enabled ? "true" : "false",
-    );
-  }
-
-  /// Returns null when the firmware doesn't expose the setting.
-  Future<bool?> getAlarmHonk() async {
-    final value = await commands.getLsSettingCommand(
-      myScooter,
-      characteristicRepository,
-      commands.lsKeyAlarmHonk,
-    );
-    if (value == null) return null;
-    return value == "true";
-  }
-
-  Future<void> setAlarmHonk(bool enabled) async {
-    await commands.setLsSettingCommand(
-      myScooter,
-      characteristicRepository,
-      commands.lsKeyAlarmHonk,
-      enabled ? "true" : "false",
-    );
-  }
-
-  Future<void> clearCellularApn() async {
-    await commands.clearCellularApnCommand(myScooter, characteristicRepository);
-  }
-
-  Future<void> reboot() async {
-    await commands.rebootCommand(myScooter, characteristicRepository);
-  }
-
-  Future<void> hardReboot() async {
-    await commands.hardRebootCommand(myScooter, characteristicRepository);
-  }
+  Future<bool?> getBatteryKeepActive() => _getBoolSetting(commands.lsKeyBatteryKeepActiveOnSeatboxOpen);
+  Future<void> setBatteryKeepActive(bool enabled) => actions.setSetting(commands.lsKeyBatteryKeepActiveOnSeatboxOpen, enabled.toString());
+  Future<bool?> getAlarmEnabled() => _getBoolSetting(commands.lsKeyAlarmEnabled);
+  Future<void> setAlarmEnabled(bool enabled) => actions.setSetting(commands.lsKeyAlarmEnabled, enabled.toString());
+  Future<bool?> getAlarmHonk() => _getBoolSetting(commands.lsKeyAlarmHonk);
+  Future<void> setAlarmHonk(bool enabled) => actions.setSetting(commands.lsKeyAlarmHonk, enabled.toString());
+  Future<void> reboot() => actions.reboot();
+  Future<void> hardReboot() => actions.hardReboot();
 
   void _pollLocation() async {
     final scooter = myScooter;
@@ -788,10 +563,14 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   // SAVED SCOOTER MANAGEMENT
 
-  Future<void> refetchSavedScooters() async {
+  Future<void> refetchSavedScooters() => _refetchSavedScooters();
+
+  Future<void> _refetchSavedScooters({bool Function()? isCurrent}) async {
     await store.load();
+    if (isCurrent?.call() == false) return;
     if (!connected) {
       final mostRecentScooter = await getMostRecentScooter();
+      if (isCurrent?.call() == false) return;
       identity.lastPing = mostRecentScooter?.lastPing;
       identity.name = mostRecentScooter?.name;
       identity.color = mostRecentScooter?.color;
@@ -809,68 +588,12 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     return store.getIds(onlyAutoConnect: onlyAutoConnect);
   }
 
-  /// Asks the connected scooter to forget this phone, so forgetting clears both
-  /// halves of the bond rather than leaving the scooter holding a peer entry
-  /// for a phone that no longer knows it. Those entries accumulate against a
-  /// whitelist with far fewer slots than the peer store has room for.
-  ///
-  /// Best effort, and deliberately so: a scooter running older firmware, or one
-  /// that never answers, still gets forgotten locally. The user asked for that,
-  /// and the alternative is a scooter the app can neither use nor get rid of.
-  ///
-  /// Returns whether the scooter agreed.
-  Future<bool> _clearScooterSideBond() async {
-    if (myScooter == null || identity.isLibrescoot != true) return false;
-    // Only skip on a probe that came back negative. A probe still in flight, or
-    // one that failed, is not a reason to leave the bond behind: the command
-    // answers for itself, and the cost of asking is one error reply.
-    if (identity.supportsBondForget == false) {
-      log.info("Scooter cannot clear its own bond, forgetting the phone side only");
-      return false;
-    }
-    final scooter = myScooter!;
-    try {
-      await commands.forgetBondCommand(scooter, characteristicRepository);
-    } catch (e, stack) {
-      log.warning("Scooter did not clear its bond, forgetting the phone side only", e, stack);
-      return false;
-    }
-
-    // The scooter acknowledges first and then drops the link to carry the
-    // delete out, because its peer manager cannot delete a peer that is still
-    // connected. So the disconnect is the confirmation, and tearing the link
-    // down from this side before it happens is not merely early: the firmware
-    // resolves the peer from the live connection, finds nothing connected, and
-    // leaves the bond exactly where it was.
-    try {
-      await scooter.connectionState
-          .firstWhere((state) => state == BluetoothConnectionState.disconnected)
-          .timeout(const Duration(seconds: 5));
-      log.info("Scooter forgot this phone and dropped the link");
-      return true;
-    } on TimeoutException {
-      log.warning("Scooter acknowledged the forget but never dropped the link; its bond may remain");
-      return false;
-    }
-  }
-
   Future<void> forgetSavedScooter(String id) async {
+    if (_session.hasPendingConnectionAttempt) return;
+    final current = _session.captureOperationFreshness();
+    if (!current()) return;
     if (myScooter?.remoteId.toString() == id) {
-      // this is the currently connected scooter
-      //
-      // stopAutoRestart first: clearing the scooter's bond makes it drop the
-      // link, and an auto-restart racing that would reconnect to a scooter we
-      // are in the middle of forgetting.
-      stopAutoRestart();
-      // Before removeBond(), not after. The command only travels over the
-      // authenticated link, so once the phone drops its bond there is nothing
-      // left to send it over. This returns with the link already down when the
-      // scooter agreed; the disconnect below is then a no-op that also covers
-      // the scooters that did not.
-      await _clearScooterSideBond();
-      await myScooter?.disconnect();
-      myScooter?.removeBond();
-      myScooter = null;
+      await actions.forgetCurrentScooter();
     } else {
       // we're not currently connected to this scooter
       try {
@@ -880,17 +603,21 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       }
     }
 
-    // if the ID is not specified, we're forgetting the currently connected scooter
+    // Do not let completion of an old forget clear a replacement's state.
+    if (!current()) return;
     if (savedScooters.isNotEmpty) {
       await store.remove(id);
     }
+    if (!current()) return;
     updateBackgroundService({"updateSavedScooters": true});
-    connected = false;
+    if (!current()) return;
+    if (myScooter == null || myScooter?.remoteId.toString() == id) connected = false;
+    if (!current()) return;
     // The background isolate is told to refetch, but this one was left holding
     // the forgotten scooter's name and battery levels, so the home screen went
     // on showing a scooter that no longer exists. refetchSavedScooters resets
     // the streams when nothing is saved, and notifies for us.
-    await refetchSavedScooters();
+    await _refetchSavedScooters(isCurrent: current);
   }
 
   void renameSavedScooter({String? id, required String name}) async {
@@ -956,6 +683,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   @override
   void dispose() {
+    actions.dispose();
+    _actionWarnings.close();
     _session.dispose();
     _telemetry.dispose();
 
@@ -963,7 +692,6 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       _locationTimer.cancel();
       _manualTargetHeartbeatTimer.cancel();
       rssiTimer.cancel();
-      _manualRefreshTimer.cancel();
     }
     _scanSubscription?.cancel();
     // Unregister lifecycle observer
@@ -1077,6 +805,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   void invalidateTelemetry() {
+    service.actions.invalidate();
     service._telemetry.invalidate();
   }
 
@@ -1104,6 +833,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
   @override
   void wireTelemetry(SessionConnection connection, CharacteristicRepository repository) {
     service.characteristicRepository = repository;
+    service.actions.bind(connection, repository);
     service._telemetry.bind(connection, repository);
   }
 
@@ -1126,6 +856,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   void disconnected(String? id) {
+    service.actions.invalidate();
     service._telemetry.invalidate();
     service.state = ScooterState.disconnected;
     if (id != null) service.updateScooterPing(id);
@@ -1160,7 +891,10 @@ class _ServiceTelemetryEffects implements ScooterTelemetryEffects {
   void ping(String scooterId) => service._pingScooter(scooterId);
 
   @override
-  void changed(TelemetrySnapshot snapshot) => service._telemetryChanged();
+  void changed(TelemetrySnapshot snapshot) {
+    service._telemetryChanged();
+    service.actions.telemetryChanged();
+  }
 
   @override
   void firmwareIdentified(SessionConnection connection, FirmwareSnapshot firmware) {
@@ -1176,10 +910,46 @@ class _ServiceTelemetryEffects implements ScooterTelemetryEffects {
 
   @override
   void aggregateTransition(ScooterState? previous, ScooterState? next) {
-    if (previous?.isOn == true && next?.isOn == false) service.autoUnlockCooldown();
+    service.actions.aggregateTransition(previous, next);
   }
 
   @override
   void probeFailed(String message, Object error, StackTrace stack) =>
       service.log.warning(message, error, stack);
+}
+
+class _ServiceActionEffects implements ScooterActionEffects {
+  _ServiceActionEffects(this.service);
+  final ScooterService service;
+  @override
+  void acknowledged(ActionEvent event) => acknowledgeAppAction(event);
+  @override
+  void handlebarWarning(HandlebarWarning warning) {
+    service.log.warning(warning.didNotUnlock ? "Handlebars didn't unlock, sending warning" : "Handlebars didn't lock, sending warning");
+    final connection = service._session.currentConnection;
+    if (connection?.isCurrent != true || connection!.id != warning.action.scooterId ||
+        connection.generation != warning.action.generation) {
+      return;
+    }
+    service._actionWarnings.add(warning);
+  }
+  @override
+  void cooldownStarted() {
+    // FlutterBackgroundService is the UI-isolate facade, not ServiceInstance.
+    // Always retain the local cooldown, but never relay from the service isolate.
+    if (!service.isInBackgroundService) {
+      try { FlutterBackgroundService().invoke("autoUnlockCooldown"); } catch (_) {}
+    }
+  }
+  @override
+  void rssiChanged(int value) => service.rssi = value;
+  @override
+  void failed(Object error, StackTrace stack) => service.log.warning('Action effect failed', error, stack);
+}
+
+void acknowledgeAppAction(ActionEvent event) {
+  if (event.kind == EventType.lock || event.kind == EventType.unlock) HapticFeedback.heavyImpact();
+  StatisticsHelper().logEvent(eventType: event.kind, scooterId: event.scooterId,
+    source: event.source, soc1: event.primarySOC, soc2: event.secondarySOC,
+    location: event.location == null ? null : LatLng(event.location!.latitude, event.location!.longitude));
 }

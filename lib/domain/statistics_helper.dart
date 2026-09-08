@@ -1,3 +1,4 @@
+import 'package:scooter_core/actions.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,9 +7,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum EventType { lock, unlock, openSeat, hibernate, wakeUp, unknown }
-
-enum EventSource { app, background, auto, unknown }
+export 'package:scooter_core/actions.dart' show EventType, EventSource;
 
 class LogEntry {
   final DateTime timestamp;

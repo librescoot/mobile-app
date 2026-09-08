@@ -88,6 +88,11 @@ class ScooterSession {
   bool get isDisposed => _disposed;
   BluetoothDevice? device;
   SessionConnection? _connectionAttempt;
+
+  /// True until the actual pending attempt exits, including ready publication.
+  /// Destructive offline operations must defer rather than race that attempt.
+  bool get hasPendingConnectionAttempt => _connectionAttempt != null;
+
   SessionConnection? _publishedConnectionAttempt;
   SessionConnection? get currentConnection => _publishedConnectionAttempt;
   String? _connectingScooterId;
@@ -97,6 +102,21 @@ class ScooterSession {
   int _intentGeneration = 0;
   int get intentGeneration => _intentGeneration;
   int _attemptGeneration = 0;
+
+  /// Captures operation freshness without requiring a live/published link.
+  /// Unlike SessionConnection, this remains usable after a failed attempt left
+  /// an older publication behind. Any later intent/attempt or disposal expires
+  /// it; a disconnect alone does not (bond forgetting expects that disconnect).
+  /// BLE actions must still use their captured SessionConnection for link checks.
+  bool Function() captureOperationFreshness() {
+    final intent = _intentGeneration;
+    final attempt = _attemptGeneration;
+    return () =>
+        !_disposed &&
+        _intentGeneration == intent &&
+        _attemptGeneration == attempt;
+  }
+
   bool foundScooter = false;
   bool _autoRestarting = false;
   String? _targetScooterId;
