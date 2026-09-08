@@ -12,6 +12,9 @@ dependencies:
     sdk: flutter
   flutter_blue_plus: ^1.34.5
   logging: ^1.2.0
+  shared_preferences: ^2.2.2
+  scooter_core:
+    path: ../scooter_core
 
 dev_dependencies:
   flutter_test:

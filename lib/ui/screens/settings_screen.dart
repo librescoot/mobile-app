@@ -72,7 +72,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     bool initialBiometrics = await prefs.getBool("biometrics") ?? false;
     bool initialAutoUnlock = service.autoUnlock;
     ScooterKeylessDistance initialAutoUnlockDistance =
-        ScooterKeylessDistance.fromThreshold(service.autoUnlockThreshold) ?? ScooterKeylessDistance.regular.threshold;
+        ScooterKeylessDistance.fromThreshold(service.autoUnlockThreshold);
     bool initialOpenSeatOnUnlock = service.openSeatOnUnlock;
     bool initialHazardLocking = service.hazardLocking;
     bool initialOsmConsent = await prefs.getBool("osmConsent") ?? true;
