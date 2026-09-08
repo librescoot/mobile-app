@@ -621,6 +621,165 @@ Hardware BLE/navigation/background/widgets and visible UI behavior remain manual
 smoke gates; APK compilation is not hardware validation.
 
 
+## Shared OTA transfer and update controller (milestone 3, OTA closure)
+
+`OtaTransferService` now lives wholly in `scooter_flutter`: actual streamed file
+SHA-256, Android priority boost, START negotiation, negotiated-MTU DATA cap,
+resume offsets, cumulative ACK/window/go-back-N loop, throughput/ETA, COMPLETE,
+installation adoption/following, local abort and notification/file cleanup. The
+root service path is an export. Core adds the **unchanged ordered transfer enum**
+and structured update-check/HTTP error values; existing protocol bytes and
+`UpdatePlanner` are unchanged single implementations (no CRC/hash redesign).
+
+`UpdateController` owns version queries → supplied release index → existing plan
+→ serialized cache maintenance/download/checksum → captured transfer, including
+full-image fallback selection. `ScooterService` composes one controller on its
+**existing** `ScooterSession` and forwards bind/invalidate/ready/dispose. There is
+no new connection owner/generation, retry loop, extended FIFO or static transfer.
+Version queries use the existing FIFO and now accept its existing freshness
+predicate. Cache-pruning completes inside the planning operation before a ready
+plan can admit a download; cache lookup/checksum is also busy work, preventing
+parallel Resume/Install operations even when no HTTP bytes are needed.
+
+App composition supplies stable as initial channel, the existing
+`https://downloads.librescoot.org/releases/{channel}.json` policy and 15-second
+index deadline, index-provided asset URLs verbatim, HTTP client and
+`applicationSupport/ota` cache directory. Bundle clients close on success/error;
+shared code owns the streamed sink/checksum and resume cache. Existing index
+checksum optionality, case-insensitive expected hash, same-size cache reuse,
+corrupt-file deletion, full fallback (same release then newest supported channel
+full), warnings, channel inference/switch, and bundle ID validation remain. The
+existing bundle-ID guard now runs before deriving a cache path as well as START.
+No dependency upgrades: adapter adds the app's existing `crypto: ^3.0.3`, resolving
+the same **3.0.7**; tracked lockfiles are unchanged after normal pub get. Adapter
+lockfile remains ignored under the existing package policy.
+
+The OTA screen only attaches/detaches a controller listener, supplies confirmed
+channel/step choices and renders/localizes the shared values. It no longer owns
+HTTP, file/cache/hash, version queries, planner/fallback algorithms, raw device/
+characteristics or static plan/download state. Normal styling, confirmation
+strings and app/native identities are unchanged. A download/transfer survives
+screen disposal and the actual widget reattaches to its existing state.
+
+### Demonstrated corrections (not merely relocation)
+
+Before moving internals, **25** real-file/fake-characteristic characterization
+tests passed against HEAD's app service: `/tmp/ota-characterization-before.log`.
+Three additional failures in `/tmp/ota-defects-before.log` demonstrated:
+
+1. Immediate INSTALL_PROGRESS after COMPLETE_ACK was lost, hanging the install.
+   Installation observations now buffer before COMPLETE, including immediate
+   terminal success/failure and verification/progress bursts.
+2. Missing/unreadable preparation files failed outside the failure/cleanup scope,
+   leaving idle/hash state. Preparation now shares that scope.
+3. Disconnect after accepted COMPLETE falsely published failure even though the
+   scooter had accepted installation. It now releases observers/files and keeps
+   an explicit **unconfirmed installing** outcome, not success or failure.
+
+An exact-HEAD additional harness (`/tmp/ota-additional-before.log`) demonstrated
+ignored disconnect while parked on a DATA window and an unhandled `Stream.first`
+error after a failed control write. The existing 20ms loop now observes the
+stream failure; request-owned response waiters subscribe before write, observe
+errors immediately and cancel their timer/subscription in finally. START's three
+5-second attempts, >5-second ACK rewind, 30-rewind budget, 30-second COMPLETE and
+4-second STATUS budgets are pinned with controlled time. Native writes/notify
+waits remain unbounded by those response timers, as before. A clock seam defaults
+to DateTime.now; production loop delays/timing are unchanged.
+
+A real legacy-screen cached-Resume reproduction against HEAD also initiated
+START and COMPLETE on obsolete A after switching to B while awaiting the cache
+path: `/tmp/ota-cached-ui-before.log`. Retained widget and controller regressions
+now reject the cached/downloaded completion before any START. A controller
+operation captures the existing connection/repository and checks after every
+pre-transfer await/publication, including same-ID replacement, disconnect and
+disposal. Already-issued file/native operations cannot be physically undone.
+
+**Accepted-install ownership policy:** A's accepted but unconfirmed outcome is
+not invalidated into a transfer failure or automatically resent. B cannot query
+or confirm it or begin another update. Only a fresh current **same-ID A** session
+can query STATUS to recover/confirm it; stale old-token responses cannot adopt.
+Until confirmation, reset cannot erase uncertainty. This deliberately blocks B
+updates if A is unavailable; no archive/rollback subsystem was added. A single
+exceptional-state app string asks to reconnect to A's captured app display name
+(or captured ID). Missing translations use the existing English fallback; a
+German-locale widget test verifies actual rendered text, not a raw missing key.
+Normal OTA strings are untouched. Translation review remains a manual follow-up.
+Confirmed pendingReboot remains settled/busy-but-not-active and resettable;
+ready after reboot re-plans without requiring a mounted screen. Local abort
+still stops DATA without emitting wire ABORT or deleting the resume cache.
+Inherited inline-ACK rewind/send-position behavior is explicitly characterized,
+not silently repaired during relocation.
+
+Validation after OTA recovery review: **725 tests (219 app, 114 core, 392
+adapter)** versus 605 (205/112/288), and 688 before the recovery fixes. Added:
+42 transfer, eight virtual-time transfer/cleanup, 54 controller/provider/cache/
+session/recovery tests, two core value fixtures and 14 app boundary/widget/name
+capture tests. The original **24 connection and 21 identity tests are
+unchanged**. All three pinned Flutter/Dart **3.41.9** analyses and full suites
+pass; no skipped tests. Java **Temurin 17.0.13+11** debug APK completed:
+`build/app/outputs/flutter-apk/app-debug.apk`, SHA-256
+`1e71672d2cd9142214f16399670d0c7e6d66a6b338ebed8343f326db2dedec25`.
+Latest logs: `/tmp/ota-recovery-{core-validation,adapter-validation,app-analyze,
+app-tests,build}.log`; final Gradle debug build completed in 13.7 seconds.
+Full tracked + untracked diff: `/tmp/ls-ota-runtime.diff`; nothing staged,
+committed, pushed, deployed or used for OTA network/hardware actuation.
+
+### OTA recovery review: P1/P2 closure
+
+The independent review found two missing transitions despite the initial 688
+passing tests. Ten new regressions **failed before edits** in
+`/tmp/ota-recovery-before.log`: cold STATUS adoption failed to own A; a previous
+completed B could wrongly own/confirm newly adopted A; and interrupted version
+query/index planning never recovered on same/different-ID readiness, both before
+and after the obsolete operation's finally.
+
+**P1:** A fresh, current STATUS result now acquires its captured target before
+any adopted-state publication. The transfer's narrow pre-adoption callback runs
+only after a valid adoptable response; stale responses cannot acquire ownership.
+`UpdateController.onTargetCaptured(id)` supplies the app-only display-name
+capture effect for each fresh adoption/execute. ScooterService captures the saved
+name or ID there, replacing its old ID-change listener. A fresh same-ID operation
+recaptures a renamed scooter; reconnection recovery never recaptures or substitutes
+B's identity. Freshness is rechecked after the effect and after publication,
+including reentrant replacement/disconnect/disposal; obsolete callbacks cannot
+publish adoption, set an active transfer step or initiate download/START. Callback
+failure also releases the STATUS observation. No identity counter, model/schema
+or second update owner was added.
+
+**P2:** An interrupted query/index planning operation retains only its channel/
+channel-switch intent, separately from accepted-install uncertainty. Current
+session readiness consumes that intent once through the controller's existing
+serialization. Ready-before-finally drains after the stale operation exits;
+ready-after-finally consumes it directly. Invalidation clears obsolete readiness
+so a newer binding cannot borrow an older session's ready event. An accepted
+explicit check/channel choice or transfer supersedes deferred planning. Published
+plans and check errors settle the request; a failed recovery remains an error
+with the existing explicit Retry action, not an automatic retry loop. No firmware
+transfer or accepted-data resend is started by idle planning recovery, and the
+same-ID unconfirmed-install blocking policy remains separate and unchanged.
+
+The recovery increment is **37 tests**: 28 adapter regressions for ownership,
+reentrant target effects/state publication, stale recovery responses, query/index
+× same/different-ID × readiness ordering, channel choice/newer plan/error
+supersession and retry ownership; six actual facade display-name composition
+fixtures (all adopted phases, ID fallback, fresh same-ID recapture and recovery
+retention); and three mounted-widget regressions proving a current A/B Install
+plan appears without reopening and a failed recovered index exposes working
+explicit Retry. Facade name tests explicitly bind fake tokens without starting
+its background/runtime or HTTP; adapter tests exercise the actual session owner.
+Original 24 connection and 21 identity tests remain byte-for-byte unchanged.
+
+**Remaining activity/lifecycle closure is not claimed.** Activity persistence,
+saved-record/cache side effects, lifecycle/resume/location/heartbeat composition,
+background scheduling/native bindings, remaining non-OTA UI read-only escape
+hatches and the native iOS widget BLE exception remain separate milestones.
+The OTA-specific screen lifetime, session replacement and controller disposal
+boundary is closed by controlled tests; broader runtime-enabled startup,
+background ownership, firmware BLE/native notification delivery and visible
+on-device OTA behavior still require manual/hardware validation. APK compilation
+is not firmware-install/hardware validation. No scooter or seatbox was operated.
+
+
 ## Validation
 
 Run all suites (root `flutter test` does not run package tests):

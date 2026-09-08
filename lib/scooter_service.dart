@@ -1,3 +1,7 @@
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:scooter_flutter/update_controller.dart';
+import 'service/update_release_provider.dart';
 import 'package:scooter_core/scooter_core.dart';
 import 'package:scooter_flutter/scooter_session.dart';
 import 'package:scooter_flutter/scooter_telemetry.dart';
@@ -63,6 +67,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   // manual connection in progress, so background auto-connect doesn't race it.
   String? _externalManualTargetId;
   DateTime? _externalManualTargetSince;
+  late final UpdateController updateController;
+  String? updateTargetName;
   late final NavigationRuntime navigation;
   late final ScooterActions actions;
   final _actionWarnings = StreamController<HandlebarWarning>.broadcast(sync: true);
@@ -137,6 +143,9 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         Future.delayed(const Duration(milliseconds: 1500), FlutterNativeSplash.remove);
       },
     );
+    updateController = UpdateController(session: _session, provider: AppUpdateReleaseProvider(),
+      channel: 'stable', cacheDirectory: () async => Directory('${(await getApplicationSupportDirectory()).path}/ota'),
+      onTargetCaptured: (id) => updateTargetName = savedScooters[id]?.name ?? id);
     actions = ScooterActions(session: _session, telemetry: _telemetry,
       settings: () => ActionSettings(openSeatOnUnlock: settings.openSeatOnUnlock,
         hazardLocking: settings.hazardLocking, warnOfUnlockedHandlebars: settings.warnOfUnlockedHandlebars,
@@ -654,6 +663,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   @override
   void dispose() {
+    updateController.dispose();
     navigation.dispose();
     actions.dispose();
     _actionWarnings.close();
@@ -777,6 +787,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   void invalidateTelemetry() {
+    service.updateController.invalidate();
     service.navigation.invalidate();
     service.actions.invalidate();
     service._telemetry.invalidate();
@@ -806,6 +817,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
   @override
   void wireTelemetry(SessionConnection connection, CharacteristicRepository repository) {
     service.characteristicRepository = repository;
+    service.updateController.bind(connection, repository);
     service.navigation.bind(connection, repository);
     service.actions.bind(connection, repository);
     service._telemetry.bind(connection, repository);
@@ -820,6 +832,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   void ready(SessionConnection connection) {
+    service.updateController.sessionReady();
     service._pollLocation();
     service.updateBackgroundService({
       "scooterName": service.savedScooters[connection.id]?.name,
@@ -830,6 +843,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   void disconnected(String? id) {
+    service.updateController.invalidate();
     service.navigation.invalidate();
     service.actions.invalidate();
     service._telemetry.invalidate();

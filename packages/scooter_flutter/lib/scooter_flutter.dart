@@ -17,3 +17,5 @@ export 'scooter_telemetry.dart';
 export 'scooter_actions.dart';
 export 'navigation_runtime.dart';
 export 'navigation_commands.dart';
+export 'ota_transfer_service.dart';
+export 'update_controller.dart';

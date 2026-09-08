@@ -17,10 +17,12 @@ final _log = Logger('BleCommands');
 Future<String?> getInstalledVersionCommand(
   BluetoothDevice? scooter,
   CharacteristicRepository repo,
-  String component,
-) async {
-  final response =
-      await sendLsExtendedCommand(scooter, repo, "status:version:$component");
+  String component, {
+  bool Function()? isCurrent,
+}) async {
+  final response = await sendLsExtendedCommand(
+      scooter, repo, "status:version:$component",
+      isCurrent: isCurrent);
   if (response == null) return null;
   final prefix = "status:version:$component:";
   if (!response.startsWith(prefix)) {
