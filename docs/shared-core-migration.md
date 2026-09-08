@@ -141,11 +141,20 @@ The adapter owns one shared extended-channel FIFO. App-side capabilities,
 keycards and destination-list consumers enter that same queue; they must not
 create independent queues while sharing the response characteristic.
 
-Thirteen app tests cover validation, write flags/errors, notification reuse,
-listen-before-write and mixed single/list FIFO ownership. Three adapter tests
-pin generic queue results and recovery from synchronous/asynchronous failure.
+Sixteen app tests cover validation, write flags/errors, notification reuse,
+listen-before-write, mixed single/list FIFO ownership, response/notify failures
+and timeout cleanup. Silent and closed streams are exercised with a fake clock;
+stream closure currently waits for the ten-second timeout. A pending write or
+notification enable is not bounded by that response timeout, and the transport
+does not observe device-disconnect events directly. Those remain separate risks,
+not behaviors silently changed by extraction.
+
+Three adapter tests pin generic queue results and failure recovery. Version,
+capability and generic setting queries now live in `firmware_queries.dart`, with
+ten adapter tests for response prefixes, unsupported/empty values and exact
+setting acknowledgements. Legacy command imports continue forwarding these APIs.
 Navigation models, activity logging and higher-level command policy remain
-app-owned. Timeout and transport-disconnect behavior still need targeted tests.
+app-owned.
 
 ## Next connection seam
 

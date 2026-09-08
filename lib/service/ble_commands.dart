@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:scooter_core/extended_response.dart';
 import 'package:scooter_flutter/command_transport.dart';
+import 'package:scooter_flutter/firmware_queries.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:latlong2/latlong.dart';
@@ -15,6 +16,7 @@ import '../infrastructure/characteristic_repository.dart';
 // Preserve the legacy command API while protocol consumers migrate to core.
 export 'package:scooter_core/extended_response.dart';
 export 'package:scooter_flutter/command_transport.dart' show sendCommand, sendLsExtendedCommand;
+export 'package:scooter_flutter/firmware_queries.dart';
 
 final log = Logger('BleCommands');
 
@@ -55,26 +57,6 @@ String? _truncateNavName(String prefix, String? name) {
   final available = _extendedCommandMaxBytes - prefix.length - 1; // -1 for ","
   if (available <= 0) return null;
   return name.length > available ? name.substring(0, available) : name;
-}
-
-/// Queries the installed OS version of [component] ("mdb" or "dbc") via the
-/// extended channel (`status:version:<component>`). Returns the raw version
-/// string — "unknown" when the scooter has no record (e.g. the dashboard
-/// never booted) — or null on timeout, unexpected replies, or firmware that
-/// predates the command.
-Future<String?> getInstalledVersionCommand(
-  BluetoothDevice? scooter,
-  CharacteristicRepository repo,
-  String component,
-) async {
-  final response = await sendLsExtendedCommand(scooter, repo, "status:version:$component");
-  if (response == null) return null;
-  final prefix = "status:version:$component:";
-  if (!response.startsWith(prefix)) {
-    log.warning("Unexpected version response for $component: $response");
-    return null;
-  }
-  return response.substring(prefix.length);
 }
 
 /// Sends a power command to a scooter by ID, connecting first if needed.
@@ -597,52 +579,6 @@ Future<void> hibernateCancelCommand(
   }
 }
 
-/// Queries the scooter's power-management capabilities (e.g. "hibernate-for",
-/// "hibernate-cancel").
-Future<Set<String>> getPmCapabilitiesCommand(
-  BluetoothDevice? scooter,
-  CharacteristicRepository repo,
-) =>
-    getLsCapabilitiesCommand(scooter, repo, "pm");
-
-/// Queries which commands the scooter supports in [category] ("pm", "config",
-/// …). Returns an empty set on firmware that doesn't support the capability
-/// query (error response or timeout).
-Future<Set<String>> getLsCapabilitiesCommand(
-  BluetoothDevice? scooter,
-  CharacteristicRepository repo,
-  String category,
-) =>
-    withExtendedChannel(() async {
-  if (scooter == null || scooter.isDisconnected) {
-    throw "Scooter not connected!";
-  }
-  final cmd = repo.extendedCommandCharacteristic;
-  final resp = repo.extendedResponseCharacteristic;
-  if (cmd == null || resp == null) {
-    throw "Extended command characteristics not available";
-  }
-
-  await ensureExtendedNotify(resp);
-  final listener = ExtendedResponseListener(resp.onValueReceived);
-  try {
-    await sendCommand(scooter, repo, "cap:$category", characteristic: cmd);
-    final stream = listener.responses.timeout(const Duration(seconds: 10));
-    final entries = await readExtendedList(stream, (msg) => parseCapabilityEntry(category, msg));
-    return entries.toSet();
-  } on TimeoutException {
-    log.info("getLsCapabilitiesCommand: timeout, assuming no $category capabilities");
-    return <String>{};
-  } on ExtendedResponseFormatException catch (e) {
-    // Firmware without the capability query answers with an error string
-    // rather than a count. Treat that as "no capabilities", but log it.
-    log.info("getLsCapabilitiesCommand: unparseable reply, assuming no $category capabilities ($e)");
-    return <String>{};
-  } finally {
-    await listener.cancel();
-  }
-});
-
 /// Asks the scooter to forget this phone, clearing the scooter's half of the
 /// bond. Only the caller's own bond can be dropped this way: the scooter
 /// resolves the peer from the live connection, so there is nothing to pass and
@@ -666,43 +602,5 @@ Future<void> forgetBondCommand(
   if (response != "ble:forget:ok") {
     log.warning("Scooter would not forget this phone, response: $response");
     throw "Failed to forget the scooter side of the bond, response: $response";
-  }
-}
-
-/// Reads a librescoot settings key via the generic get command. Returns null
-/// if the key or the get command itself is unsupported (or on timeout), and
-/// "" if the key exists but is unset.
-Future<String?> getLsSettingCommand(
-  BluetoothDevice? scooter,
-  CharacteristicRepository repo,
-  String key,
-) async {
-  final response = await sendLsExtendedCommand(scooter, repo, "get:$key");
-  final prefix = "get:$key:";
-  if (response == null || !response.startsWith(prefix)) {
-    // covers "get:error:unknown key", "error:unknown command" and timeouts
-    log.info("getLsSettingCommand: '$key' unsupported or failed, response: $response");
-    return null;
-  }
-  // the value is everything after the first colon following the key; it may
-  // itself contain spaces or colons (e.g. cron expressions)
-  return response.substring(prefix.length);
-}
-
-/// Writes a librescoot settings key. [value] must not be empty (the firmware
-/// rejects empty values).
-Future<void> setLsSettingCommand(
-  BluetoothDevice? scooter,
-  CharacteristicRepository repo,
-  String key,
-  String value,
-) async {
-  if (value.isEmpty) {
-    throw "Setting value must not be empty";
-  }
-  final response = await sendLsExtendedCommand(scooter, repo, "set:$key:$value");
-  if (response != "set:ok:$key") {
-    log.severe("Failed to set $key, response: $response");
-    throw "Failed to set $key, response: $response";
   }
 }
