@@ -1,3 +1,4 @@
+import 'package:scooter_core/scooter_core.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -18,9 +19,6 @@ import '../domain/scooter_battery.dart';
 import '../domain/scooter_candidate.dart';
 import '../domain/nav_destination.dart';
 import '../domain/saved_scooter.dart';
-import '../domain/scooter_state.dart';
-import '../domain/scooter_vehicle_state.dart';
-import '../domain/scooter_power_state.dart';
 import '../flutter/blue_plus_mockable.dart';
 import '../infrastructure/characteristic_repository.dart';
 import '../service/location_polling.dart' as location;

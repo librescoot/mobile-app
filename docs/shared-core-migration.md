@@ -42,6 +42,24 @@ with typed warnings in a later API migration, not during the mechanical move.
 6. Exactly one implementation owns connection coordination in each executing
    isolate. Compatibility facades must delegate, not start a second engine.
 
+## State model extraction (next slice)
+
+Scooter aggregate/vehicle/power state and alarm status belong in core, including
+wire parsing, aggregation and action predicates. Localized labels, descriptions
+and colors belong in `lib/ui/presentation`. Legacy domain files re-export both
+for screen compatibility; backend callers import core directly, avoiding a
+transitive dependency on UI extensions. Preserve enum names/order and parsing
+semantics because callers persist and transmit these values.
+
+The former `infrastructure/utils.dart` split follows the same boundary:
+`subscribeCharacteristic` lives in `scooter_flutter`; localized relative-time
+formatting lives in `ui/presentation/relative_time.dart`. Reader code imports the
+adapter directly rather than pulling UI formatting into the backend.
+
+Architecture tests prevent extracted packages from importing application code
+or escaping their own library directories, and prevent Flutter/plugin imports
+from entering the pure core.
+
 ## Remaining slices
 
 1. Characterize connection intent/attempt generations, manual-target pinning,
@@ -62,6 +80,23 @@ Retain Android/iOS application IDs, signing identities, widget groups, backgroun
 entry points and existing storage schemas throughout. The iOS widget's native
 BLE implementation remains an explicit exception requiring its own contract and
 hardware tests; Dart extraction does not replace it.
+
+## Next connection seam
+
+Do not move the constructor's side effects into a new core constructor. The live
+ScooterService currently restores storage asynchronously, observes lifecycle,
+subscribes to scan state and starts heartbeat/location/RSSI/refresh timers during
+construction. Before extracting that owner, introduce explicit initialization
+and disposal tests with injected adapters. Preserve foreground/background
+runtime ownership rather than starting a parallel service to satisfy new APIs.
+
+A transport fake must control connect, bond, disconnect, characteristic discovery
+and late callback completion independently for two IDs (including two attempts
+for the same ID). Fake time must control heartbeat, retry and wake deadlines.
+The first gates are ordered traces of existing behavior, not a rewritten
+connection algorithm. A stale attempt completing after another intent must not
+publish linking/connected state, replace subscriptions or disconnect the newer
+owner. This remains a separate migration slice from extracting enum models.
 
 ## Validation
 

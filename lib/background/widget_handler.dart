@@ -1,3 +1,4 @@
+import 'package:scooter_core/scooter_core.dart';
 // ignore_for_file: avoid_print
 
 import 'dart:async';
@@ -14,7 +15,6 @@ import 'package:workmanager/workmanager.dart';
 
 import '../background/background_i18n.dart';
 import '../background/translate_static.dart';
-import '../domain/scooter_state.dart';
 
 // value cache
 bool _connected = false;

@@ -1,13 +1,9 @@
+import 'package:scooter_core/scooter_core.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
-import '../domain/alarm_status.dart';
-import '../domain/alarm_wake_sources.dart';
-import '../domain/scooter_state.dart';
-import '../domain/scooter_vehicle_state.dart';
-import '../domain/scooter_power_state.dart';
 import '../infrastructure/characteristic_repository.dart';
 import '../infrastructure/scooter_reader.dart';
 

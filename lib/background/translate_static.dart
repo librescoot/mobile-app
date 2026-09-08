@@ -1,6 +1,6 @@
+import 'package:scooter_core/scooter_core.dart';
 import '../background/background_i18n.dart';
 import '../background/widget_handler.dart';
-import '../domain/scooter_state.dart';
 
 const _stateKeys = {
   ScooterState.off: 'state_name_off',

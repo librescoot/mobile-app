@@ -1,10 +1,10 @@
+import 'package:scooter_core/scooter_core.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../background/bg_service.dart';
 import '../background/background_i18n.dart';
 import '../background/translate_static.dart';
-import '../domain/scooter_state.dart';
 
 // Notification identifiers
 const notificationChannelId = 'unu_foreground';
