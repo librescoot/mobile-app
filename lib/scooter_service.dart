@@ -407,8 +407,13 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   Future<void> unlock({bool checkHandlebars = true, EventSource source = EventSource.app}) =>
       actions.unlock(checkHandlebars: checkHandlebars, source: source);
   Future<void> lock({bool checkHandlebars = true, EventSource source = EventSource.app}) {
-    if (vehicle.seatClosed == false) log.warning("Locking with open seatbox!");
+    warnIfLockingWithOpenSeatbox();
     return actions.lock(checkHandlebars: checkHandlebars, source: source);
+  }
+
+  /// App-only diagnostic; explicit consumers call this only at ready dispatch.
+  void warnIfLockingWithOpenSeatbox() {
+    if (vehicle.seatClosed == false) log.warning("Locking with open seatbox!");
   }
   Future<void> wakeUpAndUnlock({EventSource? source}) => actions.wakeUpAndUnlock(source: source);
   void autoUnlockCooldown() => actions.autoUnlockCooldown();

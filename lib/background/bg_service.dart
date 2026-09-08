@@ -186,6 +186,10 @@ Future<void> executeWidgetAction(String actionName) async {
           prefs.getString("pendingWidgetActionName") != null) {
         return; // A newer request arrived during the issued removal.
       }
+      if (!dispatch.isReady()) return;
+      if (actionName == "lock") scooterService.warnIfLockingWithOpenSeatbox();
+      // App log listeners can reenter and invalidate the captured target.
+      if (!dispatch.isReady()) return;
       // An unclassified dispatch exception is conservatively ambiguous. The
       // shared action boundary returns false only before any native write call.
       mayHaveIssued = true;
