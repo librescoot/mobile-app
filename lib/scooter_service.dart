@@ -55,6 +55,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final ScooterStorage store;
   final BluetoothDevice Function(String) _deviceFromId;
   final CharacteristicRepository Function(BluetoothDevice) _repositoryFactory;
+  final Future<LatLng?> Function() _readLocation;
   final bool _runtimeInitialized;
   StreamSubscription<bool>? _scanSubscription;
   late final BleScanner scanner;
@@ -130,10 +131,12 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     ScooterStorage? storage,
     BluetoothDevice Function(String)? deviceFromId,
     CharacteristicRepository Function(BluetoothDevice)? repositoryFactory,
+    Future<LatLng?> Function()? pollLocation,
     bool initializeRuntime = true,
   }) : store = storage ?? ScooterStorage(),
        _deviceFromId = deviceFromId ?? BluetoothDevice.fromId,
        _repositoryFactory = repositoryFactory ?? CharacteristicRepository.new,
+       _readLocation = pollLocation ?? location.pollLocation,
        _runtimeInitialized = initializeRuntime {
     settings = UserSettings(isInBackgroundService: isInBackgroundService);
     scanner = BleScanner(flutterBluePlus);
@@ -1371,7 +1374,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   void _pollLocation() async {
-    LatLng? position = await location.pollLocation();
+    LatLng? position = await _readLocation();
     if (position != null && myScooter != null) {
       savedScooters[myScooter!.remoteId.toString()]!.lastLocation = position;
     }
