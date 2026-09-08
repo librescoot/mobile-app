@@ -317,6 +317,188 @@ background behavior remain smoke-test gates; APK compilation is not that gate.
 Outstanding action/navigation/OTA/lifecycle milestones and the existing extended
 query timeout/cancellation policy are intentionally unchanged.
 
+
+## Shared session-targeted actions and keyless lifecycle (milestone 2)
+
+`ScooterActions` now executes the live facade and settings/keycard/USB UI calls
+in `scooter_flutter`, using the **existing** `ScooterSession` and
+`ScooterTelemetry`. Each action captures its `SessionConnection`, repository,
+immutable settings, SOC and supplied location once. Binding/invalidation are
+wired through the existing session phase effects; there is no new connection
+owner, generation, retry loop, or basic-action serialization. Delayed steps and
+queued extended writes check the captured token, including same-ID replacement.
+All extended single/list operations still use the one existing transport FIFO.
+
+Ownership actually moved (not just protocol helpers):
+- Unlock, lock, wake, wake-and-unlock, seat, blink/hazard, hibernate/timed
+  hibernate/cancel, reboot/hard-reboot execution and 1/2/5-second sequencing.
+- Keycard count/list/add/delete, USB mode, generic/APN/standby/hibernate settings,
+  clock transport and scooter-side bond forget/ACK/disconnect/phone removal.
+- Scheduled-hibernation first-enable sequencing (optional cron then duration,
+  enabled last) is one captured-session operation. Disabling writes only the
+  enabled flag. Partial acknowledgements are not rolled back after a later
+  failure or replacement; no transaction guarantee was added.
+- Three-second RSSI polling, ten-second characteristic refresh, threshold/auth/
+  standby decisions, aggregate-transition cooldown and 60-second expiry now
+  have explicit shared start/stop/dispose. App background composition controls
+  the compatibility `rssiTimer.start/pause/cancel` handle. Pause retains its
+  remaining interval; start is idempotent; disposal is terminal. These are the
+  only APIs used in this tree and `/home/teal/src/reunu/unustasis`.
+- Pure core owns action/source enums (unchanged names/order), immutable settings,
+  event/location/warning values, command constants/builders and APN/duration
+  validation. The app still maps successful acknowledgements to unawaited heavy
+  haptics (lock/unlock only) then activity logging, retaining supplied source/SOC.
+  Wake/hibernate remain app-source events without SOC; automatic seat is auto.
+
+Legacy `ble_commands.dart` functions remain exports or app-effect wrappers;
+Provider facade methods remain delegates. Navigation, OTA, static native-widget
+power connection, native identifiers, preference schemas, dependencies, location
+polling, heartbeat/resume and background scheduling were not moved. Settings UI
+still has read-only alarm/OTA characteristic-availability checks; these are not
+new command escape hatches and remain later UI/telemetry/OTA migration work.
+
+### Explicit correctness changes and before/after evidence
+
+These are intentional corrections, **not** claims of mechanical relocation:
+
+1. A cancelled/replaced action no longer dereferences the replacement device in
+   a delayed seat/hazard/handlebar step. `/tmp/actions-before.log` reproduces the
+   inherited hazard writing `scooter:blinker off` to B. The retained app
+   `actions_stale_reproduction_test.dart` now exercises real facade connection
+   setup and confirms only A's initial blink is written.
+2. One 45-second budget includes wake write, standby wait, unlock and awaited
+   delays. Subscribe-before-wake remains; failure/timeout cleans up the waiter.
+   Expiry also marks the captured action invalid so a still-running underlying
+   delay cannot later actuate. `/tmp/actions-additional-before.log` reproduces
+   inherited hazards after the deadline. Shared tests release an artificially
+   held seat delay and ordinary hazard delays after expiry and observe no write.
+3. The same additional-before log reproduces A's pending RSSI result unlocking
+   B. Shared tests reject B/same-ID/disconnect/disposal and paused polling
+   results, and bound even late underlying RSSI results by the existing
+   transport's 15-second timeout. Failed reads no longer reuse old strong RSSI.
+   That read budget does not impose a new deadline on the subsequent basic
+   unlock. Reentrant RSSI/acknowledgement/cooldown/warning effects are covered.
+4. Handlebar warnings remain five-second awaited observations, but no longer
+   throw a command-failure exception after an acknowledged write. Unlock warns
+   for locked handlebars; lock warns only when the setting enables it. A typed
+   captured-action warning stream drives the **existing Home warning dialog**;
+   old failure catches were removed, not left as dead warning delivery. The
+   compatibility exception type remains. Wake alone never hazards; wake/unlock
+   hazards require acknowledged unlock and `hazardLocking`, regardless of a
+   later handlebar warning. Shared traces and the app facade warning/haptic
+   regression pin these semantics.
+5. The inherited `autoUnlockCooldown()` unconditionally invoked the UI
+   `FlutterBackgroundService` facade even inside the service isolate. The
+   separate before log records that actual invoke, not a generated-plugin
+   warning. Local cooldown always starts; relay is now UI-only. App tests pin
+   both isolate modes, 59/60-second expiry and disposal. Overlapping cooldown
+   expiry retains its inherited first-expiry behavior rather than silently
+   extending the policy.
+6. Bond observation subscribes before the forget ACK so an immediate firmware
+   disconnect is not lost, and cancels its observation in `finally`. Stop retry
+   still precedes the firmware request; phone removal still follows the ACK/
+   disconnect wait or best-effort failure. Captured-session checks prevent late
+   bond completion from removing/disconnecting a replacement. Scheduled enable
+   similarly cannot retarget later settings to B or a new same-ID attempt.
+7. Review caught a migration regression: after a real disconnect the retained
+   device ID selected the shared forget action, whose live-only capture threw
+   before phone/local removal. `/tmp/actions-forget-before.log` reproduces this
+   through connect A → disconnect → `forgetSavedScooter('A')`, and an unbound
+   retained device fails the same way. Forget now captures the existing session
+   identity without requiring live characteristics, stops retry, and performs
+   best-effort offline phone cleanup. The connected firmware/ACK/disconnect/
+   phone-removal order is unchanged. Captured intent/attempt checks guard each
+   transport and facade await, including same-ID replacement and disposal;
+   guarded cache refetch cannot later overwrite replacement presentation.
+   Twelve app regressions cover disconnected/unbound/never-connected removal,
+   replacement or disposal during transport cleanup, and same-ID replacement
+   or disposal during phone removal, saved-record removal and cache refetch.
+   Already-issued native or persistence operations cannot be rolled back;
+   stale completion cannot initiate subsequent removal/publication steps.
+8. A second review exposed an entry-time no-op after a failed reconnect: the
+   last published connection was from A, but the actual attempt generation had
+   advanced for a failed A/B attempt. Requiring that old publication to be the
+   current attempt rejected every subsequent saved-ID forget. The session now
+   supplies `captureOperationFreshness()`, a read-only predicate over its
+   **existing** intent/attempt counters and disposal state. It does not require
+   a live/publication token or add another counter/owner. Both the facade and
+   shared forget action use it; ordinary BLE actions still require their
+   captured live `SessionConnection`. A disconnect alone preserves this
+   operation predicate, retaining firmware-forget ACK/disconnect ordering.
+   `/tmp/actions-forget-generation-before.log` records eight failed local-removal
+   cases (manual/automatic failure × same/different ID × current/other saved ID)
+   and two obsolete automatic-attempt continuations. All now pass, including
+   automatic attempts which fail before any transport publication changes.
+   The targeted app suite has 28 passing tests. Quiet supersession/disposal
+   remains the established `Future<void>` contract, but the saved-card success
+   toast now requires the captured ID to be absent after awaiting removal and
+   the widget to remain mounted. A focused source-boundary test pins this gate;
+   no broader UI/result API or transaction semantics were introduced.
+9. Pending-before-entry reconnects are now conservatively deferred. A review
+   reproduction held a same-ID replacement connect, started forgetting, then
+   completed that replacement before releasing the old device's disconnect;
+   the former facade initiated `store.remove('A')` against the replacement.
+   `/tmp/actions-pending-forget-before.log` records that actual failure. Both
+   facade and direct shared forgetting now return before any cleanup when the
+   session's read-only `hasPendingConnectionAttempt` getter reports its existing
+   private pending-attempt slot. It is not derived from connected state or the
+   last publication, and remains true during ready publication until the attempt
+   exits `finally`. No pending connect is cancelled/superseded and no new owner,
+   generation or retry policy is introduced. Completed-failure generation
+   snapshots and later-supersession/disposal guards remain unchanged.
+   Twenty-seven added app regressions cover the exact overlap, a 24-case matrix
+   (saved A/saved B/direct shared × manual/automatic × pending A/B × subsequent
+   success/failure), and two reentrant connected-ready publications. Entry
+   assertions prove no disconnect, phone bond removal, store removal, notifier
+   publication or connected-state mutation. Every matrix case then verifies
+   normal local forgetting after the pending attempt settles. Targeted suite:
+   55 passing tests in `/tmp/actions-pending-forget-after.log`.
+
+Forgetting decision matrix reviewed together:
+
+| Entry / continuation | Policy and evidence |
+| --- | --- |
+| Never connected, no pending attempt | Phone-only and saved-record removal; app regression. |
+| Current connected, no pending attempt | Existing firmware forget/ACK/disconnect/phone ordering; adapter handshake traces. |
+| Disconnected retained/unbound device | Best-effort cleanup without live characteristics; app regressions. |
+| Completed failed A/B attempt | New operation uses actual owner generation, not stale publication; eight app cases. |
+| Actual pending attempt before entry | Quietly defer all saved-ID/shared forgetting before cleanup; 27 new app cases, including ready publication. |
+| New attempt during an await | Existing owner-generation predicate prevents subsequent work/publication; app transport/phone/store/cache and adapter firmware/bond regressions. |
+| Disposal before entry or during await | Reject/stop subsequent effects; existing disposal regressions. |
+
+Already-issued native/persistence effects cannot be rolled back. Quiet deferral
+still returns `Future<void>`; the existing mounted/captured-ID-absence toast guard
+prevents false success when no local removal occurred.
+
+Before-only extra harness: `/tmp/actions_legacy_additional_reproduction_test.dart`
+was run against `git show HEAD:lib/scooter_service.dart`, then the implementation
+was restored. It overrides only unlock recording for the RSSI reproduction;
+its deadline reproduction executes the actual inherited wake/unlock/hazard
+workflow with fake characteristics. No hardware was actuated.
+
+Validation: **510 tests (194 app, 107 core, 209 adapter)**, up from the complete
+389 baseline (136/102/151). All original 24 service connection and 21 identity
+tests are unchanged. Added: 58 adapter action/polling/setting traces, five core
+value/protocol tests and 58 app facade/boundary tests (52 added during review). Full pinned analyses and
+suites use `/tmp/flutter-sdk-3.41.9/bin`; Java 17 debug APK is built with
+`ASDF_JAVA_VERSION=temurin-17.0.13+11`. Logs are `/tmp/actions-{core-validation,
+adapter-validation,app-analyze,app-tests,build}.log`; complete tracked and new
+file diff is `/tmp/ls-actions-runtime.diff` (nothing staged).
+
+The final recovery build explicitly completed (`✓ Built`), unlike the earlier
+truncated build log. APK: `build/app/outputs/flutter-apk/app-debug.apk`, SHA-256
+`37098cc6ec0f232e4643b192bebc5c361cda6a6400c142726737a25929453ba0`.
+The final pending-attempt-fix build completed in 14.7 seconds. No dependency changes,
+skipped tests or unrelated assertion changes were used to bypass validation.
+
+Already-issued native writes/notification enables cannot be physically undone.
+The inherited extended FIFO response timeout policy is unchanged: write/notify
+waits are not bounded by its ten-second response timeout. Legacy raw command
+wrappers cannot infer a session token; app action UI now uses the captured shared
+APIs. Device BLE/bonding/background/widgets and visible warning-dialog smoke
+remain hardware/manual gates; APK compilation is not that validation. No device,
+seatbox, commit, push or deployment operations were performed.
+
 ## Validation
 
 Run all suites (root `flutter test` does not run package tests):

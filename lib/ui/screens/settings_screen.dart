@@ -116,10 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _getKeycardCount() async {
-    final count = await countKeycardsCommand(
-      context.read<ScooterService>().myScooter,
-      context.read<ScooterService>().characteristicRepository,
-    );
+    final count = await context.read<ScooterService>().actions.countKeycards();
     if (mounted) setState(() => _keycardCount = count);
   }
 
@@ -351,8 +348,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final service = context.read<ScooterService>();
       final values = await Future.wait([
-        getLsSettingCommand(service.myScooter, service.characteristicRepository, lsKeyAutoStandbySeconds),
-        getLsSettingCommand(service.myScooter, service.characteristicRepository, lsKeyHibernateTimer),
+        service.actions.getSetting(lsKeyAutoStandbySeconds),
+        service.actions.getSetting(lsKeyHibernateTimer),
       ]);
       if (!mounted) return;
       setState(() {
@@ -543,10 +540,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (value == null) return;
                       setState(() => _isSendingAutoLock = true);
                       try {
-                        await setAutoStandbyTimeCommand(
-                          context.read<ScooterService>().myScooter,
-                          context.read<ScooterService>().characteristicRepository,
-                          Duration(seconds: value),
+                        await context.read<ScooterService>().actions.setAutoStandbyTime(Duration(seconds: value),
                         );
                         if (!mounted) return;
                         setState(() => _autoLockDuration = value);
@@ -603,10 +597,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (value == null) return;
                       setState(() => _isSendingAutoHibernate = true);
                       try {
-                        await setAutoHibernateTimeCommand(
-                          context.read<ScooterService>().myScooter,
-                          context.read<ScooterService>().characteristicRepository,
-                          Duration(seconds: value),
+                        await context.read<ScooterService>().actions.setAutoHibernateTime(Duration(seconds: value),
                         );
                         if (!mounted) return;
                         setState(() => _autoHibernateDuration = value);
@@ -685,11 +676,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _isSendingTime = true);
     try {
       final service = context.read<ScooterService>();
-      final result = await sendLsExtendedCommand(
-        service.myScooter,
-        service.characteristicRepository,
-        "time:set ${DateTime.now().millisecondsSinceEpoch ~/ 1000}",
-      );
+      final result = await service.actions.setClock(DateTime.now());
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -763,9 +750,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     try {
                       final service = context.read<ScooterService>();
                       if (value) {
-                        await enterUMSModeCommand(service.myScooter, service.characteristicRepository);
+                        await service.actions.enterUMSMode();
                       } else {
-                        await enterNormalUsbModeCommand(service.myScooter, service.characteristicRepository);
+                        await service.actions.enterNormalUsbMode();
                       }
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(

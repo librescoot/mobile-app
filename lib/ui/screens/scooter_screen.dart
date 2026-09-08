@@ -545,7 +545,11 @@ class SavedScooterCard extends StatelessWidget {
                                 "forget_alert_success",
                                 translationParams: {"name": name},
                               );
-                              await context.read<ScooterService>().forgetSavedScooter(savedScooter.id);
+                              final service = context.read<ScooterService>();
+                              final id = savedScooter.id;
+                              await service.forgetSavedScooter(id);
+                              // A replacement/disposal can quietly supersede forgetting.
+                              if (!context.mounted || service.savedScooters.containsKey(id)) return;
                               rebuild();
                               Fluttertoast.showToast(msg: message);
                             }

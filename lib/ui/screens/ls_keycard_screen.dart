@@ -11,7 +11,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:unustasis/ui/dialogs/keycard_add_dialog.dart';
-import 'package:unustasis/service/ble_commands.dart';
 import 'package:unustasis/scooter_service.dart';
 
 class LsKeycardScreen extends StatefulWidget {
@@ -84,10 +83,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     });
 
     try {
-      List<String> loadedKeycards = await listKeycardsCommand(
-        context.read<ScooterService>().myScooter,
-        context.read<ScooterService>().characteristicRepository,
-      );
+      List<String> loadedKeycards = await context.read<ScooterService>().actions.listKeycards();
       Logger('LsKeycardScreen').info('Loaded keycards: $loadedKeycards');
       await GoogleFonts.pendingFonts([GoogleFonts.kodeMono()]);
       if (!mounted) return;
@@ -216,10 +212,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
 
     // add it to the scooter
     try {
-      await addKeycardCommand(
-        context.read<ScooterService>().myScooter,
-        context.read<ScooterService>().characteristicRepository,
-        uid,
+      await context.read<ScooterService>().actions.addKeycard(uid,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -264,10 +257,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     });
 
     try {
-      await deleteKeycardCommand(
-        context.read<ScooterService>().myScooter,
-        context.read<ScooterService>().characteristicRepository,
-        uid,
+      await context.read<ScooterService>().actions.deleteKeycard(uid,
       );
     } catch (_) {
       if (!mounted) return;

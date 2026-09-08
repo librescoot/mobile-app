@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:scooter_core/actions.dart' as actions;
 import 'dart:math' show Random;
 
 import 'package:flutter/foundation.dart';
@@ -46,6 +47,27 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final log = Logger('HomeScreen');
   bool _hazards = false;
+  ScooterService? _warningService;
+  StreamSubscription<actions.HandlebarWarning>? _warningSubscription;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final service = context.read<ScooterService>();
+    if (identical(service, _warningService)) return;
+    _warningSubscription?.cancel();
+    _warningService = service;
+    _warningSubscription = service.actionWarnings.listen((warning) {
+      if (mounted) showHandlebarWarning(didNotUnlock: warning.didNotUnlock);
+    });
+  }
+
+  @override
+  void dispose() {
+    _warningSubscription?.cancel();
+    super.dispose();
+  }
+
   double _navigationDragDistance = 0;
 
   // Seasonal
@@ -354,13 +376,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                                     if (context.read<ScooterService>().hazardLocking) {
                                                       _flashHazards(1);
                                                     }
-                                                  } on HandlebarLockException catch (_) {
-                                                    log.warning(
-                                                      "Handlebars are still unlocked, showing alert",
-                                                    );
-                                                    showHandlebarWarning(
-                                                      didNotUnlock: false,
-                                                    );
                                                   } catch (e, stack) {
                                                     log.severe(
                                                       "Problem opening the seat",
@@ -380,13 +395,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                                             context.read<ScooterService>().hazardLocking) {
                                                           _flashHazards(2);
                                                         }
-                                                      } on HandlebarLockException catch (_) {
-                                                        log.warning(
-                                                          "Handlebars are still locked, showing alert",
-                                                        );
-                                                        showHandlebarWarning(
-                                                          didNotUnlock: true,
-                                                        );
                                                       } catch (e, stack) {
                                                         log.warning("Could not unlock scooter", e, stack);
                                                         if (context.mounted) {

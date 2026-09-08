@@ -59,12 +59,9 @@ class _LsScheduledHibernationScreenState extends State<LsScheduledHibernationScr
     });
     final service = context.read<ScooterService>();
     try {
-      final enabled = await getLsSettingCommand(
-          service.myScooter, service.characteristicRepository, lsKeyScheduledHibernateEnabled);
-      final cron = await getLsSettingCommand(
-          service.myScooter, service.characteristicRepository, lsKeyScheduledHibernateCron);
-      final duration = await getLsSettingCommand(
-          service.myScooter, service.characteristicRepository, lsKeyScheduledHibernateDuration);
+      final enabled = await service.actions.getSetting(lsKeyScheduledHibernateEnabled);
+      final cron = await service.actions.getSetting(lsKeyScheduledHibernateCron);
+      final duration = await service.actions.getSetting(lsKeyScheduledHibernateDuration);
       if (!mounted) return;
       if (enabled == null) {
         // key unsupported or read failed despite the capability gate
@@ -119,20 +116,9 @@ class _LsScheduledHibernationScreenState extends State<LsScheduledHibernationScr
 
   Future<void> _writeEnabled(bool value) => _runWrite(() async {
         final service = context.read<ScooterService>();
-        if (value) {
-          // First enable on a fresh scooter: persist our defaults so the
-          // schedule never runs half-configured. Enabled flag goes last.
-          if (_cronUnset) {
-            await setLsSettingCommand(service.myScooter, service.characteristicRepository,
-                lsKeyScheduledHibernateCron, _schedule.toCron());
-          }
-          if (_durationUnset) {
-            await setLsSettingCommand(service.myScooter, service.characteristicRepository,
-                lsKeyScheduledHibernateDuration, formatGoDuration(_wakeAfter));
-          }
-        }
-        await setLsSettingCommand(service.myScooter, service.characteristicRepository,
-            lsKeyScheduledHibernateEnabled, value ? "true" : "false");
+        await service.actions.setScheduledHibernationEnabled(value,
+          cron: _cronUnset ? _schedule.toCron() : null,
+          wakeAfter: _durationUnset ? _wakeAfter : null);
         setState(() {
           if (value && _cronUnset) _cronUnset = false;
           if (value && _durationUnset) _durationUnset = false;
@@ -142,8 +128,7 @@ class _LsScheduledHibernationScreenState extends State<LsScheduledHibernationScr
 
   Future<void> _writeSchedule(HibernationSchedule newSchedule) => _runWrite(() async {
         final service = context.read<ScooterService>();
-        await setLsSettingCommand(service.myScooter, service.characteristicRepository,
-            lsKeyScheduledHibernateCron, newSchedule.toCron());
+        await service.actions.setSetting(lsKeyScheduledHibernateCron, newSchedule.toCron());
         setState(() {
           _schedule = newSchedule;
           _rawCron = null;
@@ -153,8 +138,7 @@ class _LsScheduledHibernationScreenState extends State<LsScheduledHibernationScr
 
   Future<void> _writeWakeAfter(Duration value) => _runWrite(() async {
         final service = context.read<ScooterService>();
-        await setLsSettingCommand(service.myScooter, service.characteristicRepository,
-            lsKeyScheduledHibernateDuration, formatGoDuration(value));
+        await service.actions.setSetting(lsKeyScheduledHibernateDuration, formatGoDuration(value));
         setState(() {
           _wakeAfter = value;
           _durationUnset = false;
