@@ -200,6 +200,52 @@ connection algorithm. A stale attempt completing after another intent must not
 publish linking/connected state, replace subscriptions or disconnect the newer
 owner. This remains a separate migration slice from extracting enum models.
 
+## Shared connection/session owner
+
+`ScooterService` now delegates connection, startup and retry orchestration to one
+`scooter_flutter.ScooterSession` per service/isolate. The adapter owns manual
+intent, per-call attempt identity, pending/published transports, linking-row ID,
+connected flag, cancellation of connection-state listeners, scan-stop/connect,
+Android bond/priority ordering, repository discovery, same-physical-ID stale
+cleanup, and the single three-second retry loop. There are no duplicate intent,
+attempt or retry counters/loops in the facade. Construction of this owner is
+inert; the existing facade alone initializes runtime observers and timers.
+
+Nine concrete phase effects retain app ownership of manual-target background
+messages, telemetry cancellation/wiring, cached linking/model publication,
+persistence, the iOS widget group/payload, ready metadata/location/background
+publication, and disconnected state/ping publication. The ordered ready metadata
+and ready effects intentionally straddle the connected notification. Widget
+identity, saved model/storage schema, navigation, external background suppression,
+lifecycle policy, location and heartbeat/RSSI/refresh timers remain app-owned.
+The repository factory and device/platform/deadline seams have production defaults;
+no plugin work or Flutter dependency was added to core.
+
+Captured `SessionConnection` tokens supply freshness to app nRF/odometer,
+capability probes and location results. They expire on replacement, disconnect or
+disposal, not when connect's `finally` releases its pending slot. Checks after
+phase publications also prevent synchronous listeners from continuing an obsolete
+connection. A bounded correction to the inherited algorithm preserves a same-ID
+manual no-op triggered during ready publication: only the exact still-current
+pending/published owner may adopt that intent, rather than disconnecting the link
+it has just published. Two regressions failed before that correction and pass
+with it; a newer different-ID intent cannot adopt/revive the old owner.
+
+The original 24 real-service connection tests are unchanged and execute the shared
+owner via the facade, including actual app telemetry wiring and location effects.
+32 additional adapter tests cover ordered Android bond reuse/creation and priority
+failure, supersession at each Android await, iOS hook ordering/disposal, distinct
+and reused same-ID wrappers, three overlapping calls, late errors/success and
+cleanup, discovery failure, synchronous publication reentrancy, session freshness
+(including same-ID linking before its transport exists), obsolete startup/manual
+intent, and virtual-clock retry/listener/disposal ownership.
+The combined suite is now 349 tests (135 app, 98 core, 116 adapter).
+
+This is not the remaining storage/background/lifecycle extraction. Runtime-enabled
+cache restoration and native widget/BLE behavior still need device smoke tests;
+late startup adapter/scan waits retain their existing underlying transport timeout
+behavior. A passing APK build does not validate hardware bonding or widgets.
+
 ## Validation
 
 Run all suites (root `flutter test` does not run package tests):

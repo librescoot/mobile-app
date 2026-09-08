@@ -1,7 +1,7 @@
 import 'package:scooter_core/scooter_core.dart';
+import 'package:scooter_flutter/scooter_session.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
@@ -35,26 +35,13 @@ const keylessCooldownSeconds = 60;
 const handlebarCheckSeconds = 5;
 const wakeAndUnlockTimeout = Duration(seconds: 45);
 
-class _SupersededConnectionAttempt implements Exception {
-  const _SupersededConnectionAttempt();
-}
-
-// A call owns an attempt independently of the plugin's device wrapper identity.
-class _ConnectionAttempt {
-  _ConnectionAttempt(this.id, this.generation);
-
-  final String id;
-  final int generation;
-  BluetoothDevice? device;
-}
-
 class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final log = Logger('ScooterService');
 
   // Composed modules
   final ScooterStorage store;
   final BluetoothDevice Function(String) _deviceFromId;
-  final CharacteristicRepository Function(BluetoothDevice) _repositoryFactory;
+  late final ScooterSession _session;
   final Future<LatLng?> Function() _readLocation;
   final bool _runtimeInitialized;
   StreamSubscription<bool>? _scanSubscription;
@@ -69,23 +56,16 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   Map<String, SavedScooter> get savedScooters => store.scooters;
   set savedScooters(Map<String, SavedScooter> value) => store.scooters = value;
 
-  BluetoothDevice? myScooter; // reserved for a connected scooter!
-  _ConnectionAttempt? _connectionAttempt;
-  _ConnectionAttempt? _publishedConnectionAttempt;
-  String? _connectingScooterId;
-  String? get connectingScooterId => _connectingScooterId;
-  String? _manualConnectionTargetId;
+  // Compatibility escape hatches; the shared session owns the actual link.
+  BluetoothDevice? get myScooter => _session.device;
+  set myScooter(BluetoothDevice? value) => _session.device = value;
+  String? get connectingScooterId => _session.connectingScooterId;
   // Set on the *background* isolate's service when the foreground reports a
   // manual connection in progress, so background auto-connect doesn't race it.
   String? _externalManualTargetId;
   DateTime? _externalManualTargetSince;
-  int _connectionIntentGeneration = 0;
-  int _connectionAttemptGeneration = 0;
   NavDestination? _pendingNavigation;
   NavDestination? _activeNavigation;
-  bool _foundSth = false; // whether we've found a scooter yet
-  bool _autoRestarting = false;
-  String? _targetScooterId; // specific scooter ID to connect to during auto-restart
   bool _autoUnlockCooldown = false;
   AppLifecycleState? _lastLifecycleState;
   bool _wasBackgrounded = false;
@@ -135,11 +115,22 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     bool initializeRuntime = true,
   }) : store = storage ?? ScooterStorage(),
        _deviceFromId = deviceFromId ?? BluetoothDevice.fromId,
-       _repositoryFactory = repositoryFactory ?? CharacteristicRepository.new,
        _readLocation = pollLocation ?? location.pollLocation,
        _runtimeInitialized = initializeRuntime {
     settings = UserSettings(isInBackgroundService: isInBackgroundService);
     scanner = BleScanner(flutterBluePlus);
+    _session = ScooterSession(
+      flutterBluePlus: flutterBluePlus,
+      deviceFromId: _deviceFromId,
+      repositoryFactory: repositoryFactory,
+      effects: _ServiceSessionEffects(this),
+      onChanged: notifyListeners,
+      findEligibleScooter: () => findEligibleScooter(),
+      isScanning: () => scanning,
+      onStart: () {
+        Future.delayed(const Duration(milliseconds: 1500), FlutterNativeSplash.remove);
+      },
+    );
     if (!_runtimeInitialized) return;
     _loadCachedData();
 
@@ -154,7 +145,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     // own for safety, and the periodic re-arm also survives a background
     // isolate restart that would have swallowed the one-shot message.
     _manualTargetHeartbeatTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      final target = _manualConnectionTargetId;
+      final target = _session.manualTargetId;
       if (target != null) updateBackgroundService({"manualConnectionTarget": target});
     });
 
@@ -272,8 +263,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   void addDemoData() {
-    _autoRestarting = false;
-    _foundSth = true;
+    stopAutoRestart(clearManualTarget: false);
+    _session.foundScooter = true;
     flutterBluePlus.stopScan();
     savedScooters = {
       "12345": SavedScooter(
@@ -313,7 +304,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     battery.auxCharging = AUXChargingState.absorptionCharge;
     battery.primaryCycles = 190;
     battery.secondaryCycles = 75;
-    _connected = true;
+    _session.setConnected(true, notify: false);
     _state = ScooterState.parked;
     vehicle.seatClosed = true;
     vehicle.handlebarsLocked = false;
@@ -367,12 +358,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   // STATUS STREAMS
-  bool _connected = false;
-  bool get connected => _connected;
-  set connected(bool connected) {
-    _connected = connected;
-    notifyListeners();
-  }
+  bool get connected => _session.connected;
+  set connected(bool connected) => _session.connected = connected;
 
   ScooterState? _state = ScooterState.disconnected;
   ScooterState? get state => _state;
@@ -393,12 +380,12 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   void refreshOdometer() {
     if (!connected || myScooter == null) return;
-    final device = myScooter!;
+    final connection = _session.currentConnection;
     identity.refreshOdometer(
       characteristicRepository,
       onUpdate: notifyListeners,
       // Discard the read if the connection it started on is no longer current.
-      isCurrent: () => identical(myScooter, device) && connected,
+      isCurrent: () => connection?.isCurrent == true && connected,
     );
   }
 
@@ -476,403 +463,23 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     );
   }
 
-  StreamSubscription<BluetoothConnectionState>? _connectionStateSubscription;
-
   Future<void> connectToScooterId(
     String id, {
     bool automatic = false,
     int? expectedIntentGeneration,
-  }) async {
-    final int intentGeneration;
-    if (automatic) {
-      intentGeneration = expectedIntentGeneration ?? _connectionIntentGeneration;
-      if (intentGeneration != _connectionIntentGeneration) {
-        log.info("Skipping obsolete automatic connection to $id");
-        return;
-      }
-    } else {
-      intentGeneration = ++_connectionIntentGeneration;
-      stopAutoRestart(clearManualTarget: false);
-      _manualConnectionTargetId = id;
-      updateBackgroundService({
-        "manualConnectionTarget": id,
-        "scooterName": savedScooters[id]?.name,
-        "scooterColor": savedScooters[id]?.color,
-      });
-    }
+  }) => _session.connectToScooterId(
+    id,
+    automatic: automatic,
+    expectedIntentGeneration: expectedIntentGeneration,
+  );
 
-    if (connected && myScooter?.remoteId.toString() == id && myScooter!.isConnected) {
-      log.info("Already connected to requested scooter $id");
-      return;
-    }
+  void start({bool restart = true}) => _session.start(restart: restart);
 
-    final attemptGeneration = ++_connectionAttemptGeneration;
-    bool isCurrentAttempt() =>
-        attemptGeneration == _connectionAttemptGeneration && intentGeneration == _connectionIntentGeneration;
-    void ensureCurrentAttempt() {
-      if (!isCurrentAttempt()) throw const _SupersededConnectionAttempt();
-    }
+  void startAutoRestart({String? targetScooterId}) =>
+      _session.startAutoRestart(targetScooterId: targetScooterId);
 
-    final attempt = _ConnectionAttempt(id, attemptGeneration);
-    final previousAttempt = _connectionAttempt;
-    _connectionAttempt = attempt;
-    // Invalidate probes before yielding. Never await a mutable subscription
-    // field that a newer request could replace underneath this call.
-    _lsProbeGeneration++;
-    final previousSubscription = _connectionStateSubscription;
-    _connectionStateSubscription = null;
-    vehicle.cancelSubscriptions();
-    battery.cancelSubscriptions();
-
-    try {
-      await previousSubscription?.cancel();
-      ensureCurrentAttempt();
-
-      log.info("Connecting to scooter with ID: $id (intent $intentGeneration, attempt $attemptGeneration)");
-      final BluetoothDevice? previousConnection = myScooter;
-      if (previousConnection != null && previousConnection.remoteId.toString() != id) {
-        myScooter = null;
-      }
-      _connectingScooterId = id;
-      _foundSth = true;
-      connected = false;
-      state = ScooterState.linking;
-      _showCachedScooter(savedScooters[id]);
-
-      final attemptedScooter = _deviceFromId(id);
-      attempt.device = attemptedScooter;
-      if (!automatic) {
-        await flutterBluePlus.stopScan();
-        ensureCurrentAttempt();
-      }
-      final previousDevice = previousAttempt?.device;
-      if (previousDevice != null &&
-          previousDevice.remoteId != attemptedScooter.remoteId &&
-          previousDevice.isConnected) {
-        await previousDevice.disconnect();
-        ensureCurrentAttempt();
-      }
-      if (previousConnection != null &&
-          previousConnection.remoteId != attemptedScooter.remoteId &&
-          previousConnection.isConnected) {
-        await previousConnection.disconnect();
-        ensureCurrentAttempt();
-      }
-
-      log.info("Connecting to ${attemptedScooter.remoteId}");
-      await attemptedScooter.connect(timeout: const Duration(seconds: 30));
-      ensureCurrentAttempt();
-
-      if (Platform.isAndroid) {
-        final BluetoothBondState bondState = await attemptedScooter.bondState.first;
-        ensureCurrentAttempt();
-        if (bondState == BluetoothBondState.bonded) {
-          log.info("Already bonded with ${attemptedScooter.remoteId}, no pairing request needed");
-        } else {
-          await attemptedScooter.createBond(timeout: 30);
-          ensureCurrentAttempt();
-          log.info("Bond established");
-        }
-        try {
-          await attemptedScooter.requestConnectionPriority(
-            connectionPriorityRequest: ConnectionPriority.high,
-          );
-        } catch (e) {
-          log.warning("Connection priority request failed (continuing): $e");
-        }
-        ensureCurrentAttempt();
-      }
-
-      log.info("Connected to ${attemptedScooter.remoteId}");
-      myScooter = attemptedScooter;
-      _publishedConnectionAttempt = attempt;
-      identity.odometerMeters = null;
-      identity.resetLsCapabilities();
-      identity.supportsHibernateFor = savedScooters[id]?.supportsHibernateFor;
-      identity.supportsApnConfig = savedScooters[id]?.supportsApnConfig;
-      addSavedScooter(id);
-
-      if (Platform.isIOS) {
-        await HomeWidget.setAppGroupId('group.com.librescoot.app');
-        ensureCurrentAttempt();
-        passToWidget(scooterId: id);
-        log.info("Saved scooter ID to widget: $id");
-      }
-
-      try {
-        await _setUpCharacteristics(
-          attemptedScooter,
-          connectionAttemptGeneration: attemptGeneration,
-          additionalLibrescootFeatures: true,
-        );
-      } on UnavailableCharacteristicsException {
-        log.warning(
-          "Some characteristics are null, if this turns out to be a rare issue we might display a toast here in the future",
-        );
-      }
-      ensureCurrentAttempt();
-
-      scooterName = savedScooters[id]?.name;
-      scooterColor = savedScooters[id]?.color;
-      _connectingScooterId = null;
-      connected = true;
-      _pollLocation();
-      updateBackgroundService({
-        "scooterName": scooterName,
-        "scooterColor": scooterColor,
-        "lastPingInt": DateTime.now().millisecondsSinceEpoch,
-      });
-
-      await _connectionStateSubscription?.cancel();
-      ensureCurrentAttempt();
-      final String listeningTo = id;
-      final int listeningGeneration = attemptGeneration;
-      _connectionStateSubscription = attemptedScooter.connectionState.listen((BluetoothConnectionState state) async {
-        if (state == BluetoothConnectionState.disconnected && listeningGeneration == _connectionAttemptGeneration) {
-          _foundSth = false;
-          connected = false;
-          this.state = ScooterState.disconnected;
-          log.info("Lost connection to scooter: ${attemptedScooter.disconnectReason ?? 'reason unavailable'}");
-          updateScooterPing(listeningTo);
-          if (_autoRestarting) {
-            // We know exactly which live link was lost. Retry that device
-            // directly instead of waiting for it to advertise and appear in a
-            // scan; bonded scooters can remain connected at Android's system
-            // level and therefore be invisible to scanning.
-            _targetScooterId = listeningTo;
-            unawaited(_attemptAutoRestart());
-          }
-        }
-      });
-    } on _SupersededConnectionAttempt {
-      log.info("Connection attempt to $id was superseded");
-      await _cleanUpSupersededAttempt(attempt);
-    } catch (e, stack) {
-      log.shout("Couldn't connect to scooter!", e, stack);
-      if (isCurrentAttempt()) {
-        _foundSth = false;
-        _connectingScooterId = null;
-        connected = false;
-        state = ScooterState.disconnected;
-        if (identical(myScooter, attempt.device)) myScooter = null;
-        if (_autoRestarting && _targetScooterId == id) {
-          unawaited(_attemptAutoRestart());
-        }
-      }
-      if (!identical(_connectionAttempt, attempt)) {
-        await _cleanUpSupersededAttempt(attempt);
-      }
-      rethrow;
-    } finally {
-      if (identical(_connectionAttempt, attempt)) _connectionAttempt = null;
-    }
-  }
-
-  Future<void> _cleanUpSupersededAttempt(_ConnectionAttempt attempt) async {
-    final device = attempt.device;
-    if (device == null) return;
-    // Different wrappers can represent one physical link. Protect both a
-    // pending newer request and a newer connection already past its finally.
-    final current = _connectionAttempt;
-    final published = _publishedConnectionAttempt;
-    if ((current != null && !identical(current, attempt) && current.id == attempt.id) ||
-        (published != null && !identical(published, attempt) &&
-            published.id == attempt.id && myScooter?.remoteId.toString() == attempt.id)) {
-      return;
-    }
-    if (identical(myScooter, device)) myScooter = null;
-    if (identical(_publishedConnectionAttempt, attempt)) _publishedConnectionAttempt = null;
-    await _safeDisconnect(device);
-  }
-
-  /// Cleanup disconnect that must never mask the error being propagated.
-  Future<void> _safeDisconnect(BluetoothDevice device) async {
-    if (!device.isConnected) return;
-    try {
-      await device.disconnect();
-    } catch (e) {
-      log.warning("Cleanup disconnect failed (continuing): $e");
-    }
-  }
-
-  bool _starting = false;
-
-  // spins up the whole connection process, and connects/bonds with the nearest scooter
-  void start({bool restart = true}) async {
-    // A user-selected target always outranks generic auto-connect.
-    if (_manualConnectionTargetId != null) {
-      log.info("START called while targeting $_manualConnectionTargetId, keeping the explicit target");
-      return;
-    }
-    // There are several entry points into this: startup, auto-restart, and
-    // every app resume. Two overlapping runs used to fight each other, because
-    // the second one tears down the link the first has just established.
-    if (_starting) {
-      log.info("START called while already starting, skipping the duplicate");
-      return;
-    }
-    _starting = true;
-    final intentGeneration = _connectionIntentGeneration;
-    log.info("START called on service for intent $intentGeneration");
-    try {
-      // GETTING READY
-      // Remove the splash screen
-      Future.delayed(const Duration(milliseconds: 1500), () {
-        FlutterNativeSplash.remove();
-      });
-
-      // A working link is what this is trying to reach in the first place.
-      // Dropping it here meant every spurious call cost a full
-      // disconnect/scan/reconnect cycle. Both flags have to agree: the
-      // platform's cached state alone can outlive a link that died while the
-      // app was suspended, and the resume handler clears `connected` for
-      // exactly that case before it gets here.
-      if (connected && myScooter != null && myScooter!.isConnected) {
-        log.info("Already connected to ${myScooter!.remoteId}, keeping the link");
-        _foundSth = true;
-        if (restart) {
-          startAutoRestart();
-        }
-        return;
-      }
-
-      // If Bluetooth is already on, don't wait for another "on" transition event.
-      final BluetoothAdapterState adapterStateNow = await flutterBluePlus.adapterState.first;
-      if (adapterStateNow != BluetoothAdapterState.on) {
-        await FlutterBluePlus.adapterState.where((val) => val == BluetoothAdapterState.on).first;
-      }
-      if (intentGeneration != _connectionIntentGeneration) return;
-
-      // CLEANUP
-      _foundSth = false;
-      connected = false;
-      state = ScooterState.disconnected;
-      if (myScooter != null) {
-        myScooter!.disconnect();
-      }
-
-      // SCAN
-      try {
-        BluetoothDevice? eligibleScooter = await findEligibleScooter();
-        if (intentGeneration != _connectionIntentGeneration) {
-          log.info("Discarding obsolete automatic scan result");
-          return;
-        }
-        if (eligibleScooter != null) {
-          await connectToScooterId(
-            eligibleScooter.remoteId.toString(),
-            automatic: true,
-            expectedIntentGeneration: intentGeneration,
-          );
-        } else {
-          log.info("No eligible scooters found during start()");
-        }
-      } catch (e, stack) {
-        log.warning("Error during search or connect!", e, stack);
-        // fail quietly, there can be benign reasons like race conditions for this
-      }
-
-      if (restart && intentGeneration == _connectionIntentGeneration) {
-        startAutoRestart();
-      }
-    } finally {
-      _starting = false;
-    }
-  }
-
-  StreamSubscription<bool>? _autoRestartSubscription;
-  void startAutoRestart({String? targetScooterId}) async {
-    if (_autoRestarting) {
-      log.info("Auto-restart already running, avoiding duplicate");
-      if (targetScooterId != null) {
-        _targetScooterId = targetScooterId;
-        _manualConnectionTargetId = targetScooterId;
-        if (!_foundSth) unawaited(_attemptAutoRestart());
-      }
-      return;
-    }
-
-    _autoRestarting = true;
-    _targetScooterId = targetScooterId;
-    if (targetScooterId != null) _manualConnectionTargetId = targetScooterId;
-    log.info("Starting auto-restart${targetScooterId != null ? " for scooter $targetScooterId" : ""}");
-
-    // _autoRestarting flips back to false inside start(), by way of
-    // findEligibleScooter calling stopAutoRestart, so this can be reached
-    // again while a listener is still attached. Cancel it first: an orphaned
-    // isScanning listener keeps firing _attemptAutoRestart forever, and
-    // stopAutoRestart can only ever cancel the one it is holding.
-    await _autoRestartSubscription?.cancel();
-    _autoRestartSubscription = flutterBluePlus.isScanning.listen((
-      scanState,
-    ) async {
-      // retry if we stop scanning without having found anything
-      if (scanState == false && !_foundSth) {
-        await _attemptAutoRestart();
-      }
-    });
-
-    // If scan already ended before this listener was attached, trigger the same check.
-    if (!_foundSth && !flutterBluePlus.isScanningNow) {
-      await _attemptAutoRestart();
-    }
-  }
-
-  bool _autoRestartAttemptPending = false;
-
-  /// Retries the pinned target (or generic auto-connect) until something
-  /// connects or the intent is superseded. Runs as a single loop so retry
-  /// re-schedules can't stack up concurrent chains.
-  Future<void> _attemptAutoRestart() async {
-    if (_autoRestartAttemptPending) return;
-    _autoRestartAttemptPending = true;
-    try {
-      while (_autoRestarting && !_foundSth && !scanning) {
-        await Future.delayed(const Duration(seconds: 3));
-        // Things may have changed while we waited.
-        if (!_autoRestarting || _foundSth || scanning) break;
-        log.info("Auto-restarting...${_targetScooterId != null ? " targeting $_targetScooterId" : ""}");
-        final targetScooterId = _targetScooterId;
-        if (targetScooterId != null) {
-          // Keep retrying the specific scooter the user selected; generic
-          // auto-connect must not take over this connection intent. Re-arm
-          // the background gate each round: it expires on its own to stay
-          // safe against a killed foreground, and this also survives a
-          // background isolate restart.
-          if (_manualConnectionTargetId != null) {
-            updateBackgroundService({"manualConnectionTarget": targetScooterId});
-          }
-          try {
-            await connectToScooterId(
-              targetScooterId,
-              automatic: true,
-              expectedIntentGeneration: _connectionIntentGeneration,
-            );
-          } catch (e) {
-            log.warning("Failed to connect to target scooter $targetScooterId during auto-restart: $e");
-          }
-        } else {
-          // Fall back to generic start() for auto-connect behavior
-          start();
-          break;
-        }
-      }
-    } finally {
-      _autoRestartAttemptPending = false;
-    }
-  }
-
-  void stopAutoRestart({bool clearManualTarget = true}) {
-    _autoRestarting = false;
-    _targetScooterId = null;
-    if (clearManualTarget && _manualConnectionTargetId != null) {
-      _manualConnectionTargetId = null;
-      updateBackgroundService({"manualConnectionTarget": ""});
-    }
-    _autoRestartSubscription?.cancel();
-    _autoRestartSubscription = null;
-    log.fine("Auto-restart stopped.");
-  }
+  void stopAutoRestart({bool clearManualTarget = true}) =>
+      _session.stopAutoRestart(clearManualTarget: clearManualTarget);
 
   void setAutoUnlock(bool enabled) {
     settings.setAutoUnlock(enabled);
@@ -895,50 +502,10 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   bool get openSeatOnUnlock => settings.openSeatOnUnlock;
   bool get hazardLocking => settings.hazardLocking;
 
-  Future<void> _setUpCharacteristics(
-    BluetoothDevice scooter, {
-    required int connectionAttemptGeneration,
-    bool additionalLibrescootFeatures = false,
-  }) async {
-    if (scooter.isDisconnected) {
-      throw "Scooter disconnected, can't set up characteristics!";
-    }
-    try {
-      final repository = _repositoryFactory(scooter);
-      await repository.findAll(additionalLibrescootFeatures: additionalLibrescootFeatures);
-      if (connectionAttemptGeneration != _connectionAttemptGeneration) {
-        throw const _SupersededConnectionAttempt();
-      }
-      characteristicRepository = repository;
-
-      log.info(
-        "Found all characteristics! StateCharacteristic is: ${characteristicRepository.stateCharacteristic}",
-      );
-
-      _subscribeToAllCharacteristics(
-        connectionAttemptGeneration: connectionAttemptGeneration,
-        scooterId: scooter.remoteId.toString(),
-      );
-
-      // check if any of the characteristics are null, and if so, throw an error
-      if (characteristicRepository.anyAreNull()) {
-        log.warning(
-          "Some characteristics are null, throwing exception to warn further up the chain!",
-        );
-        throw UnavailableCharacteristicsException();
-      }
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  void _subscribeToAllCharacteristics({
-    required int connectionAttemptGeneration,
-    required String scooterId,
-  }) {
-    var chars = characteristicRepository;
-    bool isCurrentConnection() =>
-        connectionAttemptGeneration == _connectionAttemptGeneration && myScooter?.remoteId.toString() == scooterId;
+  void _subscribeToAllCharacteristics(SessionConnection connection) {
+    final chars = characteristicRepository;
+    final scooterId = connection.id;
+    bool isCurrentConnection() => connection.isCurrent;
 
     vehicle.wireSubscriptions(
       chars,
@@ -998,7 +565,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
           _dispatchPendingNavigation();
         }
         if (identity.isLibrescoot == true) {
-          _probeLsCapabilities();
+          _probeLsCapabilities(connection, chars);
         } else {
           identity.supportsHibernateFor = false;
           identity.supportsScheduledHibernation = false;
@@ -1012,36 +579,32 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     );
   }
 
-  // bumped on each (re)connect so a stale in-flight probe from a previous
-  // connection can't apply its results to the current one
-  int _lsProbeGeneration = 0;
-
-  /// Probes which of the newer librescoot features this scooter supports.
-  /// Fire-and-forget; flags stay null until the probe resolves.
-  Future<void> _probeLsCapabilities() async {
-    final generation = _lsProbeGeneration;
+  /// Probes are app-owned, but every result belongs to the captured session.
+  Future<void> _probeLsCapabilities(SessionConnection connection, CharacteristicRepository repository) async {
+    final scooter = connection.device;
+    final probedScooterId = connection.id;
     bool? supportsHibernateFor;
     try {
-      final caps = await commands.getPmCapabilitiesCommand(myScooter, characteristicRepository);
+      final caps = await commands.getPmCapabilitiesCommand(scooter, repository);
       supportsHibernateFor = caps.contains("hibernate-for");
     } catch (e, stack) {
       log.warning("pm capability probe failed", e, stack);
       supportsHibernateFor = false;
     }
-    if (generation != _lsProbeGeneration) return;
+    if (!connection.isCurrent) return;
     identity.supportsHibernateFor = supportsHibernateFor;
     // cache the capability so the next session doesn't wait for the probe
-    final probedScooterId = myScooter?.remoteId.toString();
-    if (probedScooterId != null && savedScooters.containsKey(probedScooterId)) {
+    if (savedScooters.containsKey(probedScooterId)) {
       savedScooters[probedScooterId]!.supportsHibernateFor = supportsHibernateFor;
     }
     notifyListeners();
+    if (!connection.isCurrent) return;
 
     bool? supportsScheduledHibernation;
     try {
       final value = await commands.getLsSettingCommand(
-        myScooter,
-        characteristicRepository,
+        scooter,
+        repository,
         commands.lsKeyScheduledHibernateEnabled,
       );
       supportsScheduledHibernation = value != null;
@@ -1049,48 +612,51 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       log.warning("scheduled hibernation probe failed", e, stack);
       supportsScheduledHibernation = false;
     }
-    if (generation != _lsProbeGeneration) return;
+    if (!connection.isCurrent) return;
     identity.supportsScheduledHibernation = supportsScheduledHibernation;
     notifyListeners();
+    if (!connection.isCurrent) return;
 
     bool? supportsApnConfig;
     try {
-      final caps = await commands.getLsCapabilitiesCommand(myScooter, characteristicRepository, "config");
+      final caps = await commands.getLsCapabilitiesCommand(scooter, repository, "config");
       supportsApnConfig = caps.contains("apn");
     } catch (e, stack) {
       log.warning("config capability probe failed", e, stack);
       supportsApnConfig = false;
     }
-    if (generation != _lsProbeGeneration) return;
+    if (!connection.isCurrent) return;
     identity.supportsApnConfig = supportsApnConfig;
     // cached like the pm capability, so the APN tile does not vanish and
     // reappear every time the probe re-runs on a reconnect
-    if (probedScooterId != null && savedScooters.containsKey(probedScooterId)) {
+    if (savedScooters.containsKey(probedScooterId)) {
       savedScooters[probedScooterId]!.supportsApnConfig = supportsApnConfig;
     }
     notifyListeners();
+    if (!connection.isCurrent) return;
 
     bool? supportsBondForget;
     try {
-      final caps = await commands.getLsCapabilitiesCommand(myScooter, characteristicRepository, "ble");
+      final caps = await commands.getLsCapabilitiesCommand(scooter, repository, "ble");
       supportsBondForget = caps.contains("forget");
     } catch (e, stack) {
       log.warning("ble capability probe failed", e, stack);
       supportsBondForget = false;
     }
-    if (generation != _lsProbeGeneration) return;
+    if (!connection.isCurrent) return;
     // Not cached on the SavedScooter, unlike the two above. Nothing renders it,
     // so there is no flicker to avoid, and the answer depends on the nRF
     // firmware rather than the app: a cache would go stale the moment the
     // scooter takes a firmware update.
     identity.supportsBondForget = supportsBondForget;
     notifyListeners();
+    if (!connection.isCurrent) return;
 
     bool? supportsBatteryKeepActive;
     try {
       final value = await commands.getLsSettingCommand(
-        myScooter,
-        characteristicRepository,
+        scooter,
+        repository,
         commands.lsKeyBatteryKeepActiveOnSeatboxOpen,
       );
       supportsBatteryKeepActive = value != null;
@@ -1098,19 +664,20 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       log.warning("battery keep-active probe failed", e, stack);
       supportsBatteryKeepActive = false;
     }
-    if (generation != _lsProbeGeneration) return;
+    if (!connection.isCurrent) return;
     identity.supportsBatteryKeepActive = supportsBatteryKeepActive;
     notifyListeners();
+    if (!connection.isCurrent) return;
 
     bool? supportsAlarmControl;
     try {
-      final caps = await commands.getLsCapabilitiesCommand(myScooter, characteristicRepository, "alarm");
+      final caps = await commands.getLsCapabilitiesCommand(scooter, repository, "alarm");
       supportsAlarmControl = caps.contains("enable");
     } catch (e, stack) {
       log.warning("alarm capability probe failed", e, stack);
       supportsAlarmControl = false;
     }
-    if (generation != _lsProbeGeneration) return;
+    if (!connection.isCurrent) return;
     identity.supportsAlarmControl = supportsAlarmControl;
     notifyListeners();
   }
@@ -1375,11 +942,11 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   void _pollLocation() async {
     final scooter = myScooter;
-    final generation = _connectionAttemptGeneration;
+    final connection = _session.currentConnection;
     if (scooter == null) return;
     final position = await _readLocation();
     if (position != null &&
-        generation == _connectionAttemptGeneration &&
+        connection?.isCurrent == true &&
         connected &&
         scooter.isConnected &&
         myScooter?.remoteId == scooter.remoteId) {
@@ -1432,7 +999,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         await connectToScooterId(
           latestScooter.id,
           automatic: true,
-          expectedIntentGeneration: _connectionIntentGeneration,
+          expectedIntentGeneration: _session.intentGeneration,
         );
         if (_deviceFromId(latestScooter.id).isConnected) {
           return true;
@@ -1618,21 +1185,18 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   void addSavedScooter(String id) async {
+    final connection = _session.currentConnection;
     bool added = await store.add(id);
-    if (!added) return;
+    if (!added || _session.isDisposed) return;
     updateBackgroundService({"updateSavedScooters": true});
+    if (connection != null && !connection.isCurrent) return;
     scooterName = "Scooter Pro";
     notifyListeners();
   }
 
   @override
   void dispose() {
-    // Invalidate every in-flight attempt so late callbacks can't publish
-    // state for a dead connection or notify a disposed notifier.
-    _connectionIntentGeneration++;
-    _connectionAttemptGeneration++;
-    _lsProbeGeneration++;
-    stopAutoRestart(); // also clears the manual target and tells the background
+    _session.dispose();
 
     if (_runtimeInitialized) {
       _locationTimer.cancel();
@@ -1641,24 +1205,6 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       _manualRefreshTimer.cancel();
     }
     _scanSubscription?.cancel();
-    _connectionStateSubscription?.cancel();
-    _autoRestartSubscription?.cancel();
-    vehicle.cancelSubscriptions();
-    battery.cancelSubscriptions();
-
-    // A replacement may not have constructed its device yet. Release both
-    // the pending attempt and the published link, deduplicated by physical ID.
-    final devices = <String, BluetoothDevice>{};
-    for (final device in [myScooter, _publishedConnectionAttempt?.device, _connectionAttempt?.device]) {
-      if (device != null) devices.putIfAbsent(device.remoteId.toString(), () => device);
-    }
-    _connectionAttempt = null;
-    _publishedConnectionAttempt = null;
-    myScooter = null;
-    for (final device in devices.values) {
-      unawaited(_safeDisconnect(device));
-    }
-
     // Unregister lifecycle observer
     if (_runtimeInitialized && !isInBackgroundService) {
       WidgetsBinding.instance.removeObserver(this);
@@ -1705,6 +1251,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       // isScanning event, leaving `scanning` stuck true — which disables
       // the manual reconnect button and blocks every automatic reconnect
       // path until the app is restarted.
+      if (_session.isDisposed) return;
       if (scanning != flutterBluePlus.isScanningNow) {
         log.info("App resumed: resync scanning flag (cached: $scanning, platform: $flutterBluePlus.isScanningNow)");
         scanning = flutterBluePlus.isScanningNow;
@@ -1714,15 +1261,22 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       // event ever reaching us, so probe the link instead of trusting the
       // cached connected flag.
       if (connected && myScooter != null) {
+        final connection = _session.currentConnection;
+        final device = myScooter!;
         try {
-          await myScooter!.readRssi();
+          await device.readRssi();
         } catch (e, stack) {
+          if (_session.isDisposed || !identical(connection, _session.currentConnection) ||
+              !identical(device, myScooter)) {
+            return;
+          }
           log.info("App resumed: connection is stale, marking as disconnected", e, stack);
           connected = false;
           state = ScooterState.disconnected;
         }
       }
 
+      if (_session.isDisposed) return;
       if (!connected && !_connectionAttemptInFlight) {
         log.info("App resumed: attempting automatic reconnection");
         // Try to reconnect to the last known scooter
@@ -1745,3 +1299,77 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 class UnavailableCharacteristicsException {}
 
 class HandlebarLockException {}
+
+/// Only model/publication and application integrations cross this boundary.
+class _ServiceSessionEffects implements ScooterSessionEffects {
+  _ServiceSessionEffects(this.service);
+  final ScooterService service;
+
+  @override
+  void manualTargetChanged(String? id, {bool includeMetadata = false}) {
+    service.updateBackgroundService({
+      "manualConnectionTarget": id ?? "",
+      if (includeMetadata) "scooterName": service.savedScooters[id]?.name,
+      if (includeMetadata) "scooterColor": service.savedScooters[id]?.color,
+    });
+  }
+
+  @override
+  void invalidateTelemetry() {
+    service.vehicle.cancelSubscriptions();
+    service.battery.cancelSubscriptions();
+  }
+
+  @override
+  void linking(SessionConnection connection) {
+    service.state = ScooterState.linking;
+    if (!connection.isCurrentAttempt) return;
+    service._showCachedScooter(service.savedScooters[connection.id]);
+  }
+
+  @override
+  void transportConnected(SessionConnection connection) {
+    service.identity.odometerMeters = null;
+    service.identity.resetLsCapabilities();
+    service.identity.supportsHibernateFor = service.savedScooters[connection.id]?.supportsHibernateFor;
+    service.identity.supportsApnConfig = service.savedScooters[connection.id]?.supportsApnConfig;
+    service.addSavedScooter(connection.id);
+  }
+
+  @override
+  Future<void> prepareIosWidget(SessionConnection connection) async {
+    await HomeWidget.setAppGroupId('group.com.librescoot.app');
+    if (!connection.isCurrent) return;
+    passToWidget(scooterId: connection.id);
+    service.log.info("Saved scooter ID to widget: ${connection.id}");
+  }
+
+  @override
+  void wireTelemetry(SessionConnection connection, CharacteristicRepository repository) {
+    service.characteristicRepository = repository;
+    service._subscribeToAllCharacteristics(connection);
+  }
+
+  @override
+  void readyMetadata(SessionConnection connection) {
+    service.scooterName = service.savedScooters[connection.id]?.name;
+    if (!connection.isCurrent) return;
+    service.scooterColor = service.savedScooters[connection.id]?.color;
+  }
+
+  @override
+  void ready(SessionConnection connection) {
+    service._pollLocation();
+    service.updateBackgroundService({
+      "scooterName": service.savedScooters[connection.id]?.name,
+      "scooterColor": service.savedScooters[connection.id]?.color,
+      "lastPingInt": DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  @override
+  void disconnected(String? id) {
+    service.state = ScooterState.disconnected;
+    if (id != null) service.updateScooterPing(id);
+  }
+}

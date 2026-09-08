@@ -12,3 +12,4 @@ export 'src/ble/scooter_reader.dart';
 export 'src/runtime/state_waiter.dart';
 export 'src/storage/user_settings.dart';
 export 'src/storage/scooter_storage.dart';
+export 'scooter_session.dart';
