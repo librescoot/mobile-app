@@ -319,7 +319,7 @@ packages:
     source: hosted
     version: "5.0.3"
   flutter_background_service_platform_interface:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: flutter_background_service_platform_interface
       sha256: ca74aa95789a8304f4d3f57f07ba404faa86bed6e415f83e8edea6ad8b904a41
@@ -1070,7 +1070,7 @@ packages:
     source: hosted
     version: "2.4.1"
   shared_preferences_platform_interface:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: shared_preferences_platform_interface
       sha256: "57cbf196c486bc2cf1f02b85784932c6094376284b3ad5779d1b1c6c6a816b80"
