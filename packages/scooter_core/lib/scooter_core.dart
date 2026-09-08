@@ -5,6 +5,7 @@ export 'alarm_wake_sources.dart';
 export 'go_duration.dart';
 export 'hibernation_schedule.dart';
 export 'ota_protocol.dart';
+export 'saved_scooter_record.dart';
 export 'update_planner.dart';
 export 'src/models/alarm_status.dart';
 export 'src/models/scooter_keyless_distance.dart';
