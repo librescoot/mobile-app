@@ -195,6 +195,52 @@ class ScooterRuntime<T extends SavedScooterRecord> {
     presentAdded();
   }
 
+  Future<void> renameSavedScooter({
+    String? id,
+    required String name,
+    required void Function() missingId,
+    required void Function(bool isMostRecent) publish,
+  }) =>
+      _updateSavedScooter(
+        id: id,
+        mutate: (target) => store.rename(target, name),
+        missingId: missingId,
+        publish: publish,
+      );
+
+  Future<void> recolorSavedScooter({
+    String? id,
+    required int color,
+    required void Function() missingId,
+    required void Function(bool isMostRecent) publish,
+  }) =>
+      _updateSavedScooter(
+        id: id,
+        mutate: (target) => store.recolor(target, color),
+        missingId: missingId,
+        publish: publish,
+      );
+
+  Future<void> _updateSavedScooter({
+    String? id,
+    required Future<void> Function(String) mutate,
+    required void Function() missingId,
+    required void Function(bool) publish,
+  }) async {
+    final target = id ?? _device?.remoteId.toString();
+    if (target == null) {
+      missingId();
+      return;
+    }
+    // Preserve the saved-metadata contract: capture the ID now, select after
+    // mutation, and publish the supplied value (not a reread). These operations
+    // are independent, not session-fresh transactions or serialized edits.
+    await mutate(target);
+    final recent = await getMostRecentScooter();
+    publish(recent != null && idOf(recent) == target);
+    changed();
+  }
+
   Future<void> pollLocation() async {
     final scooter = _device;
     final connection = _session.currentConnection;

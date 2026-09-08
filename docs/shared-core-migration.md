@@ -942,6 +942,60 @@ activity poisoning/clear races and existing issued-effect/native-wait limitation
 are unchanged. Independent re-review and device smoke remain separate gates.
 
 
+## Saved metadata boundary closure
+
+The remaining rename/recolor workflow now lives in the existing generic
+`ScooterRuntime<T>`: resolve explicit ID or the session's retained device ID at
+entry, await `store.rename`/`store.recolor`, await most-recent selection, invoke
+the app publication effect, then notify. The facade retains its public `void`
+fire-and-forget signatures, exact missing-ID warning text, name/color projection
+and native payload construction. No second runtime, record DTO, generation,
+queue, dependency or preference schema was added.
+
+Before relocation, **34** real-facade characterization tests passed against exact
+`b64f8bc` source; those same tests pass afterward. They cover explicit/default/
+missing IDs, disconnected retained IDs, offline/cache/live selection, mutation
+and selection ordering, changed default device and most-recent target during a
+held mutation, independent rename/recolor completion in either order, failures
+escaping to the caller zone, exact notification/payload ordering, real storage
+creation/persistence, single-record autoconnect reenabling, and foreground versus
+background publication. Twelve standalone shared-runtime tests use a generic
+record rather than the app model and verify awaited completion, selection and
+failure propagation. A source guard rejects the old facade and passes the new
+boundary, permitting only direct map/ID views, the ping effect and demo save.
+
+This is relocation, **not** an identity/transaction correction. Selection still
+uses the most-recent saved record, not necessarily the connected target; each
+operation projects its supplied value after its own await. The default ID is
+captured once, but most-recent selection happens after storage. Operations are
+not serialized, session-fresh or newly disposal-guarded. Existing model setter
+writes remain unawaited, and recoloring an unknown record can remain memory-only.
+Single-record selection can reenable autoconnect and publish saved-list updates
+before metadata; selected recolor still sends the extra color-only payload.
+Errors do not roll back issued persistence or previously published effects.
+No inherited policy was silently repaired.
+
+Final validation: **893 tests (351 app, 116 core, 426 adapter)**, twice, versus
+846 on the clean base. All prior tests remain, including byte-identical original
+24 connection and 21 identity files (45 targeted passes) and the P1 integration
+file (87 targeted passes). All three analyses pass on Flutter **3.41.9** / Dart
+**3.11.5**; repeated normal pub get keeps all three lock hashes unchanged. Temurin
+**17.0.13+11** debug APK built successfully, SHA-256:
+`3526ab09c8dd640954c56af8ecafdf186210de7db270dea5437f3c7efd200c5d`.
+Logs, before/after characterization, complete patch and package source manifests
+are in `/tmp/metadata-closure-logs/`; the durable `metadata-closure.md` report
+records the delivery hashes and commands.
+
+The prior rename/recolor orchestration debt is closed. App-owned algorithms still
+include model setter/codec effects, branding/default names, geocoding, demo state,
+cache/model projections, ping, native payloads/identities, activity location and
+haptics, background cross-isolate scheduling and the native two-key request slot.
+Their previously documented limitations remain; this is not a claim that every
+algorithm belongs in shared packages. Shared packages are ready for independent
+freeze review and U synchronization, not already synchronized. Hardware BLE,
+widgets/background services and visible UX still need separate smoke validation.
+No staging, commits, push, deployment or hardware operations were performed.
+
 ## Validation
 
 Run all suites (root `flutter test` does not run package tests):

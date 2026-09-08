@@ -456,50 +456,36 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   Future<void> forgetSavedScooter(String id) => runtime.forgetSavedScooter(id);
 
-  void renameSavedScooter({String? id, required String name}) async {
-    id ??= myScooter?.remoteId.toString();
-    if (id == null) {
-      log.warning(
-        "Attempted to rename scooter, but no ID was given and we're not connected to anything!",
-      );
-      return;
-    }
-    await store.rename(id, name);
+  // Keep the public fire-and-forget API; shared runtime owns mutation/selection.
+  void renameSavedScooter({String? id, required String name}) => runtime.renameSavedScooter(
+    id: id,
+    name: name,
+    missingId: () => log.warning(
+      "Attempted to rename scooter, but no ID was given and we're not connected to anything!",
+    ),
+    publish: (isMostRecent) {
+      if (isMostRecent) scooterName = name;
+      updateBackgroundService({
+        "updateSavedScooters": true,
+        if (isMostRecent) "scooterName": name,
+      });
+    },
+  );
 
-    bool isMostRecent = (await getMostRecentScooter())?.id == id;
-    if (isMostRecent) {
-      scooterName = name;
-    }
-
-    updateBackgroundService({
-      "updateSavedScooters": true,
-      if (isMostRecent) "scooterName": name,
-    });
-    // let the background service know too right away
-    notifyListeners();
-  }
-
-  void recolorSavedScooter({String? id, required int color}) async {
-    id ??= myScooter?.remoteId.toString();
-    if (id == null) {
-      log.warning(
-        "Attempted to recolor scooter, but no ID was given and we're not connected to anything!",
-      );
-      return;
-    }
-    await store.recolor(id, color);
-
-    bool isMostRecent = (await getMostRecentScooter())?.id == id;
-    if (isMostRecent) {
-      scooterColor = color;
-    }
-    updateBackgroundService({
-      "updateSavedScooters": true,
-      if (isMostRecent) "scooterColor": color,
-    });
-    // let the background service know too right away
-    notifyListeners();
-  }
+  void recolorSavedScooter({String? id, required int color}) => runtime.recolorSavedScooter(
+    id: id,
+    color: color,
+    missingId: () => log.warning(
+      "Attempted to recolor scooter, but no ID was given and we're not connected to anything!",
+    ),
+    publish: (isMostRecent) {
+      if (isMostRecent) scooterColor = color;
+      updateBackgroundService({
+        "updateSavedScooters": true,
+        if (isMostRecent) "scooterColor": color,
+      });
+    },
+  );
 
   void updateBackgroundService(dynamic data) {
     if (!isInBackgroundService) {
