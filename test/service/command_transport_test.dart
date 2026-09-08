@@ -1,87 +1,27 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:unustasis/infrastructure/characteristic_repository.dart';
 import 'package:unustasis/service/ble_commands.dart';
 
-class _Device extends Fake implements BluetoothDevice {
-  @override
-  bool isDisconnected = false;
-}
-
-class _Write {
-  _Write(List<int> bytes, this.allowLongWrite, this.withoutResponse) : bytes = List.of(bytes);
-  final List<int> bytes;
-  final bool allowLongWrite;
-  final bool withoutResponse;
-  String get command => ascii.decode(bytes);
-}
-
-class _Characteristic extends Fake implements BluetoothCharacteristic {
-  final writes = <_Write>[];
-  final notifyCalls = <bool>[];
-  final values = StreamController<List<int>>.broadcast(sync: true);
-  Future<void> Function(_Write)? onWrite;
-  Completer<void>? notifyGate;
-  int listeners = 0;
-  int maxListeners = 0;
-  int cancellations = 0;
-
-  @override
-  bool isNotifying = false;
-
-  @override
-  Stream<List<int>> get onValueReceived => Stream<List<int>>.multi((sink) {
-        listeners++;
-        if (listeners > maxListeners) maxListeners = listeners;
-        final subscription = values.stream.listen(
-          sink.addSync,
-          onError: sink.addErrorSync,
-          onDone: sink.closeSync,
-        );
-        sink.onCancel = () {
-          listeners--;
-          cancellations++;
-          return subscription.cancel();
-        };
-      }, isBroadcast: true);
-
-  @override
-  Future<bool> setNotifyValue(bool notify, {int timeout = 15, bool forceIndications = false}) async {
-    notifyCalls.add(notify);
-    if (notifyGate != null) await notifyGate!.future;
-    isNotifying = notify;
-    return true;
-  }
-
-  @override
-  Future<void> write(List<int> value,
-      {bool withoutResponse = false, bool allowLongWrite = false, int timeout = 15}) async {
-    final write = _Write(value, allowLongWrite, withoutResponse);
-    writes.add(write);
-    await onWrite?.call(write);
-  }
-
-  void reply(String response) => values.add(utf8.encode(response));
-}
+import '../support/command_transport_fakes.dart';
 
 // Yield to queued microtasks without waiting for any protocol timeout.
 Future<void> _flush() => Future<void>.delayed(Duration.zero);
 
 void main() {
-  late _Device device;
-  late _Characteristic basic;
-  late _Characteristic extended;
-  late _Characteristic response;
+  late TransportTestDevice device;
+  late TransportTestCharacteristic basic;
+  late TransportTestCharacteristic extended;
+  late TransportTestCharacteristic response;
   late CharacteristicRepository repo;
 
   setUp(() {
-    device = _Device();
-    basic = _Characteristic();
-    extended = _Characteristic();
-    response = _Characteristic();
+    device = TransportTestDevice();
+    basic = TransportTestCharacteristic();
+    extended = TransportTestCharacteristic();
+    response = TransportTestCharacteristic();
     repo = CharacteristicRepository(device)
       ..commandCharacteristic = basic
       ..extendedCommandCharacteristic = extended
@@ -241,6 +181,58 @@ void main() {
       expect(response.notifyCalls, [true]);
     });
   }
+
+
+
+  test('response stream error propagates unchanged and releases FIFO', () async {
+    final error = StateError('response stream failed');
+    final failed = expectLater(sendLsExtendedCommand(device, repo, 'broken'), throwsA(same(error)));
+    final next = expectLater(sendLsExtendedCommand(device, repo, 'next'), completion('next:ok'));
+    await _flush();
+    expect(extended.writes.map((write) => write.command), ['broken']);
+    response.values.addError(error, StackTrace.current);
+    await _flush();
+    await failed;
+    expect(response.cancellations, 1);
+    expect(response.listeners, 1);
+    expect(extended.writes.map((write) => write.command), ['broken', 'next']);
+    response.reply('next:ok');
+    await _flush();
+    await next;
+    expect(response.listeners, 0);
+    expect(response.cancellations, 2);
+    expect(response.maxListeners, 1);
+  });
+
+
+
+  test('notification enable failure releases FIFO without creating a listener', () async {
+    final error = StateError('notification enable failed');
+    final gate = Completer<void>();
+    response.notifyGate = gate;
+    final failed = expectLater(sendLsExtendedCommand(device, repo, 'broken'), throwsA(same(error)));
+    final next = expectLater(sendLsExtendedCommand(device, repo, 'next'), completion('next:ok'));
+    extended.onWrite = (_) async {
+      expect(response.maxListeners, 1);
+      expect(response.cancellations, 0, reason: 'The failed enable never created a listener');
+      response.reply('next:ok');
+    };
+    await _flush();
+    expect(response.notifyCalls, [true]);
+    expect(response.listeners, 0);
+    expect(response.maxListeners, 0);
+    expect(extended.writes, isEmpty);
+    response.notifyGate = null;
+    gate.completeError(error);
+    await _flush();
+    await failed;
+    await next;
+    expect(response.notifyCalls, [true, true]);
+    expect(extended.writes.map((write) => write.command), ['next']);
+    expect(response.listeners, 0);
+    expect(response.cancellations, 1);
+    expect(response.maxListeners, 1);
+  });
 
   test('write failure cancels listener and releases FIFO to a queued list', () async {
     final gate = Completer<void>();
