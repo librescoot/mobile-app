@@ -14,7 +14,6 @@ import 'package:unustasis/domain/nav_destination.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/geo_helper.dart';
 import 'package:unustasis/scooter_service.dart';
-import 'package:unustasis/service/ble_commands.dart';
 
 class NavigationScreen extends StatefulWidget {
   final NavDestination? initialDestination;
@@ -98,10 +97,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
     setState(() => _loading = true);
     try {
-      final favs = await listFavDestinationsCommand(
-        service.myScooter!,
-        service.characteristicRepository,
-      );
+      final favs = (await service.navigation.listFavorites()).map(NavDestination.fromDestination);
       // Ensure every destination has a display name
       final named = await Future.wait(
         favs.map((d) => d.ensureNamed()),
@@ -213,12 +209,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       return;
     }
     try {
-      await navigateFavCommand(
-        service.myScooter!,
-        service.characteristicRepository,
-        destination.id!,
-      );
-      service.setActiveNavigation(destination);
+      await service.navigation.navigate(destination, favorite: true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -283,12 +274,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       return;
     }
     try {
-      await navigateCommand(
-        service.myScooter!,
-        service.characteristicRepository,
-        dest,
-      );
-      service.setActiveNavigation(dest);
+      await service.navigation.navigate(dest);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -343,11 +329,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final service = context.read<ScooterService>();
     if (name.isEmpty) name = dest.name ?? FlutterI18n.translate(context, "nav_destination_fallback");
     try {
-      await saveNavDestinationCommand(
-        service.myScooter!,
-        service.characteristicRepository,
-        NavDestination(location: dest.location, name: name),
-      );
+      await service.navigation.saveFavorite(NavDestination(location: dest.location, name: name));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -419,17 +401,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   Future<void> _renameFav(NavDestination destination, String newName) async {
     final service = context.read<ScooterService>();
     try {
-      // Delete old entry, then re-add with new name
-      await deleteFavDestinationCommand(
-        service.myScooter!,
-        service.characteristicRepository,
-        destination.id!,
-      );
-      await saveNavDestinationCommand(
-        service.myScooter!,
-        service.characteristicRepository,
-        NavDestination(location: destination.location, name: newName),
-      );
+      await service.navigation.renameFavorite(destination, newName);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -480,11 +452,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     // Optimistically remove from list immediately
     setState(() => _destinations.remove(destination));
     try {
-      await deleteFavDestinationCommand(
-        service.myScooter!,
-        service.characteristicRepository,
-        destination.id!,
-      );
+      await service.navigation.deleteFavorite(destination.id!);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -850,14 +818,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   Future<void> _cancelActiveNavigation(ScooterService service) async {
-    try {
-      await cancelNavigationCommand(
-        service.myScooter,
-        service.characteristicRepository,
-      );
-    } finally {
-      service.setActiveNavigation(null);
-    }
+    await service.navigation.cancel();
   }
 
   Widget _navigationStatusCard({required bool isNavigating, String? pendingName, String? activeName}) {

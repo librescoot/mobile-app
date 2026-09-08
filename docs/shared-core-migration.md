@@ -499,6 +499,128 @@ APIs. Device BLE/bonding/background/widgets and visible warning-dialog smoke
 remain hardware/manual gates; APK compilation is not that validation. No device,
 seatbox, commit, push or deployment operations were performed.
 
+## Shared navigation runtime (milestone 3, navigation only)
+
+`NavigationRuntime` now owns pending/active destination state, preference
+restoration/invalid-entry removal through supplied effects, firmware-ready
+pending dispatch, direct/favorite navigation, cancel, favorite list/save/delete,
+and captured-session delete-then-add rename. `ScooterService` only composes its
+`pendingNavigation` preference and name-decoding effects, delegates compatibility
+views, and forwards the existing session binding/invalidation and telemetry
+firmware/navigation events. NavigationScreen uses shared workflow APIs rather
+than raw characteristics/command functions; its cancel/active transition and
+rename sequence no longer execute in UI. This is the **navigation half only** of
+milestone 3: no OTA transfer/controller/UI changes were made.
+
+Core owns `NavigationDestination`, the unchanged `SpecialDestinationType` enum,
+JSON coordinate/name/id/type codec, destination/favorite command builders and
+favorite-list entry decoding. The mutable app `NavDestination` extends that DTO,
+preserving its constructor/fromJson/toJson APIs, inferred-name lists and
+`ensureNamed()` geocoding behavior. Shared runtime snapshots mutable input values
+at entry and returns copies; geocoding, name inference, labels, consent,
+confirmation dialogs and saved-scooter favorite caching stay app adapters/UI.
+Core uses the existing pure `latlong2` **0.9.1**, with newly needed core lockfile
+transitives matching the app's existing `intl` 0.20.2 and `clock` 1.1.2. There are
+no unrelated dependency upgrades or Flutter/app imports into core.
+
+The six navigation BLE operations live in the shared adapter and enter the
+**existing** extended-channel FIFO alongside actions/keycards/capability queries.
+Listen-before-write buffering, notify reuse, command strings, permissive favorite
+ACK-ID extraction/list parsing, ten-second list/response timing, long-write flags,
+and truncation by Dart string length (including split surrogate pairs) are
+unchanged. Non-ASCII outgoing names still fail the inherited ASCII transport;
+this is explicitly tested, not silently corrected to UTF-8. No independent
+connection engine, connection generation or extended queue was introduced.
+
+### Explicit correctness changes and evidence
+
+Four tests against HEAD `a0ccef7` reproduced stale pending-navigation ACKs wrongly
+activating a destination after a newer pending request, B replacement, same-ID
+replacement or disconnect. Before evidence: `/tmp/navigation-before.log` (four
+failures); retained real-facade regressions now pass in
+`test/service/navigation_stale_reproduction_test.dart`. They hold the actual
+extended write across actual facade connection/telemetry setup, not a simulated
+state setter. Two additional app cases pin the real preference key/schema,
+invalid-entry removal and successful firmware-ready dispatch/removal.
+
+Every dispatch now captures a destination snapshot, an independent **request
+identity** (not destination ID or object equality), and the existing
+`SessionConnection`/repository. Old completions cannot activate or clear newer
+pending/active state, including synchronous publication reentrancy and same-ID
+replacement. Queued commands and notification-enable continuations check that
+same captured token before writing. Repeated firmware-ready dispatch of the same
+request/session is coalesced; an explicit later retry after failure remains
+possible. A retained request can dispatch on a new ready session while the old
+write finishes without the old completion clearing it.
+
+Pending preference effects are serialized in invocation order so a delayed
+removal cannot erase a newer persisted request; failure does not poison later
+persistence. This is a bounded race correction, not a schema change. Cancel
+preserves the previous UI behavior of dismissing an active card even on command
+failure/offline entry, but a stale cancel cannot clear replacement state. Pending
+cancellation remains the separate `setPending(null)` path. Favorite rename
+retains delete-then-add, without rollback; both steps now use one captured session.
+Already-issued BLE or persistence effects cannot be physically undone.
+
+Review found a mixed-request regression: a persisted A dispatch awaiting its ACK
+was invalidated correctly by direct/favorite B, but B's successful completion did
+not retire A. `/tmp/navigation-mixed-before.log` reproduces both forms with actual
+shared FIFO writes: pending and persisted A remained after B succeeded, and the
+next firmware-ready session actually wrote A again. The two success cases failed;
+the four direct/favorite failure and cancel compatibility cases passed.
+
+A successful direct/favorite request now retires its entry-time pending destination
+through the existing serialized persistence path, only while its captured request
+identity and `SessionConnection` remain current. It rechecks after active publication
+because a synchronous listener can replace either owner. Requests with no pending
+at entry do not introduce preference writes. Failed/offline selection does not
+retire pending; storage failure still propagates without rollback, as for pending
+dispatch. No new identity counter, queue, connection owner or schema was added.
+
+The reviewed transition matrix is now pinned by 42 additional adapter tests:
+
+| Transition | Pending/active policy |
+| --- | --- |
+| Pending A dispatch → current successful direct/favorite B | Only B publishes active and retires A; A's old ACK cannot publish/remove. Next restored firmware session does not replay A. |
+| Pending A dispatch → failed direct/favorite B | B does not publish/retire; A remains persisted for a later firmware-ready retry. |
+| Direct/favorite ACK → newer pending C or pending cancellation | New request wins, including while the write is held, synchronous active publication or delayed preference removal. Old completion cannot erase C or restore cancelled pending. |
+| Active publication → newer direct/favorite | New request owns its ACK and pending retirement; the older publication cannot append removal afterward. |
+| Active publication → cancel or compatibility active setter | Replacement owns active presentation; old navigation cannot retire pending after that reentrant request. |
+| Pending dispatch → active cancel (success/failure), or offline cancel | Active-card dismissal remains separate from pending cancellation; pending remains until explicit `setPending(null)` or successful navigation. |
+| Replacement session, same-ID replacement, disconnect or disposal before ACK | Obsolete navigation cannot publish or retire pending. |
+| Reentrant session replacement during active publication | Already-published active is not rolled back; the obsolete continuation cannot retire pending. |
+| New pending/session during issued persistence removal | Existing FIFO persists removal before the newer pending save; old completion cannot erase or notify for the newer request. |
+| No pending at direct/favorite entry; offline selection; persistence failure | No unnecessary preference write; offline selection leaves state intact; failed persistence propagates, and a newer pending save still works. |
+
+The complete targeted navigation suite passes **79 tests** in
+`/tmp/navigation-mixed-after.log`, including the earlier 37. Already-issued native
+or preference effects still cannot be physically undone; if persistent removal
+fails, its old disk value is not claimed to have disappeared.
+
+Validation: **605 tests (205 app, 112 core, 288 adapter)**, up from the 510 baseline
+(194/107/209) and the pre-review 563. Added: 79 adapter navigation/persistence/session/FIFO tests, five
+pure DTO/codec fixtures and 11 app facade/DTO/boundary tests. The original **24
+connection and 21 identity tests are unchanged**. All three analyses/suites pass
+with `/tmp/flutter-sdk-3.41.9/bin`; debug APK builds with
+`ASDF_JAVA_VERSION=temurin-17.0.13+11`. APK:
+`build/app/outputs/flutter-apk/app-debug.apk`, SHA-256
+`6fd20660b12241aca1cba2f90689a779575a4a89b314b0e363b8b551c1122f56`.
+Logs: `/tmp/navigation-{core-validation,adapter-validation,app-analyze,app-tests,
+build}.log`. Full tracked+untracked diff: `/tmp/ls-navigation-runtime.diff`;
+nothing staged, committed, pushed, deployed or actuated on hardware.
+
+Remaining scope: OTA transfer and update orchestration; activity persistence;
+saved-record/cache side effects; lifecycle/resume/location/heartbeat composition;
+background scheduling/native bindings and remaining OTA/read-only UI escape
+hatches. Favorite cache/geocoding presentation remains app-owned. Legacy raw
+navigation wrappers delegate shared protocol but cannot infer a session token;
+all live navigation UI wire callers use the captured controller instead. The
+inherited FIFO policy still does not bound pending native writes/notify enables
+by the response timeout, or physically cancel an already-issued operation.
+Hardware BLE/navigation/background/widgets and visible UI behavior remain manual
+smoke gates; APK compilation is not hardware validation.
+
+
 ## Validation
 
 Run all suites (root `flutter test` does not run package tests):
