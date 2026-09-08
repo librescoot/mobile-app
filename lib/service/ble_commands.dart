@@ -15,13 +15,14 @@ import '../infrastructure/characteristic_repository.dart';
 
 // Preserve the legacy command API while protocol consumers migrate to core.
 export 'package:scooter_core/extended_response.dart';
+export 'package:scooter_core/telemetry.dart'
+    show lsKeyScheduledHibernateEnabled, lsKeyBatteryKeepActiveOnSeatboxOpen;
 export 'package:scooter_flutter/command_transport.dart' show sendCommand, sendLsExtendedCommand;
 export 'package:scooter_flutter/firmware_queries.dart';
 
 final log = Logger('BleCommands');
 
 /// Librescoot settings keys for scheduled hibernation.
-const String lsKeyScheduledHibernateEnabled = "pm.scheduled-hibernate-enabled";
 const String lsKeyScheduledHibernateCron = "pm.scheduled-hibernate-cron";
 const String lsKeyScheduledHibernateDuration = "pm.scheduled-hibernate-duration";
 
@@ -29,12 +30,6 @@ const String lsKeyScheduledHibernateDuration = "pm.scheduled-hibernate-duration"
 const String lsKeyAutoStandbySeconds = "scooter.auto-standby-seconds";
 const String lsKeyHibernateTimer = "pm.hibernation-timer";
 const String lsKeyCellularApn = "cellular.apn";
-
-/// Librescoot settings key that keeps the running battery active while the
-/// seatbox is open, instead of letting it drop out. battery-service also wakes
-/// a sleeping pack when this is on, which is what makes it useful for digging
-/// a scooter out of a flat AUX battery.
-const String lsKeyBatteryKeepActiveOnSeatboxOpen = "scooter.battery-keep-active-on-seatbox-open";
 
 /// Librescoot settings key for the alarm as a whole. Off means the scooter
 /// never arms, whatever the vehicle is doing.

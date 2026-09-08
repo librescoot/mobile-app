@@ -108,10 +108,10 @@ paths remain app presentation extensions.
 Characteristic readers/subscriptions and `CharacteristicRepository` discovery
 live in `scooter_flutter`. Repository tests pin service/characteristic matching,
 optional OTA/alarm groups, missing fields and propagated discovery failures;
-the app's legacy repository import forwards the same type. State objects
-still own their subscription lifetimes and stale-connection guards. Moving
-readers does not yet make these live state objects immutable or solve connection
-ownership; those are separate slices.
+the app's legacy repository import forwards the same type. The live state objects and their subscription lifetimes now also live in the
+adapter's telemetry runtime (see below), guarded by the sole session's captured
+connection token. Compatibility mutable views remain for current app callers;
+new consumers can use copied pure telemetry snapshots instead.
 
 ## Persistence characterization gate
 
@@ -221,8 +221,8 @@ lifecycle policy, location and heartbeat/RSSI/refresh timers remain app-owned.
 The repository factory and device/platform/deadline seams have production defaults;
 no plugin work or Flutter dependency was added to core.
 
-Captured `SessionConnection` tokens supply freshness to app nRF/odometer,
-capability probes and location results. They expire on replacement, disconnect or
+Captured `SessionConnection` tokens supply freshness to shared nRF/odometer,
+capability probes and app location results. They expire on replacement, disconnect or
 disposal, not when connect's `finally` releases its pending slot. Checks after
 phase publications also prevent synchronous listeners from continuing an obsolete
 connection. A bounded correction to the inherited algorithm preserves a same-ID
@@ -245,6 +245,77 @@ This is not the remaining storage/background/lifecycle extraction. Runtime-enabl
 cache restoration and native widget/BLE behavior still need device smoke tests;
 late startup adapter/scan waits retain their existing underlying transport timeout
 behavior. A passing APK build does not validate hardware bonding or widgets.
+
+## Shared live telemetry runtime (milestone 1)
+
+`ScooterTelemetry` in `scooter_flutter/scooter_telemetry.dart` now owns actual
+battery/vehicle subscriptions, firmware identity reads, odometer refresh, the
+six sequential capability probes and aggregate-state publication. It has no
+connect/start/retry API and no connection-generation counter: every binding uses
+the existing `SessionConnection`, including same-ID replacement, disconnect and
+disposal freshness. `invalidate()` cancels subscriptions; local subscription
+lifetime guards also reject callbacks already handed to a dispatch queue before
+cancellation. Every battery/vehicle callback checks freshness **before mutation**.
+Reads and probes check before mutation and after reentrant effect publications.
+
+Pure core `telemetry.dart` provides copied battery/vehicle/firmware snapshots,
+nullable cached telemetry seeds/partial patches, USB mode and alarm-trigger
+parsing. Snapshots carry captured scooter ID, session generation and monotonic
+publication revision; no stream or second mutable app copy was introduced.
+Null cache-patch fields mean unchanged, so known false and zero are persisted.
+Only hibernate-for and APN capabilities are cached, as before. The two probe
+setting-key constants have one shared definition and legacy command exports.
+
+The app facade supplies typed effects for captured-ID SavedScooter patches,
+ping/notification, firmware-ready pending-navigation dispatch, navigation clearing,
+aggregate-transition cooldown and probe logging. Name/color/location/last-ping/RSSI
+remain app presentation/polling metadata in a small `ScooterIdentity` subclass;
+its firmware fields/read methods are inherited from shared `FirmwareIdentity`.
+Legacy battery/vehicle paths are exports, not duplicate implementations.
+`_subscribeToAllCharacteristics`, `_probeLsCapabilities`, aggregate computation
+and odometer-read wiring have been removed from the facade. Shared packages import
+no app code and have no new dependencies. Actions, navigation execution, OTA,
+lifecycle/polling, native widget identities and background scheduling are unchanged.
+
+Preserved contracts include cache-before-ping/notify, aggregate notification then
+ping then cooldown effect, nRF cache then firmware-ready dispatch then probes,
+false-on-failure/stock firmware, empty-but-supported setting values, optional
+power/UMS/navigation/alarm groups, unknown USB retaining its prior value, alarm
+parsing, and CBB integer microvolt/microamp-hour to millivolt/milliamp-hour
+conversion. Cache refetch updates persisted levels (and handlebars when a record
+exists) without turning it into a new-link reset. Linking clears the original
+live-only fields and resets capabilities to the two cached flags; odometer resets
+at transport-ready, preserving the original phase. Alarm values retain their
+inherited cache-seed behavior (not cleared); correcting that is not bundled into
+this extraction.
+
+**Explicit bounded correctness fix, not just relocation:** a test run against
+HEAD's app implementations reproduced a cancelled battery callback overwriting
+SOC with 42 after cancellation (expected null). The same test now runs against
+the shared implementations and passes. The fix rejects cancelled and obsolete
+callbacks before they mutate state or patch any saved scooter, rather than only
+suppressing the facade's notification. Original failure evidence is retained in
+`/tmp/telemetry-before.log`; the final regression is
+`packages/scooter_flutter/test/telemetry_stale_reproduction_test.dart`.
+
+The original **24 real-service connection tests and 21 identity tests are
+unchanged**, still executing the actual shared implementations through app
+compatibility paths. Added coverage: 35 adapter telemetry tests for queued A/B
+and same-ID callbacks, disconnect/disposal/invalidation, all battery conversions,
+vehicle aggregates/optional groups, cache/refetch reset phases, copied snapshots,
+real shared extended-channel successful probes and missing-channel failure,
+all six delayed probe positions, stale errors, and reentrant cache/firmware/
+notification effects. Four core tests pin values/parsing; one app architecture
+test prevents telemetry algorithms returning to the facade.
+
+Final suites: **389 tests (136 app, 102 core, 151 adapter)**, up from 349
+(135/98/116). All three analyses passed with Flutter/Dart from
+`/tmp/flutter-sdk-3.41.9/bin`; Android debug APK passed with
+`ASDF_JAVA_VERSION=temurin-17.0.13+11`. No device operations were performed. Hardware
+BLE/notifications, bonding, widgets, runtime-enabled cache restoration and native
+background behavior remain smoke-test gates; APK compilation is not that gate.
+Outstanding action/navigation/OTA/lifecycle milestones and the existing extended
+query timeout/cancellation policy are intentionally unchanged.
 
 ## Validation
 

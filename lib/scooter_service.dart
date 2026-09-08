@@ -1,5 +1,6 @@
 import 'package:scooter_core/scooter_core.dart';
 import 'package:scooter_flutter/scooter_session.dart';
+import 'package:scooter_flutter/scooter_telemetry.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -22,9 +23,7 @@ import '../domain/saved_scooter.dart';
 import '../flutter/blue_plus_mockable.dart';
 import '../infrastructure/characteristic_repository.dart';
 import '../service/location_polling.dart' as location;
-import '../state/battery_state.dart';
 import '../state/scooter_identity.dart';
-import '../state/vehicle_status.dart';
 import '../service/scooter_storage.dart';
 import '../service/state_waiter.dart';
 import '../service/ble_commands.dart' as commands;
@@ -49,8 +48,9 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   late final UserSettings settings;
 
   // Observable state
-  final BatteryState battery = BatteryState();
-  final VehicleStatus vehicle = VehicleStatus();
+  late final ScooterTelemetry _telemetry;
+  BatteryState get battery => _telemetry.battery;
+  VehicleStatus get vehicle => _telemetry.vehicle;
   final ScooterIdentity identity = ScooterIdentity();
 
   Map<String, SavedScooter> get savedScooters => store.scooters;
@@ -81,9 +81,13 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   bool get optionalAuth => settings.optionalAuth;
   set optionalAuth(bool value) => settings.optionalAuth = value;
 
-  void ping() {
+  void _telemetryChanged() => notifyListeners();
+
+  void ping() => _pingScooter(myScooter?.remoteId.toString());
+
+  void _pingScooter(String? scooterId) {
     try {
-      savedScooters[myScooter!.remoteId.toString()]!.lastPing = DateTime.now();
+      savedScooters[scooterId]!.lastPing = DateTime.now();
       lastPing = DateTime.now();
       notifyListeners();
     } catch (e, stack) {
@@ -119,6 +123,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
        _runtimeInitialized = initializeRuntime {
     settings = UserSettings(isInBackgroundService: isInBackgroundService);
     scanner = BleScanner(flutterBluePlus);
+    _telemetry = ScooterTelemetry(effects: _ServiceTelemetryEffects(this), identity: identity);
     _session = ScooterSession(
       flutterBluePlus: flutterBluePlus,
       deviceFromId: _deviceFromId,
@@ -210,34 +215,11 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   void _showCachedScooter(SavedScooter? scooter) {
     identity.lastPing = scooter?.lastPing;
-    battery.primarySOC = scooter?.lastPrimarySOC;
-    battery.secondarySOC = scooter?.lastSecondarySOC;
-    battery.cbbSOC = scooter?.lastCbbSOC;
-    battery.auxSOC = scooter?.lastAuxSOC;
     identity.name = scooter?.name;
     identity.color = scooter?.color;
     identity.lastLocation = scooter?.lastLocation;
-    identity.isLibrescoot = scooter?.isLibrescoot;
-    vehicle.handlebarsLocked = scooter?.handlebarsLocked;
-    // Everything below is only known from a live link. Drop the previous
-    // scooter's values so they don't leak into this scooter's views.
-    identity.nrfVersion = null;
     identity.rssi = null;
-    identity.resetLsCapabilities();
-    identity.supportsHibernateFor = scooter?.supportsHibernateFor;
-    identity.supportsApnConfig = scooter?.supportsApnConfig;
-    battery.primaryCycles = null;
-    battery.secondaryCycles = null;
-    battery.cbbVoltage = null;
-    battery.cbbCapacity = null;
-    battery.cbbCharging = null;
-    battery.auxVoltage = null;
-    battery.auxCharging = null;
-    vehicle.seatClosed = null;
-    vehicle.navigationActive = null;
-    vehicle.usbMode = null;
-    vehicle.vehicleState = null;
-    vehicle.powerState = null;
+    _telemetry.seed(_cachedTelemetry(scooter));
     notifyListeners();
   }
 
@@ -361,7 +343,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   bool get connected => _session.connected;
   set connected(bool connected) => _session.connected = connected;
 
-  ScooterState? _state = ScooterState.disconnected;
+  ScooterState? get _state => _telemetry.state;
+  set _state(ScooterState? value) => _telemetry.state = value;
   ScooterState? get state => _state;
   set state(ScooterState? state) {
     _state = state;
@@ -379,14 +362,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   int? get odometerMeters => identity.odometerMeters;
 
   void refreshOdometer() {
-    if (!connected || myScooter == null) return;
-    final connection = _session.currentConnection;
-    identity.refreshOdometer(
-      characteristicRepository,
-      onUpdate: notifyListeners,
-      // Discard the read if the connection it started on is no longer current.
-      isCurrent: () => connection?.isCurrent == true && connected,
-    );
+    if (connected) _telemetry.refreshOdometer();
   }
 
   // Passthrough getters for battery state
@@ -501,207 +477,6 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   int get autoUnlockThreshold => settings.autoUnlockThreshold;
   bool get openSeatOnUnlock => settings.openSeatOnUnlock;
   bool get hazardLocking => settings.hazardLocking;
-
-  void _subscribeToAllCharacteristics(SessionConnection connection) {
-    final chars = characteristicRepository;
-    final scooterId = connection.id;
-    bool isCurrentConnection() => connection.isCurrent;
-
-    vehicle.wireSubscriptions(
-      chars,
-      onStateUpdate: () {
-        _updateAggregateState();
-      },
-      onSeatUpdate: () {
-        ping();
-        notifyListeners();
-      },
-      onNavigationChanged: () {
-        if (vehicle.navigationActive != true) _activeNavigation = null;
-        ping();
-        notifyListeners();
-      },
-      onUsbModeChanged: () {
-        ping();
-        notifyListeners();
-      },
-      onAlarmChanged: () => notifyListeners(),
-      onHandlebarsChanged: (locked) {
-        // Cache the value in SavedScooter if possible
-        if (myScooter != null && savedScooters.containsKey(myScooter!.remoteId.toString())) {
-          savedScooters[myScooter!.remoteId.toString()]!.handlebarsLocked = locked;
-        }
-        ping();
-        notifyListeners();
-      },
-    );
-
-    battery.wireSubscriptions(
-      chars,
-      onUpdate: () {
-        ping();
-        notifyListeners();
-      },
-      cacheSoc: _cacheSocForScooter,
-    );
-
-    identity.wireOdometer(
-      chars,
-      onUpdate: notifyListeners,
-      isCurrent: isCurrentConnection,
-    );
-
-    identity.wireNrfVersion(
-      chars,
-      isCurrent: isCurrentConnection,
-      onUpdate: () {
-        // Persist the discovered isLibrescoot flag to the scooter this read
-        // belongs to, never whichever connection happens to be current later.
-        if (savedScooters.containsKey(scooterId)) {
-          savedScooters[scooterId]!.isLibrescoot = identity.isLibrescoot;
-        }
-        // Dispatch any queued navigation to this librescoot
-        if (identity.isLibrescoot == true && _pendingNavigation != null) {
-          _dispatchPendingNavigation();
-        }
-        if (identity.isLibrescoot == true) {
-          _probeLsCapabilities(connection, chars);
-        } else {
-          identity.supportsHibernateFor = false;
-          identity.supportsScheduledHibernation = false;
-          identity.supportsApnConfig = false;
-          identity.supportsBondForget = false;
-          identity.supportsBatteryKeepActive = false;
-          identity.supportsAlarmControl = false;
-        }
-        notifyListeners();
-      },
-    );
-  }
-
-  /// Probes are app-owned, but every result belongs to the captured session.
-  Future<void> _probeLsCapabilities(SessionConnection connection, CharacteristicRepository repository) async {
-    final scooter = connection.device;
-    final probedScooterId = connection.id;
-    bool? supportsHibernateFor;
-    try {
-      final caps = await commands.getPmCapabilitiesCommand(scooter, repository);
-      supportsHibernateFor = caps.contains("hibernate-for");
-    } catch (e, stack) {
-      log.warning("pm capability probe failed", e, stack);
-      supportsHibernateFor = false;
-    }
-    if (!connection.isCurrent) return;
-    identity.supportsHibernateFor = supportsHibernateFor;
-    // cache the capability so the next session doesn't wait for the probe
-    if (savedScooters.containsKey(probedScooterId)) {
-      savedScooters[probedScooterId]!.supportsHibernateFor = supportsHibernateFor;
-    }
-    notifyListeners();
-    if (!connection.isCurrent) return;
-
-    bool? supportsScheduledHibernation;
-    try {
-      final value = await commands.getLsSettingCommand(
-        scooter,
-        repository,
-        commands.lsKeyScheduledHibernateEnabled,
-      );
-      supportsScheduledHibernation = value != null;
-    } catch (e, stack) {
-      log.warning("scheduled hibernation probe failed", e, stack);
-      supportsScheduledHibernation = false;
-    }
-    if (!connection.isCurrent) return;
-    identity.supportsScheduledHibernation = supportsScheduledHibernation;
-    notifyListeners();
-    if (!connection.isCurrent) return;
-
-    bool? supportsApnConfig;
-    try {
-      final caps = await commands.getLsCapabilitiesCommand(scooter, repository, "config");
-      supportsApnConfig = caps.contains("apn");
-    } catch (e, stack) {
-      log.warning("config capability probe failed", e, stack);
-      supportsApnConfig = false;
-    }
-    if (!connection.isCurrent) return;
-    identity.supportsApnConfig = supportsApnConfig;
-    // cached like the pm capability, so the APN tile does not vanish and
-    // reappear every time the probe re-runs on a reconnect
-    if (savedScooters.containsKey(probedScooterId)) {
-      savedScooters[probedScooterId]!.supportsApnConfig = supportsApnConfig;
-    }
-    notifyListeners();
-    if (!connection.isCurrent) return;
-
-    bool? supportsBondForget;
-    try {
-      final caps = await commands.getLsCapabilitiesCommand(scooter, repository, "ble");
-      supportsBondForget = caps.contains("forget");
-    } catch (e, stack) {
-      log.warning("ble capability probe failed", e, stack);
-      supportsBondForget = false;
-    }
-    if (!connection.isCurrent) return;
-    // Not cached on the SavedScooter, unlike the two above. Nothing renders it,
-    // so there is no flicker to avoid, and the answer depends on the nRF
-    // firmware rather than the app: a cache would go stale the moment the
-    // scooter takes a firmware update.
-    identity.supportsBondForget = supportsBondForget;
-    notifyListeners();
-    if (!connection.isCurrent) return;
-
-    bool? supportsBatteryKeepActive;
-    try {
-      final value = await commands.getLsSettingCommand(
-        scooter,
-        repository,
-        commands.lsKeyBatteryKeepActiveOnSeatboxOpen,
-      );
-      supportsBatteryKeepActive = value != null;
-    } catch (e, stack) {
-      log.warning("battery keep-active probe failed", e, stack);
-      supportsBatteryKeepActive = false;
-    }
-    if (!connection.isCurrent) return;
-    identity.supportsBatteryKeepActive = supportsBatteryKeepActive;
-    notifyListeners();
-    if (!connection.isCurrent) return;
-
-    bool? supportsAlarmControl;
-    try {
-      final caps = await commands.getLsCapabilitiesCommand(scooter, repository, "alarm");
-      supportsAlarmControl = caps.contains("enable");
-    } catch (e, stack) {
-      log.warning("alarm capability probe failed", e, stack);
-      supportsAlarmControl = false;
-    }
-    if (!connection.isCurrent) return;
-    identity.supportsAlarmControl = supportsAlarmControl;
-    notifyListeners();
-  }
-
-  void _updateAggregateState() {
-    ScooterState? oldState = _state;
-    ScooterState? newState = vehicle.computeAggregateState();
-    state = newState;
-    ping();
-
-    // if someone just locked the scooter with their keycard, stop keyless from unlocking again
-    // this might (will) cause the cooldown to run even on app locks, but that's okay
-    if (oldState?.isOn == true && newState?.isOn == false) {
-      autoUnlockCooldown();
-    }
-  }
-
-  void _cacheSocForScooter(void Function(SavedScooter) update) {
-    try {
-      update(savedScooters[myScooter!.remoteId.toString()]!);
-    } catch (e) {
-      // scooter might not be in savedScooters yet
-    }
-  }
 
   // SCOOTER ACTIONS
 
@@ -1016,29 +791,14 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   Future<void> refetchSavedScooters() async {
     await store.load();
     if (!connected) {
-      // update the most recent scooter and streams
-      SavedScooter? mostRecentScooter = await getMostRecentScooter();
-      if (mostRecentScooter != null) {
-        identity.lastPing = mostRecentScooter.lastPing;
-        battery.primarySOC = mostRecentScooter.lastPrimarySOC;
-        battery.secondarySOC = mostRecentScooter.lastSecondarySOC;
-        battery.cbbSOC = mostRecentScooter.lastCbbSOC;
-        battery.auxSOC = mostRecentScooter.lastAuxSOC;
-        identity.name = mostRecentScooter.name;
-        identity.color = mostRecentScooter.color;
-        identity.lastLocation = mostRecentScooter.lastLocation;
-        vehicle.handlebarsLocked = mostRecentScooter.handlebarsLocked;
-      } else {
-        // no saved scooters, reset streams
-        identity.lastPing = null;
-        battery.primarySOC = null;
-        battery.secondarySOC = null;
-        battery.cbbSOC = null;
-        battery.auxSOC = null;
-        identity.name = null;
-        identity.color = null;
-        identity.lastLocation = null;
-      }
+      final mostRecentScooter = await getMostRecentScooter();
+      identity.lastPing = mostRecentScooter?.lastPing;
+      identity.name = mostRecentScooter?.name;
+      identity.color = mostRecentScooter?.color;
+      identity.lastLocation = mostRecentScooter?.lastLocation;
+      _telemetry.refetchCache(
+        mostRecentScooter == null ? null : _cachedTelemetry(mostRecentScooter),
+      );
     }
     notifyListeners();
   }
@@ -1197,6 +957,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   @override
   void dispose() {
     _session.dispose();
+    _telemetry.dispose();
 
     if (_runtimeInitialized) {
       _locationTimer.cancel();
@@ -1316,8 +1077,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   void invalidateTelemetry() {
-    service.vehicle.cancelSubscriptions();
-    service.battery.cancelSubscriptions();
+    service._telemetry.invalidate();
   }
 
   @override
@@ -1329,10 +1089,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   void transportConnected(SessionConnection connection) {
-    service.identity.odometerMeters = null;
-    service.identity.resetLsCapabilities();
-    service.identity.supportsHibernateFor = service.savedScooters[connection.id]?.supportsHibernateFor;
-    service.identity.supportsApnConfig = service.savedScooters[connection.id]?.supportsApnConfig;
+    service._telemetry.prepare(_cachedTelemetry(service.savedScooters[connection.id]));
     service.addSavedScooter(connection.id);
   }
 
@@ -1347,7 +1104,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
   @override
   void wireTelemetry(SessionConnection connection, CharacteristicRepository repository) {
     service.characteristicRepository = repository;
-    service._subscribeToAllCharacteristics(connection);
+    service._telemetry.bind(connection, repository);
   }
 
   @override
@@ -1369,7 +1126,60 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   void disconnected(String? id) {
+    service._telemetry.invalidate();
     service.state = ScooterState.disconnected;
     if (id != null) service.updateScooterPing(id);
   }
+}
+
+CachedTelemetry _cachedTelemetry(SavedScooter? scooter) => CachedTelemetry(
+  primarySOC: scooter?.lastPrimarySOC, secondarySOC: scooter?.lastSecondarySOC,
+  cbbSOC: scooter?.lastCbbSOC, auxSOC: scooter?.lastAuxSOC,
+  handlebarsLocked: scooter?.handlebarsLocked, isLibrescoot: scooter?.isLibrescoot,
+  supportsHibernateFor: scooter?.supportsHibernateFor, supportsApnConfig: scooter?.supportsApnConfig);
+
+class _ServiceTelemetryEffects implements ScooterTelemetryEffects {
+  _ServiceTelemetryEffects(this.service);
+  final ScooterService service;
+
+  @override
+  void cachePatch(String scooterId, TelemetryCachePatch patch) {
+    final saved = service.savedScooters[scooterId];
+    if (saved == null) return;
+    if (patch.primarySOC != null) saved.lastPrimarySOC = patch.primarySOC;
+    if (patch.secondarySOC != null) saved.lastSecondarySOC = patch.secondarySOC;
+    if (patch.cbbSOC != null) saved.lastCbbSOC = patch.cbbSOC;
+    if (patch.auxSOC != null) saved.lastAuxSOC = patch.auxSOC;
+    if (patch.handlebarsLocked != null) saved.handlebarsLocked = patch.handlebarsLocked;
+    if (patch.isLibrescoot != null) saved.isLibrescoot = patch.isLibrescoot;
+    if (patch.supportsHibernateFor != null) saved.supportsHibernateFor = patch.supportsHibernateFor;
+    if (patch.supportsApnConfig != null) saved.supportsApnConfig = patch.supportsApnConfig;
+  }
+
+  @override
+  void ping(String scooterId) => service._pingScooter(scooterId);
+
+  @override
+  void changed(TelemetrySnapshot snapshot) => service._telemetryChanged();
+
+  @override
+  void firmwareIdentified(SessionConnection connection, FirmwareSnapshot firmware) {
+    if (firmware.isLibrescoot == true && service._pendingNavigation != null) {
+      service._dispatchPendingNavigation();
+    }
+  }
+
+  @override
+  void navigationChanged(bool? active) {
+    if (active != true) service._activeNavigation = null;
+  }
+
+  @override
+  void aggregateTransition(ScooterState? previous, ScooterState? next) {
+    if (previous?.isOn == true && next?.isOn == false) service.autoUnlockCooldown();
+  }
+
+  @override
+  void probeFailed(String message, Object error, StackTrace stack) =>
+      service.log.warning(message, error, stack);
 }
