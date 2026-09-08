@@ -133,6 +133,20 @@ local entries, adding before loading can replace persisted data, and recoloring
 an unknown scooter can remain memory-only. Fix those in explicit behavior-change
 commits with updated regression expectations, not incidentally during relocation.
 
+## Command transport boundary
+
+ASCII command writes and single-response extended commands live in
+`scooter_flutter/command_transport.dart`, re-exported through the legacy app API.
+The adapter owns one shared extended-channel FIFO. App-side capabilities,
+keycards and destination-list consumers enter that same queue; they must not
+create independent queues while sharing the response characteristic.
+
+Thirteen app tests cover validation, write flags/errors, notification reuse,
+listen-before-write and mixed single/list FIFO ownership. Three adapter tests
+pin generic queue results and recovery from synchronous/asynchronous failure.
+Navigation models, activity logging and higher-level command policy remain
+app-owned. Timeout and transport-disconnect behavior still need targeted tests.
+
 ## Next connection seam
 
 The first executable connection seam is now in place: ScooterService accepts
