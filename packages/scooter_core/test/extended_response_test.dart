@@ -120,7 +120,7 @@ void main() {
       // The response lands in the window between the command write and the
       // read. On a bare broadcast stream this would be dropped.
       source.add(enc('nav:ok'));
-      await Future.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
 
       expect(await listener.responses.first.timeout(const Duration(seconds: 1)), 'nav:ok');
       await listener.cancel();
@@ -133,7 +133,7 @@ void main() {
 
       source.add(enc('keycard:count:2'));
       source.add(enc('keycard:card:aabb'));
-      await Future.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
       source.add(enc('keycard:card:ccdd'));
 
       final got = await readExtendedList(
@@ -151,7 +151,7 @@ void main() {
 
       source.add(<int>[]);
       source.add([...enc('pm:ok'), 0, 0, 0]);
-      await Future.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
 
       expect(await listener.responses.first.timeout(const Duration(seconds: 1)), 'pm:ok');
       await listener.cancel();
@@ -162,7 +162,7 @@ void main() {
       final source = StreamController<List<int>>.broadcast();
       final listener = ExtendedResponseListener(source.stream);
       source.add(enc('nav:ok'));
-      await Future.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
 
       await listener.cancel().timeout(const Duration(seconds: 1));
       await source.close();
@@ -196,7 +196,7 @@ void main() {
       await listener.cancel();
 
       source.add(enc('nav:ok'));
-      await Future.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
       expect(source.hasListener, isFalse);
       await source.close();
     });
