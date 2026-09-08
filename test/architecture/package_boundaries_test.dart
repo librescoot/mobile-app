@@ -56,7 +56,8 @@ void main() {
   test('core imports only Dart and declared pure runtime libraries', () {
     // Keep this list explicit: adding a plugin to core must fail CI even if
     // the local Flutter SDK happens to make its imports resolvable.
-    const packages = {'scooter_core', 'logging'};
+    // latlong2 0.9.1 is the existing pure Dart coordinate type used by navigation.
+    const packages = {'scooter_core', 'logging', 'latlong2'};
     for (final file in Directory('packages/scooter_core/lib').listSync(recursive: true).whereType<File>()) {
       if (!file.path.endsWith('.dart')) continue;
       for (final match in directive.allMatches(file.readAsStringSync())) {

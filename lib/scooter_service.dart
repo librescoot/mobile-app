@@ -2,7 +2,7 @@ import 'package:scooter_core/scooter_core.dart';
 import 'package:scooter_flutter/scooter_session.dart';
 import 'package:scooter_flutter/scooter_telemetry.dart';
 import 'dart:async';
-import 'dart:convert';
+import 'package:scooter_flutter/navigation_runtime.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
@@ -63,8 +63,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   // manual connection in progress, so background auto-connect doesn't race it.
   String? _externalManualTargetId;
   DateTime? _externalManualTargetSince;
-  NavDestination? _pendingNavigation;
-  NavDestination? _activeNavigation;
+  late final NavigationRuntime navigation;
   late final ScooterActions actions;
   final _actionWarnings = StreamController<HandlebarWarning>.broadcast(sync: true);
   Stream<HandlebarWarning> get actionWarnings => _actionWarnings.stream;
@@ -145,6 +144,20 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         optionalAuth: settings.optionalAuth),
       location: () => lastLocation == null ? null : ActionLocation(lastLocation!.latitude, lastLocation!.longitude),
       effects: _ServiceActionEffects(this));
+    final navigationPreferences = SharedPreferencesAsync();
+    navigation = NavigationRuntime(
+      loadPending: () => navigationPreferences.getString('pendingNavigation'),
+      savePending: (json) async {
+        if (json == null) {
+          await navigationPreferences.remove('pendingNavigation');
+        } else {
+          await navigationPreferences.setString('pendingNavigation', json);
+        }
+      },
+      decodeDestination: NavDestination.fromJson,
+      changed: notifyListeners,
+      failed: (error, stack) => log.warning('Pending navigation dispatch failed', error, stack),
+    );
     if (!_runtimeInitialized) return;
     _loadCachedData();
 
@@ -208,18 +221,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     // Seed the disconnected home screen with the most likely automatic target.
     _showCachedScooter(mostRecentScooter);
 
-    // Load pending navigation from persistent storage
-    final prefs = SharedPreferencesAsync();
-    final pendingJson = await prefs.getString('pendingNavigation');
-    if (pendingJson != null) {
-      try {
-        _pendingNavigation = NavDestination.fromJson(
-          jsonDecode(pendingJson) as Map<String, dynamic>,
-        );
-      } catch (_) {
-        await prefs.remove('pendingNavigation');
-      }
-    }
+    await navigation.restorePending();
     return;
   }
 
@@ -281,42 +283,11 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
   }
 
-  // PENDING NAVIGATION
-  NavDestination? get pendingNavigation => _pendingNavigation;
-  NavDestination? get activeNavigation => _activeNavigation;
-
-  void setActiveNavigation(NavDestination? destination) {
-    _activeNavigation = destination;
-    notifyListeners();
-  }
-
-  Future<void> setPendingNavigation(NavDestination? dest) async {
-    _pendingNavigation = dest;
-    final prefs = SharedPreferencesAsync();
-    if (dest != null) {
-      await prefs.setString('pendingNavigation', jsonEncode(dest.toJson()));
-    } else {
-      await prefs.remove('pendingNavigation');
-    }
-    notifyListeners();
-  }
-
-  Future<void> _dispatchPendingNavigation() async {
-    if (_pendingNavigation == null || myScooter == null) return;
-    try {
-      await commands.navigateCommand(
-        myScooter!,
-        characteristicRepository,
-        _pendingNavigation!,
-      );
-
-      log.info('Pending navigation dispatched to ${_pendingNavigation!.name}');
-      setActiveNavigation(_pendingNavigation);
-      await setPendingNavigation(null);
-    } catch (e) {
-      log.warning('Pending navigation dispatch failed: $e');
-    }
-  }
+  // Compatibility presentation views; state and execution belong to shared navigation.
+  NavDestination? get pendingNavigation => navigation.pending == null ? null : NavDestination.fromDestination(navigation.pending!);
+  NavDestination? get activeNavigation => navigation.active == null ? null : NavDestination.fromDestination(navigation.active!);
+  void setActiveNavigation(NavDestination? destination) => navigation.setActive(destination);
+  Future<void> setPendingNavigation(NavDestination? destination) => navigation.setPending(destination);
 
   // STATUS STREAMS
   bool get connected => _session.connected;
@@ -683,6 +654,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   @override
   void dispose() {
+    navigation.dispose();
     actions.dispose();
     _actionWarnings.close();
     _session.dispose();
@@ -805,6 +777,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   void invalidateTelemetry() {
+    service.navigation.invalidate();
     service.actions.invalidate();
     service._telemetry.invalidate();
   }
@@ -833,6 +806,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
   @override
   void wireTelemetry(SessionConnection connection, CharacteristicRepository repository) {
     service.characteristicRepository = repository;
+    service.navigation.bind(connection, repository);
     service.actions.bind(connection, repository);
     service._telemetry.bind(connection, repository);
   }
@@ -856,6 +830,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   void disconnected(String? id) {
+    service.navigation.invalidate();
     service.actions.invalidate();
     service._telemetry.invalidate();
     service.state = ScooterState.disconnected;
@@ -898,14 +873,12 @@ class _ServiceTelemetryEffects implements ScooterTelemetryEffects {
 
   @override
   void firmwareIdentified(SessionConnection connection, FirmwareSnapshot firmware) {
-    if (firmware.isLibrescoot == true && service._pendingNavigation != null) {
-      service._dispatchPendingNavigation();
-    }
+    service.navigation.firmwareIdentified(connection, firmware);
   }
 
   @override
   void navigationChanged(bool? active) {
-    if (active != true) service._activeNavigation = null;
+    service.navigation.navigationChanged(active);
   }
 
   @override

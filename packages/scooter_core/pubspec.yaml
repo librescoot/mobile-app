@@ -7,6 +7,7 @@ environment:
   sdk: '>=3.5.0 <4.0.0'
 
 dependencies:
+  latlong2: 0.9.1
   logging: ^1.2.0
 
 dev_dependencies:

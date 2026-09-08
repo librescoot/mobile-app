@@ -12,3 +12,4 @@ export 'src/models/scooter_keyless_distance.dart';
 export 'src/models/scooter_power_state.dart';
 export 'src/models/scooter_state.dart';
 export 'src/models/scooter_vehicle_state.dart';
+export 'navigation.dart';
