@@ -17,6 +17,11 @@ BLE wrapper remain adapter details and must not enter `scooter_core` contracts.
 `ScooterCandidate` still carries `BluetoothDevice` and legacy display helpers;
 it is an adapter DTO, not the future platform-neutral core discovery snapshot.
 
+`UserSettings` owns preferences-backed settings through an injectable
+`SharedPreferencesAsync` instance and optional update callback. The app chooses
+whether and how to send background updates; the shared package does not import
+`flutter_background_service` for this adapter. Threshold values come from core.
+
 ```sh
 flutter pub get
 flutter analyze

@@ -81,6 +81,22 @@ entry points and existing storage schemas throughout. The iOS widget's native
 BLE implementation remains an explicit exception requiring its own contract and
 hardware tests; Dart extraction does not replace it.
 
+## Discovery, response protocol and settings slices
+
+- BLE discovery and its plugin-bound candidate DTO now live in
+  `scooter_flutter`. Legacy scanner/candidate imports forward to the same types.
+  Tests cover filters, startup failure, cancellation and missing stop events.
+- Extended-response buffering, counted-list decoding and capability-entry
+  parsing now live in core (`extended_response.dart`). Command serialization
+  and characteristic access remain in the application for the next slices.
+- `UserSettings` storage now lives in `scooter_flutter`, accepting preferences
+  and an update callback. The root compatibility subclass alone chooses whether
+  to invoke foreground-to-background messages. Mutable fields, storage keys,
+  defaults, inverted biometrics and write-before-notification order remain.
+- Keyless distance thresholds and lookup belong in core; localized labels and
+  dBm display formatting belong in app presentation extensions. Invalid threshold
+  lookup still throws rather than silently changing existing behavior.
+
 ## Next connection seam
 
 Do not move the constructor's side effects into a new core constructor. The live
