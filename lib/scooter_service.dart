@@ -39,6 +39,15 @@ class _SupersededConnectionAttempt implements Exception {
   const _SupersededConnectionAttempt();
 }
 
+// A call owns an attempt independently of the plugin's device wrapper identity.
+class _ConnectionAttempt {
+  _ConnectionAttempt(this.id, this.generation);
+
+  final String id;
+  final int generation;
+  BluetoothDevice? device;
+}
+
 class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final log = Logger('ScooterService');
 
@@ -60,7 +69,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   set savedScooters(Map<String, SavedScooter> value) => store.scooters = value;
 
   BluetoothDevice? myScooter; // reserved for a connected scooter!
-  BluetoothDevice? _attemptedScooter;
+  _ConnectionAttempt? _connectionAttempt;
+  _ConnectionAttempt? _publishedConnectionAttempt;
   String? _connectingScooterId;
   String? get connectingScooterId => _connectingScooterId;
   String? _manualConnectionTargetId;
@@ -500,41 +510,43 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       if (!isCurrentAttempt()) throw const _SupersededConnectionAttempt();
     }
 
-    log.info("Connecting to scooter with ID: $id (intent $intentGeneration, attempt $attemptGeneration)");
-    // Point the service away from the old scooter before publishing the
-    // linking state, so "connecting" shows on the right row in the list
-    // instead of lingering on the previously connected one.
-    final BluetoothDevice? previousConnection = myScooter;
-    if (previousConnection != null && previousConnection.remoteId.toString() != id) {
-      myScooter = null;
-    }
-    // Invalidate everything the previous connection owned before the shared
-    // state is pointed at the new target: live characteristic feeds, the
-    // disconnect listener, and any in-flight capability probe.
+    final attempt = _ConnectionAttempt(id, attemptGeneration);
+    final previousAttempt = _connectionAttempt;
+    _connectionAttempt = attempt;
+    // Invalidate probes before yielding. Never await a mutable subscription
+    // field that a newer request could replace underneath this call.
+    _lsProbeGeneration++;
+    final previousSubscription = _connectionStateSubscription;
+    _connectionStateSubscription = null;
     vehicle.cancelSubscriptions();
     battery.cancelSubscriptions();
-    await _connectionStateSubscription?.cancel();
-    _lsProbeGeneration++;
-
-    _connectingScooterId = id;
-    _foundSth = true;
-    connected = false;
-    state = ScooterState.linking;
-    _showCachedScooter(savedScooters[id]);
-
-    final attemptedScooter = _deviceFromId(id);
-    final previousAttempt = _attemptedScooter;
-    _attemptedScooter = attemptedScooter;
 
     try {
+      await previousSubscription?.cancel();
+      ensureCurrentAttempt();
+
+      log.info("Connecting to scooter with ID: $id (intent $intentGeneration, attempt $attemptGeneration)");
+      final BluetoothDevice? previousConnection = myScooter;
+      if (previousConnection != null && previousConnection.remoteId.toString() != id) {
+        myScooter = null;
+      }
+      _connectingScooterId = id;
+      _foundSth = true;
+      connected = false;
+      state = ScooterState.linking;
+      _showCachedScooter(savedScooters[id]);
+
+      final attemptedScooter = _deviceFromId(id);
+      attempt.device = attemptedScooter;
       if (!automatic) {
         await flutterBluePlus.stopScan();
         ensureCurrentAttempt();
       }
-      if (previousAttempt != null &&
-          previousAttempt.remoteId != attemptedScooter.remoteId &&
-          previousAttempt.isConnected) {
-        await previousAttempt.disconnect();
+      final previousDevice = previousAttempt?.device;
+      if (previousDevice != null &&
+          previousDevice.remoteId != attemptedScooter.remoteId &&
+          previousDevice.isConnected) {
+        await previousDevice.disconnect();
         ensureCurrentAttempt();
       }
       if (previousConnection != null &&
@@ -570,6 +582,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
       log.info("Connected to ${attemptedScooter.remoteId}");
       myScooter = attemptedScooter;
+      _publishedConnectionAttempt = attempt;
       identity.odometerMeters = null;
       identity.resetLsCapabilities();
       identity.supportsHibernateFor = savedScooters[id]?.supportsHibernateFor;
@@ -630,12 +643,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       });
     } on _SupersededConnectionAttempt {
       log.info("Connection attempt to $id was superseded");
-      // A newer attempt may be connecting this very device; tearing it down
-      // would break the attempt that superseded us.
-      if (!identical(_attemptedScooter, attemptedScooter)) {
-        if (identical(myScooter, attemptedScooter)) myScooter = null;
-        await _safeDisconnect(attemptedScooter);
-      }
+      await _cleanUpSupersededAttempt(attempt);
     } catch (e, stack) {
       log.shout("Couldn't connect to scooter!", e, stack);
       if (isCurrentAttempt()) {
@@ -643,18 +651,35 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         _connectingScooterId = null;
         connected = false;
         state = ScooterState.disconnected;
-        if (identical(myScooter, attemptedScooter)) myScooter = null;
+        if (identical(myScooter, attempt.device)) myScooter = null;
         if (_autoRestarting && _targetScooterId == id) {
           unawaited(_attemptAutoRestart());
         }
       }
-      if (!identical(_attemptedScooter, attemptedScooter)) {
-        await _safeDisconnect(attemptedScooter);
+      if (!identical(_connectionAttempt, attempt)) {
+        await _cleanUpSupersededAttempt(attempt);
       }
       rethrow;
     } finally {
-      if (identical(_attemptedScooter, attemptedScooter)) _attemptedScooter = null;
+      if (identical(_connectionAttempt, attempt)) _connectionAttempt = null;
     }
+  }
+
+  Future<void> _cleanUpSupersededAttempt(_ConnectionAttempt attempt) async {
+    final device = attempt.device;
+    if (device == null) return;
+    // Different wrappers can represent one physical link. Protect both a
+    // pending newer request and a newer connection already past its finally.
+    final current = _connectionAttempt;
+    final published = _publishedConnectionAttempt;
+    if ((current != null && !identical(current, attempt) && current.id == attempt.id) ||
+        (published != null && !identical(published, attempt) &&
+            published.id == attempt.id && myScooter?.remoteId.toString() == attempt.id)) {
+      return;
+    }
+    if (identical(myScooter, device)) myScooter = null;
+    if (identical(_publishedConnectionAttempt, attempt)) _publishedConnectionAttempt = null;
+    await _safeDisconnect(device);
   }
 
   /// Cleanup disconnect that must never mask the error being propagated.
@@ -1611,13 +1636,17 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     vehicle.cancelSubscriptions();
     battery.cancelSubscriptions();
 
-    final inFlight = _attemptedScooter;
-    if (inFlight != null && inFlight.isConnected) {
-      try {
-        inFlight.disconnect();
-      } catch (e) {
-        log.warning("Cleanup disconnect during dispose failed (continuing): $e");
-      }
+    // A replacement may not have constructed its device yet. Release both
+    // the pending attempt and the published link, deduplicated by physical ID.
+    final devices = <String, BluetoothDevice>{};
+    for (final device in [myScooter, _publishedConnectionAttempt?.device, _connectionAttempt?.device]) {
+      if (device != null) devices.putIfAbsent(device.remoteId.toString(), () => device);
+    }
+    _connectionAttempt = null;
+    _publishedConnectionAttempt = null;
+    myScooter = null;
+    for (final device in devices.values) {
+      unawaited(_safeDisconnect(device));
     }
 
     // Unregister lifecycle observer

@@ -105,7 +105,10 @@ strict uint32 values and padded odometer decoding. The current odometer's unsign
 extraction. Battery type/charging enums are also core; labels, SOC text and image
 paths remain app presentation extensions.
 
-Characteristic readers/subscriptions live in `scooter_flutter`. State objects
+Characteristic readers/subscriptions and `CharacteristicRepository` discovery
+live in `scooter_flutter`. Repository tests pin service/characteristic matching,
+optional OTA/alarm groups, missing fields and propagated discovery failures;
+the app's legacy repository import forwards the same type. State objects
 still own their subscription lifetimes and stale-connection guards. Moving
 readers does not yet make these live state objects immutable or solve connection
 ownership; those are separate slices.
@@ -132,11 +135,21 @@ without cache restoration, observers or timers; it does not bypass the actual
 connection method. The runtime scan subscription is retained and cancelled on
 disposal. Runtime-disabled instances do not initialize the public RSSI timer.
 
-Five tests cover disabled-runtime lifecycle, manual row/intent publication,
-obsolete automatic intent and overlapping attempts with late older failures,
-including while the newer device discovers characteristics. These stop at
-controlled failures. Successful sessions, Android bonding/priority, iOS widget
-calls, late telemetry/probes and same-device ownership still need coverage.
+Fifteen tests cover disabled-runtime lifecycle, manual row/intent publication,
+obsolete automatic intent, immediate A/B requests and overlapping attempts with
+late older success/failure, including distinct wrappers for one device and three
+calls reusing one wrapper. They reproduce ownership failures fixed by an explicit
+per-call attempt record and a validity check before publishing linking state.
+Cleanup protects newer physical links by remote ID and explicit attempt ownership,
+not wrapper identity or a changed generation alone. Disposal releases both pending
+and published transports; regressions cover replacement-before-device-creation
+and a connection completing after disposal.
+
+These tests stop at controlled discovery failures. Successful sessions, Android
+bonding/priority, iOS widget calls and service-level late telemetry/probes still
+need coverage. Twenty-one separate identity tests pin caller-supplied nRF and
+odometer freshness predicates, but do not prove the service supplies a correct
+predicate for every session/disconnect transition.
 
 Do not move the constructor's side effects into a new core constructor. The live
 ScooterService currently restores storage asynchronously, observes lifecycle,

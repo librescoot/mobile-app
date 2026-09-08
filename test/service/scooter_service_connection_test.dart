@@ -49,13 +49,24 @@ class _Bluetooth extends Fake implements FlutterBluePlusMockable {
   }
 }
 
+// Wrappers for the same remote ID share the underlying physical link.
+class _Transport {
+  bool linked = false;
+  int disconnects = 0;
+}
+
 class _Device extends Fake implements BluetoothDevice {
-  _Device(String id) : remoteId = DeviceIdentifier(id);
+  _Device(String id, [_Transport? transport])
+      : remoteId = DeviceIdentifier(id),
+        transport = transport ?? _Transport();
+  final _Transport transport;
   @override
   final DeviceIdentifier remoteId;
-  final Completer<void> connection = Completer<void>();
+  final List<Completer<void>> connections = [Completer<void>()];
+  Completer<void> get connection => connections.first;
   final List<Duration> timeouts = [];
-  bool linked = false;
+  bool get linked => transport.linked;
+  set linked(bool value) => transport.linked = value;
   int disconnects = 0;
 
   @override
@@ -69,14 +80,17 @@ class _Device extends Fake implements BluetoothDevice {
     int? mtu = 512,
     bool autoConnect = false,
   }) async {
+    final index = timeouts.length;
+    if (index == connections.length) connections.add(Completer<void>());
     timeouts.add(timeout);
-    await connection.future;
+    await connections[index].future;
     linked = true;
   }
 
   @override
   Future<void> disconnect({int timeout = 35, bool queue = true, int androidDelay = 2000}) async {
     disconnects++;
+    transport.disconnects++;
     linked = false;
   }
 }
@@ -124,11 +138,20 @@ void main() {
   late _Storage storage;
   late _Bluetooth bluetooth;
   late Map<String, _Device> devices;
+  late List<_Device> allDevices;
+
+  _Device makeDevice(String id, [_Transport? transport]) {
+    final device = _Device(id, transport);
+    allDevices.add(device);
+    return device;
+  }
+
   late _Repository repository;
   late List<String> deviceRequests;
   late List<BluetoothDevice> repositories;
   late _Service service;
   late List<Future<Object?>> attempts;
+  bool disposed = false;
 
   Future<void> drain() => Future<void>.delayed(Duration.zero);
   Future<Object?> connect(String id) {
@@ -145,19 +168,26 @@ void main() {
     SharedPreferencesAsyncPlatform.instance = preferences;
     storage = _Storage();
     bluetooth = _Bluetooth();
-    devices = {'A': _Device('A'), 'B': _Device('B')};
+    allDevices = [];
+    devices = {'A': makeDevice('A'), 'B': makeDevice('B')};
     repository = _Repository();
     deviceRequests = [];
     repositories = [];
     attempts = [];
+    disposed = false;
   });
 
   tearDown(() async {
     // Resolve only futures that have listeners. Drain before disposing so even
     // assertion failures cannot strand a connection or notify after disposal.
-    for (final device in devices.values) {
-      if (device.timeouts.isNotEmpty && !device.connection.isCompleted) {
-        device.connection.completeError(StateError('teardown connection'));
+    // Let immediate requests reach their controlled await before enumerating
+    // listeners. The registry retains replaced wrappers as well as reused ones.
+    await drain();
+    for (final device in allDevices) {
+      for (final connection in device.connections.take(device.timeouts.length)) {
+        if (!connection.isCompleted) {
+          connection.completeError(StateError('teardown connection'));
+        }
       }
     }
     if (repository.requests.isNotEmpty && !repository.discovery.isCompleted) {
@@ -165,13 +195,48 @@ void main() {
     }
     await Future.wait(attempts);
     await drain();
-    service.dispose();
+    if (!disposed) service.dispose();
     SharedPreferencesAsyncPlatform.instance = previousPreferences;
   });
 
   void createService() {
     service = _Service(bluetooth, storage, devices, deviceRequests, repository, repositories);
   }
+
+  test('disposal during replacement cleans the older published transport', () async {
+    createService();
+    final older = connect('A');
+    await drain();
+    devices['A']!.connection.complete();
+    await drain();
+    expect(service.myScooter, same(devices['A']));
+    expect(repository.requests, [true]);
+
+    final replacement = connect('B');
+    service.dispose();
+    disposed = true;
+    await drain();
+    repository.discovery.completeError(StateError('late discovery failure'));
+    await older;
+    await replacement;
+    expect(devices['A']!.isConnected, isFalse);
+    expect(devices['A']!.disconnects, 1);
+    expect(devices['B']!.timeouts, isEmpty);
+  });
+
+  test('connection completing after disposal releases its late transport', () async {
+    createService();
+    final pending = connect('A');
+    await drain();
+    service.dispose();
+    disposed = true;
+    devices['A']!.connection.complete();
+    expect(await pending, isNull);
+    expect(devices['A']!.isConnected, isFalse);
+    expect(devices['A']!.disconnects, 1);
+    expect(service.myScooter, isNull);
+    expect(repository.requests, isEmpty);
+  });
 
   test('runtime-disabled construction does not restore, scan or create timers', () async {
     int timers = 0;
@@ -273,6 +338,130 @@ void main() {
     devices['B']!.connection.completeError(StateError('B unavailable'));
     expect(await newer, isA<StateError>());
     expect(service.state, ScooterState.disconnected);
+  });
+
+  test('late older success disconnects only its own different-ID transport', () async {
+    createService();
+    final older = connect('A');
+    await drain();
+    final newer = connect('B');
+    await drain();
+    devices['B']!.connection.complete();
+    await drain();
+    expect(repositories, [same(devices['B'])]);
+    devices['A']!.connection.complete();
+    expect(await older, isNull);
+    expect(devices['A']!.disconnects, 1);
+    expect(devices['B']!.disconnects, 0);
+    expect(devices['B']!.isConnected, isTrue);
+    expect(service.myScooter, same(devices['B']));
+    expect(service.connectingScooterId, 'B');
+    expect(service.state, ScooterState.linking);
+    repository.discovery.completeError(StateError('controlled discovery failure'));
+    expect(await newer, isA<StateError>());
+  });
+
+  for (final reuseWrapper in [false, true]) {
+    for (final olderSucceeds in [false, true]) {
+      test(
+          'same ID ${reuseWrapper ? 'reused wrapper' : 'distinct wrappers'}: '
+          'older ${olderSucceeds ? 'success' : 'failure'} preserves newer discovery', () async {
+        createService();
+        final oldDevice = devices['A']!;
+        final older = connect('A');
+        await drain();
+        final newDevice = reuseWrapper ? oldDevice : makeDevice('A', oldDevice.transport);
+        devices['A'] = newDevice;
+        final newer = connect('A');
+        await drain();
+        newDevice.connections.last.complete();
+        await drain();
+        expect(repositories, [same(newDevice)]);
+        expect(repository.requests, [true]);
+        expect(service.myScooter, same(newDevice));
+        final failure = StateError('older A connection failed');
+        if (olderSucceeds) {
+          oldDevice.connection.complete();
+        } else {
+          oldDevice.connection.completeError(failure);
+        }
+        expect(await older, olderSucceeds ? isNull : same(failure));
+        expect(service.myScooter, same(newDevice));
+        expect(service.connectingScooterId, 'A');
+        expect(service.state, ScooterState.linking);
+        expect(oldDevice.transport.disconnects, 0,
+            reason: 'Stale wrapper cleanup must not disconnect the newer same-ID physical link');
+        expect(newDevice.isConnected, isTrue);
+        repository.discovery.completeError(StateError('controlled discovery failure'));
+        expect(await newer, isA<StateError>());
+      });
+    }
+  }
+
+  for (final olderSucceeds in [false, true]) {
+    test(
+        'reused wrapper: two stale ${olderSucceeds ? 'successes' : 'failures'} '
+        'must not relinquish newest discovery ownership', () async {
+      createService();
+      final device = devices['A']!;
+      final first = connect('A');
+      await drain();
+      final second = connect('A');
+      await drain();
+      final newest = connect('A');
+      await drain();
+      expect(device.connections, hasLength(3));
+      device.connections[2].complete();
+      await drain();
+      expect(repositories, [same(device)]);
+      expect(service.myScooter, same(device));
+      for (var index = 0; index < 2; index++) {
+        final failure = StateError('stale connection $index');
+        if (olderSucceeds) {
+          device.connections[index].complete();
+        } else {
+          device.connections[index].completeError(failure);
+        }
+        expect(await [first, second][index], olderSucceeds ? isNull : same(failure));
+        expect({
+          'disconnects': device.disconnects,
+          'ownsNewestDevice': identical(service.myScooter, device),
+          'physicalLinkConnected': device.isConnected,
+        }, {
+          'disconnects': 0,
+          'ownsNewestDevice': true,
+          'physicalLinkConnected': true
+        }, reason: 'Stale completion $index must not clear the newest attempt ownership');
+        expect(service.connectingScooterId, 'A');
+        expect(service.state, ScooterState.linking);
+      }
+      repository.discovery.completeError(StateError('controlled discovery failure'));
+      expect(await newest, isA<StateError>());
+    });
+  }
+
+  test('immediate A/B overlap never publishes obsolete A after B intent', () async {
+    createService();
+    final linkingRows = <String?>[];
+    service.addListener(() {
+      if (service.state == ScooterState.linking) linkingRows.add(service.connectingScooterId);
+    });
+    final older = connect('A');
+    final newer = connect('B'); // No drain: both are awaiting initial cancellation.
+    await drain();
+    expect(
+        service.updates
+            .where((update) => update.containsKey('manualConnectionTarget'))
+            .map((update) => update['manualConnectionTarget']),
+        ['A', 'B']);
+    expect(await older, isNull);
+    expect(devices['A']!.timeouts, isEmpty);
+    expect(service.connectingScooterId, 'B');
+    expect(linkingRows, isNotEmpty);
+    expect(linkingRows, everyElement('B'),
+        reason: 'A resumed after B intent and must not publish obsolete linking state');
+    devices['B']!.connection.completeError(StateError('controlled B failure'));
+    expect(await newer, isA<StateError>());
   });
 
   test('late older failure preserves newer device during repository discovery', () async {
