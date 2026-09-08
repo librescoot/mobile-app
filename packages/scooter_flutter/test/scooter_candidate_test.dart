@@ -1,6 +1,6 @@
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:unustasis/domain/scooter_candidate.dart';
+import 'package:scooter_flutter/scooter_flutter.dart';
 
 ScooterCandidate candidate(
   String id, {
