@@ -6,7 +6,8 @@ import 'package:provider/provider.dart';
 import 'package:unustasis/domain/go_duration.dart';
 import 'package:unustasis/domain/hibernation_schedule.dart';
 import 'package:unustasis/scooter_service.dart';
-import 'package:unustasis/service/ble_commands.dart';
+import 'package:scooter_core/actions.dart';
+import 'package:scooter_core/telemetry.dart' show lsKeyScheduledHibernateEnabled;
 
 /// Configuration screen for librescoot's scheduled hibernation: a cron-based
 /// schedule that hibernates the scooter at a set time and wakes it again

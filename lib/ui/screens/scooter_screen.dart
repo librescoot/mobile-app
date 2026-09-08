@@ -81,8 +81,7 @@ class _ScooterScreenState extends State<ScooterScreen> {
 
   Future<void> _handleAddScooter(BuildContext context) async {
     final service = context.read<ScooterService>();
-    service.myScooter?.disconnect();
-    service.myScooter = null;
+    service.disconnectAndClearDevice();
 
     List<String> savedIds = await service.getSavedScooterIds();
     if (context.mounted) {
@@ -101,10 +100,10 @@ class _ScooterScreenState extends State<ScooterScreen> {
     List<SavedScooter> scooters = service.savedScooters.values.toList();
     scooters.sort((a, b) {
       // Check if either scooter is the connected one
-      if (a.id == service.myScooter?.remoteId.toString()) {
+      if (a.id == service.currentScooterId) {
         return -1;
       }
-      if (b.id == service.myScooter?.remoteId.toString()) {
+      if (b.id == service.currentScooterId) {
         return 1;
       }
 
@@ -147,11 +146,11 @@ class _ScooterScreenState extends State<ScooterScreen> {
         shrinkWrap: true,
         children: [
           ...scooters.map((scooter) {
-            final bool connected = (scooter.id == scooterService.myScooter?.remoteId.toString() &&
+            final bool connected = (scooter.id == scooterService.currentScooterId &&
                 scooterService.state != ScooterState.disconnected);
             // While a connection attempt is in flight, the status label
             // belongs to the scooter we're connecting to, not to whichever
-            // one myScooter still remembers.
+            // one the service still remembers.
             final bool active = connected ||
                 (scooterService.state == ScooterState.linking && scooterService.connectingScooterId == scooter.id);
 
@@ -495,8 +494,7 @@ class SavedScooterCard extends StatelessWidget {
                             onPressed: () async {
                               ScooterService service = context.read<ScooterService>();
                               service.stopAutoRestart();
-                              service.myScooter?.disconnect();
-                              service.myScooter = null;
+                              service.disconnectAndClearDevice();
                               rebuild();
                             },
                             icon: const Icon(

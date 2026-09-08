@@ -82,8 +82,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   Future<SavedScooter?> _getCurrentSavedScooter(ScooterService service) async {
-    if (service.myScooter != null) {
-      final id = service.myScooter!.remoteId.toString();
+    if (service.currentScooterId != null) {
+      final id = service.currentScooterId!;
       if (service.savedScooters.containsKey(id)) {
         return service.savedScooters[id];
       }

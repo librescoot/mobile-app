@@ -24,7 +24,7 @@ import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
 import 'package:unustasis/ui/screens/ls_scheduled_hibernation_screen.dart';
-import 'package:unustasis/service/ble_commands.dart';
+import 'package:scooter_core/actions.dart';
 import 'package:unustasis/state/vehicle_status.dart';
 import 'package:unustasis/ui/screens/log_screen.dart';
 
@@ -300,7 +300,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final service = context.watch<ScooterService>();
     // The two switches ride the extended channel; everything else needs the
     // alarm service, which older firmware doesn't have.
-    final bool live = service.characteristicRepository.alarmAvailable;
+    final bool live = service.alarmAvailable;
     final AlarmStatus? status = service.vehicle.alarmStatus;
     return [
       ListTile(
@@ -1227,7 +1227,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         supportsApn: service.identity.supportsApnConfig == true,
         usbMode: service.vehicle.usbMode,
         connected: service.connected,
-        otaAvailable: service.connected && service.characteristicRepository.otaAvailable,
+        otaAvailable: service.connected && service.otaAvailable,
       ),
     );
     _ensureLsDataLoaded(ls.isLibrescoot);

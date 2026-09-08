@@ -590,7 +590,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _startSeasonal();
       _showNotifications();
       // start the scooter service if we're not coming from onboarding
-      if (mounted && context.read<ScooterService>().myScooter == null) {
+      if (mounted && context.read<ScooterService>().currentScooterId == null) {
         context.read<ScooterService>().start();
       }
     }

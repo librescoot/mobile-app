@@ -76,7 +76,7 @@ class _MyAppState extends State<MyApp> {
       lastLocation: service.identity.lastLocation,
       seatClosed: service.vehicle.seatClosed,
       scooterLocked: service.vehicle.handlebarsLocked,
-      scooterId: service.myScooter?.remoteId.toString(),
+      scooterId: service.currentScooterId,
     );
   }
 

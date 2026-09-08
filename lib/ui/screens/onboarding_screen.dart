@@ -600,7 +600,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
         ),
         onPressed: () {
           final service = context.read<ScooterService>();
-          final scooterId = _selectedScooter?.id ?? service.myScooter?.remoteId.toString();
+          final scooterId = _selectedScooter?.id ?? service.currentScooterId;
           if (scooterId != null) {
             final name = _nameController.text.trim().isEmpty ? "Scooter Pro" : _nameController.text.trim();
             service.renameSavedScooter(id: scooterId, name: name);
