@@ -120,6 +120,13 @@ in-memory preference/background adapters. They pin JSON fields, microsecond
 precision, nullable flags, auto-connect behavior and stale-instance resurrection
 protection. Shared fakes live under `test/support`.
 
+Storage operations now live in generic `scooter_flutter.ScooterStorage<T>`,
+bounded by pure `SavedScooterRecord`. App factories supply the existing model and
+default display name through a zero-argument compatibility subclass. The model's
+JSON implementation, setter side effects, background notifications, navigation
+and geocoding dependencies remain app-owned. The original 33 tests remain intact;
+nine adapter tests exercise custom factories and the shared storage independently.
+
 Some tests intentionally characterize existing flaws rather than endorse them:
 a malformed entry aborts later entries, a missing preference can preserve stale
 local entries, adding before loading can replace persisted data, and recoloring
@@ -135,7 +142,7 @@ without cache restoration, observers or timers; it does not bypass the actual
 connection method. The runtime scan subscription is retained and cancelled on
 disposal. Runtime-disabled instances do not initialize the public RSSI timer.
 
-Fifteen tests cover disabled-runtime lifecycle, manual row/intent publication,
+Twenty-four tests cover disabled-runtime lifecycle, manual row/intent publication,
 obsolete automatic intent, immediate A/B requests and overlapping attempts with
 late older success/failure, including distinct wrappers for one device and three
 calls reusing one wrapper. They reproduce ownership failures fixed by an explicit
@@ -145,10 +152,14 @@ not wrapper identity or a changed generation alone. Disposal releases both pendi
 and published transports; regressions cover replacement-before-device-creation
 and a connection completing after disposal.
 
-These tests stop at controlled discovery failures. Successful sessions, Android
-bonding/priority, iOS widget calls and service-level late telemetry/probes still
-need coverage. Twenty-one separate identity tests pin caller-supplied nRF and
-odometer freshness predicates, but do not prove the service supplies a correct
+The harness now also completes real characteristic setup and connection-state
+subscription with fake transports, including stale success/failure after the newer
+connection exits `finally`. Current disconnect events clear the connected state;
+obsolete streams are cancelled. Injected location polling retains its production
+default, with tests for current, superseded and disconnected location results.
+Android bonding/priority, iOS widget calls and service-level late capability probes
+still need coverage. Twenty-one separate identity tests pin caller-supplied nRF
+and odometer freshness predicates, but do not prove the service supplies a correct
 predicate for every session/disconnect transition.
 
 Do not move the constructor's side effects into a new core constructor. The live
