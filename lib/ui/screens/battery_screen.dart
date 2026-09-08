@@ -10,9 +10,9 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
-import '../domain/scooter_battery.dart';
-import '../helper_widgets/header.dart';
-import '../scooter_service.dart';
+import 'package:unustasis/domain/scooter_battery.dart';
+import 'package:unustasis/ui/widgets/header.dart';
+import 'package:unustasis/scooter_service.dart';
 
 typedef _BatteryScreenViewData = ({
   int? primarySOC,

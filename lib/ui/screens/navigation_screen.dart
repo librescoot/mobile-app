@@ -8,13 +8,13 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../service/location_polling.dart';
-import '../service/photon_service.dart';
-import '../domain/nav_destination.dart';
-import '../domain/saved_scooter.dart';
-import '../geo_helper.dart';
-import '../scooter_service.dart';
-import '../service/ble_commands.dart';
+import 'package:unustasis/service/location_polling.dart';
+import 'package:unustasis/service/photon_service.dart';
+import 'package:unustasis/domain/nav_destination.dart';
+import 'package:unustasis/domain/saved_scooter.dart';
+import 'package:unustasis/geo_helper.dart';
+import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/service/ble_commands.dart';
 
 class NavigationScreen extends StatefulWidget {
   final NavDestination? initialDestination;

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 
-import '../domain/scooter_candidate.dart';
+import 'package:unustasis/domain/scooter_candidate.dart';
 
 /// The list of scooters found during onboarding, one row each, strongest
 /// signal first. With a single scooter around this is a one-row list and

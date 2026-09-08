@@ -12,15 +12,15 @@ import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:appcheck/appcheck.dart';
 
-import '../domain/scooter_candidate.dart';
-import '../domain/scooter_colors.dart';
-import '../domain/theme_helper.dart';
-import '../helper_widgets/scooter_picker.dart';
-import '../home_screen.dart';
-import '../scooter_service.dart';
-import '../domain/scooter_state.dart';
-import '../scooter_visual.dart';
-import '../stats/support_screen.dart';
+import 'package:unustasis/domain/scooter_candidate.dart';
+import 'package:unustasis/ui/theme/scooter_colors.dart';
+import 'package:unustasis/ui/theme/theme_helper.dart';
+import 'package:unustasis/ui/widgets/scooter_picker.dart';
+import 'package:unustasis/ui/screens/home_screen.dart';
+import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/domain/scooter_state.dart';
+import 'package:unustasis/ui/widgets/scooter_visual.dart';
+import 'package:unustasis/ui/screens/support_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({

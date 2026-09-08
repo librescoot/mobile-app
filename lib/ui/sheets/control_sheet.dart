@@ -3,10 +3,10 @@ import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:provider/provider.dart';
 
-import '../domain/scooter_state.dart';
-import '../helper_widgets/header.dart';
-import '../hibernate_sheet.dart';
-import '../scooter_service.dart';
+import 'package:unustasis/domain/scooter_state.dart';
+import 'package:unustasis/ui/widgets/header.dart';
+import 'package:unustasis/ui/sheets/hibernate_sheet.dart';
+import 'package:unustasis/scooter_service.dart';
 
 enum BlinkerMode { left, right, hazard, off }
 

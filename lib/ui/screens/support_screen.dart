@@ -11,9 +11,9 @@ import 'package:maps_launcher/maps_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../domain/nav_destination.dart';
-import '../helper_widgets/header.dart';
-import '../navigation_screen.dart';
+import 'package:unustasis/domain/nav_destination.dart';
+import 'package:unustasis/ui/widgets/header.dart';
+import 'package:unustasis/ui/screens/navigation_screen.dart';
 
 const _handbookUrl = 'https://librescoot.org/handbook/';
 const _troubleshootingUrl = 'https://librescoot.org/handbook/troubleshooting.html';

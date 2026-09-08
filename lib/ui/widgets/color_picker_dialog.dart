@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 
-import '../domain/scooter_colors.dart';
+import 'package:unustasis/ui/theme/scooter_colors.dart';
 
 class ColorPickerDialog extends StatefulWidget {
   final int initialValue;

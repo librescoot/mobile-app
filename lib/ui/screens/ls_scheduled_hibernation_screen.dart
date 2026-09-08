@@ -3,10 +3,10 @@ import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-import 'domain/go_duration.dart';
-import 'domain/hibernation_schedule.dart';
-import 'scooter_service.dart';
-import 'service/ble_commands.dart';
+import 'package:unustasis/domain/go_duration.dart';
+import 'package:unustasis/domain/hibernation_schedule.dart';
+import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/service/ble_commands.dart';
 
 /// Configuration screen for librescoot's scheduled hibernation: a cron-based
 /// schedule that hibernates the scooter at a set time and wakes it again

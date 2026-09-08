@@ -4,8 +4,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
-import '../domain/scooter_state.dart';
-import '../domain/theme_helper.dart';
+import 'package:unustasis/domain/scooter_state.dart';
+import 'package:unustasis/ui/theme/theme_helper.dart';
 
 class ScooterVisual extends StatefulWidget {
   final ScooterState? state;

@@ -4,9 +4,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:maps_launcher/maps_launcher.dart';
 import 'package:provider/provider.dart';
 
-import '../domain/saved_scooter.dart';
-import '../domain/statistics_helper.dart';
-import '../scooter_service.dart';
+import 'package:unustasis/domain/saved_scooter.dart';
+import 'package:unustasis/domain/statistics_helper.dart';
+import 'package:unustasis/scooter_service.dart';
 
 class LogScreen extends StatelessWidget {
   const LogScreen({super.key});

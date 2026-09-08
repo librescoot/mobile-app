@@ -16,17 +16,17 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../domain/alarm_status.dart';
-import '../domain/theme_helper.dart';
-import '../domain/scooter_keyless_distance.dart';
-import '../helper_widgets/header.dart';
-import '../scooter_service.dart';
-import '../ls_keycard_screen.dart';
-import '../ls_ota_screen.dart';
-import '../ls_scheduled_hibernation_screen.dart';
-import '../service/ble_commands.dart';
-import '../state/vehicle_status.dart';
-import 'log_screen.dart';
+import 'package:unustasis/domain/alarm_status.dart';
+import 'package:unustasis/ui/theme/theme_helper.dart';
+import 'package:unustasis/domain/scooter_keyless_distance.dart';
+import 'package:unustasis/ui/widgets/header.dart';
+import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
+import 'package:unustasis/ui/screens/ls_ota_screen.dart';
+import 'package:unustasis/ui/screens/ls_scheduled_hibernation_screen.dart';
+import 'package:unustasis/service/ble_commands.dart';
+import 'package:unustasis/state/vehicle_status.dart';
+import 'package:unustasis/ui/screens/log_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});

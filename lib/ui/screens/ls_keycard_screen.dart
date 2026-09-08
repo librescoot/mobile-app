@@ -10,9 +10,9 @@ import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'keycard_add_dialog.dart';
-import 'service/ble_commands.dart';
-import 'scooter_service.dart';
+import 'package:unustasis/ui/dialogs/keycard_add_dialog.dart';
+import 'package:unustasis/service/ble_commands.dart';
+import 'package:unustasis/scooter_service.dart';
 
 class LsKeycardScreen extends StatefulWidget {
   const LsKeycardScreen({super.key});

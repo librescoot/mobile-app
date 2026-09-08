@@ -10,11 +10,11 @@ import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
-import 'domain/ota_protocol.dart';
-import 'domain/update_planner.dart';
-import 'scooter_service.dart';
-import 'service/ble_commands.dart';
-import 'service/ota_transfer_service.dart';
+import 'package:unustasis/domain/ota_protocol.dart';
+import 'package:unustasis/domain/update_planner.dart';
+import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/service/ble_commands.dart';
+import 'package:unustasis/service/ota_transfer_service.dart';
 
 final log = Logger('LsOtaScreen');
 
