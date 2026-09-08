@@ -81,90 +81,96 @@ class BleScanner {
   Stream<BluetoothDevice> getNearbyScooters({
     required Future<List<String>> Function({required bool onlyAutoConnect}) getIds,
     bool preferSavedScooters = true,
-  }) async* {
-    List<BluetoothDevice> foundScooterCache = [];
-    List<String> autoConnectScooterIds = await getIds(onlyAutoConnect: true);
-
-    // Don't early-return here. Even if no scooters have autoConnect enabled,
-    // the user might still want to search for new scooters. The logic below
-    // will handle scanning appropriately based on preferSavedScooters.
-
-    if (preferSavedScooters && autoConnectScooterIds.isEmpty) {
-      // Auto-connect has nothing to aim at. Scanning for any scooter here would
-      // adopt whatever happens to be in range, which is how a scooter the user
-      // just forgot found its way straight back into the list.
-      _log.info("No saved scooters to auto-connect to, not scanning");
-      return;
-    }
-
-    // Subscribe before starting the scan so a fast failure or stop cannot be
-    // missed between startScan() and attaching the listeners. The scan stream
-    // is broadcast and never closes on its own.
-    final scanResultsController = StreamController<List<ScanResult>>();
-    var scanStarted = false;
+  }) {
+    final foundScooterCache = <BluetoothDevice>{};
+    StreamSubscription<List<ScanResult>>? resultsSub;
+    StreamSubscription<bool>? scanningSub;
     Timer? watchdog;
+    bool ended = false;
+    bool scanStarted = false;
+    bool startRequested = false;
+    Future<void>? cleanupFuture;
+    late StreamController<BluetoothDevice> controller;
 
-    final resultsSub = _flutterBluePlus.onScanResults.listen(
-      (r) {
-        if (!scanResultsController.isClosed) scanResultsController.add(r);
-      },
-    );
-    final isScanSub = _flutterBluePlus.isScanning.listen((isScanning) {
-      if (isScanning) {
-        scanStarted = true;
-      } else if (scanStarted && !scanResultsController.isClosed) {
-        scanResultsController.close();
-      }
-    });
-
-    try {
-      try {
-        if (autoConnectScooterIds.isNotEmpty && preferSavedScooters) {
-          _log.info("Looking for our scooters (saved IDs: $autoConnectScooterIds)");
-          await _flutterBluePlus.startScan(
-            withRemoteIds: autoConnectScooterIds,
-            timeout: const Duration(seconds: 30),
-          );
-        } else {
-          _log.info("Looking for any scooter, since we have no saved scooters");
-          await _flutterBluePlus.startScan(
-            withNames: scooterAdvertisedNames,
-            timeout: const Duration(seconds: 30),
-          );
-        }
-        scanStarted |= _flutterBluePlus.isScanningNow;
-      } catch (e, stack) {
-        _log.severe("Failed to start scan", e, stack);
-        return;
-      }
-
-      // Android and iOS can both omit the scan-stopped event when the app is
-      // suspended or the adapter aborts a scan. Without a backstop, start()
-      // remains in progress forever and all later automatic reconnects are
-      // rejected as duplicates, while a manual connection still succeeds.
-      watchdog = Timer(const Duration(seconds: 35), () {
-        if (!scanResultsController.isClosed) {
-          _log.warning("Auto-connect scan didn't report that it stopped; closing it");
-          scanResultsController.close();
-        }
-      });
-
-      await for (var scanResult in scanResultsController.stream) {
-        if (scanResult.isNotEmpty) {
-          ScanResult r = scanResult.last;
-          if (!foundScooterCache.contains(r.device)) {
-            foundScooterCache.add(r.device);
-            yield r.device;
+    Future<void> cleanup() {
+      ended = true;
+      return cleanupFuture ??= () async {
+        watchdog?.cancel();
+        await resultsSub?.cancel();
+        await scanningSub?.cancel();
+        if (startRequested && _flutterBluePlus.isScanningNow) {
+          try {
+            await _flutterBluePlus.stopScan();
+          } catch (e, stack) {
+            _log.warning("Couldn't stop the scan", e, stack);
           }
         }
-      }
-    } finally {
-      watchdog?.cancel();
-      await resultsSub.cancel();
-      await isScanSub.cancel();
-      if (!scanResultsController.isClosed) await scanResultsController.close();
-      if (_flutterBluePlus.isScanningNow) await _flutterBluePlus.stopScan();
+      }();
     }
+
+    Future<void> finish() async {
+      await cleanup();
+      // Never await close here: a cancelled or paused consumer need not
+      // receive done. onCancel itself waits only for resource cleanup.
+      if (!controller.isClosed) unawaited(controller.close());
+    }
+
+    Future<void> run() async {
+      try {
+        final ids = await getIds(onlyAutoConnect: true);
+        if (ended) return;
+        if (preferSavedScooters && ids.isEmpty) {
+          _log.info("No saved scooters to auto-connect to, not scanning");
+          await finish();
+          return;
+        }
+
+        // Attach before startScan: adapters may synchronously emit results
+        // or a complete start/stop sequence before its future resolves.
+        resultsSub = _flutterBluePlus.onScanResults.listen((results) {
+          if (ended || results.isEmpty) return;
+          final device = results.last.device;
+          if (foundScooterCache.add(device)) controller.add(device);
+        });
+        scanningSub = _flutterBluePlus.isScanning.listen((active) {
+          if (ended) return;
+          if (active) {
+            scanStarted = true;
+          } else if (scanStarted) {
+            unawaited(finish());
+          }
+        });
+
+        startRequested = true;
+        await _flutterBluePlus.startScan(
+          withRemoteIds: preferSavedScooters ? ids : const [],
+          withNames: preferSavedScooters ? const [] : scooterAdvertisedNames,
+          timeout: const Duration(seconds: 30),
+        );
+        if (ended) {
+          // Cancellation may have cleaned up while startup was pending.
+          // A subsequently completed startup must not leave a scan running.
+          if (_flutterBluePlus.isScanningNow) await _flutterBluePlus.stopScan();
+          return;
+        }
+        scanStarted |= _flutterBluePlus.isScanningNow;
+        watchdog = Timer(const Duration(seconds: 35), () {
+          _log.warning("Auto-connect scan didn't report that it stopped; closing it");
+          unawaited(finish());
+        });
+      } catch (e, stack) {
+        _log.severe("Failed to start scan", e, stack);
+        await finish();
+      }
+    }
+
+    // Explicit cancellation is needed: an async* generator waiting inside
+    // await-for cannot run its finally block until that inner stream wakes.
+    controller = StreamController<BluetoothDevice>(
+      onListen: () => unawaited(run()),
+      onCancel: cleanup,
+    );
+    return controller.stream;
   }
 
   /// Every scooter the user could pick right now, as a list that grows and
