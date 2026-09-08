@@ -1023,6 +1023,20 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.28.0"
+  scooter_core:
+    dependency: "direct main"
+    description:
+      path: "packages/scooter_core"
+      relative: true
+    source: path
+    version: "0.1.0"
+  scooter_flutter:
+    dependency: "direct main"
+    description:
+      path: "packages/scooter_flutter"
+      relative: true
+    source: path
+    version: "0.1.0"
   shared_preferences:
     dependency: "direct main"
     description:

@@ -32,6 +32,10 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  scooter_core:
+    path: packages/scooter_core
+  scooter_flutter:
+    path: packages/scooter_flutter
   flutter:
     sdk: flutter
 

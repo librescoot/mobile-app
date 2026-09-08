@@ -1,0 +1,5 @@
+/// Shared Flutter integration. No application screens, assets or branding.
+library;
+
+export 'src/ble/blue_plus_mockable.dart';
+export 'src/runtime/state_waiter.dart';

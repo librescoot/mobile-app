@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:unustasis/domain/ota_protocol.dart';
-import 'package:unustasis/domain/update_planner.dart';
+import 'package:test/test.dart';
+import 'package:scooter_core/ota_protocol.dart';
+import 'package:scooter_core/update_planner.dart';
 
 /// Builds a release-index entry the way downloads.librescoot.org serves it.
 Map<String, dynamic> release(String tag,

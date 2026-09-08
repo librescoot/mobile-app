@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:unustasis/domain/ota_protocol.dart';
+import 'package:test/test.dart';
+import 'package:scooter_core/ota_protocol.dart';
 
 /// Golden vectors shared with bluetooth-service
 /// (pkg/ota/protocol_test.go TestGoldenVectors) — keep in sync.

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:unustasis/service/state_waiter.dart';
+import 'package:scooter_flutter/scooter_flutter.dart';
 
 class _Notifier extends ChangeNotifier {
   String state = 'booting';

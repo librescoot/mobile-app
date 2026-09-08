@@ -1,5 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:unustasis/domain/hibernation_schedule.dart';
+import 'package:test/test.dart';
+import 'package:scooter_core/hibernation_schedule.dart';
 
 void main() {
   group('HibernationSchedule.fromCron', () {
