@@ -463,6 +463,7 @@
     "ls_keycard_already_registered": "This card's already in the log, arr!",
     "ls_keycard_mismatch": "This card might not be seaworthy, or there were stormy seas while reading it. Try again, arr!",
     "nav_title": "Navigation",
+    "home_navigation_hint": "Swipe up to chart yer course",
     "nav_timeout_cached": "Connection timed out, showin' last known ports, arr.",
     "nav_load_error": "Failed to haul up destinations: {error}",
     "nav_search_tooltip": "Search for a port",

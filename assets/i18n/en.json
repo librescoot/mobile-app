@@ -483,6 +483,7 @@
     "ls_keycard_already_registered": "This card is already registered.",
     "ls_keycard_mismatch": "This card might not be compatible or there was an error reading it. Please try again.",
     "nav_title": "Navigation",
+    "home_navigation_hint": "Swipe up for navigation",
     "nav_timeout_cached": "Connection timed out, showing last known destinations.",
     "nav_load_error": "Failed to load destinations: {error}",
     "nav_search_tooltip": "Search for an address",

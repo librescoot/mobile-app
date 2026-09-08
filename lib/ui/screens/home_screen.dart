@@ -499,13 +499,25 @@ class _HomeScreenState extends State<HomeScreen> {
             behavior: HitTestBehavior.opaque,
             onTap: _openNavigationSheet,
             child: SizedBox(
-              height: 28,
               width: double.infinity,
-              child: Center(
-                child: Icon(
-                  Icons.keyboard_arrow_up_rounded,
-                  size: 22,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.keyboard_arrow_up_rounded,
+                      size: 22,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    Text(
+                      FlutterI18n.translate(context, 'home_navigation_hint'),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
                 ),
               ),
             ),

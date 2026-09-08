@@ -483,6 +483,7 @@
     "ls_keycard_already_registered": "Cette carte est déjà enregistrée.",
     "ls_keycard_mismatch": "Cette carte n'est peut-être pas compatible ou une erreur s'est produite lors de la lecture. Veuillez réessayer.",
     "nav_title": "Navigation",
+    "home_navigation_hint": "Balayez vers le haut pour la navigation",
     "nav_timeout_cached": "Connexion expirée, affichage des dernières destinations connues.",
     "nav_load_error": "Impossible de charger les destinations : {error}",
     "nav_search_tooltip": "Rechercher une adresse",
