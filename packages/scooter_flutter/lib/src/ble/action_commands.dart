@@ -11,20 +11,20 @@ final log = Logger('BleCommands');
 
 Future<void> unlockScooter(
     BluetoothDevice? scooter, CharacteristicRepository repo,
-    {bool Function()? isCurrent}) async {
-  await sendCommand(scooter, repo, unlockCommand, isCurrent: isCurrent);
+    {bool Function()? isCurrent, void Function()? onWriteIssued}) async {
+  await sendCommand(scooter, repo, unlockCommand, isCurrent: isCurrent, onWriteIssued: onWriteIssued);
 }
 
 Future<void> lockScooter(
     BluetoothDevice? scooter, CharacteristicRepository repo,
-    {bool Function()? isCurrent}) async {
-  await sendCommand(scooter, repo, lockCommand, isCurrent: isCurrent);
+    {bool Function()? isCurrent, void Function()? onWriteIssued}) async {
+  await sendCommand(scooter, repo, lockCommand, isCurrent: isCurrent, onWriteIssued: onWriteIssued);
 }
 
 Future<void> openSeatCommand(
     BluetoothDevice? scooter, CharacteristicRepository repo,
-    {bool Function()? isCurrent}) async {
-  await sendCommand(scooter, repo, seatCommand, isCurrent: isCurrent);
+    {bool Function()? isCurrent, void Function()? onWriteIssued}) async {
+  await sendCommand(scooter, repo, seatCommand, isCurrent: isCurrent, onWriteIssued: onWriteIssued);
 }
 
 Future<void> blinkCommand(

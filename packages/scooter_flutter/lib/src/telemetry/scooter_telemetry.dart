@@ -52,6 +52,9 @@ class ScooterTelemetry {
   bool _disposed = false;
   ScooterState? state = ScooterState.disconnected;
 
+  bool get alarmAvailable => _repository?.alarmAvailable ?? false;
+  bool get otaAvailable => _repository?.otaAvailable ?? false;
+
   TelemetrySnapshot get snapshot => TelemetrySnapshot(
       scooterId: _connection?.id,
       generation: _connection?.generation,

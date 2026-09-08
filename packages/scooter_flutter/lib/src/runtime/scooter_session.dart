@@ -131,6 +131,13 @@ class ScooterSession {
     if (notify && !_disposed) onChanged();
   }
 
+  /// Compatibility user-disconnect behavior: request native disconnect and
+  /// immediately clear the retained device. Retry/intent choice stays explicit.
+  void disconnectAndClearDevice() {
+    device?.disconnect();
+    device = null;
+  }
+
   StreamSubscription<BluetoothConnectionState>? _connectionStateSubscription;
 
   Future<void> connectToScooterId(

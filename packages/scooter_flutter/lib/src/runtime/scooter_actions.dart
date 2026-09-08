@@ -31,6 +31,7 @@ class _Target {
   final ActionLocation? location;
   final Duration? deadline;
   bool expired = false;
+  void Function()? onWriteIssued;
   ActionEvent event(EventType kind, EventSource source) => ActionEvent(
       scooterId: connection.id,
       generation: connection.generation,
@@ -94,6 +95,38 @@ class ScooterActions {
     if (_disposed || !connection.isCurrent) return;
     _connection = connection;
     _repository = repository;
+  }
+
+  /// A connected session can have partial discovery. Explicit native requests
+  /// require this owner's bound command characteristic, not connectivity alone.
+  bool canDispatchExplicitAction(SessionConnection connection) =>
+      !_disposed && identical(_connection, connection) &&
+      identical(session.currentConnection, connection) && connection.isCurrent &&
+      _repository?.commandCharacteristic != null;
+
+  /// False means no native command write was invoked. Once write is invoked,
+  /// any later error propagates: retrying that uncertain actuation is unsafe.
+  Future<bool> dispatchExplicitAction(SessionConnection connection, EventType kind) async {
+    var issued = false;
+    try {
+      if (!canDispatchExplicitAction(connection)) return false;
+      final target = _capture();
+      target.onWriteIssued = () => issued = true;
+      switch (kind) {
+        case EventType.lock:
+          await _lock(target, false, EventSource.background);
+        case EventType.unlock:
+          await _unlock(target, false, EventSource.background);
+        case EventType.openSeat:
+          await _seat(target, EventSource.app); // Existing native seat source.
+        default:
+          return false;
+      }
+      return true;
+    } catch (_) {
+      if (!issued) return false;
+      rethrow;
+    }
   }
 
   void invalidate() {
@@ -179,7 +212,7 @@ class ScooterActions {
   Future<void> _unlock(
       _Target t, bool checkHandlebars, EventSource source) async {
     await _ack(t, EventType.unlock, source,
-        (d, r, c) => commands.unlockScooter(d, r, isCurrent: c));
+        (d, r, c) => commands.unlockScooter(d, r, isCurrent: c, onWriteIssued: t.onWriteIssued));
     _check(t);
     if (t.settings.openSeatOnUnlock) {
       await _wait(t, const Duration(seconds: 1));
@@ -201,10 +234,11 @@ class ScooterActions {
 
   Future<void> lock(
       {bool checkHandlebars = true,
-      EventSource source = EventSource.app}) async {
-    final t = _capture();
+      EventSource source = EventSource.app}) async =>
+      _lock(_capture(), checkHandlebars, source);
+  Future<void> _lock(_Target t, bool checkHandlebars, EventSource source) async {
     await _ack(t, EventType.lock, source,
-        (d, r, c) => commands.lockScooter(d, r, isCurrent: c));
+        (d, r, c) => commands.lockScooter(d, r, isCurrent: c, onWriteIssued: t.onWriteIssued));
     _check(t);
     if (t.settings.hazardLocking) {
       _background(() async {
@@ -255,7 +289,7 @@ class ScooterActions {
       t,
       EventType.openSeat,
       source,
-      (d, r, c) => commands.openSeatCommand(d, r, isCurrent: c));
+      (d, r, c) => commands.openSeatCommand(d, r, isCurrent: c, onWriteIssued: t.onWriteIssued));
   Future<void> openSeat({EventSource source = EventSource.app}) =>
       _seat(_capture(), source);
   Future<void> _blink(_Target t, bool left, bool right) => _command(
@@ -304,6 +338,11 @@ class ScooterActions {
       _capture(),
       (d, r, c) => transport.sendLsExtendedCommand(d, r, clockPayload(time),
           isCurrent: c));
+  Future<bool?> getBoolSetting(String key) async {
+    final value = await getSetting(key);
+    return value == null ? null : value == 'true';
+  }
+
   Future<String?> getSetting(String key) => _command(_capture(),
       (d, r, c) => queries.getLsSettingCommand(d, r, key, isCurrent: c));
   Future<void> setSetting(String key, String value) => _command(_capture(),

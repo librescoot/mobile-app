@@ -6,7 +6,6 @@ void main() {
     final source = File('lib/scooter_service.dart').readAsStringSync();
     for (final delegate in [
       'NavigationRuntime(',
-      'navigation.restorePending()',
       'service.navigation.bind(connection, repository)',
       'service.navigation.invalidate()',
       'service.navigation.firmwareIdentified(connection, firmware)',
@@ -24,6 +23,8 @@ void main() {
     ]) {
       expect(source, isNot(contains(algorithm)));
     }
+    expect(File('packages/scooter_flutter/lib/src/runtime/scooter_runtime.dart').readAsStringSync(),
+        contains('navigation.restorePending()'));
     expect(source, contains("getString('pendingNavigation')"));
     expect(source, contains("remove('pendingNavigation')"));
     expect(source, contains("setString('pendingNavigation', json)"));

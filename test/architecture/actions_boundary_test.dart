@@ -5,7 +5,9 @@ void main() {
   test('facade delegates action timing and keyless policy to shared runtime', () {
     final source = File('lib/scooter_service.dart').readAsStringSync();
     expect(source, contains('actions.wakeUpAndUnlock('));
-    expect(source, contains('actions.startPolling()'));
+    expect(source, contains('runtime.initialize()'));
+    expect(File('packages/scooter_flutter/lib/src/runtime/scooter_runtime.dart').readAsStringSync(),
+        contains('actions.startPolling()'));
     expect(source, contains('service.actions.aggregateTransition(previous, next)'));
     for (final legacy in [
       'StateWaiter<',
@@ -34,10 +36,7 @@ void main() {
   test('action settings and keycard UI no longer access characteristics', () {
     for (final screen in ['ls_keycard_screen', 'ls_scheduled_hibernation_screen', 'settings_screen']) {
       final source = File('lib/ui/screens/$screen.dart')
-          .readAsStringSync()
-          // Capability-only views remain until telemetry/OTA UI migration.
-          .replaceAll('characteristicRepository.alarmAvailable', '')
-          .replaceAll('characteristicRepository.otaAvailable', '');
+          .readAsStringSync();
       expect(source, isNot(contains('characteristicRepository')), reason: screen);
     }
     final home = File('lib/ui/screens/home_screen.dart').readAsStringSync();

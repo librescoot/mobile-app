@@ -780,6 +780,168 @@ on-device OTA behavior still require manual/hardware validation. APK compilation
 is not firmware-install/hardware validation. No scooter or seatbox was operated.
 
 
+
+## Remaining runtime boundary (milestone 4)
+
+`ScooterRuntime<T extends SavedScooterRecord>` now orchestrates the existing
+session, telemetry, actions, navigation, settings and generic scooter store. It
+owns explicit initialization/disposal, cache load/selection/seed/refetch,
+saved-record add/forget continuation ordering, foreground manual-target expiry
+and heartbeat, passive candidate connection, bounded manual reconnect, explicit
+action target selection, real-background resume detection, delayed scan resync,
+stale-link RSSI probing and 20-second captured-session location acquisition.
+RSSI/characteristic polling remains in the existing `ScooterActions`; retry and
+all intent/attempt freshness remain in the existing `ScooterSession`. The runtime
+only starts/stops/forwards those owners: no second session, generation, retry
+loop, extended FIFO or native scheduler was created. The generic constraint is
+the existing storage contract, with app-supplied ID/cache projections, not a new
+saved-record DTO or schema.
+
+`ScooterService` composes these owners and forwards lifecycle events. Runtime-
+disabled tests retain their original seam; runtime-enabled callers can observe
+`runtimeReady`. UI and app/background widget publications consume
+`currentScooterId`, capability views and shared disconnect/actions rather than
+raw devices/repositories. The unused facade repository slot is removed; the
+legacy device getter/setter is explicitly test/demo-only so the original service
+fixtures remain unchanged. UI settings constants import core, not BLE wrappers.
+Architecture assertions forbid raw BLE consumers throughout UI and app/widget
+publication, and forbid polling, parsing, persistence and probe loops returning
+to the facade.
+
+Core `LogEntry` owns the exact event JSON codec; adapter `ActivityStore` owns the
+enabled setting, enqueue chain, persistence and permission/location acquisition
+through supplied hooks. App `StatisticsHelper` supplies Geolocator and logging,
+retains its singleton compatibility and alone creates demo entries. No dependency
+or preference-schema changes were needed. Before moving, seven tests pinned
+`eventLogs`/`eventLoggingEnabled`, enum `.toString()`, ISO timestamps, LatLng JSON,
+immediate `logEvent` completion versus queued writes, cached permission, caught
+location errors, poisoned queue failure and unqueued clear resurrection. All
+remain passing: these inherited failure/race semantics were **not** repaired.
+
+### Bounded reviewed corrections and reproduction
+
+The immutable U snapshot `/tmp/unustasis-backend-17d2e9f` supplied only bounded
+manual reconnect and explicit action/application integration corrections, not
+whole app files or U identities. Two original-LS manual reconnect reproductions
+failed: Home start and silent-link resume did not retry retained manual A. The
+same existing session now retries that pin, or makes one targeted attempt for
+`restart: false`; repeated calls neither start another retry owner nor release
+intent. New manual B supersedes A through that same owner.
+
+The legacy widget consumer also failed a real under-gate unlock reproduction
+(no write), and the notification entry failed to persist before invoking. The
+before-only widget harness exposed the original private consumer via a delegate,
+without replacing its algorithm. Shared explicit action preparation captures
+external pin > local manual pin > connected target > most recent saved target,
+bypassing passive suppression only for that one captured request. The app
+retains native action-name mapping and claims the existing two-key pending slot
+just before dispatch. Pin/attempt changes and pre-issue connection failures
+retain the request; uncertain issued writes consume it and are not automatically
+replayed. All 25 reviewed U integration cases pass through the LS composition,
+including notification persist-before-invoke, delayed duplicates, same-ID
+supersession, claim-time pin changes, pending-attempt deferral and awaited seat
+issuance. The two keys are still a non-atomic single slot, not an exactly-once or
+cross-isolate transaction mechanism.
+
+A runtime-enabled before test additionally reproduced delayed cache load
+notifying a disposed facade. Approved lifetime guards now use runtime disposal
+and the existing session freshness predicate. Obsolete startup/refetch target
+presentation is suppressed, but target replacement does not suppress global
+navigation/settings restoration. In-flight persistence cannot be rolled back.
+Runtime tests cover disposal during store load, selection, navigation read/invalid
+entry removal and each settings-read phase; normal/idempotent foreground startup;
+scan, heartbeat, RSSI and location stop; same/different-target startup; delayed
+refetch; pending location; and obsolete same-ID/B resume RSSI failures. Shared
+standalone fixtures use the existing generic store without any application model.
+
+Validation: **789 tests (273 app, 116 core, 400 adapter)**, versus the actual
+**725 (219/114/392)** clean `c50da38` baseline. The original **24 connection and
+21 identity tests remain byte-for-byte unchanged** and their targeted suite
+passes all 45. All three analyses and suites pass on Flutter **3.41.9** / Dart
+**3.11.5**. Normal repeated pub get retains identical app/core/adapter lock hashes;
+there are no dependency changes. Temurin **17.0.13+11** debug APK validation and
+its final checksum are recorded in the durable runtime-closure implementation
+report. `/tmp/runtime-closure-logs/` contains actual before/after suite,
+characterization, reproduction, lock-repeat, analysis and build logs.
+
+### Legitimate app boundaries and residual algorithms
+
+App-owned: SavedScooter setters/branding/default display name, rename/recolor
+presentation and selected-record metadata publication, geocoding, ping and typed
+cache-patch-to-model effects, demo state, haptics, permission UX/location provider,
+widget payloads/identities, lifecycle observer registration, splash, plugin
+registrant, background service/rescan/demotion scheduling and notification/pending
+native-slot integration. The static iOS widget power entrypoint remains the
+explicit native BLE exception; it is not another shared general runtime.
+
+Background cross-isolate scheduling/publication and the two-key native pending
+slot have not been redesigned. Activity write poisoning/clear races, inherited
+unbounded native writes/notification-enables and issued-effect non-rollback remain
+known limitations. Hardware BLE, native background/widgets, permissions and
+visible UX require device smoke testing; unit tests and an APK are not that gate.
+No device/seatbox, commit, staging, push, deployment, assets, native identity or
+unrelated UI/style changes were performed.
+
+
+
+### Runtime closure review: pre-issue request retention (P1)
+
+The independent review blocked the initial 789-test closure: a connected session
+with a missing command characteristic consumed a widget request without any
+write. After `setBool(false)`, a failed preference reload/name removal likewise
+left a definitely unissued request unarmed. The parent's actual missing-command
+failure was reproduced, and the retained pre-issue fault matrix produced **10
+failures / 2 passes before this correction**.
+
+A captured `ExplicitActionDispatch` now supplies readiness from the **same**
+current session/pin and shared action binding. Required basic-command availability
+is checked during preparation, immediately before the app claims its native slot,
+and again at dispatch. It does not reconnect or capture a different target just
+to check readiness. The shared basic transport records possible issuance directly
+before invoking native `write`, after validation/ASCII encoding. Explicit action
+execution returns `false` only for definite non-writes; synchronous native errors,
+ACK failures and later action-effect errors stay ambiguous and propagate without
+restoring a consumed request. Ordinary command errors and successful action/source/
+settings/ACK behavior remain unchanged.
+
+The native consumer checks both preference boolean results, re-reads after partial
+claim/removal, and performs **one best-effort recovery pass** only before dispatch
+or after a definite non-write. It reloads durable preferences rather than trusting
+the legacy adapter's optimistic cache, and checks the slot again before rearming.
+An observed newer distinct request is neither removed nor overwritten/rearmed as
+the old request. Recovery read/write failure is explicitly logged; it can leave
+the request unarmed, and is not retried indefinitely. No new keys, transaction,
+RPC, queue or exactly-once guarantee were added. Cross-isolate races inside an
+already-issued preference call remain a limitation of the two-key single slot.
+
+Added coverage: **43 app integration and 14 shared tests** for all three actions'
+partial discovery, pre-claim and dispatch-time characteristic loss, known
+transport preconditions, claim/reload/remove throw and false-return failures
+(including persistence applied before failure), newer armed/unarmed distinct
+requests, failures at each recovery stage, pin/session/same-ID/disposal changes,
+possible native write failures and post-ACK effect failures. All prior 25 reviewed
+U integration cases remain passing (targeted integration file: **87 tests**).
+The test activity-preferences fake now implements its missing `getBool` method;
+production activity queue behavior is unchanged.
+
+Final P1 validation: **846 tests (316 app, 116 core, 414 adapter)** versus the
+actual follow-up baseline **789 (273/116/400)** and original clean-base **725**.
+All three pinned Flutter 3.41.9 / Dart 3.11.5 analyses pass. Original 24 connection
+and 21 identity files remain unchanged. Normal repeated pub get retains delivered
+locks. Temurin 17.0.13+11 debug APK built successfully; SHA-256:
+`9e264b1ee1795973304e77ec12e5ce86ce5b992d367f558658f4af895fe91a84`.
+Actual before/after logs and complete tracked+untracked patch accompany the durable
+`preissue-retention.md` report. No staged files, commits, push, deployment or
+hardware operations.
+
+**Separate remaining debt, not hidden by this P1 correction:** the facade still
+has rename/recolor asynchronous selection-and-publication orchestration. That
+bounded follow-up was not bundled here. Branding/color/geocoding/model effects,
+native/background scheduling and static iOS widget entrypoint stay app-owned;
+activity poisoning/clear races and existing issued-effect/native-wait limitations
+are unchanged. Independent re-review and device smoke remain separate gates.
+
+
 ## Validation
 
 Run all suites (root `flutter test` does not run package tests):

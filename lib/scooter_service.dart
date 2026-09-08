@@ -1,3 +1,4 @@
+import 'package:scooter_flutter/scooter_runtime.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:scooter_flutter/update_controller.dart';
@@ -37,6 +38,8 @@ import '../service/user_settings.dart';
 export 'package:scooter_flutter/scooter_actions.dart'
     show ActionPollingTimer, keylessCooldownSeconds, handlebarCheckSeconds, wakeAndUnlockTimeout;
 
+typedef WidgetActionDispatch = ExplicitActionDispatch;
+
 class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final log = Logger('ScooterService');
 
@@ -46,7 +49,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   late final ScooterSession _session;
   final Future<LatLng?> Function() _readLocation;
   final bool _runtimeInitialized;
-  StreamSubscription<bool>? _scanSubscription;
+  late final ScooterRuntime<SavedScooter> runtime;
+  Future<void> get runtimeReady => _runtimeInitialized ? runtime.initialize() : Future.value();
   late final BleScanner scanner;
   late final UserSettings settings;
 
@@ -59,14 +63,17 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   Map<String, SavedScooter> get savedScooters => store.scooters;
   set savedScooters(Map<String, SavedScooter> value) => store.scooters = value;
 
-  // Compatibility escape hatches; the shared session owns the actual link.
+  // Legacy test/demo view only; production consumers use currentScooterId.
+  // The shared session owns the actual link.
+  @visibleForTesting
   BluetoothDevice? get myScooter => _session.device;
+  @visibleForTesting
   set myScooter(BluetoothDevice? value) => _session.device = value;
+  String? get currentScooterId => _session.device?.remoteId.toString();
+  void disconnectAndClearDevice() => _session.disconnectAndClearDevice();
+  bool get alarmAvailable => _telemetry.alarmAvailable;
+  bool get otaAvailable => _telemetry.otaAvailable;
   String? get connectingScooterId => _session.connectingScooterId;
-  // Set on the *background* isolate's service when the foreground reports a
-  // manual connection in progress, so background auto-connect doesn't race it.
-  String? _externalManualTargetId;
-  DateTime? _externalManualTargetSince;
   late final UpdateController updateController;
   String? updateTargetName;
   late final NavigationRuntime navigation;
@@ -74,13 +81,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final _actionWarnings = StreamController<HandlebarWarning>.broadcast(sync: true);
   Stream<HandlebarWarning> get actionWarnings => _actionWarnings.stream;
   bool get autoUnlockCoolingDown => actions.coolingDown;
-  AppLifecycleState? _lastLifecycleState;
-  bool _wasBackgrounded = false;
 
-  late Timer _locationTimer;
-  late final Timer _manualTargetHeartbeatTimer;
   late ActionPollingTimer rssiTimer;
-  late CharacteristicRepository characteristicRepository;
   late bool isInBackgroundService;
   final FlutterBluePlusMockable flutterBluePlus;
 
@@ -100,16 +102,6 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     } catch (e, stack) {
       log.severe("Couldn't save ping", e, stack);
     }
-  }
-
-  void _loadCachedData() async {
-    await store.load();
-    log.info(
-      "Loaded ${savedScooters.length} saved scooters from SharedPreferences",
-    );
-    await _seedStreamsWithCache();
-    log.info("Seeded streams with cached values");
-    settings.restore();
   }
 
   // On initialization...
@@ -167,71 +159,43 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       changed: notifyListeners,
       failed: (error, stack) => log.warning('Pending navigation dispatch failed', error, stack),
     );
+    runtime = ScooterRuntime<SavedScooter>(session: _session, telemetry: _telemetry,
+      actions: actions, navigation: navigation, settings: settings, store: store,
+      idOf: (scooter) => scooter.id, cacheOf: _cachedTelemetry,
+      presentCache: _presentCachedScooter, changed: notifyListeners,
+      savedChanged: () => updateBackgroundService({"updateSavedScooters": true}),
+      manualTargetHeartbeat: (target) => updateBackgroundService({"manualConnectionTarget": target}),
+      scanningChanged: (value) => scanning = value, isScanning: () => scanning,
+      readLocation: _readLocation,
+      saveLocation: (id, position) => savedScooters[id]?.lastLocation = position,
+      publishDisconnected: () => state = ScooterState.disconnected,
+      deviceFromId: _deviceFromId);
     if (!_runtimeInitialized) return;
-    _loadCachedData();
-
-    // Register for app lifecycle callbacks (only if not in background service)
-    if (!isInBackgroundService) {
-      WidgetsBinding.instance.addObserver(this);
-      log.info("Registered for app lifecycle callbacks");
-    }
-
-    // Keep the background isolate's manual-target gate alive while the
-    // user's explicit connection intent is active. The gate expires on its
-    // own for safety, and the periodic re-arm also survives a background
-    // isolate restart that would have swallowed the one-shot message.
-    _manualTargetHeartbeatTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      final target = _session.manualTargetId;
-      if (target != null) updateBackgroundService({"manualConnectionTarget": target});
-    });
-
-    // update the "scanning" listener
-    _scanSubscription = flutterBluePlus.isScanning.listen((isScanning) {
-      scanning = isScanning;
-    });
-
-    // start the location polling timer
-    _locationTimer = Timer.periodic(const Duration(seconds: 20), (timer) {
-      if (myScooter != null && myScooter!.isConnected) {
-        _pollLocation();
-      }
-    });
+    runtime.initialize();
+    if (!isInBackgroundService) WidgetsBinding.instance.addObserver(this);
     rssiTimer = actions.rssiTimer;
-    actions.startPolling();
   }
 
-  Future<SavedScooter?> getMostRecentScooter() async {
-    SavedScooter? recent = store.getMostRecent();
-    if (recent != null && savedScooters.length == 1 && savedScooters.values.first.autoConnect == true) {
-      // store.getMostRecent() may have re-enabled autoConnect for a single scooter
-      updateBackgroundService({"updateSavedScooters": true});
-    }
-    return recent;
-  }
+  Future<SavedScooter?> getMostRecentScooter() => runtime.getMostRecentScooter();
 
   void updateScooterPing(String id) async {
     store.updatePing(id);
     updateBackgroundService({"updateSavedScooters": true});
   }
 
-  void _showCachedScooter(SavedScooter? scooter) {
+  void _presentCachedScooter(SavedScooter? scooter, {bool initial = false}) {
+    if (initial) identity.rssi = null;
     identity.lastPing = scooter?.lastPing;
     identity.name = scooter?.name;
     identity.color = scooter?.color;
     identity.lastLocation = scooter?.lastLocation;
+  }
+
+  void _showCachedScooter(SavedScooter? scooter) {
+    _presentCachedScooter(scooter);
     identity.rssi = null;
     _telemetry.seed(_cachedTelemetry(scooter));
     notifyListeners();
-  }
-
-  Future<void> _seedStreamsWithCache() async {
-    SavedScooter? mostRecentScooter = await getMostRecentScooter();
-    log.info("Most recent scooter: $mostRecentScooter");
-    // Seed the disconnected home screen with the most likely automatic target.
-    _showCachedScooter(mostRecentScooter);
-
-    await navigation.restorePending();
-    return;
   }
 
   void addDemoData() {
@@ -409,7 +373,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     expectedIntentGeneration: expectedIntentGeneration,
   );
 
-  void start({bool restart = true}) => _session.start(restart: restart);
+  void start({bool restart = true}) => runtime.start(restart: restart);
 
   void startAutoRestart({String? targetScooterId}) =>
       _session.startAutoRestart(targetScooterId: targetScooterId);
@@ -457,110 +421,32 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   Future<String?> getCellularApn() => actions.getSetting(commands.lsKeyCellularApn);
   Future<void> setCellularApn(String apn) => actions.setCellularApn(apn);
   Future<void> clearCellularApn() => actions.clearCellularApn();
-  Future<bool?> _getBoolSetting(String key) async {
-    final value = await actions.getSetting(key);
-    return value == null ? null : value == 'true';
-  }
-  Future<bool?> getBatteryKeepActive() => _getBoolSetting(commands.lsKeyBatteryKeepActiveOnSeatboxOpen);
+  Future<bool?> getBatteryKeepActive() => actions.getBoolSetting(commands.lsKeyBatteryKeepActiveOnSeatboxOpen);
   Future<void> setBatteryKeepActive(bool enabled) => actions.setSetting(commands.lsKeyBatteryKeepActiveOnSeatboxOpen, enabled.toString());
-  Future<bool?> getAlarmEnabled() => _getBoolSetting(commands.lsKeyAlarmEnabled);
+  Future<bool?> getAlarmEnabled() => actions.getBoolSetting(commands.lsKeyAlarmEnabled);
   Future<void> setAlarmEnabled(bool enabled) => actions.setSetting(commands.lsKeyAlarmEnabled, enabled.toString());
-  Future<bool?> getAlarmHonk() => _getBoolSetting(commands.lsKeyAlarmHonk);
+  Future<bool?> getAlarmHonk() => actions.getBoolSetting(commands.lsKeyAlarmHonk);
   Future<void> setAlarmHonk(bool enabled) => actions.setSetting(commands.lsKeyAlarmHonk, enabled.toString());
   Future<void> reboot() => actions.reboot();
   Future<void> hardReboot() => actions.hardReboot();
 
-  void _pollLocation() async {
-    final scooter = myScooter;
-    final connection = _session.currentConnection;
-    if (scooter == null) return;
-    final position = await _readLocation();
-    if (position != null &&
-        connection?.isCurrent == true &&
-        connected &&
-        scooter.isConnected &&
-        myScooter?.remoteId == scooter.remoteId) {
-      savedScooters[scooter.remoteId.toString()]?.lastLocation = position;
-    }
-  }
+  void _pollLocation() => runtime.pollLocation();
 
   static Future<void> sendStaticPowerCommand(String id, String command) async {
     await commands.sendStaticPowerCommand(id, command);
   }
 
-  /// Called on the background isolate's service when the foreground reports
-  /// that the user is manually connecting a specific scooter. Empty string
-  /// means the manual intent is over.
-  void setManualConnectionTarget(String? id) {
-    _externalManualTargetId = (id == null || id.isEmpty) ? null : id;
-    _externalManualTargetSince = _externalManualTargetId == null ? null : DateTime.now();
-    log.info("Background manual connection target: ${_externalManualTargetId ?? "(cleared)"}");
-  }
+  void setManualConnectionTarget(String? id) => runtime.setManualConnectionTarget(id);
+  void touchManualConnectionTarget() => runtime.touchManualConnectionTarget();
+  Future<WidgetActionDispatch?> prepareWidgetAction(String actionName) => switch (actionName) {
+    'lock' => runtime.prepareExplicitAction(EventType.lock),
+    'unlock' => runtime.prepareExplicitAction(EventType.unlock),
+    'openseat' => runtime.prepareExplicitAction(EventType.openSeat),
+    _ => Future.value(null),
+  };
+  Future<bool> attemptLatestAutoConnection() => runtime.attemptLatestAutoConnection();
 
-  /// Any message from the foreground is proof of life: extend the suppression
-  /// window so a live foreground session doesn't get raced after the expiry,
-  /// while a killed foreground's stale flag still lapses.
-  void touchManualConnectionTarget() {
-    if (_externalManualTargetId != null) _externalManualTargetSince = DateTime.now();
-  }
-
-  Future<bool> attemptLatestAutoConnection() async {
-    // While the foreground is manually connecting a scooter, the background
-    // must not race it with its own auto-connect target. The flag expires so
-    // a killed foreground can't suspend background reconnects forever.
-    if (_externalManualTargetId != null) {
-      final age = DateTime.now().difference(_externalManualTargetSince ?? DateTime.now());
-      if (age < const Duration(minutes: 5)) {
-        log.info("Skipping background auto-connect: foreground is manually connecting $_externalManualTargetId");
-        return false;
-      }
-      _externalManualTargetId = null;
-      _externalManualTargetSince = null;
-    }
-    SavedScooter? latestScooter = await getMostRecentScooter();
-    if (_externalManualTargetId != null) {
-      // A manual intent arrived while we were picking a candidate; don't
-      // start racing it now.
-      log.info("Manual connection target appeared during auto-connect preparation");
-      return false;
-    }
-    if (latestScooter != null) {
-      try {
-        await connectToScooterId(
-          latestScooter.id,
-          automatic: true,
-          expectedIntentGeneration: _session.intentGeneration,
-        );
-        if (_deviceFromId(latestScooter.id).isConnected) {
-          return true;
-        }
-      } catch (e) {
-        return false;
-      }
-    }
-    return false;
-  }
-
-  // SAVED SCOOTER MANAGEMENT
-
-  Future<void> refetchSavedScooters() => _refetchSavedScooters();
-
-  Future<void> _refetchSavedScooters({bool Function()? isCurrent}) async {
-    await store.load();
-    if (isCurrent?.call() == false) return;
-    if (!connected) {
-      final mostRecentScooter = await getMostRecentScooter();
-      if (isCurrent?.call() == false) return;
-      identity.lastPing = mostRecentScooter?.lastPing;
-      identity.name = mostRecentScooter?.name;
-      identity.color = mostRecentScooter?.color;
-      identity.lastLocation = mostRecentScooter?.lastLocation;
-      _telemetry.refetchCache(
-        mostRecentScooter == null ? null : _cachedTelemetry(mostRecentScooter),
-      );
-    }
-    notifyListeners();
-  }
+  Future<void> refetchSavedScooters() => runtime.refetchSavedScooters();
 
   Future<List<String>> getSavedScooterIds({
     bool onlyAutoConnect = false,
@@ -568,37 +454,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     return store.getIds(onlyAutoConnect: onlyAutoConnect);
   }
 
-  Future<void> forgetSavedScooter(String id) async {
-    if (_session.hasPendingConnectionAttempt) return;
-    final current = _session.captureOperationFreshness();
-    if (!current()) return;
-    if (myScooter?.remoteId.toString() == id) {
-      await actions.forgetCurrentScooter();
-    } else {
-      // we're not currently connected to this scooter
-      try {
-        await _deviceFromId(id).removeBond();
-      } catch (e, stack) {
-        log.severe("Couldn't forget scooter", e, stack);
-      }
-    }
-
-    // Do not let completion of an old forget clear a replacement's state.
-    if (!current()) return;
-    if (savedScooters.isNotEmpty) {
-      await store.remove(id);
-    }
-    if (!current()) return;
-    updateBackgroundService({"updateSavedScooters": true});
-    if (!current()) return;
-    if (myScooter == null || myScooter?.remoteId.toString() == id) connected = false;
-    if (!current()) return;
-    // The background isolate is told to refetch, but this one was left holding
-    // the forgotten scooter's name and battery levels, so the home screen went
-    // on showing a scooter that no longer exists. refetchSavedScooters resets
-    // the streams when nothing is saved, and notifies for us.
-    await _refetchSavedScooters(isCurrent: current);
-  }
+  Future<void> forgetSavedScooter(String id) => runtime.forgetSavedScooter(id);
 
   void renameSavedScooter({String? id, required String name}) async {
     id ??= myScooter?.remoteId.toString();
@@ -651,18 +507,14 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     }
   }
 
-  void addSavedScooter(String id) async {
-    final connection = _session.currentConnection;
-    bool added = await store.add(id);
-    if (!added || _session.isDisposed) return;
-    updateBackgroundService({"updateSavedScooters": true});
-    if (connection != null && !connection.isCurrent) return;
+  void addSavedScooter(String id) => runtime.addSavedScooter(id, () {
     scooterName = "Scooter Pro";
     notifyListeners();
-  }
+  });
 
   @override
   void dispose() {
+    runtime.dispose();
     updateController.dispose();
     navigation.dispose();
     actions.dispose();
@@ -670,12 +522,6 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     _session.dispose();
     _telemetry.dispose();
 
-    if (_runtimeInitialized) {
-      _locationTimer.cancel();
-      _manualTargetHeartbeatTimer.cancel();
-      rssiTimer.cancel();
-    }
-    _scanSubscription?.cancel();
     // Unregister lifecycle observer
     if (_runtimeInitialized && !isInBackgroundService) {
       WidgetsBinding.instance.removeObserver(this);
@@ -685,86 +531,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
+  void didChangeAppLifecycleState(AppLifecycleState state) => runtime.didChangeAppLifecycleState(state);
 
-    log.info("App lifecycle state changed: $_lastLifecycleState -> $state");
-
-    // Only paused/hidden count as leaving the app. `inactive -> resumed` also
-    // happens without backgrounding (iOS cold start, biometric prompt, system
-    // dialogs) and used to fire a second start() that raced the initial
-    // connection attempt, leaving a redundant scan running for seconds.
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
-      _wasBackgrounded = true;
-    }
-
-    if (_wasBackgrounded && state == AppLifecycleState.resumed) {
-      _wasBackgrounded = false;
-      log.info("App resumed from background - checking connection status");
-      _handleAppResumedFromBackground();
-    }
-
-    _lastLifecycleState = state;
-  }
-
-  bool get _connectionAttemptInFlight => scanning || _state == ScooterState.linking;
-
-  void _handleAppResumedFromBackground() async {
-    if (savedScooters.isEmpty) return;
-
-    try {
-      // Small delay so the platform can deliver events that were queued
-      // while the app was suspended (disconnects, scan stops) before we
-      // judge any cached state
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // iOS kills an active scan during suspension without a final
-      // isScanning event, leaving `scanning` stuck true — which disables
-      // the manual reconnect button and blocks every automatic reconnect
-      // path until the app is restarted.
-      if (_session.isDisposed) return;
-      if (scanning != flutterBluePlus.isScanningNow) {
-        log.info("App resumed: resync scanning flag (cached: $scanning, platform: $flutterBluePlus.isScanningNow)");
-        scanning = flutterBluePlus.isScanningNow;
-      }
-
-      // The BLE link can also die during suspension without a disconnect
-      // event ever reaching us, so probe the link instead of trusting the
-      // cached connected flag.
-      if (connected && myScooter != null) {
-        final connection = _session.currentConnection;
-        final device = myScooter!;
-        try {
-          await device.readRssi();
-        } catch (e, stack) {
-          if (_session.isDisposed || !identical(connection, _session.currentConnection) ||
-              !identical(device, myScooter)) {
-            return;
-          }
-          log.info("App resumed: connection is stale, marking as disconnected", e, stack);
-          connected = false;
-          state = ScooterState.disconnected;
-        }
-      }
-
-      if (_session.isDisposed) return;
-      if (!connected && !_connectionAttemptInFlight) {
-        log.info("App resumed: attempting automatic reconnection");
-        // Try to reconnect to the last known scooter
-        start();
-      } else {
-        log.info(
-          "App resumed: no reconnection needed (connected: $connected, scanning: $scanning, saved scooters: ${savedScooters.length})",
-        );
-      }
-    } catch (e, stack) {
-      log.warning(
-        "Error during automatic reconnection on app resume",
-        e,
-        stack,
-      );
-    }
-  }
 }
 
 class UnavailableCharacteristicsException {}
@@ -816,7 +584,6 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   void wireTelemetry(SessionConnection connection, CharacteristicRepository repository) {
-    service.characteristicRepository = repository;
     service.updateController.bind(connection, repository);
     service.navigation.bind(connection, repository);
     service.actions.bind(connection, repository);

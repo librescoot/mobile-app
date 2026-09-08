@@ -40,6 +40,7 @@ Future<void> sendCommand(
   BluetoothCharacteristic? characteristic,
   bool allowLongWrite = false,
   bool Function()? isCurrent,
+  void Function()? onWriteIssued,
 }) async {
   checkCommandCurrent(isCurrent);
   _log.fine("Sending command: $command");
@@ -56,7 +57,11 @@ Future<void> sendCommand(
     throw "Could not send command, move closer or reconnect";
   }
 
-  await target.write(ascii.encode(command), allowLongWrite: allowLongWrite);
+  final bytes = ascii.encode(command);
+  // From this point even a synchronous native write error is ambiguous. This
+  // optional observation lets explicit requests retain only definite non-writes.
+  onWriteIssued?.call();
+  await target.write(bytes, allowLongWrite: allowLongWrite);
 }
 
 /// Sends a command to the extended characteristic (only available on librescoot

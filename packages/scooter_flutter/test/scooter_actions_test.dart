@@ -251,6 +251,44 @@ Future<void> settleTransport() async {
 }
 
 void main() {
+  for (final kind in [EventType.lock, EventType.unlock, EventType.openSeat]) {
+    test('explicit $kind rejects partial discovery and stale capture without native issuance', () {
+      fakeAsync((time) {
+        final h = Harness(time);
+        final connection = h.session.currentConnection!;
+        final repository = h.repos['A']!;
+        repository.commandCharacteristic = null;
+        expect(h.actions.canDispatchExplicitAction(connection), isFalse);
+        bool? issued;
+        h.actions.dispatchExplicitAction(connection, kind).then((value) => issued = value);
+        time.flushMicrotasks(); expect(issued, isFalse); expect(h.trace, isEmpty);
+        repository.commandCharacteristic = repository.wire;
+        expect(h.actions.canDispatchExplicitAction(connection), isTrue);
+        h.connect('B'); h.trace.clear();
+        expect(h.actions.canDispatchExplicitAction(connection), isFalse);
+        h.actions.dispatchExplicitAction(connection, kind).then((value) => issued = value);
+        time.flushMicrotasks(); expect(issued, isFalse); expect(h.trace, isEmpty);
+        h.dispose();
+      });
+    });
+    test('explicit $kind preserves native ACK effects and propagates post-write effect errors', () {
+      fakeAsync((time) {
+        final h = Harness(time);
+        h.effects.onAck = () => throw StateError('effect after native ACK');
+        Object? error;
+        h.actions.dispatchExplicitAction(h.session.currentConnection!, kind).catchError((Object e) {
+          error = e; return false;
+        });
+        time.flushMicrotasks();
+        expect(error, isA<StateError>());
+        expect(h.effects.events.single.kind, kind);
+        expect(h.effects.events.single.source, kind == EventType.openSeat ? EventSource.app : EventSource.background);
+        expect(h.trace.where((event) => event.startsWith('A:scooter:')), hasLength(1));
+        h.dispose();
+      });
+    });
+  }
+
   test(
       'unlock trace preserves captured SOC/source/settings and unawaited seat ACK',
       () {
