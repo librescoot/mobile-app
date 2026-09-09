@@ -369,29 +369,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ? (state.isOn
                                             ? () async {
                                                 final service = context.read<ScooterService>();
-                                                final target = service.actions.session.currentConnection;
-                                                final seatOpen = service.vehicle.seatClosed == false;
-                                                if (seatOpen) {
-                                                  bool overrideSeat = await showSeatWarning() == true;
-                                                  if (!overrideSeat) {
-                                                    return;
-                                                  }
-                                                }
                                                 try {
-                                                  // Confirmation must not retarget a request to a new connection.
-                                                  if (!context.mounted || target?.isCurrent != true) {
-                                                    return;
-                                                  }
-                                                  await service.lock();
-                                                  if (!context.mounted || target?.isCurrent != true) {
-                                                    return;
-                                                  }
-                                                  if (seatOpen) {
-                                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                                      content:
-                                                          Text(FlutterI18n.translate(context, "home_lock_requested")),
-                                                    ));
-                                                  }
+                                                  if (!await lockWithSeatConfirmation(context, service)) return;
+                                                  if (!context.mounted) return;
                                                   if (service.hazardLocking) {
                                                     _flashHazards(1);
                                                   }
@@ -569,14 +549,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<bool?> showSeatWarning() async {
-    HapticFeedback.vibrate();
-    return await showDialog<bool?>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const SeatWarning(),
-    );
-  }
+
 
   void showHandlebarWarning({required bool didNotUnlock}) {
     showDialog<bool>(
