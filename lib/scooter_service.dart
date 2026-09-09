@@ -406,9 +406,9 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   Future<void> unlock({bool checkHandlebars = true, EventSource source = EventSource.app}) =>
       actions.unlock(checkHandlebars: checkHandlebars, source: source);
-  Future<void> lock({bool checkHandlebars = true, bool ignoreSeatbox = false, EventSource source = EventSource.app}) {
+  Future<void> lock({bool checkHandlebars = true, bool confirmOpenSeat = false, EventSource source = EventSource.app}) {
     warnIfLockingWithOpenSeatbox();
-    return actions.lock(checkHandlebars: checkHandlebars, ignoreSeatbox: ignoreSeatbox, source: source);
+    return actions.lock(checkHandlebars: checkHandlebars, confirmOpenSeat: confirmOpenSeat, source: source);
   }
 
   /// App-only diagnostic; explicit consumers call this only at ready dispatch.
@@ -670,7 +670,7 @@ class _ServiceActionEffects implements ScooterActionEffects {
   void acknowledged(ActionEvent event) => acknowledgeAppAction(event);
   @override
   void handlebarWarning(HandlebarWarning warning) {
-    service.log.warning(warning.didNotUnlock ? "Handlebars didn't unlock, sending warning" : "Handlebars didn't lock, sending warning");
+    service.log.warning(warning.didNotUnlock ? "Handlebars didn't unlock, sending warning" : "Steering lock unconfirmed, sending passive guidance");
     final connection = service._session.currentConnection;
     if (connection?.isCurrent != true || connection!.id != warning.action.scooterId ||
         connection.generation != warning.action.generation) {

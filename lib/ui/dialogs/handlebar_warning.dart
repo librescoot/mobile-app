@@ -4,20 +4,9 @@ import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:unustasis/scooter_service.dart';
 
-class HandlebarWarning extends StatefulWidget {
-  const HandlebarWarning({
-    super.key,
-    required this.didNotUnlock,
-  });
-
-  final bool didNotUnlock;
-
-  @override
-  State<HandlebarWarning> createState() => _HandlebarWarningState();
-}
-
-class _HandlebarWarningState extends State<HandlebarWarning> {
-  bool dontShowAgain = false;
+/// Unlock failure retains its separate rider action; lock waiting is passive.
+class HandlebarWarning extends StatelessWidget {
+  const HandlebarWarning({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -30,25 +19,13 @@ class _HandlebarWarningState extends State<HandlebarWarning> {
             height: 160,
           ),
           const SizedBox(height: 24),
-          Text(FlutterI18n.translate(context, "${widget.didNotUnlock ? "locked" : "unlocked"}_handlebar_alert_title")),
+          Text(FlutterI18n.translate(context, "locked_handlebar_alert_title")),
         ],
       ),
       content: SingleChildScrollView(
         child: ListBody(
           children: <Widget>[
-            Text(FlutterI18n.translate(context, "${widget.didNotUnlock ? "locked" : "unlocked"}_handlebar_alert_body")),
-            if (!widget.didNotUnlock)
-              CheckboxListTile(
-                contentPadding: EdgeInsets.all(0),
-                dense: true,
-                value: dontShowAgain,
-                onChanged: (value) {
-                  setState(() {
-                    dontShowAgain = value ?? false;
-                  });
-                },
-                title: Text(FlutterI18n.translate(context, "unlocked_handlebar_alert_ignore")),
-              )
+            Text(FlutterI18n.translate(context, "locked_handlebar_alert_body")),
           ],
         ),
       ),
@@ -56,19 +33,14 @@ class _HandlebarWarningState extends State<HandlebarWarning> {
         TextButton(
           child: const Text('OK'),
           onPressed: () {
-            Navigator.of(context).pop(dontShowAgain);
+            Navigator.of(context).pop();
           },
         ),
         TextButton(
-          child: Text(
-              FlutterI18n.translate(context, "${widget.didNotUnlock ? "locked" : "unlocked"}_handlebar_alert_action")),
+          child: Text(FlutterI18n.translate(context, "locked_handlebar_alert_action")),
           onPressed: () {
-            if (widget.didNotUnlock) {
-              context.read<ScooterService>().lock();
-            } else {
-              context.read<ScooterService>().unlock();
-            }
-            Navigator.of(context).pop(dontShowAgain);
+            context.read<ScooterService>().lock();
+            Navigator.of(context).pop();
           },
         ),
       ],

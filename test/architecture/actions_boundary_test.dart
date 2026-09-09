@@ -41,7 +41,12 @@ void main() {
     }
     final home = File('lib/ui/screens/home_screen.dart').readAsStringSync();
     expect(home, contains('service.actionWarnings.listen'));
-    expect(home, contains('showHandlebarWarning(didNotUnlock: warning.didNotUnlock)'));
+    expect(home, contains('if (warning.didNotUnlock)'));
+    expect(home, contains('showHandlebarWarning();'));
+    expect(home, contains('HandlebarLockGuidance('));
+    final guidance = File('lib/ui/dialogs/handlebar_lock_guidance.dart').readAsStringSync();
+    expect(guidance, isNot(contains('service.lock(')));
+    expect(guidance, isNot(contains('service.unlock(')));
     expect(home, isNot(contains('on HandlebarLockException')));
   });
 }

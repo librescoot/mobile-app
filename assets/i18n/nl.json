@@ -1,10 +1,4 @@
 {
-    "home_lock_override_unknown": "Het resultaat van het vergrendelverzoek is onbekend. Controleer de status van de scooter voordat je het opnieuw probeert.",
-    "home_lock_override_unavailable": "Ondersteuning voor vergrendelen met een open buddy kon niet worden gecontroleerd. Er is geen vergrendelverzoek verstuurd.",
-    "home_lock_override_expired": "Het vergrendelverzoek is verlopen voordat het werd geaccepteerd. Controleer de status van de scooter.",
-    "home_lock_override_unsafe": "De scooter heeft het verzoek geweigerd. Parkeer hem voordat je vergrendelt.",
-    "home_lock_override_unsupported": "Deze firmware ondersteunt vergrendelen met een open buddy niet. Sluit de buddy of werk de scooterfirmware bij.",
-    "home_lock_accepted": "Uitschakelverzoek geaccepteerd. Controleer de vergrendelstatus van de scooter.",
     "onboarding_step0_heading": "Welkom!",
     "onboarding_step0_body": "Librescoot App for unu is een open-source app voor de unu Scooter Pro. Verbind je scooter om te beginnen.",
     "onboarding_step0_button": "BEGINNEN",
@@ -56,7 +50,7 @@
     "home_controls_button": "Bediening",
     "home_reconnect_button": "Opnieuw verbinden",
     "seat_alert_title": "Buddy is open!",
-    "seat_alert_body": "De buddy is open. „Toch vergrendelen” slaat het wachten op de buddy over en vraagt om normaal uitschakelen. De buddy blijft onbeveiligd totdat je hem sluit.",
+    "seat_alert_body": "Het zadel is open. ‘Toch vergrendelen’ verstuurt twee gewone vergrendelverzoeken. Oudere firmware kan nog ongeveer 30 seconden wachten en daarna ongeveer 5 seconden nodig hebben om uit te schakelen.",
     "seat_alert_action_override": "Toch vergrendelen",
     "seat_alert_action_cancel": "Annuleren",
     "locked_handlebar_alert_title": "Stuur is nog vergrendeld!",
@@ -630,5 +624,8 @@
     "stats_drive_batteries": "Aandrijfaccu’s",
     "stats_system_batteries": "Systeemaccu’s",
     "home_hold_to_lock": "Houd vast om te vergrendelen",
-    "home_hold_to_unlock": "Houd vast om te ontgrendelen"
+    "home_hold_to_unlock": "Houd vast om te ontgrendelen",
+  "home_lock_request_sent": "Vergrendelverzoeken verstuurd. Controleer de status van de scooter.",
+  "home_lock_request_incomplete": "Vergrendelverzoeken niet volledig verstuurd. Het eerste verzoek kan het wachten of uitschakelen al gestart hebben. Controleer de scooter; er is niets opnieuw verstuurd.",
+  "handlebar_lock_waiting": "Draai het stuur helemaal naar links terwijl de scooter uitschakelt. Het stuurslot heeft een beperkte tijd om te vergrendelen; uit- en weer inschakelen is niet nodig. Controleer het slot op de scooter."
 }

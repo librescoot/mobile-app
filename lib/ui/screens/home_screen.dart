@@ -18,6 +18,7 @@ import 'package:unustasis/ui/widgets/leaves.dart';
 import 'package:unustasis/ui/widgets/scooter_action_button.dart';
 import 'package:unustasis/ui/widgets/onboarding_popups.dart';
 import 'package:unustasis/ui/dialogs/handlebar_warning.dart';
+import 'package:unustasis/ui/dialogs/handlebar_lock_guidance.dart';
 import 'package:unustasis/ui/theme/icomoon.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
@@ -46,9 +47,11 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final log = Logger('HomeScreen');
   bool _hazards = false;
+  OverlayEntry? _lockGuidance;
+  bool _lockGuidanceBackgrounded = false;
   ScooterService? _warningService;
   StreamSubscription<actions.HandlebarWarning>? _warningSubscription;
 
@@ -58,14 +61,51 @@ class _HomeScreenState extends State<HomeScreen> {
     final service = context.read<ScooterService>();
     if (identical(service, _warningService)) return;
     _warningSubscription?.cancel();
+    _dismissLockGuidance();
     _warningService = service;
     _warningSubscription = service.actionWarnings.listen((warning) {
-      if (mounted) showHandlebarWarning(didNotUnlock: warning.didNotUnlock);
-    });
+      if (!mounted) return;
+      if (warning.didNotUnlock) {
+        _dismissLockGuidance();
+        showHandlebarWarning();
+      } else {
+        if (_lockGuidanceBackgrounded) return;
+        _dismissLockGuidance();
+        final entry = OverlayEntry(builder: (_) => Positioned(
+          left: 16, right: 16, bottom: 16,
+          child: SafeArea(child: HandlebarLockGuidance(
+            service: service, action: warning.action, onDismiss: _dismissLockGuidance,
+          )),
+        ));
+        _lockGuidance = entry;
+        Overlay.of(context).insert(entry);
+      }
+    }, onDone: _dismissLockGuidance);
+  }
+
+  void _dismissLockGuidance() {
+    final entry = _lockGuidance;
+    _lockGuidance = null;
+    entry?.remove();
+    entry?.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Match runtime backgrounding: transient inactive (e.g. biometrics) is not
+    // departure. Home owns even inserted entries whose child has not mounted.
+    if (state == AppLifecycleState.hidden || state == AppLifecycleState.paused) {
+      _lockGuidanceBackgrounded = true;
+      _dismissLockGuidance();
+    } else if (state == AppLifecycleState.resumed) {
+      _lockGuidanceBackgrounded = false;
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _dismissLockGuidance();
     _warningSubscription?.cancel();
     super.dispose();
   }
@@ -81,6 +121,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _lockGuidanceBackgrounded = lifecycle == AppLifecycleState.hidden || lifecycle == AppLifecycleState.paused;
+    WidgetsBinding.instance.addObserver(this);
     if (widget.forceOpen != true) {
       log.fine("Redirecting or starting");
       redirectOrStart();
@@ -551,22 +594,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
 
 
-  void showHandlebarWarning({required bool didNotUnlock}) {
-    showDialog<bool>(
+  void showHandlebarWarning() {
+    showDialog<void>(
       context: context,
-      barrierDismissible: false, // user must tap button!
-      builder: (BuildContext context) {
-        return HandlebarWarning(didNotUnlock: didNotUnlock);
-      },
-    ).then((dontShowAgain) async {
-      if (dontShowAgain == true) {
-        Logger("").info("Not showing unlocked handlebar warning again");
-        await SharedPreferencesAsync().setBool(
-          "unlockedHandlebarsWarning",
-          false,
-        );
-      }
-    });
+      barrierDismissible: false,
+      builder: (_) => const HandlebarWarning(),
+    );
   }
 
   void redirectOrStart() async {
