@@ -11,7 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../domain/location_url_parser.dart';
 import '../domain/nav_destination.dart';
 import '../geo_helper.dart';
-import '../navigation_screen.dart';
+import 'package:unustasis/ui/screens/navigation_screen.dart';
 import '../scooter_service.dart';
 
 final _log = Logger('SharingHandler');
@@ -194,7 +194,7 @@ class SharingHandler with WidgetsBindingObserver {
             onPressed: () {
               Navigator.of(ctx).pop();
               launchUrl(
-                Uri.parse("https://github.com/reunu/unustasis/wiki/Librescoot"),
+                Uri.parse("https://librescoot.org/handbook/getting-started.html"),
                 mode: LaunchMode.externalApplication,
               );
             },

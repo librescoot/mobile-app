@@ -27,6 +27,20 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Resolve and verify shared core
+        working-directory: packages/scooter_core
+        run: |
+          dart pub get
+          dart analyze
+          dart test
+
+      - name: Resolve and verify shared Flutter integration
+        working-directory: packages/scooter_flutter
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+
       - run: flutter pub get
 
       - run: flutter analyze

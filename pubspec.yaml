@@ -32,6 +32,10 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  scooter_core:
+    path: packages/scooter_core
+  scooter_flutter:
+    path: packages/scooter_flutter
   flutter:
     sdk: flutter
 
@@ -75,8 +79,12 @@ dependencies:
       ref: main
   flutter_photon: ^2.0.1
   flutter_sharing_intent: ^2.0.4
+  flutter_svg: ^2.0.17
 
 dev_dependencies:
+  # Direct test imports for isolated persistence/background adapter fakes.
+  flutter_background_service_platform_interface: ^5.1.2
+  shared_preferences_platform_interface: ^2.4.1
   flutter_test:
     sdk: flutter
   mockito: ^5.4.4
@@ -126,6 +134,7 @@ flutter:
     - assets/i18n/
     - assets/
     - assets/anim/
+    - assets/icons/
 
   fonts:
     - family: icomoon
