@@ -22,7 +22,7 @@ LIBRESCOOT-FUNCTIES
 Met compatibele Librescoot-firmware kun je ook sleutelkaarten, firmware-updates, alarmen, automatische stand-by en slaapstand, geplande slaapstand, mobiele APN, kloksynchronisatie en USB-updatemodus beheren. Bluetooth-firmware-updates vereisen Librescoot 1.2 of nieuwer. Navigatie op de scooter vereist compatibele firmware en geïnstalleerde kaart- en routegegevens. Het scherm Systeeminformatie toont de geïnstalleerde firmwareversies van de scooter, voor zover ze kunnen worden uitgelezen.
 
 PRIVACY ALS STANDAARD
-De app bevat geen reclame of analytics en vereist geen onlineaccount. Scootergegevens blijven normaal gesproken op je telefoon. Online locatiediensten zijn optioneel en standaard uitgeschakeld. Het volledige privacybeleid is beschikbaar in de app en op librescoot.org.
+De app bevat geen reclame of analytics-SDK’s en vereist geen onlineaccount. Scootergegevens blijven normaal gesproken op je telefoon. Online locatiediensten zijn optioneel en standaard uitgeschakeld. Het volledige privacybeleid is beschikbaar in de app en op librescoot.org.
 
 VEREISTEN
 Voor voertuigfuncties zijn een compatibele unu Scooter Pro en Bluetooth nodig. De beschikbare bediening hangt af van de scooterhardware en geïnstalleerde firmware. Op Android 11 en ouder zijn voor het zoeken naar Bluetooth-apparaten ook locatietoestemming en ingeschakelde locatiediensten nodig. Andere locatiefuncties, meldingen, NFC-functies en apparaatauthenticatie hangen af van je apparaat en instellingen.

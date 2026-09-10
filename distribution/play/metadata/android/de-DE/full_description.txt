@@ -22,7 +22,7 @@ LIBRESCOOT-FUNKTIONEN
 Mit kompatibler Librescoot-Firmware lassen sich außerdem Schlüsselkarten, Firmwareupdates, Alarm, automatischer Standby und Ruhezustand, geplanter Ruhezustand, Mobilfunk-APN, Uhrzeitsynchronisierung und USB-Updatemodus verwalten. Bluetooth-Firmwareupdates benötigen Librescoot 1.2 oder neuer. Die Navigation auf dem Roller benötigt kompatible Firmware sowie installierte Karten- und Routingdaten. Unter Systeminformationen werden die installierten Firmwareversionen des Rollers angezeigt, soweit sie ausgelesen werden können.
 
 DATENSCHUTZ ALS STANDARD
-Die App enthält weder Werbung noch Analysedienste und benötigt kein Onlinekonto. Rollerdaten bleiben normalerweise auf deinem Handy. Online-Standortdienste sind optional und standardmäßig ausgeschaltet. Die vollständige Datenschutzerklärung ist in der App und auf librescoot.org verfügbar.
+Die App enthält weder Werbung noch Analyse-SDKs und benötigt kein Onlinekonto. Rollerdaten bleiben normalerweise auf deinem Handy. Online-Standortdienste sind optional und standardmäßig ausgeschaltet. Die vollständige Datenschutzerklärung ist in der App und auf librescoot.org verfügbar.
 
 VORAUSSETZUNGEN
 Für Fahrzeugfunktionen werden ein kompatibler unu Scooter Pro und Bluetooth benötigt. Welche Bedienfunktionen verfügbar sind, hängt von Hardware und installierter Firmware ab. Unter Android 11 und älter benötigt die Bluetooth-Suche außerdem eine Standortberechtigung und aktivierte Standortdienste. Weitere Standortfunktionen, Benachrichtigungen, NFC-Funktionen und Geräteauthentifizierung hängen von deinem Gerät und deinen Einstellungen ab.
