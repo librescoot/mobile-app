@@ -48,7 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   ScooterKeylessDistance autoUnlockDistance = ScooterKeylessDistance.regular;
   bool openSeatOnUnlock = false;
   bool hazardLocking = false;
-  bool osmConsent = true;
+  bool osmConsent = false;
   bool _lsDataLoadStarted = false;
   bool _isSendingAutoLock = false;
   int? _autoLockDuration;
@@ -79,7 +79,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ScooterKeylessDistance.fromThreshold(service.autoUnlockThreshold);
     bool initialOpenSeatOnUnlock = service.openSeatOnUnlock;
     bool initialHazardLocking = service.hazardLocking;
-    bool initialOsmConsent = await prefs.getBool("osmConsent") ?? true;
+    bool initialOsmConsent = await prefs.getBool("osmConsent") ?? false;
     bool initialSeasonal = await prefs.getBool("seasonal") ?? true;
 
     setState(() {
@@ -529,10 +529,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             DropdownMenuItem(value: 0, child: Text(FlutterI18n.translate(context, "ls_settings_duration_never"))),
             DropdownMenuItem(value: 180, child: Text(FlutterI18n.translate(context, "ls_settings_duration_3_min"))),
             DropdownMenuItem(value: 300, child: Text(FlutterI18n.translate(context, "ls_settings_duration_5_min"))),
-            DropdownMenuItem(
-                value: 600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_10_min"))),
-            DropdownMenuItem(
-                value: 900, child: Text(FlutterI18n.translate(context, "ls_settings_duration_15_min"))),
+            DropdownMenuItem(value: 600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_10_min"))),
+            DropdownMenuItem(value: 900, child: Text(FlutterI18n.translate(context, "ls_settings_duration_15_min"))),
           ],
           onChanged: !_timerDurationsLoaded || _isSendingAutoLock
               ? null
@@ -540,8 +538,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (value == null) return;
                   setState(() => _isSendingAutoLock = true);
                   try {
-                    await context.read<ScooterService>().actions.setAutoStandbyTime(Duration(seconds: value),
-                    );
+                    await context.read<ScooterService>().actions.setAutoStandbyTime(
+                          Duration(seconds: value),
+                        );
                     if (!mounted) return;
                     setState(() => _autoLockDuration = value);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -574,14 +573,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               : _timerLoadingIndicator(),
           items: [
             DropdownMenuItem(value: 0, child: Text(FlutterI18n.translate(context, "ls_settings_duration_never"))),
-            DropdownMenuItem(
-                value: 3600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_1_hour"))),
-            DropdownMenuItem(
-                value: 86400, child: Text(FlutterI18n.translate(context, "ls_settings_duration_1_day"))),
-            DropdownMenuItem(
-                value: 259200, child: Text(FlutterI18n.translate(context, "ls_settings_duration_3_days"))),
-            DropdownMenuItem(
-                value: 604800, child: Text(FlutterI18n.translate(context, "ls_settings_duration_7_days"))),
+            DropdownMenuItem(value: 3600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_1_hour"))),
+            DropdownMenuItem(value: 86400, child: Text(FlutterI18n.translate(context, "ls_settings_duration_1_day"))),
+            DropdownMenuItem(value: 259200, child: Text(FlutterI18n.translate(context, "ls_settings_duration_3_days"))),
+            DropdownMenuItem(value: 604800, child: Text(FlutterI18n.translate(context, "ls_settings_duration_7_days"))),
             DropdownMenuItem(
                 value: 1209600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_14_days"))),
           ],
@@ -591,8 +586,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (value == null) return;
                   setState(() => _isSendingAutoHibernate = true);
                   try {
-                    await context.read<ScooterService>().actions.setAutoHibernateTime(Duration(seconds: value),
-                    );
+                    await context.read<ScooterService>().actions.setAutoHibernateTime(
+                          Duration(seconds: value),
+                        );
                     if (!mounted) return;
                     setState(() => _autoHibernateDuration = value);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -995,12 +991,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             connected: connected,
             otaAvailable: otaAvailable,
           ),
-        ListTile(
-          leading: const Icon(Icons.info_outline),
-          title: Text(FlutterI18n.translate(context, 'system_info_title')),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SystemInformationScreen())),
-        ),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: Text(FlutterI18n.translate(context, 'system_info_title')),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SystemInformationScreen())),
+          ),
         ],
         Header(FlutterI18n.translate(context, "stats_settings_section_app")),
         FutureBuilder<List<BiometricType>>(
@@ -1170,6 +1166,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               osmConsent = value;
             });
           },
+        ),
+        ListTile(
+          leading: const Icon(Icons.privacy_tip_outlined),
+          title: Text(FlutterI18n.translate(context, "settings_privacy_policy")),
+          trailing: const Icon(Icons.open_in_new),
+          onTap: () => launchUrl(
+            Uri.parse("https://librescoot.org/privacy/mobile-app/"),
+            mode: LaunchMode.externalApplication,
+          ),
         ),
         if (DateTime.now().month == 12 ||
             DateTime.now().month == 4 ||

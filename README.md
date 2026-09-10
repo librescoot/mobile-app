@@ -7,8 +7,9 @@ tracking it closely. All app development happens upstream; this repository carri
 only the Librescoot branding on top, plus the release pipeline that publishes to
 Google Play and TestFlight.
 
-Ships as `com.librescoot.app`, so it installs alongside the upstream build rather
-than replacing it.
+The Android app ships as `org.librescoot.mobile.unu`, so it installs alongside
+the upstream build rather than replacing it. The iOS bundle IDs remain under
+`com.librescoot.app`.
 
 ## Keeping in sync
 

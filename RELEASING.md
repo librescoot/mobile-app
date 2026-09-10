@@ -44,7 +44,7 @@ The Play step is skipped when `PLAY_SERVICE_ACCOUNT_JSON` is absent, so Android
 builds and GitHub releases work before Play is wired up.
 
 The service account needs the Release Manager role in Play Console, and
-`com.librescoot.app` has to exist there with at least one manual upload
+`org.librescoot.mobile.unu` has to exist there with at least one manual upload
 already: Play rejects the first upload of a package from the API.
 
 ### iOS
@@ -90,7 +90,7 @@ base64 -i upload-keystore.jks | pbcopy   # -> KEYSTORE
    `PLAY_SERVICE_ACCOUNT_JSON`.
 3. Back in Play Console -> Users and permissions, invite the service account's
    email and give it Release manager, or app-level release permissions on
-   `com.librescoot.app`.
+   `org.librescoot.mobile.unu`.
 4. Upload one bundle by hand first. Play rejects the API's first upload of a
    package it has never seen.
 

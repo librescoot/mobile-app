@@ -133,12 +133,12 @@ Settings:
       autoUnlockDistance = ${ScooterKeylessDistance.fromThreshold(service.autoUnlockThreshold)}
       openSeatOnUnlock = ${service.openSeatOnUnlock}
       hazardLocking = ${service.hazardLocking}
-      osmConsent = ${await prefs.getBool("osmConsent") ?? true}
+      osmConsent = ${await prefs.getBool("osmConsent") ?? false}
       seasonal = ${await prefs.getBool("seasonal") ?? true}
-Saved scooters: ${await prefs.getString("savedScooters") ?? 'none'}
+Saved scooter count: ${service.savedScooters.length}
 ''',
             subject: FlutterI18n.translate(context, "report_subject"),
-            recipients: ['oss4unu@freal.de'],
+            recipients: ['app-support@librescoot.org'],
             attachmentPaths: [logFile.path],
             isHTML: false,
           );

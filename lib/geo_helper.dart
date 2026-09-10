@@ -119,10 +119,10 @@ class GeoHelper {
       return null;
     }
 
-    // see if user hasn't disabled Nominatim
+    // Only send coordinates after the user opts in to online place names.
     SharedPreferencesAsync prefs = SharedPreferencesAsync();
-    if (await prefs.getBool("osmConsent") == false) {
-      log.info("User has disabled Nominatim");
+    if (await prefs.getBool("osmConsent") != true) {
+      log.info("User has not enabled online place names");
       return null;
     }
 
@@ -212,7 +212,7 @@ class GeoHelper {
       return cachedName;
     }
 
-    if (await prefs.getBool("osmConsent") == false) {
+    if (await prefs.getBool("osmConsent") != true) {
       return "${location.latitude}, ${location.longitude}";
     }
 
