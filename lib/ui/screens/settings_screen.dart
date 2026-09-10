@@ -1297,35 +1297,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 textAlign: TextAlign.center,
               ),
               Padding(
-                padding: const EdgeInsets.only(top: 24, bottom: 8),
-                child: Center(
-                  child: Icon(Icons.battery_alert_outlined, size: 32),
+                padding: const EdgeInsets.only(top: 24),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.battery_alert_outlined, size: 32),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        FlutterI18n.translate(context, "bgscan_warning_battery"),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              Text(
-                FlutterI18n.translate(context, "bgscan_warning_battery"),
-                textAlign: TextAlign.center,
               ),
               Padding(
-                padding: const EdgeInsets.only(top: 24, bottom: 8),
-                child: Center(child: Icon(Icons.link_off_outlined, size: 32)),
-              ),
-              Text(
-                FlutterI18n.translate(context, "bgscan_warning_lostpairing"),
-                textAlign: TextAlign.center,
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 24, bottom: 8),
-                child: Center(
-                  child: Icon(Icons.power_settings_new_outlined, size: 32),
+                padding: const EdgeInsets.only(top: 24),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.power_settings_new_outlined, size: 32),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        FlutterI18n.translate(
+                          context,
+                          "bgscan_warning_accidentalturnon",
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              Text(
-                FlutterI18n.translate(
-                  context,
-                  "bgscan_warning_accidentalturnon",
-                ),
-                textAlign: TextAlign.center,
               ),
             ],
           ),
