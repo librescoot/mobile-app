@@ -635,5 +635,15 @@
   "settings_duration_minute_one": "{count} minuut",
   "settings_duration_minute_many": "{count} minuten",
   "settings_duration_second_one": "{count} seconde",
-  "settings_duration_second_many": "{count} seconden"
+  "settings_duration_second_many": "{count} seconden",
+  "system_info_title": "Systeeminformatie",
+  "system_info_boards": "Printplaten",
+  "system_info_nrf": "Bluetooth-controller (nRF)",
+  "system_info_unavailable": "Niet beschikbaar",
+  "system_info_read_at": "Laatst gelezen:",
+  "system_info_cached": "Opgeslagen waarden — niet verbonden",
+  "system_info_refresh": "Versies vernieuwen",
+  "system_info_copy": "Diagnose kopiëren",
+  "system_info_copied": "Diagnose gekopieerd",
+  "system_info_failed": "Versies konden niet worden gelezen. Controleer de verbinding en probeer opnieuw."
 }

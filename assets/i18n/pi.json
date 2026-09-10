@@ -615,5 +615,15 @@
   "settings_duration_minute_one": "{count} minute",
   "settings_duration_minute_many": "{count} minutes",
   "settings_duration_second_one": "{count} second",
-  "settings_duration_second_many": "{count} seconds"
+  "settings_duration_second_many": "{count} seconds",
+  "system_info_title": "System information",
+  "system_info_boards": "Boards",
+  "system_info_nrf": "Bluetooth controller (nRF)",
+  "system_info_unavailable": "Unavailable",
+  "system_info_read_at": "Last read:",
+  "system_info_cached": "Cached readings — disconnected",
+  "system_info_refresh": "Refresh versions",
+  "system_info_copy": "Copy diagnostics",
+  "system_info_copied": "Diagnostics copied",
+  "system_info_failed": "Could not read versions. Check the connection and try again."
 }

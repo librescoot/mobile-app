@@ -635,5 +635,15 @@
   "settings_duration_minute_one": "{count} Minute",
   "settings_duration_minute_many": "{count} Minuten",
   "settings_duration_second_one": "{count} Sekunde",
-  "settings_duration_second_many": "{count} Sekunden"
+  "settings_duration_second_many": "{count} Sekunden",
+  "system_info_title": "Systeminformationen",
+  "system_info_boards": "Platinen",
+  "system_info_nrf": "Bluetooth-Controller (nRF)",
+  "system_info_unavailable": "Nicht verfügbar",
+  "system_info_read_at": "Zuletzt gelesen:",
+  "system_info_cached": "Gespeicherte Werte — nicht verbunden",
+  "system_info_refresh": "Versionen aktualisieren",
+  "system_info_copy": "Diagnose kopieren",
+  "system_info_copied": "Diagnose kopiert",
+  "system_info_failed": "Versionen konnten nicht gelesen werden. Verbindung prüfen und erneut versuchen."
 }

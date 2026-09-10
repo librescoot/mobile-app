@@ -635,5 +635,15 @@
   "settings_duration_minute_one": "{count} minute",
   "settings_duration_minute_many": "{count} minutes",
   "settings_duration_second_one": "{count} seconde",
-  "settings_duration_second_many": "{count} secondes"
+  "settings_duration_second_many": "{count} secondes",
+  "system_info_title": "Informations système",
+  "system_info_boards": "Cartes",
+  "system_info_nrf": "Contrôleur Bluetooth (nRF)",
+  "system_info_unavailable": "Indisponible",
+  "system_info_read_at": "Dernière lecture :",
+  "system_info_cached": "Valeurs mémorisées — déconnecté",
+  "system_info_refresh": "Actualiser les versions",
+  "system_info_copy": "Copier le diagnostic",
+  "system_info_copied": "Diagnostic copié",
+  "system_info_failed": "Impossible de lire les versions. Vérifiez la connexion et réessayez."
 }

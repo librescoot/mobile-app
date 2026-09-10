@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'system_information_screen.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:provider/provider.dart';
@@ -428,6 +430,12 @@ class _LsOtaScreenState extends State<LsOtaScreen> {
               title: Text(FlutterI18n.translate(context, "ls_ota_not_supported_title")),
               subtitle: Text(FlutterI18n.translate(context, "ls_ota_not_supported_subtitle")),
             ),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: Text(FlutterI18n.translate(context, 'system_info_title')),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SystemInformationScreen())),
+          ),
           // After an app restart into a recovered session the versions were
           // never queried — hide the tiles instead of showing bogus warnings.
           if (_mdbVersion != null ||
