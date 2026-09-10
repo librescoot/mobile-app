@@ -480,6 +480,7 @@ void onStart(ServiceInstance service) async {
     }
   });
 
+  service.on("connect").listen((data) async => executeWidgetAction("connect"));
   service.on("lock").listen((data) async => executeWidgetAction("lock"));
   service.on("unlock").listen((data) async => executeWidgetAction("unlock"));
   service.on("openseat").listen((data) async => executeWidgetAction("openseat"));
