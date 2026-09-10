@@ -1,0 +1,32 @@
+Librescoot is an open-source companion app for the unu Scooter Pro. Connect directly over Bluetooth—no Librescoot account or subscription required.
+
+CONTROL YOUR SCOOTER
+• Wake, lock and unlock your scooter
+• Open the seatbox and control indicators
+• See connection, lock, seat and scooter status at a glance
+• Enable optional device authentication when opening the app
+• Enable optional proximity unlock and background reconnection
+
+BATTERIES AND RANGE
+• View charge levels for detected main batteries
+• Check battery cycle counts and internal battery status
+• See an estimated remaining range
+• Add home-screen widgets for scooter controls, status and range
+
+NAVIGATION
+• Search for destinations or share a place from a maps app
+• Save destinations for later
+• Send navigation destinations to compatible scooter firmware
+
+LIBRESCOOT FEATURES
+Scooters running compatible Librescoot firmware can also manage keycards, firmware updates, alarms, automatic standby and hibernation, scheduled hibernation, cellular APN, clock synchronization and USB update mode. Bluetooth firmware updates require Librescoot 1.2 or newer. On-scooter navigation requires compatible firmware plus installed map and routing data. The System information screen shows installed scooter firmware versions when available.
+
+PRIVATE BY DEFAULT
+The app contains no advertising or analytics and does not require an online account. Scooter data is normally kept on your phone. Online location services are optional and disabled by default. The complete privacy policy is available in the app and at librescoot.org.
+
+REQUIREMENTS
+A compatible unu Scooter Pro and Bluetooth are required for live vehicle features. Available controls depend on the scooter hardware and installed firmware. On Android 11 and earlier, Bluetooth discovery also requires location permission and enabled location services. Other location features, notifications, NFC functions and device authentication depend on your device and settings.
+
+Librescoot is community-developed free and open-source software. Source code, documentation and support are available from the app's Help screen. Librescoot is not affiliated with or endorsed by unu GmbH or its successors. The unu name identifies compatible hardware.
+
+For safety, park the scooter before changing settings or using the app. Only connect to a scooter you own or are authorized to operate.

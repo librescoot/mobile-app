@@ -1,0 +1,32 @@
+Librescoot is een opensource-app voor de unu Scooter Pro. Maak rechtstreeks verbinding via Bluetooth, zonder Librescoot-account of abonnement.
+
+BEDIEN JE SCOOTER
+• Wek, vergrendel en ontgrendel je scooter
+• Open het zadelvak en bedien de richtingaanwijzers
+• Bekijk de verbinding, het slot, het zadel en de scooterstatus in één oogopslag
+• Gebruik optioneel apparaatauthenticatie bij het openen van de app
+• Schakel desgewenst ontgrendeling bij nadering en verbinding op de achtergrond in
+
+ACCU'S EN BEREIK
+• Bekijk de laadstatus van gedetecteerde hoofdaccu's
+• Controleer laadcycli en de status van interne accu's
+• Bekijk een schatting van het resterende bereik
+• Voeg beginschermwidgets toe voor bediening, status en bereik
+
+NAVIGATIE
+• Zoek bestemmingen of deel een locatie vanuit een kaarten-app
+• Bewaar bestemmingen voor later
+• Stuur navigatiebestemmingen naar compatibele scooterfirmware
+
+LIBRESCOOT-FUNCTIES
+Met compatibele Librescoot-firmware kun je ook sleutelkaarten, firmware-updates, alarmen, automatische stand-by en slaapstand, geplande slaapstand, mobiele APN, kloksynchronisatie en USB-updatemodus beheren. Bluetooth-firmware-updates vereisen Librescoot 1.2 of nieuwer. Navigatie op de scooter vereist compatibele firmware en geïnstalleerde kaart- en routegegevens. Het scherm Systeeminformatie toont de geïnstalleerde firmwareversies van de scooter, voor zover ze kunnen worden uitgelezen.
+
+PRIVACY ALS STANDAARD
+De app bevat geen reclame of analytics en vereist geen onlineaccount. Scootergegevens blijven normaal gesproken op je telefoon. Online locatiediensten zijn optioneel en standaard uitgeschakeld. Het volledige privacybeleid is beschikbaar in de app en op librescoot.org.
+
+VEREISTEN
+Voor voertuigfuncties zijn een compatibele unu Scooter Pro en Bluetooth nodig. De beschikbare bediening hangt af van de scooterhardware en geïnstalleerde firmware. Op Android 11 en ouder zijn voor het zoeken naar Bluetooth-apparaten ook locatietoestemming en ingeschakelde locatiediensten nodig. Andere locatiefuncties, meldingen, NFC-functies en apparaatauthenticatie hangen af van je apparaat en instellingen.
+
+Librescoot is vrije en opensourcesoftware die door de community wordt ontwikkeld. Broncode, documentatie en ondersteuning zijn beschikbaar via het Help-scherm van de app. Librescoot is niet gelieerd aan of goedgekeurd door unu GmbH of haar opvolgers. De naam unu duidt compatibele hardware aan.
+
+Parkeer voor je veiligheid de scooter voordat je instellingen wijzigt of de app gebruikt. Maak alleen verbinding met een scooter die van jou is of die je mag bedienen.

@@ -1,0 +1,32 @@
+Librescoot ist eine quelloffene Begleit-App für den unu Scooter Pro. Die Verbindung erfolgt direkt über Bluetooth – ohne Librescoot-Konto oder Abonnement.
+
+DEINEN ROLLER STEUERN
+• Roller wecken, ver- und entriegeln
+• Sitzbank öffnen und Blinker steuern
+• Verbindung, Schloss, Sitzbank und Rollerstatus auf einen Blick sehen
+• Beim Öffnen der App optional die Geräteauthentifizierung nutzen
+• Optionale automatische Entriegelung bei Annäherung und Hintergrundverbindung
+
+AKKUS UND REICHWEITE
+• Ladestand der erkannten Hauptakkus anzeigen
+• Ladezyklen und Status der internen Akkus prüfen
+• Geschätzte Restreichweite anzeigen
+• Startbildschirm-Widgets für Bedienung, Status und Reichweite hinzufügen
+
+NAVIGATION
+• Ziele suchen oder einen Ort aus einer Karten-App teilen
+• Ziele für später speichern
+• Navigationsziele an kompatible Roller-Firmware senden
+
+LIBRESCOOT-FUNKTIONEN
+Mit kompatibler Librescoot-Firmware lassen sich außerdem Schlüsselkarten, Firmwareupdates, Alarm, automatischer Standby und Ruhezustand, geplanter Ruhezustand, Mobilfunk-APN, Uhrzeitsynchronisierung und USB-Updatemodus verwalten. Bluetooth-Firmwareupdates benötigen Librescoot 1.2 oder neuer. Die Navigation auf dem Roller benötigt kompatible Firmware sowie installierte Karten- und Routingdaten. Unter Systeminformationen werden die installierten Firmwareversionen des Rollers angezeigt, soweit sie ausgelesen werden können.
+
+DATENSCHUTZ ALS STANDARD
+Die App enthält weder Werbung noch Analysedienste und benötigt kein Onlinekonto. Rollerdaten bleiben normalerweise auf deinem Handy. Online-Standortdienste sind optional und standardmäßig ausgeschaltet. Die vollständige Datenschutzerklärung ist in der App und auf librescoot.org verfügbar.
+
+VORAUSSETZUNGEN
+Für Fahrzeugfunktionen werden ein kompatibler unu Scooter Pro und Bluetooth benötigt. Welche Bedienfunktionen verfügbar sind, hängt von Hardware und installierter Firmware ab. Unter Android 11 und älter benötigt die Bluetooth-Suche außerdem eine Standortberechtigung und aktivierte Standortdienste. Weitere Standortfunktionen, Benachrichtigungen, NFC-Funktionen und Geräteauthentifizierung hängen von deinem Gerät und deinen Einstellungen ab.
+
+Librescoot ist freie, quelloffene Software aus der Community. Quellcode, Dokumentation und Support sind über die Hilfe in der App erreichbar. Librescoot ist nicht mit unu GmbH oder deren Nachfolgern verbunden und wird von ihnen nicht unterstützt. Der Name unu bezeichnet die kompatible Hardware.
+
+Stelle den Roller aus Sicherheitsgründen ab, bevor du Einstellungen änderst oder die App bedienst. Verbinde dich nur mit einem Roller, der dir gehört oder den du bedienen darfst.

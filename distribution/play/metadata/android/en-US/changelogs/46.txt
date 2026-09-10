@@ -1,0 +1,6 @@
+First Google Play release of the Librescoot companion app.
+
+• Connect to and control compatible unu Scooter Pro scooters over Bluetooth
+• See battery, range, status and firmware information
+• Send destinations and use home-screen widgets
+• Manage Librescoot updates, keycards, alarms, power and connectivity settings

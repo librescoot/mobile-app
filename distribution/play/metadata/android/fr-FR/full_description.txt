@@ -1,0 +1,32 @@
+Librescoot est une application compagnon libre et open source pour le unu Scooter Pro. Connectez-vous directement en Bluetooth, sans compte Librescoot ni abonnement.
+
+CONTRÔLEZ VOTRE SCOOTER
+• Réveillez, verrouillez et déverrouillez le scooter
+• Ouvrez le coffre de selle et contrôlez les clignotants
+• Consultez d’un coup d’œil la connexion, le verrouillage, la selle et l’état du scooter
+• Activez une authentification facultative à l’ouverture de l’application
+• Activez, si vous le souhaitez, le déverrouillage à proximité et la reconnexion en arrière-plan
+
+BATTERIES ET AUTONOMIE
+• Consultez la charge des batteries principales détectées
+• Vérifiez les cycles et l’état des batteries internes
+• Obtenez une estimation de l’autonomie restante
+• Ajoutez des widgets d’écran d’accueil pour les commandes, l’état et l’autonomie
+
+NAVIGATION
+• Recherchez une destination ou partagez un lieu depuis une application de cartographie
+• Enregistrez des destinations pour plus tard
+• Envoyez une destination au micrologiciel compatible du scooter
+
+FONCTIONS LIBRESCOOT
+Avec un micrologiciel Librescoot compatible, gérez également les cartes-clés, mises à jour, alarmes, mise en veille et hibernation automatiques, hibernation programmée, APN mobile, synchronisation de l’horloge et mode de mise à jour USB. Les mises à jour Bluetooth nécessitent Librescoot 1.2 ou ultérieur. La navigation sur le scooter nécessite un micrologiciel compatible et les données de cartes et d’itinéraires installées. L’écran Informations système affiche les versions du micrologiciel installées sur le scooter lorsqu’elles peuvent être lues.
+
+CONFIDENTIALITÉ PAR DÉFAUT
+L’application ne contient ni publicité ni outil d’analyse et ne nécessite aucun compte en ligne. Les données du scooter restent normalement sur votre téléphone. Les services de localisation en ligne sont facultatifs et désactivés par défaut. La politique de confidentialité complète est disponible dans l’application et sur librescoot.org.
+
+CONDITIONS REQUISES
+Un unu Scooter Pro compatible et le Bluetooth sont nécessaires pour les fonctions liées au véhicule. Les commandes disponibles dépendent du matériel et du micrologiciel installés. Sous Android 11 et les versions antérieures, la recherche Bluetooth nécessite aussi l’autorisation de localisation et des services de localisation activés. Les autres fonctions de localisation, les notifications, les fonctions NFC et l’authentification dépendent de votre appareil et de vos réglages.
+
+Librescoot est un logiciel libre et open source développé par la communauté. Le code source, la documentation et l’assistance sont accessibles depuis l’écran Aide. Librescoot n’est ni affilié à unu GmbH ou à ses successeurs, ni approuvé par eux. Le nom unu désigne le matériel compatible.
+
+Pour votre sécurité, garez le scooter avant de modifier ses réglages ou d’utiliser l’application. Connectez-vous uniquement à un scooter qui vous appartient ou que vous êtes autorisé à utiliser.
