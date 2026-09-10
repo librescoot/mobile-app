@@ -792,6 +792,33 @@ class BatteryBars extends StatelessWidget {
   }
 }
 
+class HandlebarStatusLine extends StatelessWidget {
+  const HandlebarStatusLine({super.key, required this.locked});
+
+  final bool? locked;
+
+  @override
+  Widget build(BuildContext context) {
+    final lockedText = FlutterI18n.translate(context, "lock_state_locked");
+    final unlockedText = FlutterI18n.translate(context, "lock_state_unlocked");
+    final text = locked == null ? null : (locked! ? lockedText : unlockedText);
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        );
+    final slot = Stack(
+      key: const ValueKey("handlebar-status-slot"),
+      alignment: Alignment.center,
+      children: [
+        ExcludeSemantics(child: Opacity(opacity: 0, child: Text(lockedText, style: style, textAlign: TextAlign.center))),
+        ExcludeSemantics(child: Opacity(opacity: 0, child: Text(unlockedText, style: style, textAlign: TextAlign.center))),
+        if (text != null) Text(text, style: style, textAlign: TextAlign.center),
+      ],
+    );
+    if (text == null) return ExcludeSemantics(child: slot);
+    return Semantics(label: text, excludeSemantics: true, child: slot);
+  }
+}
+
 class StatusText extends StatelessWidget {
   const StatusText({super.key});
 
@@ -834,8 +861,7 @@ class StatusText extends StatelessWidget {
               data.state != null ? data.state!.name(context) : FlutterI18n.translate(context, "home_loading_state");
         }
 
-        final handlebarText =
-            data.connected && data.handlebarsLocked == false ? FlutterI18n.translate(context, "home_unlocked") : null;
+        final handlebarText = data.connected ? data.handlebarsLocked : null;
 
         final statusColor = data.connected
             ? Theme.of(context).colorScheme.primary
@@ -863,16 +889,8 @@ class StatusText extends StatelessWidget {
                 ),
               ],
             ),
-            if (handlebarText != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                handlebarText,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+            const SizedBox(height: 2),
+            HandlebarStatusLine(locked: handlebarText),
           ],
         );
       },

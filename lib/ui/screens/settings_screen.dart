@@ -20,9 +20,13 @@ import 'package:unustasis/domain/alarm_status.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
 import 'package:unustasis/domain/scooter_keyless_distance.dart';
 import 'package:unustasis/ui/widgets/header.dart';
+import 'package:unustasis/ui/widgets/settings_help_row_theme.dart';
+import 'package:unustasis/ui/widgets/settings_dropdown_tile.dart';
+import 'package:unustasis/ui/presentation/settings_duration.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
+import 'package:unustasis/ui/screens/system_information_screen.dart';
 import 'package:unustasis/ui/screens/ls_scheduled_hibernation_screen.dart';
 import 'package:scooter_core/actions.dart';
 import 'package:unustasis/state/vehicle_status.dart';
@@ -44,7 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   ScooterKeylessDistance autoUnlockDistance = ScooterKeylessDistance.regular;
   bool openSeatOnUnlock = false;
   bool hazardLocking = false;
-  bool osmConsent = true;
+  bool osmConsent = false;
   bool _lsDataLoadStarted = false;
   bool _isSendingAutoLock = false;
   int? _autoLockDuration;
@@ -75,7 +79,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ScooterKeylessDistance.fromThreshold(service.autoUnlockThreshold);
     bool initialOpenSeatOnUnlock = service.openSeatOnUnlock;
     bool initialHazardLocking = service.hazardLocking;
-    bool initialOsmConsent = await prefs.getBool("osmConsent") ?? true;
+    bool initialOsmConsent = await prefs.getBool("osmConsent") ?? false;
     bool initialSeasonal = await prefs.getBool("seasonal") ?? true;
 
     setState(() {
@@ -544,115 +548,99 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool supportsBatteryKeepActive,
   }) =>
       [
-        ListTile(
+        SettingsDropdownTile<int>(
           leading: const Icon(Icons.hourglass_bottom_rounded),
           title: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_title")),
           subtitle: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_subtitle")),
-          trailing: SizedBox(
-            width: 128,
-            child: DropdownButton<int>(
-              isExpanded: true,
-              menuWidth: 144,
-              value: _autoLockDuration,
-              hint: _timerDurationsLoaded
-                  ? Text(FlutterI18n.translate(context, "ls_settings_duration_hint"))
-                  : _timerLoadingIndicator(),
-              items: [
-                DropdownMenuItem(value: 0, child: Text(FlutterI18n.translate(context, "ls_settings_duration_never"))),
-                DropdownMenuItem(value: 180, child: Text(FlutterI18n.translate(context, "ls_settings_duration_3_min"))),
-                DropdownMenuItem(value: 300, child: Text(FlutterI18n.translate(context, "ls_settings_duration_5_min"))),
-                DropdownMenuItem(
-                    value: 600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_10_min"))),
-                DropdownMenuItem(
-                    value: 900, child: Text(FlutterI18n.translate(context, "ls_settings_duration_15_min"))),
-              ],
-              onChanged: !_timerDurationsLoaded || _isSendingAutoLock
-                  ? null
-                  : (value) async {
-                      if (value == null) return;
-                      setState(() => _isSendingAutoLock = true);
-                      try {
-                        await context.read<ScooterService>().actions.setAutoStandbyTime(Duration(seconds: value),
+          value: _autoLockDuration,
+          unlistedValueLabel: Text(formatSettingsDuration(context, _autoLockDuration ?? 0)),
+          hint: _timerDurationsLoaded
+              ? Text(FlutterI18n.translate(context, "ls_settings_duration_hint"))
+              : _timerLoadingIndicator(),
+          items: [
+            DropdownMenuItem(value: 0, child: Text(FlutterI18n.translate(context, "ls_settings_duration_never"))),
+            DropdownMenuItem(value: 180, child: Text(FlutterI18n.translate(context, "ls_settings_duration_3_min"))),
+            DropdownMenuItem(value: 300, child: Text(FlutterI18n.translate(context, "ls_settings_duration_5_min"))),
+            DropdownMenuItem(value: 600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_10_min"))),
+            DropdownMenuItem(value: 900, child: Text(FlutterI18n.translate(context, "ls_settings_duration_15_min"))),
+          ],
+          onChanged: !_timerDurationsLoaded || _isSendingAutoLock
+              ? null
+              : (value) async {
+                  if (value == null) return;
+                  setState(() => _isSendingAutoLock = true);
+                  try {
+                    await context.read<ScooterService>().actions.setAutoStandbyTime(
+                          Duration(seconds: value),
                         );
-                        if (!mounted) return;
-                        setState(() => _autoLockDuration = value);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_success"))),
-                        );
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text(FlutterI18n.translate(
-                              context,
-                              "ls_settings_auto_lock_error",
-                              translationParams: {"error": e.toString()},
-                            ))),
-                          );
-                        }
-                      } finally {
-                        if (mounted) setState(() => _isSendingAutoLock = false);
-                      }
-                    },
-            ),
-          ),
+                    if (!mounted) return;
+                    setState(() => _autoLockDuration = value);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_success"))),
+                    );
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content: Text(FlutterI18n.translate(
+                          context,
+                          "ls_settings_auto_lock_error",
+                          translationParams: {"error": e.toString()},
+                        ))),
+                      );
+                    }
+                  } finally {
+                    if (mounted) setState(() => _isSendingAutoLock = false);
+                  }
+                },
         ),
-        ListTile(
+        SettingsDropdownTile<int>(
           leading: const Icon(Icons.bedtime_outlined),
           title: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_title")),
           subtitle: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_subtitle")),
-          trailing: SizedBox(
-            width: 128,
-            child: DropdownButton<int>(
-              isExpanded: true,
-              menuWidth: 144,
-              value: _autoHibernateDuration,
-              hint: _timerDurationsLoaded
-                  ? Text(FlutterI18n.translate(context, "ls_settings_duration_hint"))
-                  : _timerLoadingIndicator(),
-              items: [
-                DropdownMenuItem(value: 0, child: Text(FlutterI18n.translate(context, "ls_settings_duration_never"))),
-                DropdownMenuItem(
-                    value: 3600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_1_hour"))),
-                DropdownMenuItem(
-                    value: 86400, child: Text(FlutterI18n.translate(context, "ls_settings_duration_1_day"))),
-                DropdownMenuItem(
-                    value: 259200, child: Text(FlutterI18n.translate(context, "ls_settings_duration_3_days"))),
-                DropdownMenuItem(
-                    value: 604800, child: Text(FlutterI18n.translate(context, "ls_settings_duration_7_days"))),
-                DropdownMenuItem(
-                    value: 1209600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_14_days"))),
-              ],
-              onChanged: !_timerDurationsLoaded || _isSendingAutoHibernate
-                  ? null
-                  : (value) async {
-                      if (value == null) return;
-                      setState(() => _isSendingAutoHibernate = true);
-                      try {
-                        await context.read<ScooterService>().actions.setAutoHibernateTime(Duration(seconds: value),
+          value: _autoHibernateDuration,
+          unlistedValueLabel: Text(formatSettingsDuration(context, _autoHibernateDuration ?? 0)),
+          hint: _timerDurationsLoaded
+              ? Text(FlutterI18n.translate(context, "ls_settings_duration_hint"))
+              : _timerLoadingIndicator(),
+          items: [
+            DropdownMenuItem(value: 0, child: Text(FlutterI18n.translate(context, "ls_settings_duration_never"))),
+            DropdownMenuItem(value: 3600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_1_hour"))),
+            DropdownMenuItem(value: 86400, child: Text(FlutterI18n.translate(context, "ls_settings_duration_1_day"))),
+            DropdownMenuItem(value: 259200, child: Text(FlutterI18n.translate(context, "ls_settings_duration_3_days"))),
+            DropdownMenuItem(value: 604800, child: Text(FlutterI18n.translate(context, "ls_settings_duration_7_days"))),
+            DropdownMenuItem(
+                value: 1209600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_14_days"))),
+          ],
+          onChanged: !_timerDurationsLoaded || _isSendingAutoHibernate
+              ? null
+              : (value) async {
+                  if (value == null) return;
+                  setState(() => _isSendingAutoHibernate = true);
+                  try {
+                    await context.read<ScooterService>().actions.setAutoHibernateTime(
+                          Duration(seconds: value),
                         );
-                        if (!mounted) return;
-                        setState(() => _autoHibernateDuration = value);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_success"))),
-                        );
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text(FlutterI18n.translate(
-                              context,
-                              "ls_settings_auto_hibernate_error",
-                              translationParams: {"error": e.toString()},
-                            ))),
-                          );
-                        }
-                      } finally {
-                        if (mounted) setState(() => _isSendingAutoHibernate = false);
-                      }
-                    },
-            ),
-          ),
+                    if (!mounted) return;
+                    setState(() => _autoHibernateDuration = value);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_success"))),
+                    );
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content: Text(FlutterI18n.translate(
+                          context,
+                          "ls_settings_auto_hibernate_error",
+                          translationParams: {"error": e.toString()},
+                        ))),
+                      );
+                    }
+                  } finally {
+                    if (mounted) setState(() => _isSendingAutoHibernate = false);
+                  }
+                },
         ),
         if (!_scooterConnected || supportsScheduledHibernation)
           ListTile(
@@ -826,7 +814,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       [
         Header(
           FlutterI18n.translate(context, "settings_section_access_parking"),
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
         ),
         SwitchListTile(
           secondary: const Icon(Icons.lock_open),
@@ -1215,6 +1203,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             });
           },
         ),
+        ListTile(
+          leading: const Icon(Icons.privacy_tip_outlined),
+          title: Text(FlutterI18n.translate(context, "settings_privacy_policy")),
+          trailing: const Icon(Icons.open_in_new),
+          onTap: () {
+            final languageCode = FlutterI18n.currentLocale(context)?.languageCode ?? "en";
+            final path = languageCode == "de" ? "/privacy/mobile-app/" : "/en/privacy/mobile-app/";
+            launchUrl(
+              Uri.parse("https://librescoot.org$path"),
+              mode: LaunchMode.externalApplication,
+            );
+          },
+        ),
         if (DateTime.now().month == 12 ||
             DateTime.now().month == 4 ||
             DateTime.now().month == 10) // All seasonal months
@@ -1288,18 +1289,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(
         title: Text(FlutterI18n.translate(context, 'stats_title_settings')),
       ),
-      body: SafeArea(
-        child: ListView.separated(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shrinkWrap: true,
-          itemCount: items.length,
-          separatorBuilder: (context, index) => Divider(
-            indent: 16,
-            endIndent: 16,
-            height: 24,
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+      body: SettingsHelpRowTheme(
+        child: SafeArea(
+          child: ListView.separated(
+            padding: const EdgeInsets.only(bottom: 24),
+            shrinkWrap: true,
+            itemCount: items.length,
+            separatorBuilder: (context, index) => items[index] is Header || items[index + 1] is Header
+                ? const SizedBox.shrink()
+                : Divider(
+                    indent: 16,
+                    endIndent: 16,
+                    height: 24,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+                  ),
+            itemBuilder: (context, index) => items[index],
           ),
-          itemBuilder: (context, index) => items[index],
         ),
       ),
     );

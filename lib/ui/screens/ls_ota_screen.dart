@@ -8,6 +8,7 @@ import 'package:unustasis/domain/ota_protocol.dart';
 import 'package:unustasis/domain/update_planner.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/service/ota_transfer_service.dart';
+import 'package:unustasis/ui/screens/system_information_screen.dart';
 
 import 'package:scooter_flutter/update_controller.dart';
 
@@ -432,7 +433,7 @@ class _LsOtaScreenState extends State<LsOtaScreen> {
             leading: const Icon(Icons.info_outline),
             title: Text(FlutterI18n.translate(context, 'system_info_title')),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SystemInformationScreen())),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SystemInformationScreen())),
           ),
           // After an app restart into a recovered session the versions were
           // never queried — hide the tiles instead of showing bogus warnings.

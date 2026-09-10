@@ -62,7 +62,7 @@ Future<void> _mount(WidgetTester tester, _Service service) async {
 void main() {
   test('System information follows all scooter service options before app settings', () {
     final source = File('lib/ui/screens/settings_screen.dart').readAsStringSync();
-    final serviceItems = source.indexOf('..._librescootUpdateSettingsItems(');
+    final serviceItems = source.indexOf('_librescootUpdateSettingsItems(');
     final information = source.indexOf("title: Text(FlutterI18n.translate(context, 'system_info_title'))");
     final appSection = source.indexOf('Header(FlutterI18n.translate(context, "stats_settings_section_app"))');
     expect(serviceItems, greaterThanOrEqualTo(0));

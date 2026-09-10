@@ -82,6 +82,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final _actionWarnings = StreamController<HandlebarWarning>.broadcast(sync: true);
   Stream<HandlebarWarning> get actionWarnings => _actionWarnings.stream;
   bool get autoUnlockCoolingDown => actions.coolingDown;
+  Future<Map<String, String?>> readInstalledVersions() => actions.readInstalledVersions();
 
   late ActionPollingTimer rssiTimer;
   late bool isInBackgroundService;
