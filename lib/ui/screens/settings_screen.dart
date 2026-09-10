@@ -1171,10 +1171,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           leading: const Icon(Icons.privacy_tip_outlined),
           title: Text(FlutterI18n.translate(context, "settings_privacy_policy")),
           trailing: const Icon(Icons.open_in_new),
-          onTap: () => launchUrl(
-            Uri.parse("https://librescoot.org/privacy/mobile-app/"),
-            mode: LaunchMode.externalApplication,
-          ),
+          onTap: () {
+            final languageCode = FlutterI18n.currentLocale(context)?.languageCode ?? "en";
+            final path = languageCode == "de" ? "/privacy/mobile-app/" : "/en/privacy/mobile-app/";
+            launchUrl(
+              Uri.parse("https://librescoot.org$path"),
+              mode: LaunchMode.externalApplication,
+            );
+          },
         ),
         if (DateTime.now().month == 12 ||
             DateTime.now().month == 4 ||

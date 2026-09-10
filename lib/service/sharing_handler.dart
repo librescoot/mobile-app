@@ -5,6 +5,7 @@ import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:logging/logging.dart';
 import 'package:flutter_sharing_intent/flutter_sharing_intent.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_sharing_intent/model/sharing_file.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -114,7 +115,12 @@ class SharingHandler with WidgetsBindingObserver {
         return;
       }
 
-      final parsed = await LocationUrlParser.parse(sharedText);
+      final prefs = SharedPreferencesAsync();
+      final allowOnlineGeocoding = await prefs.getBool("osmConsent") == true;
+      final parsed = await LocationUrlParser.parse(
+        sharedText,
+        allowOnlineGeocoding: allowOnlineGeocoding,
+      );
 
       if (parsed != null) {
         // Sanitize the name (replace umlauts/accents, strip non-ASCII).

@@ -253,7 +253,7 @@
     "settings_app_version": "Version de l'application",
     "settings_privacy_policy": "Politique de confidentialité",
     "settings_osm_consent": "Services de localisation en ligne",
-    "settings_osm_consent_description": "Envoie la position du scooter aux services Nominatim d’OpenStreetMap et Photon de Komoot pour afficher des adresses et rechercher des destinations.",
+    "settings_osm_consent_description": "Envoie la position du scooter ou du téléphone et les recherches de destinations aux services Nominatim d’OpenStreetMap et Photon de Komoot pour trouver des adresses et des lieux.",
     "settings_seasonal": "Effets saisonniers",
     "settings_seasonal_description": "Affiche les effets visuels saisonniers disponibles. Les modifications s'appliquent après le redémarrage de l'application.",
     "stats_last_ping_title": "Dernière connexion",

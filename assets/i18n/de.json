@@ -253,7 +253,7 @@
     "settings_app_version": "App Version",
     "settings_privacy_policy": "Datenschutzerklärung",
     "settings_osm_consent": "Online-Standortdienste",
-    "settings_osm_consent_description": "Sendet Rollerstandorte an OpenStreetMaps Nominatim- und Komoots Photon-Dienste, um Adressen anzuzeigen und Ziele zu suchen.",
+    "settings_osm_consent_description": "Sendet Roller- oder Handystandorte und Zielsuchen an Nominatim von OpenStreetMap und Photon von Komoot, um Adressen und Orte zu finden.",
     "settings_seasonal": "Saisonale Effekte",
     "settings_seasonal_description": "Zeigt verfügbare saisonale Effekte. Änderungen gelten nach einem Neustart der App.",
     "stats_last_ping_title": "Zuletzt gesehen",

@@ -8,6 +8,10 @@ import 'package:scooter_flutter/update_controller.dart';
 class AppUpdateReleaseProvider implements UpdateReleaseProvider {
   static const releasesBase = 'https://downloads.librescoot.org/releases';
 
+  final http.Client Function() _clientFactory;
+
+  AppUpdateReleaseProvider({http.Client Function()? clientFactory}) : _clientFactory = clientFactory ?? http.Client.new;
+
   @override
   Future<List<FirmwareRelease>> fetchIndex(String channel) async {
     final response = await http.get(Uri.parse('$releasesBase/$channel.json')).timeout(const Duration(seconds: 15));
@@ -22,16 +26,43 @@ class AppUpdateReleaseProvider implements UpdateReleaseProvider {
 
   @override
   Future<UpdateBundleDownload> fetchBundle(FirmwareAsset asset) async {
-    final client = http.Client();
+    final uri = Uri.parse(asset.url);
+    if (uri.scheme.toLowerCase() != 'https') {
+      throw ArgumentError.value(asset.url, 'asset.url', 'HTTPS is required');
+    }
+
+    final client = _clientFactory();
     try {
-      final response = await client.send(http.Request('GET', Uri.parse(asset.url)));
-      if (response.statusCode != 200) {
-        throw UpdateHttpError(response.statusCode, index: false);
+      var currentUri = uri;
+      for (var redirectCount = 0; redirectCount <= 5; redirectCount++) {
+        final request = http.Request('GET', currentUri)..followRedirects = false;
+        final response = await client.send(request);
+        final location = response.headers['location'];
+        if (_isRedirectStatus(response.statusCode) && location != null) {
+          await response.stream.drain<void>();
+          final nextUri = currentUri.resolve(location);
+          if (nextUri.scheme.toLowerCase() != 'https') {
+            throw StateError('Firmware download redirected to a non-HTTPS URL');
+          }
+          currentUri = nextUri;
+          continue;
+        }
+        if (response.statusCode != 200) {
+          throw UpdateHttpError(response.statusCode, index: false);
+        }
+        return UpdateBundleDownload(
+          bytes: response.stream,
+          length: response.contentLength,
+          close: client.close,
+        );
       }
-      return UpdateBundleDownload(bytes: response.stream, length: response.contentLength, close: client.close);
+      throw StateError('Too many firmware download redirects');
     } catch (_) {
       client.close();
       rethrow;
     }
   }
+
+  bool _isRedirectStatus(int statusCode) =>
+      statusCode == 301 || statusCode == 302 || statusCode == 303 || statusCode == 307 || statusCode == 308;
 }

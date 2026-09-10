@@ -253,7 +253,7 @@
     "settings_app_version": "App version",
     "settings_privacy_policy": "Privacy policy",
     "settings_osm_consent": "Online location services",
-    "settings_osm_consent_description": "Send scooter locations to OpenStreetMap's Nominatim and Komoot's Photon services to show addresses and search destinations.",
+    "settings_osm_consent_description": "Send scooter or phone locations and destination searches to OpenStreetMap's Nominatim and Komoot's Photon services to look up addresses and places.",
     "settings_seasonal": "Seasonal effects",
     "settings_seasonal_description": "Show seasonal visual effects when available. Changes apply after restarting the app.",
     "stats_last_ping_title": "Last seen",
