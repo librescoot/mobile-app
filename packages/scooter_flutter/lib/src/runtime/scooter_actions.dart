@@ -164,6 +164,7 @@ class ScooterActions {
       !_disposed &&
       !t.expired &&
       identical(_connection, t.connection) &&
+      identical(_repository, t.repository) &&
       t.connection.isCurrent &&
       (t.deadline == null || _now() < t.deadline!);
   void _check(_Target t) {
@@ -234,11 +235,20 @@ class ScooterActions {
 
   Future<void> lock(
       {bool checkHandlebars = true,
+      bool confirmOpenSeat = false,
       EventSource source = EventSource.app}) async =>
-      _lock(_capture(), checkHandlebars, source);
-  Future<void> _lock(_Target t, bool checkHandlebars, EventSource source) async {
-    await _ack(t, EventType.lock, source,
+      _lock(_capture(), checkHandlebars, source, confirmOpenSeat: confirmOpenSeat);
+  Future<void> _lock(_Target t, bool checkHandlebars, EventSource source,
+      {bool confirmOpenSeat = false}) async {
+    // Explicit open-seat intent is two sequential ordinary writes, not a retry.
+    // Both use the same captured connection/repository; any failure stops here.
+    await _command(t,
         (d, r, c) => commands.lockScooter(d, r, isCurrent: c, onWriteIssued: t.onWriteIssued));
+    if (confirmOpenSeat) {
+      await _command(t,
+          (d, r, c) => commands.lockScooter(d, r, isCurrent: c, onWriteIssued: t.onWriteIssued));
+    }
+    effects.acknowledged(t.event(EventType.lock, source));
     _check(t);
     if (t.settings.hazardLocking) {
       _background(() async {
@@ -338,7 +348,6 @@ class ScooterActions {
       _capture(),
       (d, r, c) => transport.sendLsExtendedCommand(d, r, clockPayload(time),
           isCurrent: c));
-
   /// Read-only diagnostic snapshot. Every query uses one captured session;
   /// replacement or disconnect discards the whole result, without retrying.
   Future<Map<String, String?>> readInstalledVersions() async {
@@ -352,6 +361,7 @@ class ScooterActions {
       }
     }
     _check(target);
+    // The existing session-owned Device Info subscription already reads nRF.
     versions['nrf'] = telemetry.identity.nrfVersion;
     return Map.unmodifiable(versions);
   }
