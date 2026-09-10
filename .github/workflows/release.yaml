@@ -232,7 +232,7 @@ jobs:
     needs: [meta, android, ios]
     # iOS is allowed to fail without sinking the Android release, since the
     # UIScene migration is not merged yet and iOS may not build cleanly.
-    if: always() && needs.android.result == 'success'
+    if: github.event_name == 'push' && always() && needs.android.result == 'success'
     steps:
       - uses: actions/checkout@v4
 
