@@ -4,11 +4,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:home_widget/home_widget.dart';
-import 'package:http/http.dart';
 import 'package:logging/logging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../../service/secure_http.dart';
 
 // Shows the Android home widget onboarding dialog if not shown before
 // Currently not used, but can be used for future onboarding related to the widget or other features
@@ -59,7 +60,9 @@ Future<void> showServerNotifications(BuildContext context) async {
   // get the notifications json from https://reunu.github.io/unustasis/notifications.json
   List<dynamic> notifications;
   try {
-    final response = await get(Uri.parse("https://reunu.github.io/unustasis/notifications.json"));
+    final response = await httpsGet(
+      Uri.parse("https://reunu.github.io/unustasis/notifications.json"),
+    );
     if (response.statusCode != 200) {
       log.warning("Failed to fetch notifications: ${response.statusCode}");
       return;

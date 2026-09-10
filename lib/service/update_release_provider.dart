@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:scooter_core/update_planner.dart';
 import 'package:scooter_flutter/update_controller.dart';
 
+import 'secure_http.dart';
+
 /// Librescoot distribution policy. Asset URLs remain those supplied by its
 /// release index (not rewritten to a different host or channel).
 class AppUpdateReleaseProvider implements UpdateReleaseProvider {
@@ -14,7 +16,9 @@ class AppUpdateReleaseProvider implements UpdateReleaseProvider {
 
   @override
   Future<List<FirmwareRelease>> fetchIndex(String channel) async {
-    final response = await http.get(Uri.parse('$releasesBase/$channel.json')).timeout(const Duration(seconds: 15));
+    final response = await httpsGet(
+      Uri.parse('$releasesBase/$channel.json'),
+    ).timeout(const Duration(seconds: 15));
     if (response.statusCode != 200) {
       throw UpdateHttpError(response.statusCode, index: true);
     }

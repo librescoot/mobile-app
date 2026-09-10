@@ -4,7 +4,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:logging/logging.dart';
 import 'package:maps_launcher/maps_launcher.dart';
@@ -15,6 +14,7 @@ import 'package:unustasis/domain/nav_destination.dart';
 import 'package:unustasis/ui/widgets/header.dart';
 import 'package:unustasis/ui/widgets/settings_help_row_theme.dart';
 import 'package:unustasis/ui/screens/navigation_screen.dart';
+import 'package:unustasis/service/secure_http.dart';
 
 const _handbookUrl = 'https://librescoot.org/handbook/';
 const _troubleshootingUrl = 'https://librescoot.org/handbook/troubleshooting.html';
@@ -333,9 +333,9 @@ class _GarageWidgetState extends State<GarageWidget> {
   Future<List<Garage>>? _garages;
 
   Future<List<Garage>> _getGarages() async {
-    final response = await http
-        .get(Uri.parse('https://reunu.github.io/unustasis-data/garages_overrides.json'))
-        .timeout(const Duration(seconds: 12));
+    final response = await httpsGet(
+      Uri.parse('https://reunu.github.io/unustasis-data/garages_overrides.json'),
+    ).timeout(const Duration(seconds: 12));
     if (response.statusCode != 200) {
       Logger('GarageWidget').severe('Failed to load community garages', response.toString());
       throw Exception('Failed to load community garages');
