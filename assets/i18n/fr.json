@@ -627,5 +627,13 @@
     "home_hold_to_unlock": "Maintenir pour déverrouiller",
   "home_lock_request_sent": "Demandes de verrouillage envoyées. Vérifiez l’état du scooter.",
   "home_lock_request_incomplete": "Envoi des demandes incomplet. La première demande peut déjà avoir déclenché l’attente ou l’arrêt. Vérifiez le scooter ; aucune demande n’a été renvoyée.",
-  "handlebar_lock_waiting": "Tournez le guidon complètement à gauche pendant l’arrêt du scooter. Le verrouillage de direction dispose d’un délai limité ; inutile d’éteindre puis de rallumer le scooter. Vérifiez le verrouillage sur le scooter."
+  "handlebar_lock_waiting": "Tournez le guidon complètement à gauche pendant l’arrêt du scooter. Le verrouillage de direction dispose d’un délai limité ; inutile d’éteindre puis de rallumer le scooter. Vérifiez le verrouillage sur le scooter.",
+  "settings_duration_day_one": "{count} jour",
+  "settings_duration_day_many": "{count} jours",
+  "settings_duration_hour_one": "{count} heure",
+  "settings_duration_hour_many": "{count} heures",
+  "settings_duration_minute_one": "{count} minute",
+  "settings_duration_minute_many": "{count} minutes",
+  "settings_duration_second_one": "{count} seconde",
+  "settings_duration_second_many": "{count} secondes"
 }

@@ -627,5 +627,13 @@
     "home_hold_to_unlock": "Houd vast om te ontgrendelen",
   "home_lock_request_sent": "Vergrendelverzoeken verstuurd. Controleer de status van de scooter.",
   "home_lock_request_incomplete": "Vergrendelverzoeken niet volledig verstuurd. Het eerste verzoek kan het wachten of uitschakelen al gestart hebben. Controleer de scooter; er is niets opnieuw verstuurd.",
-  "handlebar_lock_waiting": "Draai het stuur helemaal naar links terwijl de scooter uitschakelt. Het stuurslot heeft een beperkte tijd om te vergrendelen; uit- en weer inschakelen is niet nodig. Controleer het slot op de scooter."
+  "handlebar_lock_waiting": "Draai het stuur helemaal naar links terwijl de scooter uitschakelt. Het stuurslot heeft een beperkte tijd om te vergrendelen; uit- en weer inschakelen is niet nodig. Controleer het slot op de scooter.",
+  "settings_duration_day_one": "{count} dag",
+  "settings_duration_day_many": "{count} dagen",
+  "settings_duration_hour_one": "{count} uur",
+  "settings_duration_hour_many": "{count} uur",
+  "settings_duration_minute_one": "{count} minuut",
+  "settings_duration_minute_many": "{count} minuten",
+  "settings_duration_second_one": "{count} seconde",
+  "settings_duration_second_many": "{count} seconden"
 }

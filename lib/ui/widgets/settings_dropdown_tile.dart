@@ -11,6 +11,7 @@ class SettingsDropdownTile<T> extends StatelessWidget {
     required this.hint,
     required this.items,
     required this.onChanged,
+    this.unlistedValueLabel,
     super.key,
   });
 
@@ -21,6 +22,7 @@ class SettingsDropdownTile<T> extends StatelessWidget {
   final Widget hint;
   final List<DropdownMenuItem<T>> items;
   final ValueChanged<T?>? onChanged;
+  final Widget? unlistedValueLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +34,19 @@ class SettingsDropdownTile<T> extends StatelessWidget {
       final textInset = rowTheme.minLeadingWidth! + rowTheme.horizontalTitleGap!;
       final rowWidth = constraints.maxWidth - padding.horizontal;
       final trailingWidth = rowWidth * 0.32;
-      final label = value == null ? hint : items.firstWhere((item) => item.value == value).child;
+      // Firmware settings need not match this app's shortcut presets. Retain
+      // the reported value as an additional option, without writing a default.
+      var menuItems = items;
+      Widget label = hint;
+      if (value != null) {
+        final selected = items.indexWhere((item) => item.value == value);
+        if (selected >= 0) {
+          label = items[selected].child;
+        } else {
+          label = unlistedValueLabel ?? Text('$value');
+          menuItems = [...items, DropdownMenuItem<T>(value: value, child: label)];
+        }
+      }
       // ListTile caps trailing height at 56dp. Measure the actual scaled label
       // so a narrow display or translation can grow below the description.
       var labelStyle = theme.textTheme.titleMedium;
@@ -52,14 +66,14 @@ class SettingsDropdownTile<T> extends StatelessWidget {
             child: DropdownButton<T>(
               value: value,
               hint: value == null ? hint : null,
-              items: items,
+              items: menuItems,
               onChanged: onChanged,
               isExpanded: true,
               itemHeight: null,
               menuWidth: 144,
               // Offstage options must not make the closed selector wider/taller.
               selectedItemBuilder: (context) => [
-                for (final item in items)
+                for (final item in menuItems)
                   if (item.value == value)
                     ConstrainedBox(
                       constraints: const BoxConstraints(minHeight: kMinInteractiveDimension),

@@ -22,6 +22,7 @@ import 'package:unustasis/domain/scooter_keyless_distance.dart';
 import 'package:unustasis/ui/widgets/header.dart';
 import 'package:unustasis/ui/widgets/settings_help_row_theme.dart';
 import 'package:unustasis/ui/widgets/settings_dropdown_tile.dart';
+import 'package:unustasis/ui/presentation/settings_duration.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
@@ -519,6 +520,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_title")),
           subtitle: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_subtitle")),
           value: _autoLockDuration,
+          unlistedValueLabel: Text(formatSettingsDuration(context, _autoLockDuration ?? 0)),
           hint: _timerDurationsLoaded
               ? Text(FlutterI18n.translate(context, "ls_settings_duration_hint"))
               : _timerLoadingIndicator(),
@@ -565,6 +567,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_title")),
           subtitle: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_subtitle")),
           value: _autoHibernateDuration,
+          unlistedValueLabel: Text(formatSettingsDuration(context, _autoHibernateDuration ?? 0)),
           hint: _timerDurationsLoaded
               ? Text(FlutterI18n.translate(context, "ls_settings_duration_hint"))
               : _timerLoadingIndicator(),

@@ -627,5 +627,13 @@
     "home_hold_to_unlock": "Zum Entriegeln halten",
   "home_lock_request_sent": "Sperranfragen gesendet. Prüfe den Status des Rollers.",
   "home_lock_request_incomplete": "Sperranfragen nicht vollständig gesendet. Die erste Anfrage kann bereits das Warten oder Herunterfahren gestartet haben. Prüfe den Roller; keine Anfrage wurde wiederholt.",
-  "handlebar_lock_waiting": "Drehe den Lenker ganz nach links, während der Roller herunterfährt. Das Lenkschloss hat nur ein begrenztes Zeitfenster zum Einrasten; du musst den Roller nicht aus- und wieder einschalten. Prüfe den Schlossstatus am Roller."
+  "handlebar_lock_waiting": "Drehe den Lenker ganz nach links, während der Roller herunterfährt. Das Lenkschloss hat nur ein begrenztes Zeitfenster zum Einrasten; du musst den Roller nicht aus- und wieder einschalten. Prüfe den Schlossstatus am Roller.",
+  "settings_duration_day_one": "{count} Tag",
+  "settings_duration_day_many": "{count} Tage",
+  "settings_duration_hour_one": "{count} Stunde",
+  "settings_duration_hour_many": "{count} Stunden",
+  "settings_duration_minute_one": "{count} Minute",
+  "settings_duration_minute_many": "{count} Minuten",
+  "settings_duration_second_one": "{count} Sekunde",
+  "settings_duration_second_many": "{count} Sekunden"
 }

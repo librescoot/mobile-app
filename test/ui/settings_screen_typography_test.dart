@@ -13,6 +13,7 @@ import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/state/scooter_identity.dart';
 import 'package:unustasis/state/vehicle_status.dart';
 import 'package:unustasis/ui/screens/settings_screen.dart';
+import 'package:unustasis/ui/presentation/settings_duration.dart';
 import 'package:unustasis/ui/widgets/header.dart';
 import 'package:unustasis/ui/widgets/settings_dropdown_tile.dart';
 
@@ -30,6 +31,7 @@ final class _Preferences extends SharedPreferencesAsyncPlatform {
 
 class _Actions implements ScooterActions {
   final reads = <String>[];
+  final settingValues = <String, String>{};
   final standbyWrites = <Duration>[];
   final hibernateWrites = <Duration>[];
   Completer<void>? readGate;
@@ -40,7 +42,7 @@ class _Actions implements ScooterActions {
   Future<String?> getSetting(String key) async {
     reads.add(key);
     await readGate?.future;
-    return '0';
+    return settingValues[key] ?? '0';
   }
 
   @override
@@ -164,6 +166,39 @@ void main() {
     expect(service.actions.reads, [lsKeyAutoStandbySeconds, lsKeyHibernateTimer]);
     semantics.dispose();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('opening and scrolling Settings tolerates non-preset scooter timers without writing', (tester) async {
+    final service = _Service();
+    service.actions.settingValues.addAll({lsKeyAutoStandbySeconds: '900', lsKeyHibernateTimer: '432000'});
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    for (final index in [0, 1]) {
+      await _show(tester, _timer(index));
+      expect(tester.takeException(), isNull);
+    }
+    final hibernation = tester.widget<DropdownButton<int>>(_button(_timer(1)));
+    expect(hibernation.value, 432000);
+    final custom = hibernation.items!.singleWhere((item) => item.value == 432000);
+    expect((custom.child as Text).data, '5 days');
+    expect(custom.enabled, isTrue);
+    expect(service.actions.standbyWrites, isEmpty);
+    expect(service.actions.hibernateWrites, isEmpty);
+  });
+
+  testWidgets('custom durations preserve mixed-unit seconds and localize the current value', (tester) async {
+    final service = _Service();
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    final context = tester.element(find.byType(SettingsScreen));
+    expect(formatSettingsDuration(context, 125), '2 minutes 5 seconds');
+    expect(formatSettingsDuration(context, 90061), '1 day 1 hour 1 minute 1 second');
+    expect(formatSettingsDuration(context, 0), 'Never');
+    await tester.pumpWidget(_screen(service, locale: 'de'));
+    await tester.pumpAndSettle();
+    expect(formatSettingsDuration(tester.element(find.byType(SettingsScreen)), 432000), '5 Tage');
   });
 
   testWidgets('actual timers retain options, immediate writes, loading and in-flight disabled states', (tester) async {

@@ -628,5 +628,13 @@
     "home_hold_to_unlock": "Hold to unlock",
   "home_lock_request_sent": "Lock requests sent. Check the scooter’s status.",
   "home_lock_request_incomplete": "Lock request sequence incomplete. The first request may already have started waiting or shutdown. Check the scooter’s status; no request was replayed.",
-  "handlebar_lock_waiting": "Turn the handlebars fully left while the scooter shuts down. The steering lock has a limited positioning window; there is no need to switch the scooter off and on again. Check the lock status on the scooter."
+  "handlebar_lock_waiting": "Turn the handlebars fully left while the scooter shuts down. The steering lock has a limited positioning window; there is no need to switch the scooter off and on again. Check the lock status on the scooter.",
+  "settings_duration_day_one": "{count} day",
+  "settings_duration_day_many": "{count} days",
+  "settings_duration_hour_one": "{count} hour",
+  "settings_duration_hour_many": "{count} hours",
+  "settings_duration_minute_one": "{count} minute",
+  "settings_duration_minute_many": "{count} minutes",
+  "settings_duration_second_one": "{count} second",
+  "settings_duration_second_many": "{count} seconds"
 }
