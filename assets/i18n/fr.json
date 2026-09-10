@@ -645,5 +645,6 @@
   "system_info_refresh": "Actualiser les versions",
   "system_info_copy": "Copier le diagnostic",
   "system_info_copied": "Diagnostic copié",
-  "system_info_failed": "Impossible de lire les versions. Vérifiez la connexion et réessayez."
+  "system_info_failed": "Impossible de lire les versions. Vérifiez la connexion et réessayez.",
+"settings_scooter_disconnected": "Connectez-vous au scooter pour utiliser ce réglage."
 }

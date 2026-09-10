@@ -645,5 +645,6 @@
   "system_info_refresh": "Versionen aktualisieren",
   "system_info_copy": "Diagnose kopieren",
   "system_info_copied": "Diagnose kopiert",
-  "system_info_failed": "Versionen konnten nicht gelesen werden. Verbindung prüfen und erneut versuchen."
+  "system_info_failed": "Versionen konnten nicht gelesen werden. Verbindung prüfen und erneut versuchen.",
+"settings_scooter_disconnected": "Verbinde dich mit dem Roller, um diese Einstellung zu verwenden."
 }

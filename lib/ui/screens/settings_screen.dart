@@ -106,9 +106,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
+  bool get _scooterConnected => context.read<ScooterService>().connected;
+
+  // Keep scooter controls discoverable offline without building loading or
+  // actionable children. App-local preferences and cached diagnostics stay usable.
+  List<Widget> _connectionRequiredItems(List<Widget> items) {
+    if (_scooterConnected) return items;
+    return items.map((item) {
+      Widget? leading;
+      Widget? title;
+      if (item is ListTile) {
+        leading = item.leading;
+        title = item.title;
+      } else if (item is SettingsDropdownTile<int>) {
+        leading = item.leading;
+        title = item.title;
+      } else {
+        return item;
+      }
+      return ListTile(
+        enabled: false,
+        leading: leading,
+        title: title,
+        subtitle: Text(FlutterI18n.translate(context, 'settings_scooter_disconnected')),
+        trailing: const Icon(Icons.bluetooth_disabled),
+      );
+    }).toList();
+  }
+
   void _ensureLsDataLoaded(bool isLibrescoot) {
     final service = context.read<ScooterService>();
-    if (!isLibrescoot || !service.connected || _lsDataLoadStarted) return;
+    if (!service.connected) {
+      _lsDataLoadStarted = false;
+      return;
+    }
+    if (!isLibrescoot || _lsDataLoadStarted) return;
     _lsDataLoadStarted = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _getKeycardCount();
@@ -300,7 +332,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   List<Widget> alarmItems() {
-    if (context.watch<ScooterService>().identity.supportsAlarmControl != true) return [];
+    if (_scooterConnected && context.watch<ScooterService>().identity.supportsAlarmControl != true) return [];
     final service = context.watch<ScooterService>();
     // The two switches ride the extended channel; everything else needs the
     // alarm service, which older firmware doesn't have.
@@ -339,7 +371,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: _isSendingAlarmHonk ? null : _setAlarmHonk,
               ),
       ),
-      if (live)
+      if (live || !_scooterConnected)
         ListTile(
           leading: Icon(Icons.visibility_outlined),
           title: Text(FlutterI18n.translate(context, "ls_settings_alarm_watch_title")),
@@ -610,7 +642,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }
                 },
         ),
-        if (supportsScheduledHibernation)
+        if (!_scooterConnected || supportsScheduledHibernation)
           ListTile(
             leading: const SizedBox(
               width: 24,
@@ -630,7 +662,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               MaterialPageRoute(builder: (context) => const LsScheduledHibernationScreen()),
             ),
           ),
-        if (supportsBatteryKeepActive)
+        if (!_scooterConnected || supportsBatteryKeepActive)
           ListTile(
             leading: const Icon(Icons.battery_charging_full_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_battery_keep_active_title")),
@@ -648,7 +680,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool supportsApnConfig,
   }) =>
       [
-        if (supportsApnConfig)
+        if (!_scooterConnected || supportsApnConfig)
           ListTile(
             leading: const Icon(Icons.cell_tower_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_apn_title")),
@@ -697,7 +729,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               : const Icon(Icons.sync_rounded),
           onTap: connected && !_isSendingTime ? _syncScooterClock : null,
         ),
-        if (connected && otaAvailable)
+        if (!connected || otaAvailable)
           ListTile(
             leading: const Icon(Icons.system_update_alt_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_ota_title")),
@@ -917,24 +949,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             });
           },
         ),
-        if (isLibrescoot) ..._librescootAccessSettingsItems(),
+        if (isLibrescoot) ..._connectionRequiredItems(_librescootAccessSettingsItems()),
         if (isLibrescoot) ...[
           Header(FlutterI18n.translate(context, "settings_section_power")),
-          ..._librescootPowerSettingsItems(
+          ..._connectionRequiredItems(_librescootPowerSettingsItems(
             supportsScheduledHibernation: supportsScheduledHibernation,
             supportsBatteryKeepActive: supportsBatteryKeepActive,
-          ),
+          )),
         ],
-        if (isLibrescoot && supportsAlarmControl) ...[
+        if (isLibrescoot && (!connected || supportsAlarmControl)) ...[
           Header(FlutterI18n.translate(context, "ls_settings_section_alarm")),
-          ...alarmItems(),
+          ..._connectionRequiredItems(alarmItems()),
         ],
-        if (Platform.isAndroid || (isLibrescoot && supportsApnConfig)) ...[
+        if (Platform.isAndroid || (isLibrescoot && (!connected || supportsApnConfig))) ...[
           Header(FlutterI18n.translate(context, "settings_section_connectivity")),
           if (isLibrescoot)
-            ..._librescootConnectivitySettingsItems(
+            ..._connectionRequiredItems(_librescootConnectivitySettingsItems(
               supportsApnConfig: supportsApnConfig,
-            ),
+            )),
         ],
         if (Platform.isAndroid)
           SwitchListTile(
@@ -990,11 +1022,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         if (isLibrescoot) ...[
           Header(FlutterI18n.translate(context, "settings_section_updates_service")),
-          ..._librescootUpdateSettingsItems(
+          ..._connectionRequiredItems(_librescootUpdateSettingsItems(
             usbMode: usbMode,
             connected: connected,
             otaAvailable: otaAvailable,
-          ),
+          )),
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: Text(FlutterI18n.translate(context, 'system_info_title')),

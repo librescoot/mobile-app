@@ -26,5 +26,6 @@
   "system_info_refresh": "Refresh versions",
   "system_info_copy": "Copy diagnostics",
   "system_info_copied": "Diagnostics copied",
-  "system_info_failed": "Could not read versions. Check the connection and try again."
+  "system_info_failed": "Could not read versions. Check the connection and try again.",
+"settings_scooter_disconnected": "Connect to the scooter to use this setting."
 }

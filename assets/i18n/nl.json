@@ -645,5 +645,6 @@
   "system_info_refresh": "Versies vernieuwen",
   "system_info_copy": "Diagnose kopiëren",
   "system_info_copied": "Diagnose gekopieerd",
-  "system_info_failed": "Versies konden niet worden gelezen. Controleer de verbinding en probeer opnieuw."
+  "system_info_failed": "Versies konden niet worden gelezen. Controleer de verbinding en probeer opnieuw.",
+"settings_scooter_disconnected": "Maak verbinding met de scooter om deze instelling te gebruiken."
 }
