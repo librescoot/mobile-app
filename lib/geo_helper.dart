@@ -2,12 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter_photon/flutter_photon.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:http/http.dart';
+import 'package:http/http.dart' show Response;
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../service/photon_service.dart';
 import '../domain/saved_scooter.dart';
+import 'service/secure_http.dart';
 
 class GeoHelper {
   static String sanitizeName(String name) {
@@ -127,7 +128,7 @@ class GeoHelper {
     }
 
     log.info("Fetching address from Nominatim for position: $position");
-    Response response = await get(
+    Response response = await httpsGet(
         Uri.parse(
             'https://nominatim.openstreetmap.org/reverse?lat=${position.latitude}&lon=${position.longitude}&format=json'),
         headers: {
