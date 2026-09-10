@@ -266,7 +266,7 @@ FutureOr<void> backgroundCallback(Uri? data) async {
   String? action;
   // Read from SharedPreferences since this callback runs in a separate isolate
   // where the module-level backgroundScanEnabled variable is not shared.
-  final bgScanEnabled = (await SharedPreferences.getInstance()).getBool("backgroundScan") ?? false;
+  final bgScanEnabled = await SharedPreferencesAsync().getBool("backgroundScan") ?? false;
 
   switch (data?.host) {
     case "scan":

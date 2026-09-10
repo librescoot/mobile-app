@@ -974,8 +974,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
               if (confirmed == true) {
                 await prefs.setBool("backgroundScan", value);
-                // inform the service!
-                FlutterBackgroundService().invoke("update", {
+                final backgroundService = FlutterBackgroundService();
+                // The service stops itself while scanning is disabled and no
+                // scooter is connected. Explicitly restart it before sending
+                // the enable event so this toggle also works from that state.
+                if (value) await backgroundService.startService();
+                backgroundService.invoke("update", {
                   "backgroundScan": value,
                 });
                 setState(() {

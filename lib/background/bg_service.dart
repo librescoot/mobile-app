@@ -31,7 +31,7 @@ Future<void> setupBackgroundService() async {
 
   HomeWidget.registerInteractivityCallback(backgroundCallback);
 
-  backgroundScanEnabled = (await SharedPreferences.getInstance()).getBool("backgroundScan") ?? false;
+  backgroundScanEnabled = await SharedPreferencesAsync().getBool("backgroundScan") ?? false;
   log.info("Background scan: $backgroundScanEnabled");
 
   if (Platform.isAndroid) {
@@ -313,7 +313,7 @@ void onStart(ServiceInstance service) async {
     );
   }
 
-  backgroundScanEnabled = (await SharedPreferences.getInstance()).getBool("backgroundScan") ?? false;
+  backgroundScanEnabled = await SharedPreferencesAsync().getBool("backgroundScan") ?? false;
 
   // Check if we were started by a widget action
   final prefs = await SharedPreferences.getInstance();
