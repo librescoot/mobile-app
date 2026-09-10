@@ -1,0 +1,13 @@
+<resources>
+    <string name="range_widget_name">Scooter range</string>
+    <string name="range_widget_description">Compact estimated range. Tap to open the app.</string>
+    <string name="range_widget_saved_unit">km · saved</string>
+    <string name="range_widget_estimate">Estimated range: %1$d kilometres.</string>
+    <string name="range_widget_cached">Saved reading; scooter connection is not current.</string>
+    <string name="range_widget_unavailable">Range unavailable. Open the app to refresh scooter data.</string>
+    <color name="range_widget_background">#F2F4F5</color>
+    <color name="range_widget_foreground">#172126</color>
+    <color name="range_widget_track">#D0D9DD</color>
+    <color name="range_widget_accent">#087F8C</color>
+    <color name="range_widget_muted">#687B83</color>
+</resources>

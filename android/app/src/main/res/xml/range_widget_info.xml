@@ -1,0 +1,8 @@
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="56dp" android:minHeight="56dp"
+    android:minResizeWidth="56dp" android:minResizeHeight="56dp"
+    android:targetCellWidth="1" android:targetCellHeight="1"
+    android:resizeMode="horizontal|vertical" android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/range_widget" android:previewLayout="@layout/range_widget"
+    android:previewImage="@drawable/range_widget_preview" android:widgetCategory="home_screen"
+    android:description="@string/range_widget_description" />
