@@ -1,0 +1,5 @@
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/range_widget_image" android:layout_width="match_parent"
+    android:layout_height="match_parent" android:scaleType="fitCenter"
+    android:background="@drawable/range_widget_background" android:padding="4dp"
+    android:src="@drawable/range_widget_preview" android:contentDescription="@string/range_widget_unavailable" />

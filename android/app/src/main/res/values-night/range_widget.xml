@@ -1,0 +1,7 @@
+<resources>
+    <color name="range_widget_background">#19252B</color>
+    <color name="range_widget_foreground">#F1F5F7</color>
+    <color name="range_widget_track">#3A4B53</color>
+    <color name="range_widget_accent">#66D4DD</color>
+    <color name="range_widget_muted">#9BAFB8</color>
+</resources>

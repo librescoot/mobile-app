@@ -102,7 +102,7 @@ Future<void> updateWidgetPing() async {
     "iOSlastPingText",
     _iOSlastPingText,
   );
-  await HomeWidget.updateWidget(
+  await _refreshWidgets(
     qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
     iOSName: "ScooterWidget",
   );
@@ -207,7 +207,7 @@ void passToWidget({
   // finally, update if necessary
   if (Platform.isAndroid && updateAndroid) {
     // once everything is set, rebuild the widget
-    await HomeWidget.updateWidget(
+    await _refreshWidgets(
       qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
     );
   } else if (Platform.isIOS && updateiOS) {
@@ -230,7 +230,7 @@ String? getStateNameForWidget(ScooterState? state) {
 
 Future<void> setWidgetUnlocking(bool unlocking) async {
   await HomeWidget.saveWidgetData<bool>("scanning", unlocking);
-  await HomeWidget.updateWidget(
+  await _refreshWidgets(
     qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
     iOSName: "ScooterWidget",
   );
@@ -249,7 +249,7 @@ Future<void> setWidgetScanning(bool scanning) async {
   // The next passToWidget() call from the scooterService listener
   // will write the correct state. This avoids a brief flash of
   // "Disconnected" between the scan ending and the real state arriving.
-  await HomeWidget.updateWidget(
+  await _refreshWidgets(
     qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
     iOSName: "ScooterWidget",
   );
@@ -313,7 +313,7 @@ FutureOr<void> backgroundCallback(Uri? data) async {
   } catch (e) {
     print("Error starting background service: $e");
   }
-  await HomeWidget.updateWidget(
+  await _refreshWidgets(
     qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
     iOSName: "ScooterWidget",
   );
@@ -348,5 +348,12 @@ extension DateTimeExtension on DateTime {
     } else {
       return null;
     }
+  }
+}
+
+Future<void> _refreshWidgets({required String qualifiedAndroidName, String? iOSName}) async {
+  await HomeWidget.updateWidget(qualifiedAndroidName: qualifiedAndroidName, iOSName: iOSName);
+  if (Platform.isAndroid) {
+    await HomeWidget.updateWidget(qualifiedAndroidName: 'de.freal.unustasis.RangeWidgetReceiver');
   }
 }
