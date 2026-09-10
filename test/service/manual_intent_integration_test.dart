@@ -508,18 +508,6 @@ void main() {
       expect(writes, ['scooter:state unlock']);
     });
   });
-  test('widget connect links the saved scooter without issuing a vehicle command', () async {
-    final h = _WidgetHarness();
-    addTearDown(h.dispose);
-    await h.pending('connect');
-    await background.executeWidgetAction('connect');
-    expect(h.requests, ['A']);
-    expect(h.writes('A'), isEmpty);
-    expect(h.writes('B'), isEmpty);
-    expect(h.service.connected, isTrue);
-    await h.expectPending(null);
-  });
-
   for (final action in ['lock', 'unlock']) {
     test('explicit $action under foreground gate bypasses passive suppression only for pinned A', () async {
       final h = _WidgetHarness();
@@ -693,10 +681,9 @@ void main() {
           notificationResponseType: NotificationResponseType.selectedNotificationAction, actionId: action));
       await Future<void>.delayed(Duration.zero);
       expect(messages.updates, isEmpty);
-      expect(prefs.trace, ['pendingWidgetActionName']);
+      expect(prefs.trace, ['pendingWidgetAction', 'pendingWidgetActionName']);
       prefs.nameWriteGate!.complete();
       await producer;
-      expect(prefs.trace, ['pendingWidgetActionName', 'pendingWidgetAction']);
       await h.expectPending(action);
       expect(messages.updates.single['method'], action);
       await background.executeWidgetAction(action);

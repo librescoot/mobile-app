@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:logging/logging.dart';
 import 'package:maps_launcher/maps_launcher.dart';
@@ -12,9 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:unustasis/domain/nav_destination.dart';
 import 'package:unustasis/ui/widgets/header.dart';
-import 'package:unustasis/ui/widgets/settings_help_row_theme.dart';
 import 'package:unustasis/ui/screens/navigation_screen.dart';
-import 'package:unustasis/service/secure_http.dart';
 
 const _handbookUrl = 'https://librescoot.org/handbook/';
 const _troubleshootingUrl = 'https://librescoot.org/handbook/troubleshooting.html';
@@ -44,7 +43,10 @@ class _SupportScreenState extends State<SupportScreen> {
   }) {
     return ListTile(
       leading: Icon(icon),
-      title: Text(title),
+      title: Text(
+        title,
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18),
+      ),
       subtitle: Text(subtitle),
       trailing: const Icon(Icons.open_in_new_rounded, size: 20),
       onTap: () => _open(url),
@@ -72,104 +74,102 @@ class _SupportScreenState extends State<SupportScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(FlutterI18n.translate(context, 'stats_title_support'))),
-      body: SettingsHelpRowTheme(
-        child: SafeArea(
-          top: false,
-          child: ListView(
-            padding: EdgeInsets.only(bottom: 24 + MediaQuery.viewPaddingOf(context).bottom),
-            children: [
-              Header(
-                FlutterI18n.translate(context, 'support_guides'),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: EdgeInsets.only(bottom: 24 + MediaQuery.viewPaddingOf(context).bottom),
+          children: [
+            Header(
+              FlutterI18n.translate(context, 'support_guides'),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            ),
+            _tileGroup([
+              _linkTile(
+                icon: Icons.menu_book_outlined,
+                title: FlutterI18n.translate(context, 'support_handbook'),
+                subtitle: FlutterI18n.translate(context, 'support_handbook_description'),
+                url: _handbookUrl,
               ),
-              _tileGroup([
-                _linkTile(
-                  icon: Icons.menu_book_outlined,
-                  title: FlutterI18n.translate(context, 'support_handbook'),
-                  subtitle: FlutterI18n.translate(context, 'support_handbook_description'),
-                  url: _handbookUrl,
-                ),
-                _linkTile(
-                  icon: Icons.build_circle_outlined,
-                  title: FlutterI18n.translate(context, 'support_troubleshooting'),
-                  subtitle: FlutterI18n.translate(context, 'support_troubleshooting_description'),
-                  url: _troubleshootingUrl,
-                ),
-              ]),
-              Header(FlutterI18n.translate(context, 'support_faqs')),
-              const FaqWidget(),
-              Header(FlutterI18n.translate(context, 'support_community')),
-              _tileGroup([
-                _linkTile(
-                  icon: Icons.discord_outlined,
-                  title: FlutterI18n.translate(context, 'support_discord'),
-                  subtitle: FlutterI18n.translate(context, 'support_discord_description'),
-                  url: _discordUrl,
-                ),
-                _linkTile(
-                  icon: Icons.bug_report_outlined,
-                  title: FlutterI18n.translate(context, 'settings_report'),
-                  subtitle: FlutterI18n.translate(context, 'support_report_description'),
-                  url: _issuesUrl,
-                ),
-              ]),
-              Header(
-                FlutterI18n.translate(context, 'support_repairs_parts'),
-                subtitle: FlutterI18n.translate(context, 'support_garages_description'),
+              _linkTile(
+                icon: Icons.build_circle_outlined,
+                title: FlutterI18n.translate(context, 'support_troubleshooting'),
+                subtitle: FlutterI18n.translate(context, 'support_troubleshooting_description'),
+                url: _troubleshootingUrl,
               ),
-              const GarageWidget(),
-              const SizedBox(height: 8),
-              _tileGroup([
-                _linkTile(
-                  icon: Icons.handyman_outlined,
-                  title: FlutterI18n.translate(context, 'support_replacement_parts'),
-                  subtitle: FlutterI18n.translate(context, 'support_replacement_parts_description'),
-                  url: _partsUrl,
-                ),
-              ]),
-              Header(
-                FlutterI18n.translate(context, 'stats_settings_section_about'),
-                subtitle: FlutterI18n.translate(context, 'support_about_description'),
+            ]),
+            Header(FlutterI18n.translate(context, 'support_faqs')),
+            const FaqWidget(),
+            Header(FlutterI18n.translate(context, 'support_community')),
+            _tileGroup([
+              _linkTile(
+                icon: Icons.discord_outlined,
+                title: FlutterI18n.translate(context, 'support_discord'),
+                subtitle: FlutterI18n.translate(context, 'support_discord_description'),
+                url: _discordUrl,
               ),
-              _tileGroup([
-                _linkTile(
-                  icon: Icons.public_rounded,
-                  title: FlutterI18n.translate(context, 'support_website'),
-                  subtitle: FlutterI18n.translate(context, 'support_website_description'),
-                  url: _websiteUrl,
-                ),
-                _linkTile(
-                  icon: Icons.code_rounded,
-                  title: FlutterI18n.translate(context, 'support_source_code'),
-                  subtitle: FlutterI18n.translate(context, 'support_source_code_description'),
-                  url: _sourceUrl,
-                ),
-                FutureBuilder<PackageInfo>(
-                  future: _packageInfoFuture,
-                  builder: (context, packageInfo) => ListTile(
-                    leading: const Icon(Icons.info_outline_rounded),
-                    title: Text(FlutterI18n.translate(context, 'settings_app_version')),
-                    subtitle: Text(
-                      packageInfo.hasData ? '${packageInfo.data!.version} (${packageInfo.data!.buildNumber})' : '…',
-                    ),
+              _linkTile(
+                icon: Icons.bug_report_outlined,
+                title: FlutterI18n.translate(context, 'settings_report'),
+                subtitle: FlutterI18n.translate(context, 'support_report_description'),
+                url: _issuesUrl,
+              ),
+            ]),
+            Header(
+              FlutterI18n.translate(context, 'support_repairs_parts'),
+              subtitle: FlutterI18n.translate(context, 'support_garages_description'),
+            ),
+            const GarageWidget(),
+            const SizedBox(height: 8),
+            _tileGroup([
+              _linkTile(
+                icon: Icons.handyman_outlined,
+                title: FlutterI18n.translate(context, 'support_replacement_parts'),
+                subtitle: FlutterI18n.translate(context, 'support_replacement_parts_description'),
+                url: _partsUrl,
+              ),
+            ]),
+            Header(
+              FlutterI18n.translate(context, 'stats_settings_section_about'),
+              subtitle: FlutterI18n.translate(context, 'support_about_description'),
+            ),
+            _tileGroup([
+              _linkTile(
+                icon: Icons.public_rounded,
+                title: FlutterI18n.translate(context, 'support_website'),
+                subtitle: FlutterI18n.translate(context, 'support_website_description'),
+                url: _websiteUrl,
+              ),
+              _linkTile(
+                icon: Icons.code_rounded,
+                title: FlutterI18n.translate(context, 'support_source_code'),
+                subtitle: FlutterI18n.translate(context, 'support_source_code_description'),
+                url: _sourceUrl,
+              ),
+              FutureBuilder<PackageInfo>(
+                future: _packageInfoFuture,
+                builder: (context, packageInfo) => ListTile(
+                  leading: const Icon(Icons.info_outline_rounded),
+                  title: Text(FlutterI18n.translate(context, 'settings_app_version')),
+                  subtitle: Text(
+                    packageInfo.hasData ? '${packageInfo.data!.version} (${packageInfo.data!.buildNumber})' : '…',
                   ),
                 ),
-                FutureBuilder<PackageInfo>(
-                  future: _packageInfoFuture,
-                  builder: (context, packageInfo) => ListTile(
-                    leading: const Icon(Icons.balance_outlined),
-                    title: Text(FlutterI18n.translate(context, 'settings_licenses')),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () => showLicensePage(
-                      context: context,
-                      applicationName: packageInfo.hasData ? packageInfo.data!.appName : 'Librescoot App for unu',
-                      applicationVersion: packageInfo.hasData ? packageInfo.data!.version : '?.?.?',
-                    ),
+              ),
+              FutureBuilder<PackageInfo>(
+                future: _packageInfoFuture,
+                builder: (context, packageInfo) => ListTile(
+                  leading: const Icon(Icons.balance_outlined),
+                  title: Text(FlutterI18n.translate(context, 'settings_licenses')),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => showLicensePage(
+                    context: context,
+                    applicationName: packageInfo.hasData ? packageInfo.data!.appName : 'Librescoot App for unu',
+                    applicationVersion: packageInfo.hasData ? packageInfo.data!.version : '?.?.?',
                   ),
                 ),
-              ]),
-            ],
-          ),
+              ),
+            ]),
+          ],
         ),
       ),
     );
@@ -225,7 +225,10 @@ class FaqWidget extends StatelessWidget {
                 ),
               ExpansionTile(
                 leading: Icon(_categoryIcon(index)),
-                title: Text(entries[index].key),
+                title: Text(
+                  entries[index].key,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18),
+                ),
                 children: [
                   for (final question in (entries[index].value as Map<String, dynamic>).entries.indexed) ...[
                     if (question.$1 > 0)
@@ -333,9 +336,9 @@ class _GarageWidgetState extends State<GarageWidget> {
   Future<List<Garage>>? _garages;
 
   Future<List<Garage>> _getGarages() async {
-    final response = await httpsGet(
-      Uri.parse('https://reunu.github.io/unustasis-data/garages_overrides.json'),
-    ).timeout(const Duration(seconds: 12));
+    final response = await http
+        .get(Uri.parse('https://reunu.github.io/unustasis-data/garages_overrides.json'))
+        .timeout(const Duration(seconds: 12));
     if (response.statusCode != 200) {
       Logger('GarageWidget').severe('Failed to load community garages', response.toString());
       throw Exception('Failed to load community garages');

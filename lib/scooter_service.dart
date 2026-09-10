@@ -82,7 +82,6 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final _actionWarnings = StreamController<HandlebarWarning>.broadcast(sync: true);
   Stream<HandlebarWarning> get actionWarnings => _actionWarnings.stream;
   bool get autoUnlockCoolingDown => actions.coolingDown;
-  Future<Map<String, String?>> readInstalledVersions() => actions.readInstalledVersions();
 
   late ActionPollingTimer rssiTimer;
   late bool isInBackgroundService;
@@ -408,9 +407,9 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   Future<void> unlock({bool checkHandlebars = true, EventSource source = EventSource.app}) =>
       actions.unlock(checkHandlebars: checkHandlebars, source: source);
-  Future<void> lock({bool checkHandlebars = true, bool confirmOpenSeat = false, EventSource source = EventSource.app}) {
+  Future<void> lock({bool checkHandlebars = true, EventSource source = EventSource.app}) {
     warnIfLockingWithOpenSeatbox();
-    return actions.lock(checkHandlebars: checkHandlebars, confirmOpenSeat: confirmOpenSeat, source: source);
+    return actions.lock(checkHandlebars: checkHandlebars, source: source);
   }
 
   /// App-only diagnostic; explicit consumers call this only at ready dispatch.
@@ -569,7 +568,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   Future<void> prepareIosWidget(SessionConnection connection) async {
-    await HomeWidget.setAppGroupId('group.org.librescoot.mobile.unu');
+    await HomeWidget.setAppGroupId('group.com.librescoot.app');
     if (!connection.isCurrent) return;
     passToWidget(scooterId: connection.id);
     service.log.info("Saved scooter ID to widget: ${connection.id}");
@@ -672,7 +671,7 @@ class _ServiceActionEffects implements ScooterActionEffects {
   void acknowledged(ActionEvent event) => acknowledgeAppAction(event);
   @override
   void handlebarWarning(HandlebarWarning warning) {
-    service.log.warning(warning.didNotUnlock ? "Handlebars didn't unlock, sending warning" : "Steering lock unconfirmed, sending passive guidance");
+    service.log.warning(warning.didNotUnlock ? "Handlebars didn't unlock, sending warning" : "Handlebars didn't lock, sending warning");
     final connection = service._session.currentConnection;
     if (connection?.isCurrent != true || connection!.id != warning.action.scooterId ||
         connection.generation != warning.action.generation) {

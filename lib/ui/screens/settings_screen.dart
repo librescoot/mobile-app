@@ -20,13 +20,9 @@ import 'package:unustasis/domain/alarm_status.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
 import 'package:unustasis/domain/scooter_keyless_distance.dart';
 import 'package:unustasis/ui/widgets/header.dart';
-import 'package:unustasis/ui/widgets/settings_help_row_theme.dart';
-import 'package:unustasis/ui/widgets/settings_dropdown_tile.dart';
-import 'package:unustasis/ui/presentation/settings_duration.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
-import 'package:unustasis/ui/screens/system_information_screen.dart';
 import 'package:unustasis/ui/screens/ls_scheduled_hibernation_screen.dart';
 import 'package:scooter_core/actions.dart';
 import 'package:unustasis/state/vehicle_status.dart';
@@ -48,7 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   ScooterKeylessDistance autoUnlockDistance = ScooterKeylessDistance.regular;
   bool openSeatOnUnlock = false;
   bool hazardLocking = false;
-  bool osmConsent = false;
+  bool osmConsent = true;
   bool _lsDataLoadStarted = false;
   bool _isSendingAutoLock = false;
   int? _autoLockDuration;
@@ -79,7 +75,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ScooterKeylessDistance.fromThreshold(service.autoUnlockThreshold);
     bool initialOpenSeatOnUnlock = service.openSeatOnUnlock;
     bool initialHazardLocking = service.hazardLocking;
-    bool initialOsmConsent = await prefs.getBool("osmConsent") ?? false;
+    bool initialOsmConsent = await prefs.getBool("osmConsent") ?? true;
     bool initialSeasonal = await prefs.getBool("seasonal") ?? true;
 
     setState(() {
@@ -106,41 +102,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
-  bool get _scooterConnected => context.read<ScooterService>().connected;
-
-  // Keep scooter controls discoverable offline without building loading or
-  // actionable children. App-local preferences and cached diagnostics stay usable.
-  List<Widget> _connectionRequiredItems(List<Widget> items) {
-    if (_scooterConnected) return items;
-    return items.map((item) {
-      Widget? leading;
-      Widget? title;
-      if (item is ListTile) {
-        leading = item.leading;
-        title = item.title;
-      } else if (item is SettingsDropdownTile<int>) {
-        leading = item.leading;
-        title = item.title;
-      } else {
-        return item;
-      }
-      return ListTile(
-        enabled: false,
-        leading: leading,
-        title: title,
-        subtitle: Text(FlutterI18n.translate(context, 'settings_scooter_disconnected')),
-        trailing: const Icon(Icons.bluetooth_disabled),
-      );
-    }).toList();
-  }
-
   void _ensureLsDataLoaded(bool isLibrescoot) {
     final service = context.read<ScooterService>();
-    if (!service.connected) {
-      _lsDataLoadStarted = false;
-      return;
-    }
-    if (!isLibrescoot || _lsDataLoadStarted) return;
+    if (!isLibrescoot || !service.connected || _lsDataLoadStarted) return;
     _lsDataLoadStarted = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _getKeycardCount();
@@ -332,7 +296,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   List<Widget> alarmItems() {
-    if (_scooterConnected && context.watch<ScooterService>().identity.supportsAlarmControl != true) return [];
+    if (context.watch<ScooterService>().identity.supportsAlarmControl != true) return [];
     final service = context.watch<ScooterService>();
     // The two switches ride the extended channel; everything else needs the
     // alarm service, which older firmware doesn't have.
@@ -371,7 +335,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: _isSendingAlarmHonk ? null : _setAlarmHonk,
               ),
       ),
-      if (live || !_scooterConnected)
+      if (live)
         ListTile(
           leading: Icon(Icons.visibility_outlined),
           title: Text(FlutterI18n.translate(context, "ls_settings_alarm_watch_title")),
@@ -548,101 +512,117 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool supportsBatteryKeepActive,
   }) =>
       [
-        SettingsDropdownTile<int>(
+        ListTile(
           leading: const Icon(Icons.hourglass_bottom_rounded),
           title: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_title")),
           subtitle: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_subtitle")),
-          value: _autoLockDuration,
-          unlistedValueLabel: Text(formatSettingsDuration(context, _autoLockDuration ?? 0)),
-          hint: _timerDurationsLoaded
-              ? Text(FlutterI18n.translate(context, "ls_settings_duration_hint"))
-              : _timerLoadingIndicator(),
-          items: [
-            DropdownMenuItem(value: 0, child: Text(FlutterI18n.translate(context, "ls_settings_duration_never"))),
-            DropdownMenuItem(value: 180, child: Text(FlutterI18n.translate(context, "ls_settings_duration_3_min"))),
-            DropdownMenuItem(value: 300, child: Text(FlutterI18n.translate(context, "ls_settings_duration_5_min"))),
-            DropdownMenuItem(value: 600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_10_min"))),
-            DropdownMenuItem(value: 900, child: Text(FlutterI18n.translate(context, "ls_settings_duration_15_min"))),
-          ],
-          onChanged: !_timerDurationsLoaded || _isSendingAutoLock
-              ? null
-              : (value) async {
-                  if (value == null) return;
-                  setState(() => _isSendingAutoLock = true);
-                  try {
-                    await context.read<ScooterService>().actions.setAutoStandbyTime(
-                          Duration(seconds: value),
+          trailing: SizedBox(
+            width: 128,
+            child: DropdownButton<int>(
+              isExpanded: true,
+              menuWidth: 144,
+              value: _autoLockDuration,
+              hint: _timerDurationsLoaded
+                  ? Text(FlutterI18n.translate(context, "ls_settings_duration_hint"))
+                  : _timerLoadingIndicator(),
+              items: [
+                DropdownMenuItem(value: 0, child: Text(FlutterI18n.translate(context, "ls_settings_duration_never"))),
+                DropdownMenuItem(value: 180, child: Text(FlutterI18n.translate(context, "ls_settings_duration_3_min"))),
+                DropdownMenuItem(value: 300, child: Text(FlutterI18n.translate(context, "ls_settings_duration_5_min"))),
+                DropdownMenuItem(
+                    value: 600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_10_min"))),
+                DropdownMenuItem(
+                    value: 900, child: Text(FlutterI18n.translate(context, "ls_settings_duration_15_min"))),
+              ],
+              onChanged: !_timerDurationsLoaded || _isSendingAutoLock
+                  ? null
+                  : (value) async {
+                      if (value == null) return;
+                      setState(() => _isSendingAutoLock = true);
+                      try {
+                        await context.read<ScooterService>().actions.setAutoStandbyTime(Duration(seconds: value),
                         );
-                    if (!mounted) return;
-                    setState(() => _autoLockDuration = value);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_success"))),
-                    );
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text(FlutterI18n.translate(
-                          context,
-                          "ls_settings_auto_lock_error",
-                          translationParams: {"error": e.toString()},
-                        ))),
-                      );
-                    }
-                  } finally {
-                    if (mounted) setState(() => _isSendingAutoLock = false);
-                  }
-                },
+                        if (!mounted) return;
+                        setState(() => _autoLockDuration = value);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_success"))),
+                        );
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text(FlutterI18n.translate(
+                              context,
+                              "ls_settings_auto_lock_error",
+                              translationParams: {"error": e.toString()},
+                            ))),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => _isSendingAutoLock = false);
+                      }
+                    },
+            ),
+          ),
         ),
-        SettingsDropdownTile<int>(
+        ListTile(
           leading: const Icon(Icons.bedtime_outlined),
           title: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_title")),
           subtitle: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_subtitle")),
-          value: _autoHibernateDuration,
-          unlistedValueLabel: Text(formatSettingsDuration(context, _autoHibernateDuration ?? 0)),
-          hint: _timerDurationsLoaded
-              ? Text(FlutterI18n.translate(context, "ls_settings_duration_hint"))
-              : _timerLoadingIndicator(),
-          items: [
-            DropdownMenuItem(value: 0, child: Text(FlutterI18n.translate(context, "ls_settings_duration_never"))),
-            DropdownMenuItem(value: 3600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_1_hour"))),
-            DropdownMenuItem(value: 86400, child: Text(FlutterI18n.translate(context, "ls_settings_duration_1_day"))),
-            DropdownMenuItem(value: 259200, child: Text(FlutterI18n.translate(context, "ls_settings_duration_3_days"))),
-            DropdownMenuItem(value: 604800, child: Text(FlutterI18n.translate(context, "ls_settings_duration_7_days"))),
-            DropdownMenuItem(
-                value: 1209600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_14_days"))),
-          ],
-          onChanged: !_timerDurationsLoaded || _isSendingAutoHibernate
-              ? null
-              : (value) async {
-                  if (value == null) return;
-                  setState(() => _isSendingAutoHibernate = true);
-                  try {
-                    await context.read<ScooterService>().actions.setAutoHibernateTime(
-                          Duration(seconds: value),
+          trailing: SizedBox(
+            width: 128,
+            child: DropdownButton<int>(
+              isExpanded: true,
+              menuWidth: 144,
+              value: _autoHibernateDuration,
+              hint: _timerDurationsLoaded
+                  ? Text(FlutterI18n.translate(context, "ls_settings_duration_hint"))
+                  : _timerLoadingIndicator(),
+              items: [
+                DropdownMenuItem(value: 0, child: Text(FlutterI18n.translate(context, "ls_settings_duration_never"))),
+                DropdownMenuItem(
+                    value: 3600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_1_hour"))),
+                DropdownMenuItem(
+                    value: 86400, child: Text(FlutterI18n.translate(context, "ls_settings_duration_1_day"))),
+                DropdownMenuItem(
+                    value: 259200, child: Text(FlutterI18n.translate(context, "ls_settings_duration_3_days"))),
+                DropdownMenuItem(
+                    value: 604800, child: Text(FlutterI18n.translate(context, "ls_settings_duration_7_days"))),
+                DropdownMenuItem(
+                    value: 1209600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_14_days"))),
+              ],
+              onChanged: !_timerDurationsLoaded || _isSendingAutoHibernate
+                  ? null
+                  : (value) async {
+                      if (value == null) return;
+                      setState(() => _isSendingAutoHibernate = true);
+                      try {
+                        await context.read<ScooterService>().actions.setAutoHibernateTime(Duration(seconds: value),
                         );
-                    if (!mounted) return;
-                    setState(() => _autoHibernateDuration = value);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_success"))),
-                    );
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text(FlutterI18n.translate(
-                          context,
-                          "ls_settings_auto_hibernate_error",
-                          translationParams: {"error": e.toString()},
-                        ))),
-                      );
-                    }
-                  } finally {
-                    if (mounted) setState(() => _isSendingAutoHibernate = false);
-                  }
-                },
+                        if (!mounted) return;
+                        setState(() => _autoHibernateDuration = value);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_success"))),
+                        );
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text(FlutterI18n.translate(
+                              context,
+                              "ls_settings_auto_hibernate_error",
+                              translationParams: {"error": e.toString()},
+                            ))),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => _isSendingAutoHibernate = false);
+                      }
+                    },
+            ),
+          ),
         ),
-        if (!_scooterConnected || supportsScheduledHibernation)
+        if (supportsScheduledHibernation)
           ListTile(
             leading: const SizedBox(
               width: 24,
@@ -662,7 +642,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               MaterialPageRoute(builder: (context) => const LsScheduledHibernationScreen()),
             ),
           ),
-        if (!_scooterConnected || supportsBatteryKeepActive)
+        if (supportsBatteryKeepActive)
           ListTile(
             leading: const Icon(Icons.battery_charging_full_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_battery_keep_active_title")),
@@ -680,7 +660,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool supportsApnConfig,
   }) =>
       [
-        if (!_scooterConnected || supportsApnConfig)
+        if (supportsApnConfig)
           ListTile(
             leading: const Icon(Icons.cell_tower_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_apn_title")),
@@ -729,7 +709,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               : const Icon(Icons.sync_rounded),
           onTap: connected && !_isSendingTime ? _syncScooterClock : null,
         ),
-        if (!connected || otaAvailable)
+        if (connected && otaAvailable)
           ListTile(
             leading: const Icon(Icons.system_update_alt_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_ota_title")),
@@ -814,7 +794,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       [
         Header(
           FlutterI18n.translate(context, "settings_section_access_parking"),
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
         ),
         SwitchListTile(
           secondary: const Icon(Icons.lock_open),
@@ -949,24 +929,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             });
           },
         ),
-        if (isLibrescoot) ..._connectionRequiredItems(_librescootAccessSettingsItems()),
+        if (isLibrescoot) ..._librescootAccessSettingsItems(),
         if (isLibrescoot) ...[
           Header(FlutterI18n.translate(context, "settings_section_power")),
-          ..._connectionRequiredItems(_librescootPowerSettingsItems(
+          ..._librescootPowerSettingsItems(
             supportsScheduledHibernation: supportsScheduledHibernation,
             supportsBatteryKeepActive: supportsBatteryKeepActive,
-          )),
+          ),
         ],
-        if (isLibrescoot && (!connected || supportsAlarmControl)) ...[
+        if (isLibrescoot && supportsAlarmControl) ...[
           Header(FlutterI18n.translate(context, "ls_settings_section_alarm")),
-          ..._connectionRequiredItems(alarmItems()),
+          ...alarmItems(),
         ],
-        if (Platform.isAndroid || (isLibrescoot && (!connected || supportsApnConfig))) ...[
+        if (Platform.isAndroid || (isLibrescoot && supportsApnConfig)) ...[
           Header(FlutterI18n.translate(context, "settings_section_connectivity")),
           if (isLibrescoot)
-            ..._connectionRequiredItems(_librescootConnectivitySettingsItems(
+            ..._librescootConnectivitySettingsItems(
               supportsApnConfig: supportsApnConfig,
-            )),
+            ),
         ],
         if (Platform.isAndroid)
           SwitchListTile(
@@ -1006,12 +986,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
               if (confirmed == true) {
                 await prefs.setBool("backgroundScan", value);
-                final backgroundService = FlutterBackgroundService();
-                // The service stops itself while scanning is disabled and no
-                // scooter is connected. Explicitly restart it before sending
-                // the enable event so this toggle also works from that state.
-                if (value) await backgroundService.startService();
-                backgroundService.invoke("update", {
+                // inform the service!
+                FlutterBackgroundService().invoke("update", {
                   "backgroundScan": value,
                 });
                 setState(() {
@@ -1022,16 +998,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         if (isLibrescoot) ...[
           Header(FlutterI18n.translate(context, "settings_section_updates_service")),
-          ..._connectionRequiredItems(_librescootUpdateSettingsItems(
+          ..._librescootUpdateSettingsItems(
             usbMode: usbMode,
             connected: connected,
             otaAvailable: otaAvailable,
-          )),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: Text(FlutterI18n.translate(context, 'system_info_title')),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SystemInformationScreen())),
           ),
         ],
         Header(FlutterI18n.translate(context, "stats_settings_section_app")),
@@ -1203,19 +1173,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             });
           },
         ),
-        ListTile(
-          leading: const Icon(Icons.privacy_tip_outlined),
-          title: Text(FlutterI18n.translate(context, "settings_privacy_policy")),
-          trailing: const Icon(Icons.open_in_new),
-          onTap: () {
-            final languageCode = FlutterI18n.currentLocale(context)?.languageCode ?? "en";
-            final path = languageCode == "de" ? "/privacy/mobile-app/" : "/en/privacy/mobile-app/";
-            launchUrl(
-              Uri.parse("https://librescoot.org$path"),
-              mode: LaunchMode.externalApplication,
-            );
-          },
-        ),
         if (DateTime.now().month == 12 ||
             DateTime.now().month == 4 ||
             DateTime.now().month == 10) // All seasonal months
@@ -1289,22 +1246,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(
         title: Text(FlutterI18n.translate(context, 'stats_title_settings')),
       ),
-      body: SettingsHelpRowTheme(
-        child: SafeArea(
-          child: ListView.separated(
-            padding: const EdgeInsets.only(bottom: 24),
-            shrinkWrap: true,
-            itemCount: items.length,
-            separatorBuilder: (context, index) => items[index] is Header || items[index + 1] is Header
-                ? const SizedBox.shrink()
-                : Divider(
-                    indent: 16,
-                    endIndent: 16,
-                    height: 24,
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
-                  ),
-            itemBuilder: (context, index) => items[index],
+      body: SafeArea(
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shrinkWrap: true,
+          itemCount: items.length,
+          separatorBuilder: (context, index) => Divider(
+            indent: 16,
+            endIndent: 16,
+            height: 24,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
           ),
+          itemBuilder: (context, index) => items[index],
         ),
       ),
     );
@@ -1329,37 +1282,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 textAlign: TextAlign.center,
               ),
               Padding(
-                padding: const EdgeInsets.only(top: 24),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.battery_alert_outlined, size: 32),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        FlutterI18n.translate(context, "bgscan_warning_battery"),
-                      ),
-                    ),
-                  ],
+                padding: const EdgeInsets.only(top: 24, bottom: 8),
+                child: Center(
+                  child: Icon(Icons.battery_alert_outlined, size: 32),
                 ),
               ),
+              Text(
+                FlutterI18n.translate(context, "bgscan_warning_battery"),
+                textAlign: TextAlign.center,
+              ),
               Padding(
-                padding: const EdgeInsets.only(top: 24),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.power_settings_new_outlined, size: 32),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        FlutterI18n.translate(
-                          context,
-                          "bgscan_warning_accidentalturnon",
-                        ),
-                      ),
-                    ),
-                  ],
+                padding: const EdgeInsets.only(top: 24, bottom: 8),
+                child: Center(child: Icon(Icons.link_off_outlined, size: 32)),
+              ),
+              Text(
+                FlutterI18n.translate(context, "bgscan_warning_lostpairing"),
+                textAlign: TextAlign.center,
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 24, bottom: 8),
+                child: Center(
+                  child: Icon(Icons.power_settings_new_outlined, size: 32),
                 ),
+              ),
+              Text(
+                FlutterI18n.translate(
+                  context,
+                  "bgscan_warning_accidentalturnon",
+                ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),

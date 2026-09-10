@@ -161,33 +161,13 @@ Future<void> executeWidgetAction(String actionName) async {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
-    bool matchesRequest() =>
-        prefs.getBool("pendingWidgetAction") == true && prefs.getString("pendingWidgetActionName") == actionName;
+    bool matchesRequest() => prefs.getBool("pendingWidgetAction") == true &&
+        prefs.getString("pendingWidgetActionName") == actionName;
     // All producers persist first. A delayed invoke after a successful action
     // must not replay an already consumed slot (or an unrelated action name).
     if (!matchesRequest()) return;
 
     if (!scooterService.connected) await setWidgetScanning(true);
-
-    // The disconnected widget's Scan button is a reconnect request, not an
-    // implicit unlock command. Connect and consume it without issuing any
-    // vehicle-control write.
-    if (actionName == "connect") {
-      if (!scooterService.connected) {
-        final targetId = scooterService.mostRecentSavedScooterId;
-        if (targetId != null) {
-          await scooterService.connectToScooterId(targetId);
-        }
-      }
-      if (_androidServiceInstance != null) updateNotification();
-      await prefs.reload();
-      if (matchesRequest()) {
-        await prefs.setBool("pendingWidgetAction", false);
-        await prefs.remove("pendingWidgetActionName");
-      }
-      return;
-    }
-
     final dispatch = await scooterService.prepareWidgetAction(actionName);
     if (dispatch == null) return; // Pending connection/pin change: retain request.
     await setWidgetScanning(false);
@@ -208,8 +188,7 @@ Future<void> executeWidgetAction(String actionName) async {
       }
       if (!dispatch.isReady()) return;
       await prefs.reload();
-      if (!dispatch.isReady() ||
-          prefs.getBool("pendingWidgetAction") == true ||
+      if (!dispatch.isReady() || prefs.getBool("pendingWidgetAction") == true ||
           prefs.getString("pendingWidgetActionName") != actionName) {
         return;
       }
@@ -217,7 +196,8 @@ Future<void> executeWidgetAction(String actionName) async {
         throw StateError("Pending action name removal was not persisted");
       }
       await prefs.reload();
-      if (prefs.getBool("pendingWidgetAction") == true || prefs.getString("pendingWidgetActionName") != null) {
+      if (prefs.getBool("pendingWidgetAction") == true ||
+          prefs.getString("pendingWidgetActionName") != null) {
         return; // A newer request arrived during the issued removal.
       }
       if (!dispatch.isReady()) return;
@@ -273,15 +253,15 @@ Future<void> _restoreUnissuedWidgetAction(SharedPreferences prefs, String action
       throw StateError("Unissued action name was not restored");
     }
     await prefs.reload();
-    if (prefs.getBool("pendingWidgetAction") == true || prefs.getString("pendingWidgetActionName") != actionName) {
+    if (prefs.getBool("pendingWidgetAction") == true ||
+        prefs.getString("pendingWidgetActionName") != actionName) {
       return;
     }
     if (!await prefs.setBool("pendingWidgetAction", true)) {
       throw StateError("Unissued action flag was not restored");
     }
   } catch (e, stack) {
-    Logger("bgservice")
-        .warning("Could not restore unissued action '$actionName'; pending persistence is uncertain", e, stack);
+    Logger("bgservice").warning("Could not restore unissued action '$actionName'; pending persistence is uncertain", e, stack);
   }
 }
 
@@ -354,22 +334,6 @@ void onStart(ServiceInstance service) async {
   await prefs.reload();
   final pendingWidgetAction = prefs.getBool("pendingWidgetAction") ?? false;
   final pendingActionName = prefs.getString("pendingWidgetActionName");
-
-  if (service is AndroidServiceInstance) {
-    _androidServiceInstance = service;
-    // Do not construct FlutterBluePlus or ScooterService merely because the
-    // configured service auto-started with the app. Attaching a second Flutter
-    // engine to FlutterBluePlus disconnects the foreground engine's GATT
-    // client. A disabled, actionless service has no Bluetooth work to own.
-    if (!backgroundScanEnabled && !pendingWidgetAction) {
-      Logger("bgservice").info("No background work requested, stopping service before Bluetooth initialization");
-      await HomeWidget.setAppGroupId("group.org.librescoot.mobile.unu");
-      await setWidgetScanning(false);
-      dismissNotification();
-      service.stopSelf();
-      return;
-    }
-  }
 
   _initializeScooterService();
 
@@ -480,7 +444,6 @@ void onStart(ServiceInstance service) async {
     }
   });
 
-  service.on("connect").listen((data) async => executeWidgetAction("connect"));
   service.on("lock").listen((data) async => executeWidgetAction("lock"));
   service.on("unlock").listen((data) async => executeWidgetAction("unlock"));
   service.on("openseat").listen((data) async => executeWidgetAction("openseat"));

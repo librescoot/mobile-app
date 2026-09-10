@@ -15,7 +15,6 @@ import 'package:workmanager/workmanager.dart';
 
 import '../background/background_i18n.dart';
 import '../background/translate_static.dart';
-import '../domain/widget_range.dart';
 
 // value cache
 bool _connected = false;

@@ -42,7 +42,7 @@ flutter run
 
 ### Contributing
 
-Interested in contributing? Join the [Unu Community Discord](https://discord.gg/fa63HJYaP4) or create an issue right here on GitHub!
+Interested in contributing? Join the [Librescoot Discord](https://discord.gg/BmY2P2T9j3) or create an issue right here on GitHub!
 Pull requests are also very welcome, as my test devices are pretty limited and therefore I depend on any help I can get.
 
 

@@ -141,8 +141,8 @@ Future<void> notificationTapBackground(NotificationResponse notificationResponse
     // Same single pending slot as widget taps: persist before the fast-path
     // invoke so a delayed duplicate cannot replay an already consumed action.
     final prefs = await SharedPreferences.getInstance();
-    if (!await prefs.setString("pendingWidgetActionName", action!) ||
-        !await prefs.setBool("pendingWidgetAction", true)) {
+    if (!await prefs.setBool("pendingWidgetAction", true) ||
+        !await prefs.setString("pendingWidgetActionName", action!)) {
       throw StateError("Pending notification action was not persisted");
     }
     FlutterBackgroundService().invoke(action);

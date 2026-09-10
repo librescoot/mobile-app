@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 abstract final class LibrescootColors {
   static const accentLight = Color(0xFF087889);
@@ -208,11 +209,11 @@ ThemeData buildLibrescootTheme(Brightness brightness) {
 }
 
 TextTheme _textTheme(Brightness brightness) {
-  final inter = ThemeData(brightness: brightness).textTheme.apply(fontFamily: 'Inter');
+  final inter = GoogleFonts.interTextTheme(ThemeData(brightness: brightness).textTheme);
   return inter.copyWith(
-    displayLarge: inter.displayLarge?.copyWith(fontFamily: 'Abel'),
-    displayMedium: inter.displayMedium?.copyWith(fontFamily: 'Abel'),
-    displaySmall: inter.displaySmall?.copyWith(fontFamily: 'Abel'),
+    displayLarge: GoogleFonts.abel(textStyle: inter.displayLarge),
+    displayMedium: GoogleFonts.abel(textStyle: inter.displayMedium),
+    displaySmall: GoogleFonts.abel(textStyle: inter.displaySmall),
     titleLarge: inter.titleLarge?.copyWith(fontWeight: FontWeight.w500),
     titleMedium: inter.titleMedium?.copyWith(fontWeight: FontWeight.w500),
     titleSmall: inter.titleSmall?.copyWith(fontWeight: FontWeight.w500),
