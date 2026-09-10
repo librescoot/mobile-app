@@ -22,8 +22,13 @@ bool _widgetActionInProgress = false;
 Timer? _foregroundDemoteTimer;
 const Duration _foregroundTimeout = Duration(minutes: 15);
 
-FlutterBluePlusMockable fbp = FlutterBluePlusMockable();
-ScooterService scooterService = ScooterService(fbp, isInBackgroundService: true);
+late FlutterBluePlusMockable fbp;
+late ScooterService scooterService;
+
+void _initializeScooterService() {
+  fbp = FlutterBluePlusMockable();
+  scooterService = ScooterService(fbp, isInBackgroundService: true);
+}
 
 Future<void> setupBackgroundService() async {
   final log = Logger("setupBackgroundService");
@@ -45,7 +50,11 @@ Future<void> setupBackgroundService() async {
       onBackground: onIosBackground,
     ),
     androidConfiguration: AndroidConfiguration(
-      autoStart: true,
+      // Starting a disabled service creates a second Flutter engine. Its
+      // FlutterBluePlus plugin detaches moments later and can tear down the
+      // foreground engine's GATT connection. Widget callbacks and the setting
+      // that enables background scanning start the configured service explicitly.
+      autoStart: backgroundScanEnabled,
       onStart: onStart,
       isForegroundMode: true, // Must start as foreground so Android allows restarts from widget callbacks
       autoStartOnBoot: true,
@@ -56,8 +65,6 @@ Future<void> setupBackgroundService() async {
       foregroundServiceNotificationId: notificationId,
     ),
   );
-
-  service.startService();
 }
 
 @pragma('vm:entry-point')
@@ -69,7 +76,7 @@ Future<bool> onIosBackground(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
   await BackgroundI18n.instance.init();
   // Set up a scooter service instance.
-  scooterService = ScooterService(fbp, isInBackgroundService: true);
+  _initializeScooterService();
   // Make sure scooterService has time to initialize all values
   await Future.delayed(const Duration(seconds: 5));
   // update the widget
@@ -105,13 +112,20 @@ void _enableScanning() {
   attemptConnectionCycle();
 }
 
-void _disableScanning() {
+void _disableScanning({bool stopService = false}) {
   backgroundScanEnabled = false;
   _rescanTimer
     ?..pause()
     ..reset();
   scooterService.rssiTimer.pause();
-  demoteToBackground();
+  if (stopService) {
+    scooterService.disconnectAndClearDevice();
+    _foregroundDemoteTimer?.cancel();
+    dismissNotification();
+    _androidServiceInstance?.stopSelf();
+  } else {
+    demoteToBackground();
+  }
 }
 
 /// Checks SharedPreferences for a pending widget action that was persisted
@@ -147,13 +161,33 @@ Future<void> executeWidgetAction(String actionName) async {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
-    bool matchesRequest() => prefs.getBool("pendingWidgetAction") == true &&
-        prefs.getString("pendingWidgetActionName") == actionName;
+    bool matchesRequest() =>
+        prefs.getBool("pendingWidgetAction") == true && prefs.getString("pendingWidgetActionName") == actionName;
     // All producers persist first. A delayed invoke after a successful action
     // must not replay an already consumed slot (or an unrelated action name).
     if (!matchesRequest()) return;
 
     if (!scooterService.connected) await setWidgetScanning(true);
+
+    // The disconnected widget's Scan button is a reconnect request, not an
+    // implicit unlock command. Connect and consume it without issuing any
+    // vehicle-control write.
+    if (actionName == "connect") {
+      if (!scooterService.connected) {
+        final targetId = scooterService.mostRecentSavedScooterId;
+        if (targetId != null) {
+          await scooterService.connectToScooterId(targetId);
+        }
+      }
+      if (_androidServiceInstance != null) updateNotification();
+      await prefs.reload();
+      if (matchesRequest()) {
+        await prefs.setBool("pendingWidgetAction", false);
+        await prefs.remove("pendingWidgetActionName");
+      }
+      return;
+    }
+
     final dispatch = await scooterService.prepareWidgetAction(actionName);
     if (dispatch == null) return; // Pending connection/pin change: retain request.
     await setWidgetScanning(false);
@@ -174,7 +208,8 @@ Future<void> executeWidgetAction(String actionName) async {
       }
       if (!dispatch.isReady()) return;
       await prefs.reload();
-      if (!dispatch.isReady() || prefs.getBool("pendingWidgetAction") == true ||
+      if (!dispatch.isReady() ||
+          prefs.getBool("pendingWidgetAction") == true ||
           prefs.getString("pendingWidgetActionName") != actionName) {
         return;
       }
@@ -182,8 +217,7 @@ Future<void> executeWidgetAction(String actionName) async {
         throw StateError("Pending action name removal was not persisted");
       }
       await prefs.reload();
-      if (prefs.getBool("pendingWidgetAction") == true ||
-          prefs.getString("pendingWidgetActionName") != null) {
+      if (prefs.getBool("pendingWidgetAction") == true || prefs.getString("pendingWidgetActionName") != null) {
         return; // A newer request arrived during the issued removal.
       }
       if (!dispatch.isReady()) return;
@@ -239,15 +273,15 @@ Future<void> _restoreUnissuedWidgetAction(SharedPreferences prefs, String action
       throw StateError("Unissued action name was not restored");
     }
     await prefs.reload();
-    if (prefs.getBool("pendingWidgetAction") == true ||
-        prefs.getString("pendingWidgetActionName") != actionName) {
+    if (prefs.getBool("pendingWidgetAction") == true || prefs.getString("pendingWidgetActionName") != actionName) {
       return;
     }
     if (!await prefs.setBool("pendingWidgetAction", true)) {
       throw StateError("Unissued action flag was not restored");
     }
   } catch (e, stack) {
-    Logger("bgservice").warning("Could not restore unissued action '$actionName'; pending persistence is uncertain", e, stack);
+    Logger("bgservice")
+        .warning("Could not restore unissued action '$actionName'; pending persistence is uncertain", e, stack);
   }
 }
 
@@ -315,10 +349,29 @@ void onStart(ServiceInstance service) async {
 
   backgroundScanEnabled = await SharedPreferencesAsync().getBool("backgroundScan") ?? false;
 
-  // Check if we were started by a widget action
+  // Check if we were started by a widget action.
   final prefs = await SharedPreferences.getInstance();
+  await prefs.reload();
   final pendingWidgetAction = prefs.getBool("pendingWidgetAction") ?? false;
   final pendingActionName = prefs.getString("pendingWidgetActionName");
+
+  if (service is AndroidServiceInstance) {
+    _androidServiceInstance = service;
+    // Do not construct FlutterBluePlus or ScooterService merely because the
+    // configured service auto-started with the app. Attaching a second Flutter
+    // engine to FlutterBluePlus disconnects the foreground engine's GATT
+    // client. A disabled, actionless service has no Bluetooth work to own.
+    if (!backgroundScanEnabled && !pendingWidgetAction) {
+      Logger("bgservice").info("No background work requested, stopping service before Bluetooth initialization");
+      await HomeWidget.setAppGroupId("group.org.librescoot.mobile.unu");
+      await setWidgetScanning(false);
+      dismissNotification();
+      service.stopSelf();
+      return;
+    }
+  }
+
+  _initializeScooterService();
 
   // Seed widget caches and clear stale spinner BEFORE any code path
   // that might stop the service (e.g. _disableScanning → stopSelf).
@@ -331,7 +384,6 @@ void onStart(ServiceInstance service) async {
   Logger("bgservice").info("Widget seeded with initial data. ScooterName: ${scooterService.scooterName}");
 
   if (service is AndroidServiceInstance) {
-    _androidServiceInstance = service;
     if (backgroundScanEnabled) {
       Logger("bgservice").info("Running first connection cycle");
       _enableScanning();
@@ -394,9 +446,10 @@ void onStart(ServiceInstance service) async {
         scooterService.lastPing = DateTime.fromMillisecondsSinceEpoch(data!["lastPingInt"]);
       }
       if (data?["backgroundScan"] != null) {
-        if (data!["backgroundScan"] == false && backgroundScanEnabled) {
-          // was true, now is false. Shut it down!
-          _disableScanning();
+        if (data!["backgroundScan"] == false) {
+          // An explicit off request always tears down a temporary widget-action
+          // service too, even if persistent background scanning was never on.
+          _disableScanning(stopService: true);
         } else if (data["backgroundScan"] == true && !backgroundScanEnabled) {
           // was false, now is true. Start it up!
           Logger("bgservice").info("Enabling BG scanning");

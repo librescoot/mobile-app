@@ -173,7 +173,8 @@ void passToWidget({
   // Derived from the same cached SOC snapshot as the existing battery rows.
   // Null stays unavailable; never turn missing telemetry into zero range.
   await HomeWidget.saveWidgetData<int?>(
-    'estimatedRangeKm', estimatedWidgetRangeKm(_primarySOC, _secondarySOC),
+    'estimatedRangeKm',
+    estimatedWidgetRangeKm(_primarySOC, _secondarySOC),
   );
 
   // update widget data storage
@@ -270,7 +271,7 @@ FutureOr<void> backgroundCallback(Uri? data) async {
 
   switch (data?.host) {
     case "scan":
-      action = bgScanEnabled ? null : "unlock";
+      action = bgScanEnabled ? null : "connect";
     case "lock":
       action = "lock";
     case "unlock":
@@ -294,8 +295,10 @@ FutureOr<void> backgroundCallback(Uri? data) async {
     // is not lost.
     if (action != null) {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool("pendingWidgetAction", true);
+      // Publish the payload before arming it so another isolate can never
+      // observe a newly armed request with the previous action name.
       await prefs.setString("pendingWidgetActionName", action);
+      await prefs.setBool("pendingWidgetAction", true);
     }
 
     final running = await FlutterBackgroundService().isRunning();

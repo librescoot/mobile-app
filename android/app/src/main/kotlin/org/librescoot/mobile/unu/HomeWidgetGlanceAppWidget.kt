@@ -451,8 +451,7 @@ class HomeWidgetGlanceAppWidget : GlanceAppWidget() {
                 } else if (locked == true && enabled){
                     actionRunCallback<UnlockAction>()
                 } else {
-                    // not connected, attempt anyways
-                    actionRunCallback<UnlockAction>()
+                    actionRunCallback<ConnectAction>()
                 },
                 backgroundColor = if(enabled) GlanceTheme.colors.primary else GlanceTheme.colors.surfaceVariant,
                 modifier = GlanceModifier
@@ -611,7 +610,7 @@ class HomeWidgetGlanceAppWidget : GlanceAppWidget() {
                                 } else if (locked == true && enabled){
                                     actionRunCallback<UnlockAction>()
                                 } else {
-                                    actionRunCallback<UnlockAction>()
+                                    actionRunCallback<ConnectAction>()
                                 },
                                 modifier = GlanceModifier
                                     .fillMaxSize(),
@@ -629,6 +628,13 @@ class HomeWidgetGlanceAppWidget : GlanceAppWidget() {
 class LockAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val backgroundIntent = HomeWidgetBackgroundIntent.getBroadcast(context, Uri.parse("unustasis://lock"))
+        backgroundIntent.send()
+    }
+}
+
+class ConnectAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val backgroundIntent = HomeWidgetBackgroundIntent.getBroadcast(context, Uri.parse("unustasis://scan"))
         backgroundIntent.send()
     }
 }

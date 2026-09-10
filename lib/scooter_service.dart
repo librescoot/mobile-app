@@ -62,6 +62,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   Map<String, SavedScooter> get savedScooters => store.scooters;
   set savedScooters(Map<String, SavedScooter> value) => store.scooters = value;
+  String? get mostRecentSavedScooterId => store.getMostRecent()?.id;
 
   // Legacy test/demo view only; production consumers use currentScooterId.
   // The shared session owns the actual link.
