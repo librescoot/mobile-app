@@ -58,7 +58,7 @@ Future<void> seedCachesFromWidget() async {
 }
 
 void setupWidget() {
-  HomeWidget.setAppGroupId('group.com.librescoot.app');
+  HomeWidget.setAppGroupId('group.org.librescoot.mobile.unu');
   HomeWidget.registerInteractivityCallback(backgroundCallback);
   setupWidgetTasks();
 }
@@ -80,7 +80,7 @@ Future<void> setupWidgetTasks() async {
 Future<void> updateWidgetPing() async {
   setWidgetScanning(false);
   setWidgetUnlocking(false);
-  HomeWidget.setAppGroupId('group.com.librescoot.app');
+  HomeWidget.setAppGroupId('group.org.librescoot.mobile.unu');
   if (_lastPing != null) {
     // just use the cached ping
     _lastPingDifference = _lastPing?.calculateTimeDifferenceInShort();
@@ -133,7 +133,7 @@ void passToWidget({
 
   // Set app group ID first on iOS (required before any saveWidgetData calls)
   if (Platform.isIOS) {
-    await HomeWidget.setAppGroupId('group.com.librescoot.app');
+    await HomeWidget.setAppGroupId('group.org.librescoot.mobile.unu');
   }
 
   bool updateiOS = primarySOC != _primarySOC ||
@@ -211,7 +211,7 @@ void passToWidget({
       qualifiedAndroidName: 'org.librescoot.mobile.unu.HomeWidgetReceiver',
     );
   } else if (Platform.isIOS && updateiOS) {
-    await HomeWidget.setAppGroupId('group.com.librescoot.app');
+    await HomeWidget.setAppGroupId('group.org.librescoot.mobile.unu');
     await HomeWidget.updateWidget(
       iOSName: "ScooterWidget",
     );
@@ -260,7 +260,7 @@ FutureOr<void> backgroundCallback(Uri? data) async {
   WidgetsFlutterBinding.ensureInitialized();
   DartPluginRegistrant.ensureInitialized();
   await BackgroundI18n.instance.init();
-  await HomeWidget.setAppGroupId('group.com.librescoot.app');
+  await HomeWidget.setAppGroupId('group.org.librescoot.mobile.unu');
 
   // Determine the action to perform
   String? action;

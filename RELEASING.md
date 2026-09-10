@@ -65,9 +65,9 @@ up.
 Provisioning profiles are fetched from App Store Connect at build time rather
 than stored, so they cannot drift out of step with the certificate. All three
 embedded bundle IDs need an App Store provisioning profile:
-`com.librescoot.app`, `com.librescoot.app.ScooterWidget`, and
-`com.librescoot.app.Share-Extension`. The first two need the
-`group.com.librescoot.app` app group.
+`org.librescoot.mobile.unu`, `org.librescoot.mobile.unu.ScooterWidget`, and
+`org.librescoot.mobile.unu.ShareExtension`. The first two need the
+`group.org.librescoot.mobile.unu` app group.
 
 ## Where each secret comes from
 

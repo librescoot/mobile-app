@@ -323,7 +323,7 @@ void onStart(ServiceInstance service) async {
   // Seed widget caches and clear stale spinner BEFORE any code path
   // that might stop the service (e.g. _disableScanning → stopSelf).
   Logger("bgservice").info("Seeding widget with initial data");
-  await HomeWidget.setAppGroupId("group.com.librescoot.app");
+  await HomeWidget.setAppGroupId("group.org.librescoot.mobile.unu");
   await seedCachesFromWidget();
   if (!pendingWidgetAction) {
     await setWidgetScanning(false);

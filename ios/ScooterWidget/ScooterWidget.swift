@@ -27,7 +27,7 @@ struct Provider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ScooterStatusEntry) -> Void) {
-        let prefs = UserDefaults(suiteName: "group.com.librescoot.app")
+        let prefs = UserDefaults(suiteName: "group.org.librescoot.mobile.unu")
         let connected = prefs?.bool(forKey: "connected")
         let lastPingDifference = prefs?.string(forKey: "lastPingDifference")
         let lastPingText = prefs?.string(forKey: "iOSlastPingText")

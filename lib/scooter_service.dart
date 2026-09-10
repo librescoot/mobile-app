@@ -568,7 +568,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   Future<void> prepareIosWidget(SessionConnection connection) async {
-    await HomeWidget.setAppGroupId('group.com.librescoot.app');
+    await HomeWidget.setAppGroupId('group.org.librescoot.mobile.unu');
     if (!connection.isCurrent) return;
     passToWidget(scooterId: connection.id);
     service.log.info("Saved scooter ID to widget: ${connection.id}");

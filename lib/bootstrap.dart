@@ -30,7 +30,7 @@ Future<void> bootstrap() async {
     ),
   );
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  await HomeWidget.setAppGroupId("group.com.librescoot.app");
+  await HomeWidget.setAppGroupId("group.org.librescoot.mobile.unu");
 
   Locale? savedLocale;
 
