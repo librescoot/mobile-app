@@ -1,4 +1,4 @@
-package de.freal.unustasis
+package org.librescoot.mobile.unu
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager

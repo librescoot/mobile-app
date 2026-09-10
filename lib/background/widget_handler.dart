@@ -63,7 +63,7 @@ void setupWidget() {
   setupWidgetTasks();
 }
 
-String widgetTaskID = "de.freal.unustasis.widget_refresh";
+String widgetTaskID = "org.librescoot.mobile.unu.widget_refresh";
 
 Future<void> setupWidgetTasks() async {
   Workmanager().initialize(workmanagerCallback);
@@ -103,7 +103,7 @@ Future<void> updateWidgetPing() async {
     _iOSlastPingText,
   );
   await _refreshWidgets(
-    qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
+    qualifiedAndroidName: 'org.librescoot.mobile.unu.HomeWidgetReceiver',
     iOSName: "ScooterWidget",
   );
   return;
@@ -208,7 +208,7 @@ void passToWidget({
   if (Platform.isAndroid && updateAndroid) {
     // once everything is set, rebuild the widget
     await _refreshWidgets(
-      qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
+      qualifiedAndroidName: 'org.librescoot.mobile.unu.HomeWidgetReceiver',
     );
   } else if (Platform.isIOS && updateiOS) {
     await HomeWidget.setAppGroupId('group.com.librescoot.app');
@@ -231,7 +231,7 @@ String? getStateNameForWidget(ScooterState? state) {
 Future<void> setWidgetUnlocking(bool unlocking) async {
   await HomeWidget.saveWidgetData<bool>("scanning", unlocking);
   await _refreshWidgets(
-    qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
+    qualifiedAndroidName: 'org.librescoot.mobile.unu.HomeWidgetReceiver',
     iOSName: "ScooterWidget",
   );
 }
@@ -250,7 +250,7 @@ Future<void> setWidgetScanning(bool scanning) async {
   // will write the correct state. This avoids a brief flash of
   // "Disconnected" between the scan ending and the real state arriving.
   await _refreshWidgets(
-    qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
+    qualifiedAndroidName: 'org.librescoot.mobile.unu.HomeWidgetReceiver',
     iOSName: "ScooterWidget",
   );
 }
@@ -314,7 +314,7 @@ FutureOr<void> backgroundCallback(Uri? data) async {
     print("Error starting background service: $e");
   }
   await _refreshWidgets(
-    qualifiedAndroidName: 'de.freal.unustasis.HomeWidgetReceiver',
+    qualifiedAndroidName: 'org.librescoot.mobile.unu.HomeWidgetReceiver',
     iOSName: "ScooterWidget",
   );
 }
@@ -354,6 +354,6 @@ extension DateTimeExtension on DateTime {
 Future<void> _refreshWidgets({required String qualifiedAndroidName, String? iOSName}) async {
   await HomeWidget.updateWidget(qualifiedAndroidName: qualifiedAndroidName, iOSName: iOSName);
   if (Platform.isAndroid) {
-    await HomeWidget.updateWidget(qualifiedAndroidName: 'de.freal.unustasis.RangeWidgetReceiver');
+    await HomeWidget.updateWidget(qualifiedAndroidName: 'org.librescoot.mobile.unu.RangeWidgetReceiver');
   }
 }
