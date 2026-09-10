@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
@@ -85,7 +84,6 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     try {
       List<String> loadedKeycards = await context.read<ScooterService>().actions.listKeycards();
       Logger('LsKeycardScreen').info('Loaded keycards: $loadedKeycards');
-      await GoogleFonts.pendingFonts([GoogleFonts.kodeMono()]);
       if (!mounted) return;
       setState(() {
         keycards = loadedKeycards;
@@ -389,7 +387,8 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
                     (i) =>
                         widget.uid.substring(i * 4, (i + 1) * 4 > widget.uid.length ? widget.uid.length : (i + 1) * 4))
                 .join(' '),
-            style: GoogleFonts.kodeMono(
+            style: const TextStyle(
+              fontFamily: 'KodeMono',
               color: Colors.white,
               fontSize: 28,
             ),

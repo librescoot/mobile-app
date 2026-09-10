@@ -12,6 +12,7 @@ import 'package:shared_preferences/util/legacy_to_async_migration_util.dart';
 
 import 'app.dart';
 import 'background/bg_service.dart';
+import 'bundled_font_licenses.dart';
 import 'background/widget_handler.dart';
 import 'domain/log_helper.dart';
 import 'flutter/blue_plus_mockable.dart';
@@ -20,6 +21,7 @@ import 'scooter_service.dart';
 Future<void> bootstrap() async {
   LogHelper().initialize();
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  registerBundledFontLicenses();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
   SystemChrome.setSystemUIOverlayStyle(
