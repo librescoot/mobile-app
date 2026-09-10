@@ -69,7 +69,13 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   final _Actions actions = _Actions();
   @override
-  bool get connected => true;
+  bool connected = true;
+  void setConnection(bool value) {
+    connected = value;
+    notifyListeners();
+  }
+  @override
+  bool get alarmAvailable => false;
   @override
   bool get otaAvailable => false;
   @override
@@ -138,6 +144,55 @@ void main() {
       const MethodChannel('plugins.flutter.io/local_auth'),
       (call) async => <String>[],
     );
+  });
+
+  testWidgets('offline scooter settings remain visible, disabled and never loading', (tester) async {
+    final service = _Service()..connected = false;
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    final context = tester.element(find.byType(SettingsScreen));
+    for (final key in ['ls_keycard_title', 'ls_settings_auto_lock_title',
+      'ls_settings_auto_hibernate_title', 'ls_scheduled_hibernation_title',
+      'ls_settings_battery_keep_active_title', 'ls_settings_apn_title',
+      'ls_settings_ota_title', 'ls_settings_update_mode_title']) {
+      final title = find.text(FlutterI18n.translate(context, key));
+      await _show(tester, title);
+      final tile = tester.widget<ListTile>(find.ancestor(of: title, matching: find.byType(ListTile)).first);
+      expect(tile.enabled, isFalse, reason: key);
+      expect(tile.onTap, isNull, reason: key);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    }
+    expect(service.actions.reads, isEmpty);
+    expect(service.actions.standbyWrites, isEmpty);
+    expect(service.actions.hibernateWrites, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('disconnect removes in-flight loading and reconnect reads settings again', (tester) async {
+    final service = _Service();
+    final gate = Completer<void>();
+    service.actions.readGate = gate;
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(service.actions.reads.length, 2);
+    service.setConnection(false);
+    await tester.pumpAndSettle();
+    final title = find.text(FlutterI18n.translate(tester.element(find.byType(SettingsScreen)), 'ls_settings_auto_lock_title'));
+    await _show(tester, title);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(tester.widget<ListTile>(find.ancestor(of: title, matching: find.byType(ListTile)).first).enabled, isFalse);
+    service.setConnection(true);
+    await tester.pumpAndSettle();
+    await _show(tester, _timer(0));
+    expect(service.actions.reads.length, 4);
+    expect(tester.widget<DropdownButton<int>>(_button(_timer(0))).onChanged, isNotNull);
+    expect(service.actions.standbyWrites, isEmpty);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('actual Settings switch row hierarchy, flat heading spacing and callbacks', (tester) async {

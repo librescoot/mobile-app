@@ -16,5 +16,6 @@
   "settings_duration_minute_one": "{count} minute",
   "settings_duration_minute_many": "{count} minutes",
   "settings_duration_second_one": "{count} second",
-  "settings_duration_second_many": "{count} seconds"
+  "settings_duration_second_many": "{count} seconds",
+    "settings_scooter_disconnected": "Connect to the scooter to use this setting."
 }

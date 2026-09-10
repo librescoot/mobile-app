@@ -635,5 +635,6 @@
   "settings_duration_minute_one": "{count} Minute",
   "settings_duration_minute_many": "{count} Minuten",
   "settings_duration_second_one": "{count} Sekunde",
-  "settings_duration_second_many": "{count} Sekunden"
+  "settings_duration_second_many": "{count} Sekunden",
+    "settings_scooter_disconnected": "Verbinde dich mit dem Roller, um diese Einstellung zu verwenden."
 }
