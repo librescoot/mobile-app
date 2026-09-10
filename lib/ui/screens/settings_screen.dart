@@ -26,6 +26,7 @@ import 'package:unustasis/ui/presentation/settings_duration.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
+import 'package:unustasis/ui/screens/system_information_screen.dart';
 import 'package:unustasis/ui/screens/ls_scheduled_hibernation_screen.dart';
 import 'package:scooter_core/actions.dart';
 import 'package:unustasis/state/vehicle_status.dart';
@@ -1026,6 +1027,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             connected: connected,
             otaAvailable: otaAvailable,
           )),
+        ListTile(
+          leading: const Icon(Icons.info_outline),
+          title: Text(FlutterI18n.translate(context, 'system_info_title')),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SystemInformationScreen())),
+        ),
         ],
         Header(FlutterI18n.translate(context, "stats_settings_section_app")),
         FutureBuilder<List<BiometricType>>(
