@@ -1,12 +1,13 @@
 name: Release
 
-# Fires on a version tag (2.0.0, 2.0.0-rc4, ...). Builds a signed Android
-# bundle and an iOS archive, publishes both to their stores, and attaches the
-# artifacts to a GitHub release.
+# Fires on a version tag (1.3.1, 1.3.1-beta.1, ...). Builds a signed Android
+# bundle and an iOS archive, uploads iOS to TestFlight when configured, and
+# attaches artifacts to a GitHub release. Android Play publication is performed
+# separately with keyless service-account impersonation; this workflow never
+# stores or consumes a Play service-account key.
 #
-# A tag carrying a hyphen is treated as a prerelease: it goes to Play's
-# internal track and is marked prerelease on GitHub. A bare x.y.z goes to the
-# beta track. TestFlight has no equivalent split, every build lands there.
+# A tag carrying a hyphen is marked as a GitHub prerelease. The resolved Play
+# track is retained as build metadata for the manual keyless publishing step.
 
 permissions:
   contents: write
@@ -78,10 +79,6 @@ jobs:
     name: Android
     runs-on: ubuntu-latest
     needs: meta
-    env:
-      # Secrets cannot be read from a step-level `if`, so the presence check
-      # has to be hoisted to the job environment.
-      HAS_PLAY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -123,16 +120,9 @@ jobs:
           # Play caps these at 500 characters and rejects anything longer.
           head -c 500 changelog.md > play/whatsnew/whatsnew-en-US
 
-      - name: Upload to Play
-        if: env.HAS_PLAY == 'true'
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: org.librescoot.mobile.unu
-          releaseFiles: build/app/outputs/bundle/release/app-release.aab
-          track: ${{ needs.meta.outputs.play_track }}
-          status: completed
-          whatsNewDirectory: play/whatsnew
+      # Upload the verified artifact separately through the Publisher API with
+      # keyless service-account impersonation. Service-account JSON keys are
+      # intentionally prohibited and must not be added as repository secrets.
 
       - uses: actions/upload-artifact@v4
         with:

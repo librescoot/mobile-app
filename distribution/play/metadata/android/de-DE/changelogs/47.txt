@@ -1,0 +1,6 @@
+Verbesserungen bei Zuverlässigkeit und Datenschutz:
+
+• Klare Ersteinrichtung für Berechtigungen und optionale Online-Ortsdienste
+• Vom Nutzer gestarteter E-Mail-Versand von Debug-Protokollen ist wieder verfügbar
+• Nicht verfügbare Librescoot-Einstellungen laden nicht mehr endlos
+• Das getrennte Widget verbindet nur neu und unterdrückt automatische Aktionen bei temporären Verbindungen

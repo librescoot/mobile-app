@@ -1,0 +1,6 @@
+Verbeteringen voor betrouwbaarheid en privacy:
+
+• Duidelijke eerste keuzes voor machtigingen en optionele online plaatsdiensten
+• Zelfgestuurde e-mailbijlagen met debuglogboeken zijn hersteld
+• Niet-beschikbare Librescoot-instellingen blijven niet meer eindeloos laden
+• Bij een verbroken verbinding maakt de widgetactie alleen opnieuw verbinding; automatische acties worden tijdens tijdelijke herverbindingen onderdrukt

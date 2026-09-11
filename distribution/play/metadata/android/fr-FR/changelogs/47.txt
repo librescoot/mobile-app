@@ -1,0 +1,6 @@
+Améliorations de fiabilité et de confidentialité :
+
+• Choix clairs au premier démarrage pour les autorisations et les services de lieux en ligne facultatifs
+• Rétablissement de l’envoi volontaire des journaux de débogage par e-mail
+• Fin du chargement sans fin des réglages Librescoot indisponibles
+• Hors connexion, l’action du widget sert uniquement à se reconnecter ; les actions automatiques sont bloquées pendant les reconnexions temporaires

@@ -2,30 +2,43 @@
 
 Three workflows. `ci.yaml` analyzes and tests every push and PR. `nightly.yaml`
 builds an APK from every push to `main` and publishes it as its own
-`nightly-<timestamp>` prerelease, keeping the last 10. `release.yaml` fires on a
-version tag and is the one that reaches the stores.
+`nightly-<timestamp>` prerelease, keeping the last 10. `release.yaml` builds
+signed release artifacts from a version tag or manual dispatch. It can upload
+iOS to TestFlight when configured. Android Play publication is a separate,
+keyless Publisher API step after the signed artifact has been verified.
 
 ## Cutting a release
 
+The app version tracks the matching Librescoot stable release's `major.minor`.
+Mobile releases use their own patch and prerelease suffix, plus an independently
+monotonic build number. For example, releases aligned with Librescoot 1.3 may be
+`1.3.1+48` or `1.3.2-beta.1+49`. Keep the format conventional Dart/Flutter
+semantic versioning rather than introducing a second embedded version tuple.
+
 ```bash
-# bump pubspec.yaml: version: 2.0.1+42
-# rewrite changelog.md with the user-facing changes
-git commit pubspec.yaml changelog.md -m "Version bump to 2.0.1"
-git tag -a 2.0.1 -m "Librescoot App for unu 2.0.1"
-git push origin main 2.0.1
+# bump pubspec.yaml, for example: version: 1.3.1+48
+# rewrite changelog.md and localized distribution/play changelog files
+git commit pubspec.yaml changelog.md distribution/play/metadata/android \
+  -m "Prepare 1.3.1 release"
+git tag -a 1.3.1 -m "Librescoot App for unu 1.3.1"
+git push origin main 1.3.1
 ```
 
-The tag must match `version:` in `pubspec.yaml` or the workflow stops before
-building. That check exists because a mislabelled build in TestFlight cannot be
-withdrawn, only superseded.
+The tag must match the version name before `+` in `pubspec.yaml` or the workflow
+stops before building. That check exists because a mislabelled build in
+TestFlight cannot be withdrawn, only superseded.
 
-A hyphen in the tag makes it a prerelease: `2.0.1-rc1` goes to Play's
-`internal` track and is marked prerelease on GitHub, a bare `2.0.1` goes to
-`beta`. Override with the `workflow_dispatch` input. Every iOS build goes to
-TestFlight regardless, since TestFlight has no track split.
+A hyphen in the tag marks it as a GitHub prerelease. The workflow resolves an
+intended Play track (`internal` for prereleases, `beta` otherwise), which can be
+overridden for a manual dispatch. Android is not uploaded automatically: verify
+the signed AAB, then publish it to the intended track using the keyless process
+below. Every configured iOS build goes to TestFlight, since TestFlight has no
+track split.
 
-`changelog.md` becomes both the GitHub release body and the Play "what's new"
-text. Play truncates at 500 characters, so keep it short.
+`changelog.md` becomes the GitHub release body and the staged English Play
+fallback. Keep it within Play's 500-character limit. The localized files under
+`distribution/play/metadata/android/*/changelogs/<build>.txt` are authoritative
+for the keyless Play upload.
 
 ## Required secrets
 
@@ -38,14 +51,10 @@ Set these under Settings -> Secrets and variables -> Actions.
 | `KEYSTORE` | Upload keystore, base64. `base64 -w0 upload-keystore.jks` |
 | `KEYSTORE_PASSWORD` | Store and key password (the workflow uses one value for both) |
 | `KEY_ALIAS` | Optional, defaults to `upload` |
-| `PLAY_SERVICE_ACCOUNT_JSON` | Google Play service account JSON, whole file |
 
-The Play step is skipped when `PLAY_SERVICE_ACCOUNT_JSON` is absent, so Android
-builds and GitHub releases work before Play is wired up.
-
-The service account needs the Release Manager role in Play Console, and
-`org.librescoot.mobile.unu` has to exist there with at least one manual upload
-already: Play rejects the first upload of a package from the API.
+Do not create or store Google Play service-account JSON keys. Publisher API
+access is keyless and uses short-lived credentials obtained by impersonating a
+service account after interactive user authentication.
 
 ### iOS
 
@@ -82,17 +91,28 @@ keytool -genkey -v -keystore upload-keystore.jks \
 base64 -i upload-keystore.jks | pbcopy   # -> KEYSTORE
 ```
 
-### Play service account
+### Keyless Play Publisher access
 
-1. Play Console -> Setup -> API access, link a Google Cloud project.
-2. In that project: IAM & Admin -> Service Accounts -> Create, then
-   Keys -> Add key -> JSON. The whole downloaded file is
-   `PLAY_SERVICE_ACCOUNT_JSON`.
-3. Back in Play Console -> Users and permissions, invite the service account's
-   email and give it Release manager, or app-level release permissions on
-   `org.librescoot.mobile.unu`.
-4. Upload one bundle by hand first. Play rejects the API's first upload of a
-   package it has never seen.
+1. Play Console -> Setup -> API access: link the Google Cloud project.
+2. Give a service account app-level release permissions for
+   `org.librescoot.mobile.unu` in Play Console.
+3. Grant authorized maintainers `roles/iam.serviceAccountTokenCreator` on that
+   service account. Keep organization policy preventing service-account key
+   creation enabled.
+4. Authenticate interactively with `gcloud auth application-default login`,
+   including `https://www.googleapis.com/auth/androidpublisher` in the requested
+   scopes.
+5. Obtain a short-lived Publisher token with `gcloud auth application-default
+   print-access-token --scopes=https://www.googleapis.com/auth/androidpublisher
+   --impersonate-service-account=<publisher-service-account>`.
+6. Use a single Publisher edit to upload the verified AAB, replace only the
+   intended track, verify its staged release name/code/notes, and commit the
+   edit. Open a fresh read-only edit afterward to confirm the bundle digest,
+   committed track state, and that production remains unchanged.
+
+Never publish a first or follow-up release using a downloaded service-account
+key. Never promote an internal release to another track without explicit owner
+approval.
 
 ### App Store Connect API key
 
