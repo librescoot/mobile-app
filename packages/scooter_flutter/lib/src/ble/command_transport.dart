@@ -53,7 +53,6 @@ Future<void> sendCommand(
   void Function()? onWriteIssued,
 }) async {
   checkCommandCurrent(isCurrent);
-  _log.fine("Sending command: $command");
   if (scooter == null) {
     throw "Scooter not found!";
   }
@@ -68,6 +67,7 @@ Future<void> sendCommand(
   }
 
   final bytes = ascii.encode(command);
+  _log.fine('Sending command (${bytes.length} bytes)');
   // From this point even a synchronous native write error is ambiguous. This
   // optional observation lets explicit requests retain only definite non-writes.
   onWriteIssued?.call();
@@ -78,16 +78,27 @@ Future<void> sendCommand(
 /// firmware) and waits for a single response on the extended response
 /// characteristic. Returns null on timeout.
 Future<String?> sendLsExtendedCommand(
-        BluetoothDevice? scooter, CharacteristicRepository repo, String command,
-        {bool Function()? isCurrent}) =>
+  BluetoothDevice? scooter,
+  CharacteristicRepository repo,
+  String command, {
+  bool Function()? isCurrent,
+  Duration responseTimeout = const Duration(seconds: 10),
+}) =>
     withExtendedChannel(() => _sendLsExtendedCommandUnguarded(
-        scooter, repo, command,
-        isCurrent: isCurrent));
+          scooter,
+          repo,
+          command,
+          isCurrent: isCurrent,
+          responseTimeout: responseTimeout,
+        ));
 
 Future<String?> _sendLsExtendedCommandUnguarded(
-    BluetoothDevice? scooter, CharacteristicRepository repo, String command,
-    {bool Function()? isCurrent}) async {
-  final commandLabel = _extendedCommandLabel(command);
+  BluetoothDevice? scooter,
+  CharacteristicRepository repo,
+  String command, {
+  bool Function()? isCurrent,
+  required Duration responseTimeout,
+}) async {
   checkCommandCurrent(isCurrent);
   if (scooter == null || scooter.isDisconnected) {
     throw "Scooter not connected!";
@@ -99,30 +110,24 @@ Future<String?> _sendLsExtendedCommandUnguarded(
   }
 
   _log.info(
-      'Extended command $commandLabel acquired channel; notifications=${resp.isNotifying}');
+      'Extended command acquired channel; notifications=${resp.isNotifying}');
   await ensureExtendedNotify(resp);
   checkCommandCurrent(isCurrent);
   final listener = ExtendedResponseListener(resp.onValueReceived);
   try {
     await sendCommand(scooter, repo, command,
         characteristic: cmd, allowLongWrite: true, isCurrent: isCurrent);
-    _log.info('Extended command $commandLabel written; waiting for response');
-    final response =
-        await listener.responses.first.timeout(const Duration(seconds: 10));
+    _log.info('Extended command written; waiting for response');
+    final response = await listener.responses.first.timeout(responseTimeout);
     _log.info(
-        'Extended command $commandLabel received ${utf8.encode(response).length} bytes');
+        'Extended command received ${utf8.encode(response).length} bytes');
     return response;
   } on TimeoutException {
-    _log.warning('Extended command $commandLabel timed out');
+    _log.warning('Extended command timed out');
     return null;
   } finally {
     await listener.cancel();
   }
-}
-
-String _extendedCommandLabel(String command) {
-  final words = command.split(RegExp(r'[: ]'));
-  return words.take(2).where((part) => part.isNotEmpty).join(':');
 }
 
 void checkCommandCurrent(bool Function()? isCurrent) {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:scooter_flutter/command_transport.dart' show withExtendedChannel;
 import 'package:unustasis/infrastructure/characteristic_repository.dart';
 import 'package:unustasis/service/ble_commands.dart';
@@ -118,6 +119,60 @@ void main() {
     expect(response.cancellations, 2);
     expect(extended.writes.every((write) => write.allowLongWrite), isTrue);
     expect(basic.writes, isEmpty);
+  });
+
+  test('lifecycle logs expose stages and byte counts but no command or response payload', () async {
+    final previousLevel = Logger.root.level;
+    Logger.root.level = Level.ALL;
+    final records = <LogRecord>[];
+    final subscription = Logger.root.onRecord.listen(records.add);
+    addTearDown(() async {
+      await subscription.cancel();
+      Logger.root.level = previousLevel;
+    });
+    const command = 'fleet:pair super-secret-token remaining-payload';
+    const reply = 'private-response-payload';
+    extended.onWrite = (_) async => response.reply(reply);
+
+    await expectLater(sendLsExtendedCommand(device, repo, command), completion(reply));
+
+    final messages = records.where((record) => record.loggerName == 'BleCommands').map((record) => record.message);
+    expect(messages, contains('Sending command (${ascii.encode(command).length} bytes)'));
+    expect(messages, contains('Extended command received ${utf8.encode(reply).length} bytes'));
+    expect(records.where((record) => record.loggerName == 'BleCommands').map((record) => record.level),
+        containsAll([Level.FINE, Level.INFO]));
+    for (final message in messages) {
+      expect(message, isNot(contains('fleet')));
+      expect(message, isNot(contains('pair')));
+      expect(message, isNot(contains('super-secret-token')));
+      expect(message, isNot(contains('private-response-payload')));
+    }
+  });
+
+  test('timeout warning never derives a label from payload-like tokens', () async {
+    final previousLevel = Logger.root.level;
+    Logger.root.level = Level.ALL;
+    final records = <LogRecord>[];
+    final subscription = Logger.root.onRecord.listen(records.add);
+    addTearDown(() async {
+      await subscription.cancel();
+      Logger.root.level = previousLevel;
+    });
+    const command = 'owner:keycard private-card-material';
+
+    await expectLater(
+      sendLsExtendedCommand(device, repo, command, responseTimeout: Duration.zero),
+      completion(isNull),
+    );
+
+    final commandRecords = records.where((record) => record.loggerName == 'BleCommands').toList();
+    expect(commandRecords.where((record) => record.level == Level.WARNING).map((record) => record.message),
+        contains('Extended command timed out'));
+    for (final record in commandRecords) {
+      expect(record.message, isNot(contains('owner')));
+      expect(record.message, isNot(contains('keycard')));
+      expect(record.message, isNot(contains('private-card-material')));
+    }
   });
 
   test('already enabled notifications are not toggled', () async {
