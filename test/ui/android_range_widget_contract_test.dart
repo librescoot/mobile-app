@@ -18,9 +18,48 @@ void main() {
     expect(source, contains("if (Platform.isAndroid) {\n    await HomeWidget.updateWidget(qualifiedAndroidName:"));
     expect(source, contains('RangeWidgetReceiver'));
   });
+  test('interactive widget describes reconnect-only actions accurately', () {
+    final source = File(
+      'android/app/src/main/kotlin/org/librescoot/mobile/unu/HomeWidgetGlanceAppWidget.kt',
+    ).readAsStringSync();
+    expect(RegExp(r'"Reconnect to scooter"').allMatches(source).length, 2);
+    expect(RegExp(r'!enabled \|\| locked == null').allMatches(source).length, 2);
+    expect(
+      RegExp(
+        r'if\s*\(locked == false && enabled\)\s*\{\s*actionRunCallback<LockAction>\(\)\s*\}\s*else if\s*\(locked == true && enabled\)\s*\{\s*actionRunCallback<UnlockAction>\(\)\s*\}\s*else\s*\{\s*actionRunCallback<ConnectAction>\(\)',
+      ).allMatches(source).length,
+      2,
+    );
+    expect(source, isNot(contains(r'" ${if (locked == false) "Unlock" else "Lock"} scooter"')));
+  });
+
+  test('reconnect readiness wait is scoped to reconnect and revalidates its request', () {
+    final source = File('lib/background/bg_service.dart').readAsStringSync();
+    expect(RegExp(r'await scooterService\.runtimeReady;').allMatches(source), hasLength(1));
+    final connect = source.substring(
+      source.indexOf('if (actionName == "connect")'),
+      source.indexOf('final dispatch = await scooterService.prepareWidgetAction(actionName)'),
+    );
+    expect(connect.indexOf('await scooterService.runtimeReady;'), greaterThanOrEqualTo(0));
+    expect(
+      connect.indexOf('await prefs.reload();'),
+      greaterThan(connect.indexOf('await scooterService.runtimeReady;')),
+    );
+    expect(
+      connect.indexOf('if (!matchesRequest()) return;'),
+      greaterThan(connect.indexOf('await prefs.reload();')),
+    );
+    expect(
+      connect.indexOf('scooterService.mostRecentSavedScooterId'),
+      greaterThan(connect.indexOf('if (!matchesRequest()) return;')),
+    );
+  });
+
   test('range widget only opens the app and exposes an accessible cached estimate', () {
-    final file = Directory('android/app/src/main/kotlin').listSync(recursive: true)
-        .whereType<File>().singleWhere((file) => file.path.endsWith('/RangeWidgetReceiver.kt'));
+    final file = Directory('android/app/src/main/kotlin')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .singleWhere((file) => file.path.endsWith('/RangeWidgetReceiver.kt'));
     final source = file.readAsStringSync();
     expect(source, contains('PendingIntent.getActivity('));
     expect(source, contains('Intent(context, MainActivity::class.java)'));

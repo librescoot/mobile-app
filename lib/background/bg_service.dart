@@ -25,9 +25,13 @@ const Duration _foregroundTimeout = Duration(minutes: 15);
 late FlutterBluePlusMockable fbp;
 late ScooterService scooterService;
 
-void _initializeScooterService() {
+void _initializeScooterService({bool allowAutomaticActions = true}) {
   fbp = FlutterBluePlusMockable();
-  scooterService = ScooterService(fbp, isInBackgroundService: true);
+  scooterService = ScooterService(
+    fbp,
+    isInBackgroundService: true,
+    allowAutomaticActions: allowAutomaticActions,
+  );
 }
 
 Future<void> setupBackgroundService() async {
@@ -104,6 +108,7 @@ Future<void> attemptConnectionCycle() async {
 
 void _enableScanning() {
   backgroundScanEnabled = true;
+  scooterService.setAutomaticActionsAllowed(true);
   _foregroundDemoteTimer?.cancel();
   _androidServiceInstance?.setAsForegroundService();
   _rescanTimer?.start();
@@ -114,6 +119,7 @@ void _enableScanning() {
 
 void _disableScanning({bool stopService = false}) {
   backgroundScanEnabled = false;
+  scooterService.setAutomaticActionsAllowed(false);
   _rescanTimer
     ?..pause()
     ..reset();
@@ -173,6 +179,11 @@ Future<void> executeWidgetAction(String actionName) async {
     // implicit unlock command. Connect and consume it without issuing any
     // vehicle-control write.
     if (actionName == "connect") {
+      // Startup cache restoration owns the saved-scooter target. A newer
+      // request may also have replaced this one while restoration waited.
+      await scooterService.runtimeReady;
+      await prefs.reload();
+      if (!matchesRequest()) return;
       if (!scooterService.connected) {
         final targetId = scooterService.mostRecentSavedScooterId;
         if (targetId != null) {
@@ -371,7 +382,7 @@ void onStart(ServiceInstance service) async {
     }
   }
 
-  _initializeScooterService();
+  _initializeScooterService(allowAutomaticActions: backgroundScanEnabled);
 
   // Seed widget caches and clear stale spinner BEFORE any code path
   // that might stop the service (e.g. _disableScanning → stopSelf).

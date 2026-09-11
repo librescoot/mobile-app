@@ -442,9 +442,13 @@ class HomeWidgetGlanceAppWidget : GlanceAppWidget() {
                 imageProvider = ImageProvider(if(enabled) {
                     if(locked == true) ic_lock else ic_unlock
                 } else ic_lock_disabled),
-                contentDescription = if(enabled) {
-                    if(locked == true) "Unlock" else "Lock"
-                } else "Scan",
+                contentDescription = if(!enabled || locked == null) {
+                    "Reconnect to scooter"
+                } else if(locked) {
+                    "Unlock scooter"
+                } else {
+                    "Lock scooter"
+                },
                 onClick =
                 if(locked == false && enabled){
                     actionRunCallback<LockAction>()
@@ -597,7 +601,13 @@ class HomeWidgetGlanceAppWidget : GlanceAppWidget() {
                         } else {
                             SquareIconButton(
                                 imageProvider = ImageProvider(if(enabled) if (locked == false && enabled) ic_unlock else ic_lock else ic_lock_disabled),
-                                contentDescription = " ${if (locked == false) "Unlock" else "Lock"} scooter",
+                                contentDescription = if(!enabled || locked == null) {
+                                    "Reconnect to scooter"
+                                } else if(locked) {
+                                    "Unlock scooter"
+                                } else {
+                                    "Lock scooter"
+                                },
                                 contentColor = if(enabled) GlanceTheme.colors.onPrimary else GlanceTheme.colors.secondary,
                                 backgroundColor = if(enabled){
                                     GlanceTheme.colors.primary

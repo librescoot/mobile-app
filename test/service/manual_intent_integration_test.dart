@@ -1,4 +1,5 @@
 import 'package:logging/logging.dart';
+import 'package:scooter_core/scooter_core.dart' show ScooterState;
 import 'dart:convert';
 import 'package:shared_preferences_platform_interface/types.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
@@ -140,13 +141,14 @@ class _Device extends Fake implements BluetoothDevice {
   bool get isConnected => linked;
   bool silentFailure = false;
   int rssiReads = 0;
+  int rssiValue = -70;
   Completer<int>? rssiGate;
   @override
   Future<int> readRssi({int timeout = 15}) async {
     rssiReads++;
     if (rssiGate != null) return rssiGate!.future;
     if (silentFailure) throw StateError('Silent disconnect');
-    return -70;
+    return rssiValue;
   }
 
   @override
@@ -209,10 +211,10 @@ class _Characteristic extends Fake implements BluetoothCharacteristic {
 }
 
 class _Repository extends CharacteristicRepository {
-  _Repository() : super(_Device('repository-only')) {
+  _Repository({String state = 'parked'}) : super(_Device('repository-only')) {
     commandCharacteristic = characteristic([]);
     hibernationCommandCharacteristic = null;
-    stateCharacteristic = characteristic('parked'.codeUnits);
+    stateCharacteristic = characteristic(state.codeUnits);
     powerStateCharacteristic = characteristic('running'.codeUnits);
     seatCharacteristic = characteristic('closed'.codeUnits);
     handlebarCharacteristic = characteristic('locked'.codeUnits);
@@ -267,12 +269,14 @@ class _Service extends ScooterService {
   // ignore: use_super_parameters
   _Service(super.flutterBluePlus, _Storage storage, Map<String, _Device> devices, List<String> deviceRequests,
       _Repository repository, List<BluetoothDevice> repositories,
-      {Future<LatLng?> Function()? pollLocation, bool initializeRuntime = false, bool background = true})
+      {Future<LatLng?> Function()? pollLocation, bool initializeRuntime = false, bool background = true,
+      bool allowAutomaticActions = true})
       : super(
           pollLocation: pollLocation ?? (() async => null),
           storage: storage,
           initializeRuntime: initializeRuntime,
           isInBackgroundService: background,
+          allowAutomaticActions: allowAutomaticActions,
           deviceFromId: (id) {
             deviceRequests.add(id);
             return devices[id]!;
@@ -519,6 +523,132 @@ void main() {
     expect(h.service.connected, isTrue);
     await h.expectPending(null);
   });
+
+  testWidgets('temporary widget reconnect uses production polling without automatic vehicle writes', (tester) async {
+    final preferences = _RuntimePreferences()
+      ..values['autoUnlock'] = true
+      ..values['biometrics'] = false;
+    SharedPreferencesAsyncPlatform.instance = preferences;
+    final a = _Device('A')..connection.complete()..rssiValue = -50;
+    final repo = _Repository(state: 'stand-by')..discovery.complete();
+    final service = _Service(_Bluetooth(), _Storage(), {'A': a}, [], repo, [],
+        initializeRuntime: true, allowAutomaticActions: false);
+    background.scooterService = service;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('pendingWidgetActionName', 'connect');
+    await prefs.setBool('pendingWidgetAction', true);
+    await background.executeWidgetAction('connect');
+    expect(service.connected, isTrue);
+    expect(service.state, ScooterState.standby);
+    expect(service.autoUnlock, isTrue);
+    expect(service.optionalAuth, isTrue);
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    await service.actions.pollRssi();
+    expect(a.rssiReads, 0, reason: 'passive runtime does not start a proximity action');
+    expect(repo.characteristics.expand((c) => c.writes), isEmpty);
+    expect(preferences.values['autoUnlock'], isTrue);
+    expect(prefs.getBool('pendingWidgetAction'), isFalse);
+
+    // Explicit widget commands remain usable in the same temporary service.
+    for (final action in ['unlock', 'lock', 'openseat']) {
+      await prefs.setString('pendingWidgetActionName', action);
+      await prefs.setBool('pendingWidgetAction', true);
+      await background.executeWidgetAction(action);
+    }
+    expect((repo.commandCharacteristic as _Characteristic).writes,
+        ['scooter:state unlock', 'scooter:state lock', 'scooter:seatbox open']);
+    service.dispose();
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  for (final backgroundMode in [false, true]) {
+    testWidgets('production ${backgroundMode ? 'persistent background' : 'foreground'} retains opted-in keyless polling', (tester) async {
+      final preferences = _RuntimePreferences()
+        ..values['autoUnlock'] = true
+        ..values['biometrics'] = false;
+      SharedPreferencesAsyncPlatform.instance = preferences;
+      final a = _Device('A')..connection.complete()..rssiValue = -50;
+      final repo = _Repository(state: 'stand-by')..discovery.complete();
+      final service = _Service(_Bluetooth(), _Storage(), {'A': a}, [], repo, [],
+          initializeRuntime: true, background: backgroundMode);
+      await service.runtimeReady;
+      await service.connectToScooterId('A');
+      await tester.pump(const Duration(seconds: 3));
+      expect(a.rssiReads, greaterThan(0));
+      expect((repo.commandCharacteristic as _Characteristic).writes, ['scooter:state unlock']);
+      expect(preferences.values['autoUnlock'], isTrue);
+      service.dispose();
+      await tester.pump(const Duration(seconds: 6));
+    });
+  }
+
+  testWidgets('enabling background scan restores automatic policy without rewriting preference', (tester) async {
+    final preferences = _RuntimePreferences()
+      ..values['autoUnlock'] = true
+      ..values['biometrics'] = false;
+    SharedPreferencesAsyncPlatform.instance = preferences;
+    final a = _Device('A')..connection.complete()..rssiValue = -50;
+    final repo = _Repository(state: 'stand-by')..discovery.complete();
+    final service = _Service(_Bluetooth(), _Storage(), {'A': a}, [], repo, [],
+        initializeRuntime: true, allowAutomaticActions: false);
+    await service.runtimeReady;
+    await service.connectToScooterId('A');
+    await tester.pump(const Duration(seconds: 4));
+    expect(repo.characteristics.expand((c) => c.writes), isEmpty);
+    // _enableScanning applies this runtime-only policy before restarting RSSI.
+    service.setAutomaticActionsAllowed(true);
+    service.rssiTimer.start();
+    await tester.pump(const Duration(seconds: 3));
+    expect(a.rssiReads, greaterThan(0));
+    expect((repo.commandCharacteristic as _Characteristic).writes, ['scooter:state unlock']);
+    expect(service.autoUnlock, isTrue);
+    expect(preferences.values['autoUnlock'], isTrue);
+    service.dispose();
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  for (final replacement in [null, 'lock', 'cancel']) {
+    testWidgets('widget reconnect waits for storage and revalidates ${replacement ?? 'unchanged'} request', (tester) async {
+      SharedPreferencesAsyncPlatform.instance = _RuntimePreferences();
+      final storage = _Storage()..scooters = {}..loadGate = Completer<void>();
+      final a = _Device('A')..connection.complete();
+      final repo = _Repository()..discovery.complete();
+      final requests = <String>[];
+      final service = _Service(_Bluetooth(), storage, {'A': a}, requests, repo, [],
+          initializeRuntime: true, allowAutomaticActions: false);
+      background.scooterService = service;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('pendingWidgetActionName', 'connect');
+      await prefs.setBool('pendingWidgetAction', true);
+      var completed = false;
+      final action = background.executeWidgetAction('connect').then((_) => completed = true);
+      await tester.pump(const Duration(seconds: 5));
+      expect(completed, isFalse);
+      expect(requests, isEmpty);
+      expect(prefs.getBool('pendingWidgetAction'), isTrue);
+      expect(prefs.getString('pendingWidgetActionName'), 'connect');
+      if (replacement == 'cancel') {
+        await prefs.setBool('pendingWidgetAction', false);
+        await prefs.remove('pendingWidgetActionName');
+      } else if (replacement != null) {
+        await prefs.setString('pendingWidgetActionName', replacement);
+      }
+      storage.scooters = {'A': SavedScooter(id: 'A', name: 'Alpha', color: 1)};
+      storage.loadGate!.complete();
+      await tester.pump();
+      await action;
+      await prefs.reload();
+      expect(requests, replacement == null ? ['A'] : isEmpty);
+      expect(service.connected, replacement == null);
+      expect(prefs.getBool('pendingWidgetAction'), replacement == 'lock');
+      expect(prefs.getString('pendingWidgetActionName'), replacement == 'lock' ? 'lock' : null);
+      expect(repo.characteristics.expand((c) => c.writes), isEmpty);
+      service.dispose();
+      await tester.pump(const Duration(seconds: 6));
+    });
+  }
 
   for (final action in ['lock', 'unlock']) {
     test('explicit $action under foreground gate bypasses passive suppression only for pinned A', () async {

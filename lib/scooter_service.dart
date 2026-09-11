@@ -87,6 +87,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   late ActionPollingTimer rssiTimer;
   late bool isInBackgroundService;
   final FlutterBluePlusMockable flutterBluePlus;
+  bool _automaticActionsAllowed;
 
   // Passthrough for optionalAuth (used by home_screen for biometrics)
   bool get optionalAuth => settings.optionalAuth;
@@ -118,10 +119,12 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     CharacteristicRepository Function(BluetoothDevice)? repositoryFactory,
     Future<LatLng?> Function()? pollLocation,
     bool initializeRuntime = true,
+    bool allowAutomaticActions = true,
   }) : store = storage ?? ScooterStorage(),
        _deviceFromId = deviceFromId ?? BluetoothDevice.fromId,
        _readLocation = pollLocation ?? location.pollLocation,
-       _runtimeInitialized = initializeRuntime {
+       _runtimeInitialized = initializeRuntime,
+       _automaticActionsAllowed = allowAutomaticActions {
     settings = UserSettings(isInBackgroundService: isInBackgroundService);
     scanner = BleScanner(flutterBluePlus);
     _telemetry = ScooterTelemetry(effects: _ServiceTelemetryEffects(this), identity: identity);
@@ -143,7 +146,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     actions = ScooterActions(session: _session, telemetry: _telemetry,
       settings: () => ActionSettings(openSeatOnUnlock: settings.openSeatOnUnlock,
         hazardLocking: settings.hazardLocking, warnOfUnlockedHandlebars: settings.warnOfUnlockedHandlebars,
-        autoUnlock: settings.autoUnlock, autoUnlockThreshold: settings.autoUnlockThreshold,
+        autoUnlock: _automaticActionsAllowed && settings.autoUnlock,
+        autoUnlockThreshold: settings.autoUnlockThreshold,
         optionalAuth: settings.optionalAuth),
       location: () => lastLocation == null ? null : ActionLocation(lastLocation!.latitude, lastLocation!.longitude),
       effects: _ServiceActionEffects(this));
@@ -385,6 +389,13 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   void setAutoUnlock(bool enabled) {
     settings.setAutoUnlock(enabled);
+  }
+
+  /// Controls automatic proximity actuation for this runtime without changing
+  /// the user's persisted keyless preference. Explicit user/widget actions are
+  /// unaffected.
+  void setAutomaticActionsAllowed(bool allowed) {
+    _automaticActionsAllowed = allowed;
   }
 
   void setAutoUnlockThreshold(int threshold) {
