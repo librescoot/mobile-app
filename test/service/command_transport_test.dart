@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:scooter_flutter/command_transport.dart' show withExtendedChannel;
 import 'package:unustasis/infrastructure/characteristic_repository.dart';
 import 'package:unustasis/service/ble_commands.dart';
 
@@ -182,7 +183,22 @@ void main() {
     });
   }
 
-
+  test('expired queued work fails without issuing a late command', () async {
+    final gate = Completer<void>();
+    final first = withExtendedChannel(() => gate.future);
+    await _flush();
+    var ran = false;
+    final expired = withExtendedChannel(
+      () async {
+        ran = true;
+      },
+      maxQueueWait: Duration.zero,
+    );
+    gate.complete();
+    await first;
+    await expectLater(expired, throwsA(isA<TimeoutException>()));
+    expect(ran, isFalse);
+  });
 
   test('response stream error propagates unchanged and releases FIFO', () async {
     final error = StateError('response stream failed');
@@ -203,8 +219,6 @@ void main() {
     expect(response.cancellations, 2);
     expect(response.maxListeners, 1);
   });
-
-
 
   test('notification enable failure releases FIFO without creating a listener', () async {
     final error = StateError('notification enable failed');

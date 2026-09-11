@@ -61,6 +61,14 @@ class _Actions implements ScooterActions {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _FailingActions extends _Actions {
+  @override
+  Future<int?> countKeycards() => Future.error(TimeoutException('extended channel'));
+
+  @override
+  Future<String?> getSetting(String key) => Future.error(TimeoutException('extended channel'));
+}
+
 class _Service extends ChangeNotifier implements ScooterService {
   @override
   final identity = ScooterIdentity()..isLibrescoot = true;
@@ -74,6 +82,7 @@ class _Service extends ChangeNotifier implements ScooterService {
     connected = value;
     notifyListeners();
   }
+
   @override
   bool get alarmAvailable => false;
   @override
@@ -100,6 +109,20 @@ class _Service extends ChangeNotifier implements ScooterService {
   Future<bool?> getAlarmHonk() async => false;
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FailingService extends _Service {
+  @override
+  final _FailingActions actions = _FailingActions();
+
+  @override
+  Future<String?> getCellularApn() => Future.error(TimeoutException('extended channel'));
+  @override
+  Future<bool?> getBatteryKeepActive() => Future.error(TimeoutException('extended channel'));
+  @override
+  Future<bool?> getAlarmEnabled() => Future.error(TimeoutException('extended channel'));
+  @override
+  Future<bool?> getAlarmHonk() => Future.error(TimeoutException('extended channel'));
 }
 
 Widget _screen(_Service service, {String locale = 'en', double scale = 1, Brightness brightness = Brightness.light}) =>
@@ -152,10 +175,16 @@ void main() {
     await tester.pumpWidget(_screen(service));
     await tester.pumpAndSettle();
     final context = tester.element(find.byType(SettingsScreen));
-    for (final key in ['ls_keycard_title', 'ls_settings_auto_lock_title',
-      'ls_settings_auto_hibernate_title', 'ls_scheduled_hibernation_title',
-      'ls_settings_battery_keep_active_title', 'ls_settings_apn_title',
-      'ls_settings_ota_title', 'ls_settings_update_mode_title']) {
+    for (final key in [
+      'ls_keycard_title',
+      'ls_settings_auto_lock_title',
+      'ls_settings_auto_hibernate_title',
+      'ls_scheduled_hibernation_title',
+      'ls_settings_battery_keep_active_title',
+      'ls_settings_apn_title',
+      'ls_settings_ota_title',
+      'ls_settings_update_mode_title'
+    ]) {
       final title = find.text(FlutterI18n.translate(context, key));
       await _show(tester, title);
       final tile = tester.widget<ListTile>(find.ancestor(of: title, matching: find.byType(ListTile)).first);
@@ -166,6 +195,18 @@ void main() {
     expect(service.actions.reads, isEmpty);
     expect(service.actions.standbyWrites, isEmpty);
     expect(service.actions.hibernateWrites, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('failed extended reads settle as unavailable instead of spinning forever', (tester) async {
+    final service = _FailingService();
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    final unavailable = find.text('Unavailable on this connection');
+    await _show(tester, unavailable);
+    expect(unavailable, findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -180,7 +221,8 @@ void main() {
     expect(service.actions.reads.length, 2);
     service.setConnection(false);
     await tester.pumpAndSettle();
-    final title = find.text(FlutterI18n.translate(tester.element(find.byType(SettingsScreen)), 'ls_settings_auto_lock_title'));
+    final title =
+        find.text(FlutterI18n.translate(tester.element(find.byType(SettingsScreen)), 'ls_settings_auto_lock_title'));
     await _show(tester, title);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     gate.complete();

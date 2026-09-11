@@ -28,5 +28,6 @@
   "system_info_copied": "Diagnostics copied",
   "system_info_failed": "Could not read versions. Check the connection and try again.",
 "settings_scooter_disconnected": "Connect to the scooter to use this setting.",
-  "support_send_debug_logs": "Send debug logs"
+  "support_send_debug_logs": "Send debug logs",
+  "ls_settings_extended_unavailable": "Unavailable on this connection"
 }

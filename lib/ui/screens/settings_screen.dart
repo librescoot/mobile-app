@@ -56,6 +56,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isSendingAutoHibernate = false;
   int? _autoHibernateDuration;
   int? _keycardCount;
+  bool _keycardCountLoaded = false;
   bool _isSendingApn = false;
   bool _isUpdatingUsbMode = false;
   bool _isSendingTime = false;
@@ -63,10 +64,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _apn;
   bool _isSendingBatteryKeepActive = false;
   bool? _batteryKeepActive;
+  bool _batteryKeepActiveLoaded = false;
   bool _isSendingAlarmEnabled = false;
   bool? _alarmEnabled;
   bool _isSendingAlarmHonk = false;
   bool? _alarmHonk;
+  bool _alarmSettingsLoaded = false;
   final TextEditingController _apnController = TextEditingController();
   final SharedPreferencesAsync prefs = SharedPreferencesAsync();
 
@@ -152,8 +155,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _getKeycardCount() async {
-    final count = await context.read<ScooterService>().actions.countKeycards();
-    if (mounted) setState(() => _keycardCount = count);
+    int? count;
+    try {
+      count = await context.read<ScooterService>().actions.countKeycards();
+    } catch (error, stack) {
+      log.warning('Could not read keycard count', error, stack);
+    }
+    if (mounted) {
+      setState(() {
+        _keycardCount = count;
+        _keycardCountLoaded = true;
+      });
+    }
   }
 
   Future<void> _getBatteryKeepActive() async {
@@ -163,7 +176,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (_) {
       enabled = null;
     }
-    if (mounted) setState(() => _batteryKeepActive = enabled);
+    if (mounted) {
+      setState(() {
+        _batteryKeepActive = enabled;
+        _batteryKeepActiveLoaded = true;
+      });
+    }
   }
 
   Future<void> _setBatteryKeepActive(bool enabled) async {
@@ -201,7 +219,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final service = context.read<ScooterService>();
       enabled = await service.getAlarmEnabled();
-      honk = await service.getAlarmHonk();
+      if (enabled != null) honk = await service.getAlarmHonk();
     } catch (e) {
       enabled = null;
       honk = null;
@@ -210,6 +228,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _alarmEnabled = enabled;
       _alarmHonk = honk;
+      _alarmSettingsLoaded = true;
     });
   }
 
@@ -345,30 +364,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
         subtitle: Text(live && status != null
             ? status.name(context)
             : FlutterI18n.translate(context, "ls_settings_alarm_subtitle")),
-        trailing: _alarmEnabled == null
+        trailing: !_alarmSettingsLoaded
             ? const SizedBox(
                 width: 16,
                 height: 16,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : Switch(
-                value: _alarmEnabled!,
-                onChanged: _isSendingAlarmEnabled ? null : _setAlarmEnabled,
+                value: _alarmEnabled ?? false,
+                onChanged: _alarmEnabled == null || _isSendingAlarmEnabled ? null : _setAlarmEnabled,
               ),
       ),
       ListTile(
         leading: Icon(Icons.campaign_outlined),
         title: Text(FlutterI18n.translate(context, "ls_settings_alarm_honk_title")),
         subtitle: Text(FlutterI18n.translate(context, "ls_settings_alarm_honk_subtitle")),
-        trailing: _alarmHonk == null
+        trailing: !_alarmSettingsLoaded
             ? const SizedBox(
                 width: 16,
                 height: 16,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : Switch(
-                value: _alarmHonk!,
-                onChanged: _isSendingAlarmHonk ? null : _setAlarmHonk,
+                value: _alarmHonk ?? false,
+                onChanged: _alarmHonk == null || _isSendingAlarmHonk ? null : _setAlarmHonk,
               ),
       ),
       if (live || !_scooterConnected)
@@ -534,12 +553,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ListTile(
           leading: const Icon(Icons.vpn_key_outlined),
           title: Text(FlutterI18n.translate(context, "ls_keycard_title")),
-          subtitle: Text(_keycardCount != null
-              ? FlutterI18n.translate(context, "ls_settings_keycards_count",
-                  translationParams: {"count": _keycardCount.toString()})
-              : FlutterI18n.translate(context, "ls_settings_keycards_loading")),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LsKeycardScreen())),
+          subtitle: Text(!_keycardCountLoaded
+              ? FlutterI18n.translate(context, "ls_settings_keycards_loading")
+              : _keycardCount != null
+                  ? FlutterI18n.translate(context, "ls_settings_keycards_count",
+                      translationParams: {"count": _keycardCount.toString()})
+                  : FlutterI18n.translate(context, "ls_settings_extended_unavailable")),
+          trailing: _keycardCountLoaded && _keycardCount != null ? const Icon(Icons.chevron_right) : null,
+          onTap: _keycardCountLoaded && _keycardCount != null
+              ? () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LsKeycardScreen()))
+              : null,
         ),
       ];
 
@@ -667,11 +690,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.battery_charging_full_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_battery_keep_active_title")),
             subtitle: Text(FlutterI18n.translate(context, "ls_settings_battery_keep_active_subtitle")),
-            trailing: _batteryKeepActive == null
+            trailing: !_batteryKeepActiveLoaded
                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                 : Switch(
-                    value: _batteryKeepActive!,
-                    onChanged: _isSendingBatteryKeepActive ? null : _setBatteryKeepActive,
+                    value: _batteryKeepActive ?? false,
+                    onChanged: _batteryKeepActive == null || _isSendingBatteryKeepActive ? null : _setBatteryKeepActive,
                   ),
           ),
       ];

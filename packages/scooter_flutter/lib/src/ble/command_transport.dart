@@ -14,8 +14,18 @@ Future<void> _extendedChannelQueue = Future.value();
 /// Serializes access to the extended command/response characteristics so that
 /// concurrent callers can't consume each other's responses or toggle the
 /// notify state underneath each other.
-Future<T> withExtendedChannel<T>(Future<T> Function() action) {
-  final result = _extendedChannelQueue.then((_) => action());
+Future<T> withExtendedChannel<T>(
+  Future<T> Function() action, {
+  Duration maxQueueWait = const Duration(seconds: 12),
+}) {
+  final queuedFor = Stopwatch()..start();
+  final result = _extendedChannelQueue.then((_) {
+    if (queuedFor.elapsed >= maxQueueWait) {
+      throw TimeoutException(
+          'Extended command expired while waiting for the channel');
+    }
+    return action();
+  });
   _extendedChannelQueue = result.then((_) {}, onError: (_) {});
   return result;
 }
@@ -77,6 +87,7 @@ Future<String?> sendLsExtendedCommand(
 Future<String?> _sendLsExtendedCommandUnguarded(
     BluetoothDevice? scooter, CharacteristicRepository repo, String command,
     {bool Function()? isCurrent}) async {
+  final commandLabel = _extendedCommandLabel(command);
   checkCommandCurrent(isCurrent);
   if (scooter == null || scooter.isDisconnected) {
     throw "Scooter not connected!";
@@ -87,20 +98,31 @@ Future<String?> _sendLsExtendedCommandUnguarded(
     throw "Extended command characteristics not available";
   }
 
+  _log.info(
+      'Extended command $commandLabel acquired channel; notifications=${resp.isNotifying}');
   await ensureExtendedNotify(resp);
   checkCommandCurrent(isCurrent);
   final listener = ExtendedResponseListener(resp.onValueReceived);
   try {
     await sendCommand(scooter, repo, command,
         characteristic: cmd, allowLongWrite: true, isCurrent: isCurrent);
-    return await listener.responses.first.timeout(const Duration(seconds: 10));
+    _log.info('Extended command $commandLabel written; waiting for response');
+    final response =
+        await listener.responses.first.timeout(const Duration(seconds: 10));
+    _log.info(
+        'Extended command $commandLabel received ${utf8.encode(response).length} bytes');
+    return response;
   } on TimeoutException {
-    _log.warning(
-        "sendLsExtendedCommand: timeout waiting for response to '$command'");
+    _log.warning('Extended command $commandLabel timed out');
     return null;
   } finally {
     await listener.cancel();
   }
+}
+
+String _extendedCommandLabel(String command) {
+  final words = command.split(RegExp(r'[: ]'));
+  return words.take(2).where((part) => part.isNotEmpty).join(':');
 }
 
 void checkCommandCurrent(bool Function()? isCurrent) {
