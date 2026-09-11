@@ -41,7 +41,15 @@ void main() {
     }
     final home = File('lib/ui/screens/home_screen.dart').readAsStringSync();
     expect(home, contains('service.actionWarnings.listen'));
-    expect(home, contains('showHandlebarWarning(didNotUnlock: warning.didNotUnlock)'));
+    expect(home, matches(RegExp(
+      r'if \(warning\.didNotUnlock\)\s*\{\s*'
+      r'_dismissLockGuidance\(\);\s*showHandlebarWarning\(\);',
+    )));
+    expect(home, contains('service: service, action: warning.action, onDismiss: _dismissLockGuidance'));
+    expect(home, contains('onDone: _dismissLockGuidance'));
+    final guidance = File('lib/ui/dialogs/handlebar_lock_guidance.dart').readAsStringSync();
+    expect(guidance, isNot(contains('service.lock(')));
+    expect(guidance, isNot(contains('service.unlock(')));
     expect(home, isNot(contains('on HandlebarLockException')));
   });
 }

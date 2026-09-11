@@ -14,6 +14,8 @@ class _Characteristic extends Fake implements BluetoothCharacteristic {
   @override
   Stream<List<int>> get lastValueStream => values;
   @override
+  Stream<List<int>> get onValueReceived => values;
+  @override
   Future<bool> setNotifyValue(bool notify,
           {int timeout = 15, bool forceIndications = false}) async =>
       true;
@@ -373,6 +375,39 @@ void main() {
     });
   }
 
+  for (final ending in ['B', 'same-ID', 'disconnect', 'dispose']) {
+    test('populated protection resets immediately on $ending', () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      final a = await h.connect('A');
+      a['handlebar'].text('locked');
+      a['alarmStatus'].text('armed');
+      a['alarmLastTrigger'].text('motion,2026-01-02T03:04:05Z');
+      a['alarmWakeSources'].values.deliver([1, 3, 60, 0, 0, 0]);
+      final before = h.telemetry.snapshot.vehicle;
+      expect(before.handlebarsLocked, true);
+      expect(before.alarmStatus, AlarmStatus.armed);
+      expect(before.alarmLastTrigger, isNotNull);
+      expect(before.alarmWakeSources, isNotNull);
+      if (ending == 'dispose') {
+        h.session.dispose();
+      } else if (ending == 'disconnect' || ending == 'same-ID') {
+        h.devices.single.drop();
+      }
+      if (ending == 'B' || ending == 'same-ID') {
+        final pending = h.connect(ending == 'B' ? 'B' : 'A');
+        expect(h.telemetry.vehicle.handlebarsLocked, isNull);
+        expect(h.telemetry.vehicle.alarmStatus, isNull);
+        await pending;
+      }
+      final after = h.telemetry.snapshot.vehicle;
+      expect(after.handlebarsLocked, isNull);
+      expect(after.alarmStatus, isNull);
+      expect(after.alarmLastTrigger, isNull);
+      expect(after.alarmWakeSources, isNull);
+    });
+  }
+
   test(
       'battery conversions, cache-before-ping/notify, copied session-tagged snapshots',
       () async {
@@ -442,7 +477,7 @@ void main() {
     r['handlebar'].text('unlocked');
     expect(h.effects.trace, ['cache:A', 'ping:A', 'notify']);
     r['handlebar'].text('unknown');
-    expect(h.telemetry.vehicle.handlebarsLocked, true);
+    expect(h.telemetry.vehicle.handlebarsLocked, isNull);
     r['umsStatus'].number(9);
     expect(h.telemetry.vehicle.usbMode, isNull);
     r['umsStatus'].number(1);
@@ -487,7 +522,7 @@ void main() {
     expect(h.telemetry.identity.odometerMeters, isNull);
   });
 
-  test('seed retains only cached telemetry and two cached capabilities',
+  test('seed retains non-protection cache and two cached capabilities',
       () async {
     final h = _Harness();
     addTearDown(h.dispose);
@@ -496,6 +531,9 @@ void main() {
     await _flush();
     r['cbbVoltage'].number(3300000);
     r['seat'].text('open');
+    r['alarmStatus'].text('armed');
+    r['alarmLastTrigger'].text('motion,2026-01-02T03:04:05Z');
+    r['alarmWakeSources'].values.deliver([1, 3, 60, 0, 0, 0]);
     h.telemetry.seed(const CachedTelemetry(
         primarySOC: 50,
         secondarySOC: 60,
@@ -511,7 +549,10 @@ void main() {
     expect(h.telemetry.battery.auxSOC, 80);
     expect(h.telemetry.battery.cbbVoltage, isNull);
     expect(h.telemetry.vehicle.seatClosed, isNull);
-    expect(h.telemetry.vehicle.handlebarsLocked, true);
+    expect(h.telemetry.vehicle.handlebarsLocked, isNull);
+    expect(h.telemetry.vehicle.alarmStatus, isNull);
+    expect(h.telemetry.vehicle.alarmLastTrigger, isNull);
+    expect(h.telemetry.vehicle.alarmWakeSources, isNull);
     expect(h.telemetry.identity.nrfVersion, isNull);
     expect(h.telemetry.identity.isLibrescoot, true);
     expect(_caps(h.telemetry.identity), [true, null, false, null, null, null]);
@@ -782,13 +823,13 @@ void main() {
     h.telemetry.refetchCache(
         const CachedTelemetry(primarySOC: 8, handlebarsLocked: false));
     expect(h.telemetry.battery.primarySOC, 8);
-    expect(h.telemetry.vehicle.handlebarsLocked, false);
+    expect(h.telemetry.vehicle.handlebarsLocked, true);
     expect(identity.nrfVersion, 'live');
     expect(identity.odometerMeters, 123);
     expect(identity.supportsBondForget, true);
     h.telemetry.refetchCache(null);
     expect(h.telemetry.battery.primarySOC, isNull);
-    expect(h.telemetry.vehicle.handlebarsLocked, false);
+    expect(h.telemetry.vehicle.handlebarsLocked, true);
     h.telemetry.seed(const CachedTelemetry(supportsApnConfig: true));
     expect(identity.nrfVersion, isNull);
     expect(identity.odometerMeters, 123);

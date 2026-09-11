@@ -25,6 +25,8 @@ class Characteristic extends Fake implements BluetoothCharacteristic {
   @override
   Stream<List<int>> get lastValueStream => values;
   @override
+  Stream<List<int>> get onValueReceived => values;
+  @override
   Future<bool> setNotifyValue(bool notify,
           {int timeout = 15, bool forceIndications = false}) async =>
       true;

@@ -18,6 +18,8 @@ import 'package:unustasis/ui/widgets/leaves.dart';
 import 'package:unustasis/ui/widgets/scooter_action_button.dart';
 import 'package:unustasis/ui/widgets/onboarding_popups.dart';
 import 'package:unustasis/ui/dialogs/handlebar_warning.dart';
+import 'package:unustasis/ui/dialogs/handlebar_lock_guidance.dart';
+import 'package:unustasis/ui/widgets/home_action_row.dart';
 import 'package:unustasis/ui/theme/icomoon.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
@@ -44,9 +46,11 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final log = Logger('HomeScreen');
   bool _hazards = false;
+  OverlayEntry? _lockGuidance;
+  bool _lockGuidanceBackgrounded = false;
   ScooterService? _warningService;
   StreamSubscription<actions.HandlebarWarning>? _warningSubscription;
 
@@ -56,14 +60,51 @@ class _HomeScreenState extends State<HomeScreen> {
     final service = context.read<ScooterService>();
     if (identical(service, _warningService)) return;
     _warningSubscription?.cancel();
+    _dismissLockGuidance();
     _warningService = service;
     _warningSubscription = service.actionWarnings.listen((warning) {
-      if (mounted) showHandlebarWarning(didNotUnlock: warning.didNotUnlock);
-    });
+      if (!mounted) return;
+      if (warning.didNotUnlock) {
+        _dismissLockGuidance();
+        showHandlebarWarning();
+      } else {
+        if (_lockGuidanceBackgrounded) return;
+        _dismissLockGuidance();
+        final entry = OverlayEntry(builder: (_) => Positioned(
+          left: 16, right: 16, bottom: 16,
+          child: SafeArea(child: HandlebarLockGuidance(
+            service: service, action: warning.action, onDismiss: _dismissLockGuidance,
+          )),
+        ));
+        _lockGuidance = entry;
+        Overlay.of(context).insert(entry);
+      }
+    }, onDone: _dismissLockGuidance);
+  }
+
+  void _dismissLockGuidance() {
+    final entry = _lockGuidance;
+    _lockGuidance = null;
+    entry?.remove();
+    entry?.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Match runtime backgrounding: transient inactive (e.g. biometrics) is not
+    // departure. Home owns even inserted entries whose child has not mounted.
+    if (state == AppLifecycleState.hidden || state == AppLifecycleState.paused) {
+      _lockGuidanceBackgrounded = true;
+      _dismissLockGuidance();
+    } else if (state == AppLifecycleState.resumed) {
+      _lockGuidanceBackgrounded = false;
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _dismissLockGuidance();
     _warningSubscription?.cancel();
     super.dispose();
   }
@@ -79,6 +120,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _lockGuidanceBackgrounded = lifecycle == AppLifecycleState.hidden || lifecycle == AppLifecycleState.paused;
+    WidgetsBinding.instance.addObserver(this);
     if (widget.forceOpen != true) {
       log.fine("Redirecting or starting");
       redirectOrStart();
@@ -347,138 +391,126 @@ class _HomeScreenState extends State<HomeScreen> {
                                 halloween: _fall && context.isDarkMode,
                               ),
                             ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              mainAxisSize: MainAxisSize.max,
-                              children: [
-                                const SeatButton(),
-                                Selector<ScooterService, ScooterState?>(
-                                  selector: (context, service) => service.state,
-                                  builder: (context, state, _) {
-                                    return ScooterPowerButton(
-                                      action: state != null && state.isReadyForLockChange
-                                          ? (state.isOn
-                                              ? () async {
-                                                  if (context.read<ScooterService>().vehicle.seatClosed == false) {
-                                                    bool overrideSeat = await showSeatWarning() == true;
-                                                    if (!overrideSeat) {
-                                                      return;
-                                                    }
+                            HomeActionRow(
+                              leading: const SeatButton(),
+                              primary: Selector<ScooterService, ScooterState?>(
+                                selector: (context, service) => service.state,
+                                builder: (context, state, _) {
+                                  return ScooterPowerButton(
+                                    action: state != null && state.isReadyForLockChange
+                                        ? (state.isOn
+                                            ? () async {
+                                                final service = context.read<ScooterService>();
+                                                try {
+                                                  if (!await lockWithSeatConfirmation(context, service)) return;
+                                                  if (!context.mounted) return;
+                                                  if (service.hazardLocking) {
+                                                    _flashHazards(1);
                                                   }
-                                                  try {
-                                                    if (!context.mounted) {
-                                                      return;
-                                                    }
-                                                    await context.read<ScooterService>().lock();
-                                                    if (!context.mounted) {
-                                                      return;
-                                                    }
-                                                    if (context.read<ScooterService>().hazardLocking) {
-                                                      _flashHazards(1);
-                                                    }
-                                                  } catch (e, stack) {
-                                                    log.severe(
-                                                      "Problem opening the seat",
-                                                      e,
-                                                      stack,
-                                                    );
+                                                } catch (e, stack) {
+                                                  log.severe(
+                                                    "Could not lock scooter",
+                                                    e,
+                                                    stack,
+                                                  );
+                                                  if (context.mounted) {
                                                     Fluttertoast.showToast(
                                                       msg: e.toString(),
                                                     );
                                                   }
                                                 }
-                                              : (state == ScooterState.standby
-                                                  ? () async {
-                                                      try {
-                                                        await context.read<ScooterService>().unlock();
-                                                        if (context.mounted &&
-                                                            context.read<ScooterService>().hazardLocking) {
-                                                          _flashHazards(2);
-                                                        }
-                                                      } catch (e, stack) {
-                                                        log.warning("Could not unlock scooter", e, stack);
-                                                        if (context.mounted) {
-                                                          Fluttertoast.showToast(
-                                                            msg: FlutterI18n.translate(context, "home_unlock_failed"),
-                                                          );
-                                                        }
+                                              }
+                                            : (state == ScooterState.standby
+                                                ? () async {
+                                                    try {
+                                                      await context.read<ScooterService>().unlock();
+                                                      if (context.mounted &&
+                                                          context.read<ScooterService>().hazardLocking) {
+                                                        _flashHazards(2);
+                                                      }
+                                                    } catch (e, stack) {
+                                                      log.warning("Could not unlock scooter", e, stack);
+                                                      if (context.mounted) {
+                                                        Fluttertoast.showToast(
+                                                          msg: FlutterI18n.translate(context, "home_unlock_failed"),
+                                                        );
                                                       }
                                                     }
-                                                  : () async {
-                                                      try {
-                                                        await context.read<ScooterService>().wakeUpAndUnlock();
-                                                        if (context.mounted &&
-                                                            context.read<ScooterService>().hazardLocking) {
-                                                          _flashHazards(2);
-                                                        }
-                                                      } catch (e, stack) {
-                                                        log.warning("Could not wake and unlock scooter", e, stack);
-                                                        if (context.mounted) {
-                                                          Fluttertoast.showToast(
-                                                            msg: FlutterI18n.translate(context, "home_unlock_failed"),
-                                                          );
-                                                        }
+                                                  }
+                                                : () async {
+                                                    try {
+                                                      await context.read<ScooterService>().wakeUpAndUnlock();
+                                                      if (context.mounted &&
+                                                          context.read<ScooterService>().hazardLocking) {
+                                                        _flashHazards(2);
                                                       }
-                                                    }))
-                                          : null,
-                                      icon: state != null && state.isOn ? Icons.lock_outline : Icons.lock_open,
-                                      label: state != null && state.isOn
-                                          ? FlutterI18n.translate(context, "home_lock_button")
-                                          : FlutterI18n.translate(context, "home_unlock_button"),
-                                      instruction: state != null && state.isOn
-                                          ? FlutterI18n.translate(context, "home_hold_to_lock")
-                                          : FlutterI18n.translate(context, "home_hold_to_unlock"),
-                                    );
-                                  },
+                                                    } catch (e, stack) {
+                                                      log.warning("Could not wake and unlock scooter", e, stack);
+                                                      if (context.mounted) {
+                                                        Fluttertoast.showToast(
+                                                          msg: FlutterI18n.translate(context, "home_unlock_failed"),
+                                                        );
+                                                      }
+                                                    }
+                                                  }))
+                                        : null,
+                                    icon: state != null && state.isOn ? Icons.lock_outline : Icons.lock_open,
+                                    label: state != null && state.isOn
+                                        ? FlutterI18n.translate(context, "home_lock_button")
+                                        : FlutterI18n.translate(context, "home_unlock_button"),
+                                    instruction: state != null && state.isOn
+                                        ? FlutterI18n.translate(context, "home_hold_to_lock")
+                                        : FlutterI18n.translate(context, "home_hold_to_unlock"),
+                                  );
+                                },
+                              ),
+                              trailing: Selector<ScooterService, ({bool scanning, bool connected})>(
+                                selector: (context, service) => (
+                                  scanning: service.scanning,
+                                  connected: service.connected,
                                 ),
-                                Selector<ScooterService, ({bool scanning, bool connected})>(
-                                  selector: (context, service) => (
-                                    scanning: service.scanning,
-                                    connected: service.connected,
-                                  ),
-                                  builder: (context, state, _) {
-                                    return ScooterActionButton(
-                                      onPressed: !state.scanning
-                                          ? () {
-                                              if (!state.connected) {
-                                                log.info(
-                                                  "Manually reconnecting...",
-                                                );
-                                                try {
-                                                  context.read<ScooterService>().start();
-                                                } catch (e, stack) {
-                                                  log.severe(
-                                                    "Reconnect button failed",
-                                                    e,
-                                                    stack,
-                                                  );
-                                                }
-                                              } else {
-                                                showModalBottomSheet<void>(
-                                                  context: context,
-                                                  showDragHandle: true,
-                                                  isScrollControlled: true,
-                                                  builder: (BuildContext context) {
-                                                    return ControlSheet();
-                                                  },
+                                builder: (context, state, _) {
+                                  return ScooterActionButton(
+                                    onPressed: !state.scanning
+                                        ? () {
+                                            if (!state.connected) {
+                                              log.info(
+                                                "Manually reconnecting...",
+                                              );
+                                              try {
+                                                context.read<ScooterService>().start();
+                                              } catch (e, stack) {
+                                                log.severe(
+                                                  "Reconnect button failed",
+                                                  e,
+                                                  stack,
                                                 );
                                               }
+                                            } else {
+                                              showModalBottomSheet<void>(
+                                                context: context,
+                                                showDragHandle: true,
+                                                isScrollControlled: true,
+                                                builder: (BuildContext context) {
+                                                  return ControlSheet();
+                                                },
+                                              );
                                             }
-                                          : null,
-                                      icon: !state.connected ? Icons.refresh_rounded : Icons.tune_rounded,
-                                      label: !state.connected
-                                          ? FlutterI18n.translate(
-                                              context,
-                                              "home_reconnect_button",
-                                            )
-                                          : FlutterI18n.translate(
-                                              context,
-                                              "home_controls_button",
-                                            ),
-                                    );
-                                  },
-                                ),
-                              ],
+                                          }
+                                        : null,
+                                    icon: !state.connected ? Icons.refresh_rounded : Icons.tune_rounded,
+                                    label: !state.connected
+                                        ? FlutterI18n.translate(
+                                            context,
+                                            "home_reconnect_button",
+                                          )
+                                        : FlutterI18n.translate(
+                                            context,
+                                            "home_controls_button",
+                                          ),
+                                  );
+                                },
+                              ),
                             ),
                             _navigationCue(),
                           ],
@@ -549,31 +581,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<bool?> showSeatWarning() async {
-    HapticFeedback.vibrate();
-    return await showDialog<bool?>(
+  void showHandlebarWarning() {
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const SeatWarning(),
+      builder: (_) => const HandlebarWarning(),
     );
-  }
-
-  void showHandlebarWarning({required bool didNotUnlock}) {
-    showDialog<bool>(
-      context: context,
-      barrierDismissible: false, // user must tap button!
-      builder: (BuildContext context) {
-        return HandlebarWarning(didNotUnlock: didNotUnlock);
-      },
-    ).then((dontShowAgain) async {
-      if (dontShowAgain == true) {
-        Logger("").info("Not showing unlocked handlebar warning again");
-        await SharedPreferencesAsync().setBool(
-          "unlockedHandlebarsWarning",
-          false,
-        );
-      }
-    });
   }
 
   void redirectOrStart() async {
@@ -901,7 +914,7 @@ class StatusText extends StatelessWidget {
 class ScooterPowerButton extends StatefulWidget {
   const ScooterPowerButton({
     super.key,
-    required void Function()? action,
+    required Future<void> Function()? action,
     Widget? child,
     required IconData icon,
     required String label,
@@ -913,7 +926,7 @@ class ScooterPowerButton extends StatefulWidget {
         _instruction = instruction,
         _easterEgg = easterEgg;
 
-  final void Function()? _action;
+  final Future<void> Function()? _action;
   final String _label;
   final String _instruction;
   final IconData _icon;
@@ -937,18 +950,30 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
       ..addStatusListener(_onHoldStatusChanged);
   }
 
-  void _onHoldStatusChanged(AnimationStatus status) {
-    if (status != AnimationStatus.completed || _holdActivated || widget._action == null) return;
+  void _onHoldStatusChanged(AnimationStatus status) async {
+    final action = widget._action;
+    if (status != AnimationStatus.completed || _holdActivated || loading || action == null) return;
     _holdActivated = true;
     setState(() => loading = true);
-    widget._action!();
-    Future.delayed(const Duration(seconds: 5), () {
-      if (!mounted) return;
-      setState(() {
-        loading = false;
-        scale = 1;
-      });
-    });
+    try {
+      await action();
+    } catch (error, stack) {
+      // Home actions present their own errors; do not silently lose unexpected ones.
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'ScooterPowerButton',
+        context: ErrorDescription('while performing a power action'),
+      ));
+    } finally {
+      if (mounted) {
+        _holdProgress.reset();
+        setState(() {
+          loading = false;
+          scale = 1;
+        });
+      }
+    }
   }
 
   @override
@@ -964,7 +989,7 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
   }
 
   void _finishPress() {
-    if (!_holdActivated) {
+    if (!_holdActivated && !loading && widget._action != null) {
       Fluttertoast.showToast(msg: widget._instruction);
     }
     _restoreScale();
@@ -992,7 +1017,7 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
 
     return Semantics(
       button: true,
-      enabled: !disabled,
+      enabled: !disabled && !loading,
       label: widget._label,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1012,7 +1037,7 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
               duration: const Duration(milliseconds: 120),
               curve: Curves.easeOut,
               child: SizedBox(
-                width: 160,
+                width: 136,
                 height: 72,
                 child: IgnorePointer(
                   child: ElevatedButton(
@@ -1024,9 +1049,9 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
                       side: BorderSide(color: mainColor),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                     ),
-                    onPressed: disabled ? null : () {},
+                    onPressed: disabled || loading ? null : () {},
                     child: Ink(
-                      width: 160,
+                      width: 136,
                       height: 72,
                       decoration: widget._easterEgg == true
                           ? BoxDecoration(
@@ -1066,9 +1091,13 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
                                     children: [
                                       Icon(widget._icon, color: foregroundColor, size: 26),
                                       const SizedBox(width: 10),
-                                      Text(
-                                        widget._label,
-                                        style: Theme.of(context).textTheme.titleSmall?.copyWith(color: foregroundColor),
+                                      Flexible(
+                                        child: Text(
+                                          widget._label,
+                                          textAlign: TextAlign.center,
+                                          style:
+                                              Theme.of(context).textTheme.titleSmall?.copyWith(color: foregroundColor),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -1081,13 +1110,9 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            widget._instruction,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(color: colors.onSurfaceVariant),
-            textAlign: TextAlign.center,
+          const SizedBox(height: 8),
+          ExcludeSemantics(
+            child: Text(' ', key: const ValueKey('power-label-spacer'), style: Theme.of(context).textTheme.labelLarge),
           ),
         ],
       ),

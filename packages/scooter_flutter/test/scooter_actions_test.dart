@@ -474,6 +474,22 @@ void main() {
     });
   });
   for (final lock in [true, false]) {
+    test('unknown protection permits ${lock ? 'lock' : 'unlock'} without inventing a warning', () {
+      fakeAsync((time) {
+        final h = Harness(time);
+        h.settings = const ActionSettings(warnOfUnlockedHandlebars: true);
+        h.telemetry.vehicle.handlebarsLocked = null;
+        var done = false;
+        (lock ? h.actions.lock() : h.actions.unlock()).then((_) => done = true);
+        time.elapse(const Duration(seconds: 7));
+        expect(done, true);
+        expect(h.trace, contains('A:${lock ? lockCommand : unlockCommand}'));
+        expect(h.effects.events, hasLength(1));
+        expect(h.effects.warnings, isEmpty);
+        expect(h.telemetry.vehicle.handlebarsLocked, isNull);
+        h.dispose();
+      });
+    });
     for (final warn in [true, false]) {
       test(
           '${lock ? 'lock' : 'unlock'} warnings $warn do not fail acknowledged action',

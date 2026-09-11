@@ -135,6 +135,7 @@ flutter:
     - assets/
     - assets/anim/
     - assets/icons/
+    - assets/fonts/licenses/
 
   fonts:
     - family: icomoon

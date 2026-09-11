@@ -92,13 +92,14 @@ class ScooterTelemetry {
     battery.secondarySOC = cache?.secondarySOC;
     battery.cbbSOC = cache?.cbbSOC;
     battery.auxSOC = cache?.auxSOC;
-    if (cache != null) vehicle.handlebarsLocked = cache.handlebarsLocked;
     _revision++;
   }
 
   /// Seed cached fields and reset live-only fields on the same compatibility
-  /// objects. App name/color/location never enter the wire runtime.
+  /// objects. Protection is never restored from persisted telemetry.
+  /// App name/color/location never enter the wire runtime.
   void seed(CachedTelemetry cache) {
+    vehicle.cancelSubscriptions();
     refetchCache(cache);
     battery.primaryCycles = null;
     battery.secondaryCycles = null;
@@ -107,7 +108,6 @@ class ScooterTelemetry {
     battery.cbbCharging = null;
     battery.auxVoltage = null;
     battery.auxCharging = null;
-    vehicle.handlebarsLocked = cache.handlebarsLocked;
     vehicle.seatClosed = null;
     vehicle.navigationActive = null;
     vehicle.usbMode = null;

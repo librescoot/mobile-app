@@ -74,8 +74,9 @@ class _Service extends ChangeNotifier implements ScooterService {
   final identity = ScooterIdentity()..isLibrescoot = true;
   @override
   final vehicle = VehicleStatus();
+  final _Actions _actions = _Actions();
   @override
-  final _Actions actions = _Actions();
+  _Actions get actions => _actions;
   @override
   bool connected = true;
   void setConnection(bool value) {
@@ -112,8 +113,9 @@ class _Service extends ChangeNotifier implements ScooterService {
 }
 
 class _FailingService extends _Service {
+  final _FailingActions _failingActions = _FailingActions();
   @override
-  final _FailingActions actions = _FailingActions();
+  _FailingActions get actions => _failingActions;
 
   @override
   Future<String?> getCellularApn() => Future.error(TimeoutException('extended channel'));

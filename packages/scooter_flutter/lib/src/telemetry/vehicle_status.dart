@@ -1,4 +1,5 @@
 import 'package:scooter_core/telemetry.dart';
+import 'package:scooter_core/characteristic_values.dart';
 import 'package:scooter_core/scooter_core.dart';
 import 'dart:async';
 
@@ -7,6 +8,7 @@ import 'package:logging/logging.dart';
 
 import '../ble/characteristic_repository.dart';
 import '../ble/scooter_reader.dart';
+import '../ble/protection_subscription.dart';
 
 class VehicleStatus {
   VehicleSnapshot get snapshot => VehicleSnapshot(
@@ -48,6 +50,11 @@ class VehicleStatus {
   void cancelSubscriptions() {
     _invalidate?.call();
     _invalidate = null;
+    // Clear live protection before a replacement session can be published.
+    handlebarsLocked = null;
+    alarmStatus = null;
+    alarmLastTrigger = null;
+    alarmWakeSources = null;
     final List<StreamSubscription<List<int>>> previous =
         List.of(_subscriptions);
     _subscriptions.clear();
@@ -99,12 +106,15 @@ class VehicleStatus {
     }));
 
     // Handlebars
-    _subscriptions.add(subscribeToStringValue(
-        chars.handlebarCharacteristic!, 'Handlebars', (value) {
-      if (!current()) return;
-      handlebarsLocked = value != 'unlocked';
+    _subscriptions.add(subscribeProtectionCharacteristic(
+        chars.handlebarCharacteristic!, (data) {
+      handlebarsLocked = switch (decodeCharacteristicString(data)) {
+        'locked' => true,
+        'unlocked' => false,
+        _ => null,
+      };
       onHandlebarsChanged(handlebarsLocked);
-    }));
+    }, isCurrent: current));
 
     // USB status
     try {
@@ -150,24 +160,23 @@ class VehicleStatus {
 
     // Alarm
     try {
-      _subscriptions.add(subscribeToStringValue(
-          chars.alarmStatusCharacteristic!, 'Alarm', (value) {
-        if (!current()) return;
-        alarmStatus = AlarmStatus.fromString(value);
+      _subscriptions.add(subscribeProtectionCharacteristic(
+          chars.alarmStatusCharacteristic!, (data) {
+        alarmStatus = AlarmStatus.fromString(decodeCharacteristicString(data));
         onAlarmChanged();
-      }));
-      _subscriptions.add(subscribeToStringValue(
-          chars.alarmLastTriggerCharacteristic!, 'Alarm trigger', (value) {
-        if (!current()) return;
-        alarmLastTrigger = parseAlarmLastTrigger(value);
+      }, isCurrent: current));
+      _subscriptions.add(subscribeProtectionCharacteristic(
+          chars.alarmLastTriggerCharacteristic!, (data) {
+        alarmLastTrigger = parseAlarmLastTrigger(decodeCharacteristicString(data));
         onAlarmChanged();
-      }));
-      _subscriptions.add(subscribeToAlarmWakeSources(
-          chars.alarmWakeSourcesCharacteristic!, (sources) {
-        if (!current()) return;
+      }, isCurrent: current));
+      _subscriptions.add(subscribeProtectionCharacteristic(
+          chars.alarmWakeSourcesCharacteristic!, (data) {
+        final sources = AlarmWakeSources.fromBytes(data);
+        if (sources == null) return;
         alarmWakeSources = sources;
         onAlarmChanged();
-      }));
+      }, isCurrent: current));
     } catch (e) {
       log.info('Alarm characteristics not available, skipping subscriptions');
     }

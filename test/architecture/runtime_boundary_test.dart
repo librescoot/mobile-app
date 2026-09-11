@@ -32,7 +32,12 @@ void main() {
     expect(facade, contains('@visibleForTesting\n  BluetoothDevice? get myScooter'));
   });
   test('Provider metadata effects cannot own asynchronous store workflows', () {
-    final source = File('lib/scooter_service.dart').readAsStringSync();
+    final facade = File('lib/scooter_service.dart').readAsStringSync();
+    // Release widget reconnect uses this synchronous ID-only compatibility view,
+    // not an awaited metadata-selection/publication workflow.
+    const recentIdView = 'String? get mostRecentSavedScooterId => store.getMostRecent()?.id;';
+    expect(recentIdView.allMatches(facade), hasLength(1));
+    final source = facade.replaceFirst(recentIdView, '');
     for (final operation in ['rename', 'recolor', 'load', 'remove', 'add', 'getMostRecent']) {
       expect(source, isNot(matches(RegExp(r'store\s*\.\s*' + operation + r'\s*\('))), reason: operation);
     }

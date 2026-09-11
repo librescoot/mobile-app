@@ -20,6 +20,9 @@ class _Storage extends Fake implements ScooterStorage {
     'B': SavedScooter(id: 'B', name: 'Beta', color: 2),
   };
   int loads = 0;
+  Completer<void>? loadGate;
+  @override
+  SavedScooter? getMostRecent() => scooters.values.firstOrNull;
   final List<String> additions = [];
   final List<String> pings = [];
 
@@ -32,6 +35,7 @@ class _Storage extends Fake implements ScooterStorage {
   @override
   Future<void> load() async {
     loads++;
+    await loadGate?.future;
   }
 
   @override
@@ -126,6 +130,8 @@ class _Characteristic extends Fake implements BluetoothCharacteristic {
   int notifications = 0;
   @override
   Stream<List<int>> get lastValueStream => values.stream;
+  @override
+  Stream<List<int>> get onValueReceived => values.stream;
   @override
   Future<bool> setNotifyValue(bool notify, {int timeout = 15, bool forceIndications = false}) async {
     notifications++;
@@ -331,6 +337,59 @@ void main() {
     expect(service.identity.nrfVersion, 'test-firmware');
     expect(service.identity.odometerMeters, 123);
   }
+
+  test('production adapter never restores cached protection and resets before B linking', () async {
+    storage.scooters['A']!.handlebarsLocked = true;
+    storage.scooters['B']!.handlebarsLocked = true;
+    repository.alarmStatusCharacteristic = repository.characteristic('armed'.codeUnits);
+    repository.alarmLastTriggerCharacteristic =
+        repository.characteristic('motion,2026-01-02T03:04:05Z'.codeUnits);
+    repository.alarmWakeSourcesCharacteristic = repository.characteristic([1, 3, 60, 0, 0, 0]);
+    createService();
+    await service.runtime.refetchSavedScooters();
+    expect(service.handlebarsLocked, isNull);
+    final a = connect('A');
+    await drain();
+    expect(service.handlebarsLocked, isNull);
+    await finishConnection(a, devices['A']!);
+    expect(service.handlebarsLocked, true);
+    expect(service.vehicle.alarmStatus, AlarmStatus.armed);
+    expect(service.vehicle.alarmLastTrigger, isNotNull);
+    expect(service.vehicle.alarmWakeSources, isNotNull);
+    final b = connect('B');
+    // Invalidation is synchronous, before linking/discovery can publish B.
+    expect(service.handlebarsLocked, isNull);
+    expect(service.vehicle.alarmStatus, isNull);
+    expect(service.vehicle.alarmLastTrigger, isNull);
+    expect(service.vehicle.alarmWakeSources, isNull);
+    await drain();
+    expect(service.handlebarsLocked, isNull);
+    await finishConnection(b, devices['B']!);
+    expect(service.handlebarsLocked, true);
+  });
+
+  test('production adapter delayed cache load cannot overwrite fresh protection', () async {
+    storage.scooters['A']!.handlebarsLocked = true;
+    createService();
+    final gate = Completer<void>();
+    storage.loadGate = gate;
+    final cache = service.runtime.refetchSavedScooters();
+    final a = connect('A');
+    await drain();
+    await finishConnection(a, devices['A']!);
+    final handlebar = repository.handlebarCharacteristic! as _Characteristic;
+    handlebar.values.add('unlocked'.codeUnits);
+    await drain();
+    expect(service.handlebarsLocked, false);
+    storage.scooters['A']!.handlebarsLocked = true;
+    gate.complete();
+    await cache;
+    expect(service.handlebarsLocked, false);
+    handlebar.values.add(<int>[]);
+    await drain();
+    expect(service.handlebarsLocked, isNull);
+    expect(service.connected, true);
+  });
 
   for (final reuseWrapper in [false, true]) {
     for (final olderSucceeds in [false, true]) {
