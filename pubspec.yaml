@@ -16,9 +16,9 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-# fyi: Apple Testflight strips build tags and leading zeroes
-# so 1.0.0-beta5 becomes 1.0.05 and 1.0.05 is considered higher than, say, 1.0.4
-# this project uses Pride Versioning: https://pridever.org/
+# Versioning tracks the matching Librescoot stable release's major.minor
+# numbers. This app uses its own patch version and monotonically increasing
+# build number for independently shipped mobile releases.
 version: 1.3.0-beta.2+47
 
 environment:
