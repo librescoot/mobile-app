@@ -1,13 +1,6 @@
-### Changes:
-- Bluetooth updating of librescoot scooters
-- Disabling "hibernate for" feature for unsupported scooters
-- Fixing a visual glitch in home screen and onboarding
-- Scooters your phone has already paired with now turn up when you add a scooter, instead of staying invisible
-- Adding a scooter now shows a list to pick from, with signal strength and whether you are already paired
-- Forgetting a scooter sticks, rather than the scooter reappearing moments later
-- Umlauts and other non-ASCII characters in destination names no longer break the connection
-- Quicker, more reliable replies for keycards, saved destinations and scooter settings
-- The scooter picker now speaks French and Dutch as well
-- Set the mobile APN for your scooter's SIM from the Librescoot settings (librescoot-only)
-- Forgetting a scooter now tells the scooter to forget your phone as well, instead of leaving it paired at that end (librescoot-only)
-- Scooters that stopped reconnecting now ask you to pair again, instead of retrying silently
+Reliability and privacy improvements:
+
+• Adds clear first-run permission and optional online place-service choices
+• Restores user-initiated debug-log email attachments
+• Stops unavailable Librescoot settings from loading indefinitely
+• Makes the disconnected widget action reconnect-only and suppresses automatic actions during temporary reconnects
