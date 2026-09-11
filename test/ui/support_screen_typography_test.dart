@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
@@ -19,6 +21,14 @@ class _FaqBundle extends CachingAssetBundle {
 }
 
 void main() {
+  test('support keeps GitHub issues and log-attached email as separate options', () {
+    final source = File('lib/ui/screens/support_screen.dart').readAsStringSync();
+    expect(source, contains("'support_send_debug_logs'"));
+    expect(source, contains('LogHelper.startBugReport(context)'));
+    expect(source, contains("'support_github_issues'"));
+    expect(source, contains('url: _issuesUrl'));
+  });
+
   for (final (width, scale, brightness) in [
     (412.0, 1.0, Brightness.light),
     (320.0, 2.0, Brightness.dark),

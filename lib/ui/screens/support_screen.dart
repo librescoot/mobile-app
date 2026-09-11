@@ -11,6 +11,7 @@ import 'package:maps_launcher/maps_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:unustasis/domain/log_helper.dart';
 import 'package:unustasis/domain/nav_destination.dart';
 import 'package:unustasis/ui/widgets/header.dart';
 import 'package:unustasis/ui/screens/navigation_screen.dart';
@@ -47,7 +48,12 @@ class _SupportScreenState extends State<SupportScreen> {
         title,
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18),
       ),
-      subtitle: Text(subtitle),
+      subtitle: Text(
+        subtitle,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+      ),
       trailing: const Icon(Icons.open_in_new_rounded, size: 20),
       onTap: () => _open(url),
     );
@@ -107,10 +113,25 @@ class _SupportScreenState extends State<SupportScreen> {
                 subtitle: FlutterI18n.translate(context, 'support_discord_description'),
                 url: _discordUrl,
               ),
+              ListTile(
+                leading: const Icon(Icons.attach_email_outlined),
+                title: Text(
+                  FlutterI18n.translate(context, 'support_send_debug_logs'),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18),
+                ),
+                subtitle: Text(
+                  FlutterI18n.translate(context, 'settings_report_description'),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                onTap: () => LogHelper.startBugReport(context),
+              ),
               _linkTile(
                 icon: Icons.bug_report_outlined,
-                title: FlutterI18n.translate(context, 'settings_report'),
-                subtitle: FlutterI18n.translate(context, 'support_report_description'),
+                title: FlutterI18n.translate(context, 'support_github_issues'),
+                subtitle: FlutterI18n.translate(context, 'support_github_issues_description'),
                 url: _issuesUrl,
               ),
             ]),
