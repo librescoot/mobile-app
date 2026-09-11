@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -358,29 +359,23 @@ class _GarageWidgetState extends State<GarageWidget> {
 
   Future<List<Garage>> _getGarages() async {
     final response = await http
-        .get(Uri.parse('https://reunu.github.io/unustasis-data/garages_overrides.json'))
+        .get(Uri.parse('https://librescoot.org/unu-garages-data/garages_v2.json'))
         .timeout(const Duration(seconds: 12));
     if (response.statusCode != 200) {
       Logger('GarageWidget').severe('Failed to load community garages', response.toString());
       throw Exception('Failed to load community garages');
     }
-    final overrides = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
-    const requiredFields = {
-      'name',
-      'ShippingStreet',
-      'ShippingCity',
-      'ShippingCountry',
-      'ShippingCountryCode',
-      'ShippingPostalCode',
-      'ShippingLatitude',
-      'ShippingLongitude',
-    };
-    return overrides
+    final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    return ((data['garages'] as List<dynamic>?) ?? const [])
         .whereType<Map<String, dynamic>>()
-        .map((override) => override['garage'])
-        .whereType<Map<String, dynamic>>()
-        .where((garage) => requiredFields.every(garage.containsKey))
-        .map(Garage.fromJson)
+        .map((garage) {
+          try {
+            return Garage.fromJson(garage);
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<Garage>()
         .toList();
   }
 
@@ -547,60 +542,108 @@ class _GarageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Stack(
           children: [
-            Text(garage.name,
-                style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 6),
-            Text('${garage.street}, ${garage.city}', maxLines: 2, overflow: TextOverflow.ellipsis),
-            const Spacer(),
-            if (garage.distance != null) ...[
-              Text(
-                FlutterI18n.translate(
-                  context,
-                  'support_garage_distance',
-                  translationParams: {'dist': (garage.distance! / 1000).toStringAsFixed(1)},
-                ),
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(garage.name,
+                      style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 6),
+                  Text('${garage.street}, ${garage.city}', maxLines: 2, overflow: TextOverflow.ellipsis),
+                  const Spacer(),
+                  if (garage.distance != null) ...[
+                    Text(
+                      FlutterI18n.translate(
+                        context,
+                        'support_garage_distance',
+                        translationParams: {'dist': (garage.distance! / 1000).toStringAsFixed(1)},
+                      ),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                     ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => NavigationScreen(
-                          initialDestination: NavDestination(location: garage.location, name: garage.name),
+                    const SizedBox(height: 12),
+                  ],
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => NavigationScreen(
+                                initialDestination: NavDestination(location: garage.location, name: garage.name),
+                              ),
+                            ),
+                          ),
+                          icon: const Icon(Icons.navigation_outlined),
+                          label: Text(FlutterI18n.translate(context, 'support_garage_navigate')),
                         ),
                       ),
-                    ),
-                    icon: const Icon(Icons.navigation_outlined),
-                    label: Text(FlutterI18n.translate(context, 'support_garage_navigate')),
+                      const SizedBox(width: 8),
+                      IconButton.outlined(
+                        tooltip: FlutterI18n.translate(context, 'support_garage_map'),
+                        onPressed: () => MapsLauncher.launchQuery('${garage.name} ${garage.street}, ${garage.zipCode}'),
+                        icon: const Icon(Icons.map_outlined),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.outlined(
+                        tooltip: FlutterI18n.translate(context, 'support_garage_website'),
+                        onPressed: garage.website == null
+                            ? null
+                            : () => launchUrl(Uri.parse(garage.website!), mode: LaunchMode.externalApplication),
+                        icon: const Icon(Icons.language_rounded),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.outlined(
+                        tooltip: FlutterI18n.translate(context, 'support_garage_call'),
+                        onPressed:
+                            garage.phone == 'Unknown' ? null : () => launchUrl(Uri(scheme: 'tel', path: garage.phone)),
+                        icon: const Icon(Icons.phone_outlined),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.outlined(
-                  tooltip: FlutterI18n.translate(context, 'support_garage_map'),
-                  onPressed: () => MapsLauncher.launchQuery('${garage.name} ${garage.street}, ${garage.zipCode}'),
-                  icon: const Icon(Icons.map_outlined),
-                ),
-                const SizedBox(width: 8),
-                IconButton.outlined(
-                  tooltip: FlutterI18n.translate(context, 'support_garage_call'),
-                  onPressed: garage.phone == 'Unknown' ? null : () => launchUrl(Uri(scheme: 'tel', path: garage.phone)),
-                  icon: const Icon(Icons.phone_outlined),
-                ),
-              ],
+                ],
+              ),
             ),
+            if (garage.isDealer) const Positioned(top: 0, right: 0, child: _DealerRibbon()),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DealerRibbon extends StatelessWidget {
+  const _DealerRibbon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: FlutterI18n.translate(context, 'support_garage_dealer'),
+      child: SizedBox(
+        width: 56,
+        height: 56,
+        child: ClipRect(
+          child: Center(
+            child: Transform.translate(
+              // Shifts the rotated band so it crosses the top-right corner.
+              offset: const Offset(8, -8),
+              child: Transform.rotate(
+                angle: math.pi / 4,
+                child: Container(
+                  width: 80,
+                  height: 12,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -632,36 +675,42 @@ class Garage {
     required this.phone,
     required this.street,
     required this.city,
-    required this.country,
     required this.countryCode,
     required this.zipCode,
     required this.location,
+    this.website,
+    this.isDealer = false,
   });
 
   String name;
   String phone;
   String street;
   String city;
-  String country;
   String countryCode;
   String zipCode;
   LatLng location;
   double? distance;
+  String? website;
+  bool isDealer;
 
+  /// Parses the compact format of
+  /// https://github.com/librescoot/unu-garages-data (n=name, p=phone,
+  /// s=street, z=postal code, c=city, cc=country code, ll=[lat,lng],
+  /// w=website, d=official unu dealer).
+  /// Throws for entries without valid coordinates; callers skip those.
   factory Garage.fromJson(Map<String, dynamic> json) {
     try {
+      final ll = json['ll'] as List<dynamic>;
       return Garage(
-        name: json['name']?.isNotEmpty == true ? json['name'] as String : 'Unnamed',
-        phone: json['Phone']?.isNotEmpty == true ? json['Phone'].toString() : 'Unknown',
-        street: json['ShippingStreet']?.isNotEmpty == true ? json['ShippingStreet'] as String : 'Unknown street',
-        city: json['ShippingCity']?.isNotEmpty == true ? json['ShippingCity'] as String : 'Unknown city',
-        country: json['ShippingCountry']?.isNotEmpty == true ? json['ShippingCountry'] as String : 'Unknown country',
-        countryCode: json['ShippingCountryCode']?.isNotEmpty == true ? json['ShippingCountryCode'] as String : '??',
-        zipCode: json['ShippingPostalCode']?.isNotEmpty == true ? json['ShippingPostalCode'].toString() : '?????',
-        location: LatLng(
-          double.parse(json['ShippingLatitude']?.isNotEmpty == true ? json['ShippingLatitude'] as String : '0'),
-          double.parse(json['ShippingLongitude']?.isNotEmpty == true ? json['ShippingLongitude'] as String : '0'),
-        ),
+        name: json['n']?.isNotEmpty == true ? json['n'] as String : 'Unnamed',
+        phone: json['p']?.isNotEmpty == true ? json['p'].toString() : 'Unknown',
+        street: json['s']?.isNotEmpty == true ? json['s'] as String : 'Unknown street',
+        city: json['c']?.isNotEmpty == true ? json['c'] as String : 'Unknown city',
+        countryCode: json['cc']?.isNotEmpty == true ? json['cc'] as String : '??',
+        zipCode: json['z']?.isNotEmpty == true ? json['z'].toString() : '?????',
+        location: LatLng((ll[0] as num).toDouble(), (ll[1] as num).toDouble()),
+        website: json['w'] as String?,
+        isDealer: json['d'] == 1,
       );
     } catch (error, stackTrace) {
       Logger('Garage').severe('Malformed garage', error, stackTrace);
