@@ -11,6 +11,7 @@ import 'package:logging/logging.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:appcheck/appcheck.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:unustasis/domain/scooter_candidate.dart';
 import 'package:unustasis/ui/theme/scooter_colors.dart';
@@ -18,6 +19,8 @@ import 'package:unustasis/ui/theme/theme_helper.dart';
 import 'package:unustasis/ui/widgets/scooter_picker.dart';
 import 'package:unustasis/ui/screens/home_screen.dart';
 import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/service/onboarding_permissions.dart';
+import 'package:unustasis/service/onboarding_preferences.dart';
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/widgets/scooter_visual.dart';
 import 'package:unustasis/ui/screens/support_screen.dart';
@@ -26,10 +29,14 @@ class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({
     this.excludedScooterIds,
     this.skipWelcome = false,
+    this.permissionController,
+    this.onboardingPreferences,
     super.key,
   });
   final List<String>? excludedScooterIds;
   final bool skipWelcome;
+  final OnboardingPermissionController? permissionController;
+  final OnboardingPreferences? onboardingPreferences;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -47,7 +54,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
   late AnimationController _pairingController;
   int _pendingColor = 0;
   late TextEditingController _nameController;
+  late final OnboardingPermissionController _permissionController;
+  late final OnboardingPreferences _onboardingPreferences;
+  OnboardingPermissionSummary? _permissionSummary;
+  bool _requestingPermissions = false;
+  bool _savingOnlineServicesChoice = false;
+  bool? _onlineServicesChoice;
   // Step 0: Welcome
+  // Step -2: Explain and request permissions
+  // Step -1: Choose whether to enable online place search
   // Step 1: Explain visibility
   // Step 2: Scanning, and picking one of the scooters found (or nothing found, retry)
   // Step 4: Waiting for pairing
@@ -57,6 +72,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
   @override
   void initState() {
     _nameController = TextEditingController(text: "Scooter Pro");
+    _permissionController = widget.permissionController ?? PlatformOnboardingPermissionController();
+    _onboardingPreferences = widget.onboardingPreferences ?? OnboardingPreferences();
     // for adding second or third scooters
     if (widget.skipWelcome) {
       // show an alert if we discover the old unu app still installed
@@ -99,10 +116,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     final appCheck = AppCheck();
     log.info("Checking for old app");
     bool appInstalled = false;
-    if (Platform.isAndroid) {
-      appInstalled = await appCheck.isAppInstalled('com.unumotors.app');
-    } else if (Platform.isIOS) {
-      appInstalled = await appCheck.isAppInstalled('com.unumotors.app://');
+    try {
+      if (Platform.isAndroid) {
+        appInstalled = await appCheck.isAppInstalled('com.unumotors.app');
+      } else if (Platform.isIOS) {
+        appInstalled = await appCheck.isAppInstalled('com.unumotors.app://');
+      }
+    } catch (error, stack) {
+      log.warning('Could not check for the old app', error, stack);
+      return;
     }
     if (appInstalled && mounted) {
       showDialog<void>(
@@ -134,21 +156,217 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     }
   }
 
+  Future<void> _continueFromWelcome() async {
+    _warnOfOldApp();
+    final alreadyCompleted = await _onboardingPreferences.isCurrent();
+    if (!mounted) return;
+    setState(() => _step = alreadyCompleted ? 1 : -2);
+  }
+
+  Future<void> _requestOnboardingPermissions() async {
+    if (_requestingPermissions) return;
+    setState(() => _requestingPermissions = true);
+    try {
+      final summary = await _permissionController.requestPermissions();
+      if (mounted) setState(() => _permissionSummary = summary);
+    } catch (error, stack) {
+      log.warning('Could not review onboarding permissions', error, stack);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(FlutterI18n.translate(context, 'onboarding_permissions_error'))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _requestingPermissions = false);
+    }
+  }
+
+  Widget _permissionRow({
+    required IconData icon,
+    required String titleKey,
+    required String descriptionKey,
+    required bool? granted,
+    required bool required,
+  }) {
+    final statusKey = granted == null
+        ? 'onboarding_permission_not_reviewed'
+        : granted
+            ? 'onboarding_permission_granted'
+            : required
+                ? 'onboarding_permission_required_denied'
+                : 'onboarding_permission_optional_denied';
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon),
+      title: Text(FlutterI18n.translate(context, titleKey)),
+      subtitle: Text('${FlutterI18n.translate(context, descriptionKey)}\n${FlutterI18n.translate(context, statusKey)}'),
+      isThreeLine: true,
+    );
+  }
+
+  List<Widget> _permissionsStep() {
+    final summary = _permissionSummary;
+    return [
+      Text(
+        FlutterI18n.translate(context, 'onboarding_permissions_heading'),
+        style: Theme.of(context).textTheme.headlineLarge,
+        textAlign: TextAlign.center,
+      ),
+      const SizedBox(height: 12),
+      Text(
+        FlutterI18n.translate(context, 'onboarding_permissions_body'),
+        style: Theme.of(context).textTheme.titleMedium,
+        textAlign: TextAlign.center,
+      ),
+      const SizedBox(height: 12),
+      _permissionRow(
+        icon: Icons.bluetooth_searching,
+        titleKey: 'onboarding_permission_nearby_title',
+        descriptionKey: 'onboarding_permission_nearby_description',
+        granted: summary?.nearbyDevicesGranted,
+        required: true,
+      ),
+      _permissionRow(
+        icon: Icons.notifications_outlined,
+        titleKey: 'onboarding_permission_notifications_title',
+        descriptionKey: 'onboarding_permission_notifications_description',
+        granted: summary?.notificationsGranted,
+        required: false,
+      ),
+      _permissionRow(
+        icon: Icons.location_on_outlined,
+        titleKey: 'onboarding_permission_location_title',
+        descriptionKey: 'onboarding_permission_location_description',
+        granted: summary?.locationGranted,
+        required: summary?.locationRequiredForScanning ?? false,
+      ),
+      const SizedBox(height: 12),
+      if (_requestingPermissions)
+        const CircularProgressIndicator()
+      else ...[
+        _primaryButton(
+          text: FlutterI18n.translate(
+            context,
+            summary == null ? 'onboarding_permissions_review' : 'onboarding_permissions_retry',
+          ),
+          onPressed: _requestOnboardingPermissions,
+        ),
+        if (summary?.canOpenSettings == true) ...[
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _permissionController.openSettings,
+            icon: const Icon(Icons.settings_outlined),
+            label: Text(FlutterI18n.translate(context, 'onboarding_permissions_open_settings')),
+          ),
+        ],
+        if (summary?.requiredPermissionsGranted == true) ...[
+          const SizedBox(height: 8),
+          _primaryButton(
+            text: FlutterI18n.translate(context, 'onboarding_permissions_continue'),
+            onPressed: _continueToOnlineServices,
+          ),
+        ],
+      ],
+    ];
+  }
+
+  Future<void> _continueToOnlineServices() async {
+    final existingChoice = await _onboardingPreferences.onlineServicesChoice();
+    if (!mounted) return;
+    setState(() {
+      _onlineServicesChoice = existingChoice;
+      _step = -1;
+    });
+  }
+
+  Future<void> _saveOnlineServicesChoice() async {
+    final choice = _onlineServicesChoice;
+    if (choice == null || _savingOnlineServicesChoice) return;
+    setState(() => _savingOnlineServicesChoice = true);
+    try {
+      await _onboardingPreferences.complete(onlineServicesEnabled: choice);
+      if (mounted) setState(() => _step = 1);
+    } catch (error, stack) {
+      log.warning('Could not save the online-services choice', error, stack);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(FlutterI18n.translate(context, 'onboarding_online_error'))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingOnlineServicesChoice = false);
+    }
+  }
+
+  Future<void> _openPrivacyPolicy() {
+    final language = FlutterI18n.currentLocale(context)?.languageCode ?? 'en';
+    final path = language == 'de' ? '/privacy/mobile-app/' : '/en/privacy/mobile-app/';
+    return launchUrl(Uri.parse('https://librescoot.org$path'), mode: LaunchMode.externalApplication);
+  }
+
+  List<Widget> _onlineServicesStep() => [
+        Text(
+          FlutterI18n.translate(context, 'onboarding_online_heading'),
+          style: Theme.of(context).textTheme.headlineLarge,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          FlutterI18n.translate(context, 'onboarding_online_body'),
+          style: Theme.of(context).textTheme.titleMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        RadioGroup<bool>(
+          groupValue: _onlineServicesChoice,
+          onChanged: (value) {
+            if (!_savingOnlineServicesChoice) {
+              setState(() => _onlineServicesChoice = value);
+            }
+          },
+          child: Column(
+            children: [
+              RadioListTile<bool>(
+                value: false,
+                enabled: !_savingOnlineServicesChoice,
+                title: Text(FlutterI18n.translate(context, 'onboarding_online_off_title')),
+                subtitle: Text(FlutterI18n.translate(context, 'onboarding_online_off_description')),
+              ),
+              RadioListTile<bool>(
+                value: true,
+                enabled: !_savingOnlineServicesChoice,
+                title: Text(FlutterI18n.translate(context, 'onboarding_online_on_title')),
+                subtitle: Text(FlutterI18n.translate(context, 'onboarding_online_on_description')),
+              ),
+            ],
+          ),
+        ),
+        TextButton.icon(
+          onPressed: _openPrivacyPolicy,
+          icon: const Icon(Icons.privacy_tip_outlined),
+          label: Text(FlutterI18n.translate(context, 'settings_privacy_policy')),
+        ),
+        if (_savingOnlineServicesChoice)
+          const CircularProgressIndicator()
+        else if (_onlineServicesChoice != null)
+          _primaryButton(
+            text: FlutterI18n.translate(context, 'onboarding_online_continue'),
+            onPressed: _saveOnlineServicesChoice,
+          ),
+      ];
+
   List<Widget> getWidgets(int step) {
     switch (step) {
+      case -2:
+        return _permissionsStep();
+      case -1:
+        return _onlineServicesStep();
       case 0:
         return _onboardingStep(
             heading: FlutterI18n.translate(context, "onboarding_step0_heading"),
             text: FlutterI18n.translate(context, "onboarding_step0_body"),
             btnText: FlutterI18n.translate(context, "onboarding_step0_button"),
-            onPressed: () {
-              // show an alert if we discover the old unu app still installed
-              _warnOfOldApp();
-              // move on in the background
-              setState(() {
-                _step = 1;
-              });
-            });
+            onPressed: _continueFromWelcome);
       case 1:
         return _onboardingStep(
             heading: FlutterI18n.translate(context, "onboarding_step1_heading"),
@@ -188,6 +406,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
 
   @override
   Widget build(BuildContext context) {
+    final usesScrollableIntro = _step < 0 || (_step == 0 && MediaQuery.textScalerOf(context).scale(1) > 1.3);
     return Scaffold(
       appBar: AppBar(
         // only show back button if this is not initial onboarding
@@ -232,35 +451,47 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
             mainAxisSize: MainAxisSize.max,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Expanded(
-                child: Builder(
-                  builder: (context) {
-                    int tapCount = 0;
-                    return GestureDetector(
-                      onTap: () {
-                        tapCount++;
-                        log.info('...visual tapped $tapCount times...');
-                        if (tapCount >= 27) {
-                          // Handle the 27 taps in short succession
-                          log.info('27 taps detected! Skipping onboarding...');
-                          tapCount = 0;
-                          setState(() {
-                            _step = 5;
-                          });
-                        }
-                      },
-                      child: _onboardingVisual(step: _step),
-                    );
-                  },
+              if (usesScrollableIntro)
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 72),
+                        ...getWidgets(_step),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                )
+              else ...[
+                Expanded(
+                  child: Builder(
+                    builder: (context) {
+                      int tapCount = 0;
+                      return GestureDetector(
+                        onTap: () {
+                          tapCount++;
+                          log.info('...visual tapped $tapCount times...');
+                          if (tapCount >= 27) {
+                            log.info('27 taps detected! Skipping onboarding...');
+                            tapCount = 0;
+                            setState(() => _step = 5);
+                          }
+                        },
+                        child: _onboardingVisual(step: _step),
+                      );
+                    },
+                  ),
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ...getWidgets(_step),
-                  const SizedBox(height: 16),
-                ],
-              ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ...getWidgets(_step),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ],
             ],
           ),
         ),

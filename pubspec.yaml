@@ -65,6 +65,7 @@ dependencies:
   path_provider: ^2.1.4
   flutter_email_sender: ^7.0.0
   device_info_plus: ^11.3.0
+  permission_handler: ^11.3.1
   flutter_background_service: ^5.0.10
   provider: ^6.1.2
   flutter_local_notifications: ^18.0.1
