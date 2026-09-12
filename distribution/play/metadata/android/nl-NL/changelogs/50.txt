@@ -1,0 +1,4 @@
+Verbindingscorrecties:
+
+• Meldt binnen seconden in plaats van een minuut dat de bluetoothverbinding met de scooter niet antwoordt
+• Kortere time-out voor scootercommando's, zodat fouten sneller zichtbaar worden

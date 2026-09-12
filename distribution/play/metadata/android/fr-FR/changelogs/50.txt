@@ -1,0 +1,4 @@
+Corrections de connexion :
+
+• Signale en quelques secondes, et non en une minute, une liaison Bluetooth de scooter qui ne répond pas
+• Délai plus court pour les commandes du scooter, afin que les échecs apparaissent plus vite

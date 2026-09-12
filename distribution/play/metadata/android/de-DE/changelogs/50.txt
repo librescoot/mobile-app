@@ -1,0 +1,4 @@
+Verbindungskorrekturen:
+
+• Meldet, wenn die Bluetooth-Verbindung zum Roller nicht antwortet, in Sekunden statt in einer Minute
+• Kürzere Zeitüberschreitung für Roller-Befehle, damit Fehler schneller sichtbar werden
