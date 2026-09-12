@@ -1,0 +1,5 @@
+Verbindingscorrecties:
+
+• Detecteert wanneer deze telefoon nog een verouderd bluetoothprofiel voor een scooter heeft en meldt dat in plaats van stil te falen
+• Controleert of het meldkanaal van de scooter echt aan staat in plaats van de cache te vertrouwen
+• Commando's blijven na die vaststelling niet meer hangen in herhaalde time-outs

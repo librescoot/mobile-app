@@ -1,0 +1,5 @@
+Verbindungskorrekturen:
+
+• Erkennt, wenn dieses Telefon noch ein veraltetes Bluetooth-Profil für einen Roller hat, und meldet es statt still zu scheitern
+• Prüft, ob der Benachrichtigungskanal des Rollers wirklich aktiv ist, statt dem Cache zu vertrauen
+• Befehle warten nach diesem Nachweis nicht mehr durch wiederholte Zeitüberschreitungen

@@ -1,0 +1,5 @@
+Corrections de connexion :
+
+• Détecte quand ce téléphone conserve un profil Bluetooth obsolète pour un scooter et le signale au lieu d'échouer en silence
+• Vérifie que le canal de notification du scooter est réellement actif au lieu de faire confiance au cache
+• Les commandes ne s'éternisent plus dans des délais d'attente répétés une fois le problème établi
