@@ -1,0 +1,5 @@
+Corrections de connexion et d'ateliers :
+
+• Détecte quand le téléphone conserve un profil Bluetooth obsolète pour un scooter et propose de réappairer
+• Récupère automatiquement la connexion quand le scooter signale des services Bluetooth modifiés
+• La liste des ateliers provient désormais de l'annuaire librescoot partagé, avec liens web et marque des concessionnaires officiels

@@ -1,0 +1,5 @@
+Correcties voor verbinding en werkplaatsen:
+
+• Detecteert wanneer de telefoon een verouderd bluetoothprofiel voor een scooter vasthoudt en biedt opnieuw koppelen aan
+• Herstelt de verbinding automatisch wanneer de scooter gewijzigde bluetooth-diensten meldt
+• De werkplaatslijst komt nu uit de gedeelde librescoot-map, met websitelinks en markering van officiële dealers

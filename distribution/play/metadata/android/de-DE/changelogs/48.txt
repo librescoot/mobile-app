@@ -1,0 +1,5 @@
+Korrekturen bei Verbindung und Werkstätten:
+
+• Erkennt, wenn das Telefon ein veraltetes Bluetooth-Profil für einen Roller behält, und bietet an, neu zu koppeln
+• Stellt die Verbindung automatisch wieder her, wenn der Roller geänderte Bluetooth-Dienste meldet
+• Die Werkstattliste stammt jetzt aus dem gemeinsamen librescoot-Verzeichnis, mit Website-Links und Kennzeichnung offizieller Händler
