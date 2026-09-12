@@ -36,6 +36,12 @@ class _UnsafeGattTable implements Exception {
   String toString() => 'Could not establish a safe Bluetooth service table: $reason';
 }
 
+class _ValidatedGattTable {
+  const _ValidatedGattTable(this.repository, this.servicesGeneration);
+  final CharacteristicRepository repository;
+  final int servicesGeneration;
+}
+
 Future<bool?> _clearGattCacheWithoutResult(BluetoothDevice device) async {
   // flutter_blue_plus_android 7.0.4 discards refresh()'s boolean result.
   await device.clearGattCache();
@@ -319,14 +325,24 @@ class ScooterSession {
         recoveryRunning = true;
         unawaited(() async {
           try {
+            var handoffAttempts = 0;
             while (attempt.isCurrent &&
                 !attemptedScooter.isDisconnected &&
-                handledServicesGeneration != servicesGeneration) {
-              final refreshed = await _establishGattTable(
+                handledServicesGeneration != servicesGeneration &&
+                handoffAttempts < 3) {
+              handoffAttempts++;
+              final candidate = await _establishGattTable(
                   attemptedScooter, attempt, () => servicesGeneration);
+              // Drain a Service Changed event already queued by validation.
+              await Future<void>.value();
+              await Future<void>.value();
               if (!attempt.isCurrent || attemptedScooter.isDisconnected) return;
-              effects.wireTelemetry(attempt, refreshed);
-              handledServicesGeneration = servicesGeneration;
+              if (candidate.servicesGeneration != servicesGeneration) continue;
+              effects.wireTelemetry(attempt, candidate.repository);
+              if (!attempt.isCurrent || attemptedScooter.isDisconnected) return;
+              if (candidate.servicesGeneration == servicesGeneration) {
+                handledServicesGeneration = candidate.servicesGeneration;
+              }
             }
           } catch (e, stack) {
             await _failUnsafeGattTable(attempt, attemptedScooter, e, stack);
@@ -340,13 +356,33 @@ class ScooterSession {
         }());
       };
 
-      final live = await _establishGattTable(
-          attemptedScooter, attempt, () => servicesGeneration);
+      _ValidatedGattTable? live;
+      for (var handoffAttempt = 0; handoffAttempt < 3; handoffAttempt++) {
+        final candidate = await _establishGattTable(
+            attemptedScooter, attempt, () => servicesGeneration);
+        // Drain a Service Changed event already queued by validation.
+        await Future<void>.value();
+        await Future<void>.value();
+        ensureCurrentAttempt();
+        if (attemptedScooter.isDisconnected) {
+          throw StateError('Scooter disconnected before table publication');
+        }
+        if (candidate.servicesGeneration == servicesGeneration) {
+          live = candidate;
+          break;
+        }
+      }
+      if (live == null) {
+        throw const _UnsafeGattTable(
+            'services kept changing before the validated table could be wired');
+      }
+      effects.wireTelemetry(attempt, live.repository);
       ensureCurrentAttempt();
-      effects.wireTelemetry(attempt, live);
-      handledServicesGeneration = servicesGeneration;
+      if (live.servicesGeneration == servicesGeneration) {
+        handledServicesGeneration = live.servicesGeneration;
+      }
       setupPublished = true;
-      ensureCurrentAttempt();
+      if (handledServicesGeneration != servicesGeneration) scheduleRecovery();
 
       effects.readyMetadata(attempt);
       ensureCurrentAttempt();
@@ -649,7 +685,7 @@ class ScooterSession {
     }
   }
 
-  Future<CharacteristicRepository> _establishGattTable(
+  Future<_ValidatedGattTable> _establishGattTable(
       BluetoothDevice scooter,
       SessionConnection attempt,
       int Function() servicesGeneration) async {
@@ -678,7 +714,9 @@ class ScooterSession {
         lastFailure = 'services changed during validation';
         continue;
       }
-      if (invalid == null) return repository;
+      if (invalid == null) {
+        return _ValidatedGattTable(repository, discoveryGeneration);
+      }
 
       lastFailure = invalid;
       repository.noteStaleGattTable(invalid);

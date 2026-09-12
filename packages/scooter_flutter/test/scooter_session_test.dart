@@ -92,7 +92,7 @@ class _Device extends Fake implements BluetoothDevice {
   _Device(String id, this.trace, [_Link? link])
       : remoteId = DeviceIdentifier(id),
         link = link ?? _Link() {
-    servicesResets = StreamController<void>.broadcast();
+    servicesResets = StreamController<void>.broadcast(sync: true);
   }
   final List<String> trace;
   final _Link link;
@@ -188,6 +188,7 @@ class _Repository extends CharacteristicRepository {
   bool missing = false;
   String? invalidTable;
   Completer<void>? validationGate;
+  void Function()? afterValidationHandoff;
   int discoveries = 0;
   @override
   Future<void> findAll({bool additionalLibrescootFeatures = false}) async {
@@ -207,7 +208,14 @@ class _Repository extends CharacteristicRepository {
   Future<String?> validateGattTable({required bool isAndroid}) async {
     trace.add('${scooter.remoteId}.validate');
     await validationGate?.future;
-    return missing ? 'mandatory characteristics are missing' : invalidTable;
+    final result =
+        missing ? 'mandatory characteristics are missing' : invalidTable;
+    final afterHandoff = afterValidationHandoff;
+    if (afterHandoff != null) {
+      afterValidationHandoff = null;
+      scheduleMicrotask(() => scheduleMicrotask(afterHandoff));
+    }
+    return result;
   }
 }
 
@@ -652,6 +660,24 @@ void main() {
     expect(oldDevice.link.disconnects, 0, reason: h.trace.toString());
   });
 
+  sessionTest(
+      'Service Changed during initial validation handoff discards the candidate',
+      (tester) async {
+    final h = create(android: true);
+    final first = _Repository(h.devices['A']!, h.trace)
+      ..afterValidationHandoff = () => h.devices['A']!.servicesResets.add(null);
+    h.repositories[h.devices['A']!] = first;
+    final result = h.connect('A');
+    await tester.pump();
+    await h.finish(tester, 'A');
+    expect(await result, isNull);
+    expect(h.repositoryHistory, hasLength(2));
+    expect(h.trace.where((event) => event == 'A.validate'), hasLength(2));
+    expect(h.effects.repositories, hasLength(1), reason: h.trace.toString());
+    expect(h.effects.repositories.single, isNot(same(first)),
+        reason: 'the handoff candidate must never start telemetry work');
+  });
+
   sessionTest('Service Changed during discovery discards the obsolete table',
       (tester) async {
     final h = create(android: true);
@@ -672,6 +698,30 @@ void main() {
     expect(h.repositoryHistory, hasLength(2));
     expect(h.effects.repositories, hasLength(1));
     expect(h.effects.repositories.single, isNot(same(first)));
+  });
+
+  sessionTest(
+      'Service Changed during active recovery handoff discards the candidate',
+      (tester) async {
+    final h = create(android: true);
+    final connected = h.connect('A');
+    await tester.pump();
+    await h.finish(tester, 'A');
+    expect(await connected, isNull);
+
+    final stale = _Repository(h.devices['A']!, h.trace)
+      ..afterValidationHandoff = () => h.devices['A']!.servicesResets.add(null);
+    final latest = _Repository(h.devices['A']!, h.trace);
+    h.queuedRepositories[h.devices['A']!] = [stale, latest];
+    h.devices['A']!.servicesResets.add(null);
+    await tester.pump();
+
+    expect(h.repositoryHistory, hasLength(3));
+    expect(h.trace.where((event) => event == 'A.validate'), hasLength(3));
+    expect(h.effects.repositories, hasLength(2), reason: h.trace.toString());
+    expect(h.effects.repositories, isNot(contains(same(stale))),
+        reason: 'the handoff candidate must never start telemetry work');
+    expect(h.effects.repositories.last, same(latest));
   });
 
   for (final platform in ['Android', 'iOS']) {
