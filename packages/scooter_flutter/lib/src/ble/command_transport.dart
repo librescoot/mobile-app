@@ -35,8 +35,10 @@ Future<T> withExtendedChannel<T>(
 /// trusting the cached CCCD value.
 Future<void> ensureExtendedNotify(
   CharacteristicRepository repo,
-  BluetoothCharacteristic resp,
-) async {
+  BluetoothCharacteristic resp, {
+  bool Function()? isCurrent,
+}) async {
+  checkCommandCurrent(isCurrent);
   if (repo.extendedNotifyVerified) return;
   try {
     await resp.setNotifyValue(true);
@@ -163,7 +165,7 @@ Future<String?> _sendLsExtendedCommandUnguarded(
   _log.info(
       'Extended command acquired channel; notifications=${resp.isNotifying}');
   try {
-    await ensureExtendedNotify(repo, resp);
+    await ensureExtendedNotify(repo, resp, isCurrent: isCurrent);
   } catch (e) {
     rethrow;
   }

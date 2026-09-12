@@ -390,21 +390,32 @@ class ScooterSession {
         final failedServicesResetSubscription = _servicesResetSubscription;
         _servicesResetSubscription = null;
         await failedServicesResetSubscription?.cancel();
-        foundScooter = false;
-        _connectingScooterId = null;
-        connected = false;
-        if (e is _UnsafeGattTable) {
-          attempt._active = false;
-          stopAutoRestart(clearManualTarget: false);
-        }
-        if (isCurrentAttempt()) effects.disconnected(null);
-        if (isCurrentAttempt() && identical(device, attempt._device)) {
-          device = null;
-        }
-        if (e is _UnsafeGattTable) {
-          await _safeDisconnect(attempt._device!);
-        } else if (_autoRestarting && _targetScooterId == id) {
-          unawaited(_attemptAutoRestart());
+        if (isCurrentAttempt()) {
+          foundScooter = false;
+          _connectingScooterId = null;
+          connected = false;
+          if (e is _UnsafeGattTable) {
+            attempt._active = false;
+            stopAutoRestart(clearManualTarget: false);
+          }
+          if (isCurrentAttempt()) effects.disconnected(null);
+          final failedDevice = attempt._device;
+          if (e is _UnsafeGattTable &&
+              isCurrentAttempt() &&
+              failedDevice != null &&
+              identical(device, failedDevice)) {
+            await _safeDisconnect(failedDevice);
+            if (isCurrentAttempt() && identical(device, failedDevice)) {
+              device = null;
+            }
+          } else {
+            if (isCurrentAttempt() && identical(device, failedDevice)) {
+              device = null;
+            }
+            if (_autoRestarting && _targetScooterId == id) {
+              unawaited(_attemptAutoRestart());
+            }
+          }
         }
       }
       if (!identical(_connectionAttempt, attempt)) {
@@ -695,14 +706,21 @@ class ScooterSession {
     final failedServicesResetSubscription = _servicesResetSubscription;
     _servicesResetSubscription = null;
     await failedServicesResetSubscription?.cancel();
+    bool ownsDevice() =>
+        attempt.isCurrentAttempt &&
+        identical(attempt._device, scooter) &&
+        identical(device, scooter);
+    if (!ownsDevice()) return;
     attempt._active = false;
     stopAutoRestart(clearManualTarget: false);
     foundScooter = false;
     _connectingScooterId = null;
     connected = false;
     effects.disconnected(null);
-    if (identical(device, scooter)) device = null;
+    if (!ownsDevice()) return;
     await _safeDisconnect(scooter);
+    if (!ownsDevice()) return;
+    device = null;
   }
 
   void stopAutoRestart({bool clearManualTarget = true}) {

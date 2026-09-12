@@ -28,11 +28,11 @@ class ScooterTelemetry {
   ScooterTelemetry({
     required this.effects,
     FirmwareIdentity? identity,
-    Future<Set<String>> Function(
-            BluetoothDevice?, CharacteristicRepository, String)?
+    Future<Set<String>> Function(BluetoothDevice?, CharacteristicRepository,
+            String, {bool Function()? isCurrent})?
         capabilities,
-    Future<String?> Function(
-            BluetoothDevice?, CharacteristicRepository, String)?
+    Future<String?> Function(BluetoothDevice?, CharacteristicRepository, String,
+            {bool Function()? isCurrent})?
         setting,
   })  : identity = identity ?? FirmwareIdentity(),
         _capabilities = capabilities ?? queries.getLsCapabilitiesCommand,
@@ -42,10 +42,10 @@ class ScooterTelemetry {
   final BatteryState battery = BatteryState();
   final VehicleStatus vehicle = VehicleStatus();
   final FirmwareIdentity identity;
-  final Future<Set<String>> Function(
-      BluetoothDevice?, CharacteristicRepository, String) _capabilities;
-  final Future<String?> Function(
-      BluetoothDevice?, CharacteristicRepository, String) _setting;
+  final Future<Set<String>> Function(BluetoothDevice?, CharacteristicRepository,
+      String, {bool Function()? isCurrent}) _capabilities;
+  final Future<String?> Function(BluetoothDevice?, CharacteristicRepository,
+      String, {bool Function()? isCurrent}) _setting;
   SessionConnection? _connection;
   CharacteristicRepository? _repository;
   int _revision = 0;
@@ -208,15 +208,18 @@ class ScooterTelemetry {
   Future<void> _probeLsCapabilities(
       SessionConnection connection, CharacteristicRepository repository) async {
     final scooter = connection.device;
+    bool current() =>
+        _current(connection) && identical(_repository, repository);
     bool? supportsHibernateFor;
     try {
-      final caps = await _capabilities(scooter, repository, "pm");
+      final caps = await _capabilities(scooter, repository, "pm",
+          isCurrent: current);
       supportsHibernateFor = caps.contains("hibernate-for");
     } catch (e, stack) {
       effects.probeFailed("pm capability probe failed", e, stack);
       supportsHibernateFor = false;
     }
-    if (!_current(connection)) return;
+    if (!current()) return;
     identity.supportsHibernateFor = supportsHibernateFor;
     // cache the capability so the next session doesn't wait for the probe
     effects.cachePatch(connection.id,
@@ -229,25 +232,27 @@ class ScooterTelemetry {
         scooter,
         repository,
         lsKeyScheduledHibernateEnabled,
+        isCurrent: current,
       );
       supportsScheduledHibernation = value != null;
     } catch (e, stack) {
       effects.probeFailed("scheduled hibernation probe failed", e, stack);
       supportsScheduledHibernation = false;
     }
-    if (!_current(connection)) return;
+    if (!current()) return;
     identity.supportsScheduledHibernation = supportsScheduledHibernation;
     if (!_publishTableState(connection, repository)) return;
 
     bool? supportsApnConfig;
     try {
-      final caps = await _capabilities(scooter, repository, "config");
+      final caps = await _capabilities(scooter, repository, "config",
+          isCurrent: current);
       supportsApnConfig = caps.contains("apn");
     } catch (e, stack) {
       effects.probeFailed("config capability probe failed", e, stack);
       supportsApnConfig = false;
     }
-    if (!_current(connection)) return;
+    if (!current()) return;
     identity.supportsApnConfig = supportsApnConfig;
     // cached like the pm capability, so the APN tile does not vanish and
     // reappear every time the probe re-runs on a reconnect
@@ -257,13 +262,14 @@ class ScooterTelemetry {
 
     bool? supportsBondForget;
     try {
-      final caps = await _capabilities(scooter, repository, "ble");
+      final caps = await _capabilities(scooter, repository, "ble",
+          isCurrent: current);
       supportsBondForget = caps.contains("forget");
     } catch (e, stack) {
       effects.probeFailed("ble capability probe failed", e, stack);
       supportsBondForget = false;
     }
-    if (!_current(connection)) return;
+    if (!current()) return;
     // Not cached on the SavedScooter, unlike the two above. Nothing renders it,
     // so there is no flicker to avoid, and the answer depends on the nRF
     // firmware rather than the app: a cache would go stale the moment the
@@ -277,25 +283,27 @@ class ScooterTelemetry {
         scooter,
         repository,
         lsKeyBatteryKeepActiveOnSeatboxOpen,
+        isCurrent: current,
       );
       supportsBatteryKeepActive = value != null;
     } catch (e, stack) {
       effects.probeFailed("battery keep-active probe failed", e, stack);
       supportsBatteryKeepActive = false;
     }
-    if (!_current(connection)) return;
+    if (!current()) return;
     identity.supportsBatteryKeepActive = supportsBatteryKeepActive;
     if (!_publishTableState(connection, repository)) return;
 
     bool? supportsAlarmControl;
     try {
-      final caps = await _capabilities(scooter, repository, "alarm");
+      final caps = await _capabilities(scooter, repository, "alarm",
+          isCurrent: current);
       supportsAlarmControl = caps.contains("enable");
     } catch (e, stack) {
       effects.probeFailed("alarm capability probe failed", e, stack);
       supportsAlarmControl = false;
     }
-    if (!_current(connection)) return;
+    if (!current()) return;
     identity.supportsAlarmControl = supportsAlarmControl;
     identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repository);
     _notify(connection);
@@ -305,11 +313,11 @@ class ScooterTelemetry {
   /// another response timeout.
   bool _publishTableState(
       SessionConnection connection, CharacteristicRepository repo) {
-    if (!_current(connection)) return false;
+    if (!_current(connection) || !identical(_repository, repo)) return false;
     identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repo);
     _notify(connection);
     // A listener can invalidate the connection while being notified.
-    if (!_current(connection)) return false;
+    if (!_current(connection) || !identical(_repository, repo)) return false;
     return !(repo.gattTableMismatch || repo.extendedChannelSilent);
   }
 

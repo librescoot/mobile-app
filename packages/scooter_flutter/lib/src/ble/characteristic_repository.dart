@@ -232,14 +232,18 @@ class CharacteristicRepository {
   }
 
   /// Returns why this table is unsafe, or null when its available structure is
-  /// usable. Stock firmware has no extended channel, so its absence is allowed.
+  /// usable. The exact CCCD probe detects the known Android handle collision;
+  /// it cannot prove freshness for every self-consistent cache. Stock firmware
+  /// has no extended channel, so absence of the whole channel is allowed.
   Future<String?> validateGattTable({required bool isAndroid}) async {
     if (anyAreNull()) return 'mandatory characteristics are missing';
     if (!isAndroid || extendedResponseCharacteristic == null) return null;
 
     final response = extendedResponseCharacteristic!;
     final cccd = _cccdOf(response);
-    if (cccd == null) return null;
+    if (cccd == null) {
+      return 'the extended response characteristic has no CCCD';
+    }
     try {
       final value = await cccd.read();
       if (!_isValidCccdValue(value, response.properties)) {

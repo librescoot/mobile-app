@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:scooter_flutter/action_commands.dart' as action_commands;
 import 'package:flutter/services.dart';
@@ -24,18 +26,71 @@ export 'package:scooter_flutter/action_commands.dart' hide unlockScooter, lockSc
 final log = Logger('BleCommands');
 
 /// Sends a power command to a scooter by ID, connecting first if needed.
-Future<void> sendStaticPowerCommand(String id, String command) async {
-  BluetoothDevice scooter = BluetoothDevice.fromId(id);
-  if (scooter.isDisconnected) {
-    await scooter.connect();
+Future<void> sendStaticPowerCommand(String id, String command,
+    {BluetoothDevice Function(String)? deviceFromId,
+    CharacteristicRepository Function(BluetoothDevice)? repositoryFactory,
+    Future<void> Function(BluetoothDevice)? clearGattCache,
+    bool? isAndroid}) async {
+  final scooter = (deviceFromId ?? BluetoothDevice.fromId)(id);
+  if (scooter.isDisconnected) await scooter.connect();
+
+  var servicesGeneration = 0;
+  StreamSubscription<void>? servicesReset;
+  try {
+    servicesReset = scooter.onServicesReset.listen((_) => servicesGeneration++);
+  } catch (_) {
+    // CoreBluetooth refreshes iOS service objects itself.
   }
-  await scooter.discoverServices();
-  BluetoothCharacteristic? commandCharacteristic = CharacteristicRepository.findCharacteristic(
-    scooter,
-    "9a590000-6e67-5d0d-aab9-ad9126b66f91",
-    "9a590001-6e67-5d0d-aab9-ad9126b66f91",
-  );
-  await commandCharacteristic!.write(ascii.encode(command));
+
+  final makeRepository = repositoryFactory ?? CharacteristicRepository.new;
+  final android = isAndroid ?? Platform.isAndroid;
+  var refreshAttempted = false;
+  String? lastFailure;
+  try {
+    for (var pass = 0; pass < 3; pass++) {
+      final discoveryGeneration = servicesGeneration;
+      final repository = makeRepository(scooter);
+      await repository.findAll(additionalLibrescootFeatures: true);
+      if (scooter.isDisconnected) {
+        throw StateError('Scooter disconnected during service discovery');
+      }
+      if (discoveryGeneration != servicesGeneration) {
+        lastFailure = 'services changed during discovery';
+        continue;
+      }
+      final invalid = await repository.validateGattTable(isAndroid: android);
+      if (scooter.isDisconnected) {
+        throw StateError('Scooter disconnected during table validation');
+      }
+      if (discoveryGeneration != servicesGeneration) {
+        lastFailure = 'services changed during validation';
+        continue;
+      }
+      if (invalid != null) {
+        lastFailure = invalid;
+        if (!android || refreshAttempted) break;
+        refreshAttempted = true;
+        try {
+          await (clearGattCache ?? (device) => device.clearGattCache())(scooter);
+        } catch (e) {
+          log.warning('Could not request an Android GATT cache refresh: $e');
+        }
+        continue;
+      }
+      final target = repository.commandCharacteristic;
+      if (target == null) {
+        lastFailure = 'the command characteristic is missing';
+        break;
+      }
+      if (discoveryGeneration != servicesGeneration) continue;
+      await target.write(ascii.encode(command));
+      return;
+    }
+    throw StateError(
+        'Could not establish a safe Bluetooth service table: $lastFailure');
+  } finally {
+    await servicesReset?.cancel();
+  }
 }
 
 Future<void> unlockScooter(

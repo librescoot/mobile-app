@@ -185,6 +185,14 @@ void main() {
         isNull);
   });
 
+  test('an extended response without its CCCD is unsafe on Android', () async {
+    final response = _Characteristic('0402');
+    expect(
+        await _ValidationRepository(_Device([]), response)
+            .validateGattTable(isAndroid: true),
+        contains('has no CCCD'));
+  });
+
   test('CCCD enabled bits must match the characteristic properties', () async {
     final response = _Characteristic('0402',
         descriptors: [_Descriptor(const [0x02, 0x00])],

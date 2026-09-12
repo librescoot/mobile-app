@@ -34,12 +34,15 @@ class _Characteristic extends Fake implements BluetoothCharacteristic {
 class _Extended extends Fake implements BluetoothCharacteristic {
   final responses = StreamController<List<int>>.broadcast(sync: true);
   final writes = <String>[];
+  int notifyWrites = 0;
   @override
   bool get isNotifying => true;
   @override
   Future<bool> setNotifyValue(bool notify,
-          {int timeout = 15, bool forceIndications = false}) async =>
-      true;
+      {int timeout = 15, bool forceIndications = false}) async {
+    notifyWrites++;
+    return true;
+  }
   @override
   Stream<List<int>> get onValueReceived => responses.stream;
   @override
@@ -72,6 +75,7 @@ class _Device extends Fake implements BluetoothDevice {
   bool live = false;
   final states =
       StreamController<BluetoothConnectionState>.broadcast(sync: true);
+  final servicesResets = StreamController<void>.broadcast(sync: true);
   @override
   bool get isConnected => live;
   @override
@@ -80,6 +84,8 @@ class _Device extends Fake implements BluetoothDevice {
   DisconnectReason? get disconnectReason => null;
   @override
   Stream<BluetoothConnectionState> get connectionState => states.stream;
+  @override
+  Stream<void> get onServicesReset => servicesResets.stream;
   @override
   Future<void> connect(
       {Duration timeout = const Duration(seconds: 35),
@@ -232,7 +238,7 @@ class _Harness {
         effects: effects,
         capabilities: defaultQueries
             ? null
-            : (_, __, category) async {
+            : (_, __, category, {isCurrent}) async {
                 queries.add(category);
                 return caps == null
                     ? {'hibernate-for', 'apn', 'forget', 'enable'}
@@ -240,7 +246,7 @@ class _Harness {
               },
         setting: defaultQueries
             ? null
-            : (_, __, key) async {
+            : (_, __, key, {isCurrent}) async {
                 queries.add(key);
                 return setting == null ? '' : await setting(key);
               });
@@ -282,6 +288,7 @@ class _Harness {
     telemetry.dispose();
     for (final device in devices) {
       await device.states.close();
+      await device.servicesResets.close();
     }
   }
 }
@@ -648,6 +655,31 @@ void main() {
     expect(h.queries, isEmpty);
     expect(_caps(h.telemetry.identity), List.filled(6, false));
     expect(h.effects.patches.single.$2.isLibrescoot, false);
+  });
+
+  test('queued capability probe cannot write after Service Changed rebuild',
+      () async {
+    final h = _Harness(defaultQueries: true);
+    addTearDown(h.dispose);
+    final old = await h.connect('A');
+    final channel = _Extended();
+    old.extendedCommandCharacteristic = channel;
+    old.extendedResponseCharacteristic = channel;
+
+    final gate = Completer<void>();
+    final blocker = withExtendedChannel(() => gate.future);
+    await _flush();
+    _firmware(old);
+    await _flush();
+    h.devices.single.servicesResets.add(null);
+    await _flush();
+    expect(h.repositories, hasLength(2));
+
+    gate.complete();
+    await blocker;
+    await _flush();
+    expect(channel.notifyWrites, 0);
+    expect(channel.writes, isEmpty);
   });
 
   test(

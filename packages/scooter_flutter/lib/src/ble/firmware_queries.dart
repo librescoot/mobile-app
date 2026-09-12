@@ -36,9 +36,10 @@ Future<String?> getInstalledVersionCommand(
 /// "hibernate-cancel").
 Future<Set<String>> getPmCapabilitiesCommand(
   BluetoothDevice? scooter,
-  CharacteristicRepository repo,
-) =>
-    getLsCapabilitiesCommand(scooter, repo, "pm");
+  CharacteristicRepository repo, {
+  bool Function()? isCurrent,
+}) =>
+    getLsCapabilitiesCommand(scooter, repo, "pm", isCurrent: isCurrent);
 
 /// Queries which commands the scooter supports in [category] ("pm", "config",
 /// …). Returns an empty set on firmware that doesn't support the capability
@@ -46,9 +47,11 @@ Future<Set<String>> getPmCapabilitiesCommand(
 Future<Set<String>> getLsCapabilitiesCommand(
   BluetoothDevice? scooter,
   CharacteristicRepository repo,
-  String category,
-) =>
+  String category, {
+  bool Function()? isCurrent,
+}) =>
     withExtendedChannel(() async {
+      checkCommandCurrent(isCurrent);
       if (scooter == null || scooter.isDisconnected) {
         throw "Scooter not connected!";
       }
@@ -58,10 +61,12 @@ Future<Set<String>> getLsCapabilitiesCommand(
         throw "Extended command characteristics not available";
       }
 
-      await ensureExtendedNotify(repo, resp);
+      await ensureExtendedNotify(repo, resp, isCurrent: isCurrent);
+      checkCommandCurrent(isCurrent);
       final listener = ExtendedResponseListener(resp.onValueReceived);
       try {
-        await sendCommand(scooter, repo, "cap:$category", characteristic: cmd);
+        await sendCommand(scooter, repo, "cap:$category",
+            characteristic: cmd, isCurrent: isCurrent);
         final stream = listener.responses.map((response) {
           repo.noteExtendedResponse();
           return response;

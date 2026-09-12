@@ -14,12 +14,15 @@ class _Channel extends Fake implements BluetoothCharacteristic {
   final values = StreamController<List<int>>.broadcast(sync: true);
   final writes = <String>[];
   List<String> replies = [];
+  int notifyWrites = 0;
   @override
   bool get isNotifying => true;
   @override
   Future<bool> setNotifyValue(bool notify,
-          {int timeout = 15, bool forceIndications = false}) async =>
-      true;
+      {int timeout = 15, bool forceIndications = false}) async {
+    notifyWrites++;
+    return true;
+  }
   @override
   Stream<List<int>> get onValueReceived => values.stream;
   @override
@@ -86,6 +89,22 @@ void main() {
       () async {
     channel.replies = ['status:version:dbc:unknown'];
     expect(await getInstalledVersionCommand(device, repo, 'dbc'), 'unknown');
+  });
+
+  test('a queued capability probe rechecks freshness before notify or write',
+      () async {
+    final gate = Completer<void>();
+    final blocker = withExtendedChannel(() => gate.future);
+    await Future<void>.delayed(Duration.zero);
+    var current = true;
+    final probe = getLsCapabilitiesCommand(device, repo, 'pm',
+        isCurrent: () => current);
+    current = false;
+    gate.complete();
+    await blocker;
+    await expectLater(probe, throwsStateError);
+    expect(channel.notifyWrites, 0);
+    expect(channel.writes, isEmpty);
   });
 
   test('power capabilities retain names and discard argument syntax', () async {

@@ -53,15 +53,53 @@ class _Link {
   int disconnects = 0;
 }
 
+class _CancelGatedStream extends StreamView<void> {
+  _CancelGatedStream(super.stream, this.gate);
+  final Future<void> gate;
+  @override
+  StreamSubscription<void> listen(void Function(void)? onData,
+          {Function? onError, void Function()? onDone, bool? cancelOnError}) =>
+      _CancelGatedSubscription(super.listen(onData,
+          onError: onError, onDone: onDone, cancelOnError: cancelOnError), gate);
+}
+
+class _CancelGatedSubscription implements StreamSubscription<void> {
+  _CancelGatedSubscription(this.delegate, this.gate);
+  final StreamSubscription<void> delegate;
+  final Future<void> gate;
+  @override
+  Future<void> cancel() async {
+    await delegate.cancel();
+    await gate;
+  }
+  @override
+  void onData(void Function(void)? handleData) => delegate.onData(handleData);
+  @override
+  void onError(Function? handleError) => delegate.onError(handleError);
+  @override
+  void onDone(void Function()? handleDone) => delegate.onDone(handleDone);
+  @override
+  void pause([Future<void>? resumeSignal]) => delegate.pause(resumeSignal);
+  @override
+  void resume() => delegate.resume();
+  @override
+  bool get isPaused => delegate.isPaused;
+  @override
+  Future<E> asFuture<E>([E? futureValue]) => delegate.asFuture(futureValue);
+}
+
 class _Device extends Fake implements BluetoothDevice {
   _Device(String id, this.trace, [_Link? link])
       : remoteId = DeviceIdentifier(id),
-        link = link ?? _Link();
+        link = link ?? _Link() {
+    servicesResets = StreamController<void>.broadcast();
+  }
   final List<String> trace;
   final _Link link;
   final connections = <Completer<void>>[];
   final states = StreamController<BluetoothConnectionState>.broadcast();
-  final servicesResets = StreamController<void>.broadcast();
+  late final StreamController<void> servicesResets;
+  Completer<void>? servicesResetCancelGate;
   Completer<BluetoothBondState>? bondStateGate;
   Completer<void>? bondGate;
   Completer<void>? priorityGate;
@@ -86,7 +124,10 @@ class _Device extends Fake implements BluetoothDevice {
   @override
   Stream<void> get onServicesReset {
     trace.add('$remoteId.servicesReset');
-    return servicesResets.stream;
+    final gate = servicesResetCancelGate;
+    return gate == null
+        ? servicesResets.stream
+        : _CancelGatedStream(servicesResets.stream, gate.future);
   }
 
   @override
@@ -240,6 +281,13 @@ class _Harness {
       repositoryFactory: (device) {
         final calls = repositoryFactoryCalls.update(device, (value) => value + 1,
             ifAbsent: () => 1);
+        final queued = queuedRepositories[device];
+        if (queued != null && queued.isNotEmpty) {
+          final repository = queued.removeAt(0);
+          repositories[device] = repository;
+          repositoryHistory.add(repository);
+          return repository;
+        }
         final prepared = repositories[device];
         if (calls == 1 && prepared != null) {
           repositoryHistory.add(prepared);
@@ -272,6 +320,7 @@ class _Harness {
   final allDevices = <_Device>[];
   final repositories = <BluetoothDevice, _Repository>{};
   final repositoryFactoryCalls = <BluetoothDevice, int>{};
+  final queuedRepositories = <BluetoothDevice, List<_Repository>>{};
   final repositoryHistory = <_Repository>[];
   final attempts = <Future<Object?>>[];
   bool? refreshResult;
@@ -318,6 +367,7 @@ class _Harness {
         gate.complete(BluetoothBondState.bonded);
       }
       for (final gate in [
+        device.servicesResetCancelGate,
         device.bondGate,
         device.priorityGate,
         device.disconnectGate
@@ -547,6 +597,31 @@ void main() {
     expect(h.session.connected, isFalse);
   });
 
+  sessionTest(
+      'supersession while failed setup cancels observation protects newer link',
+      (tester) async {
+    final h = create(android: true)..defaultRepositoryInvalid = 'unsafe';
+    final oldDevice = h.devices['A']!;
+    oldDevice.servicesResetCancelGate = Completer<void>();
+    final old = h.connect('A');
+    await tester.pump();
+    oldDevice.connections.single.complete();
+    await tester.pump();
+    expect(h.trace.where((event) => event == 'A.validate'), hasLength(2));
+
+    h.defaultRepositoryInvalid = null;
+    h.devices['A'] = h.makeDevice('A', oldDevice.link);
+    final newer = h.connect('A');
+    await tester.pump();
+    await h.finish(tester, 'A');
+    oldDevice.servicesResetCancelGate!.complete();
+    await tester.pump();
+    expect(await old, isA<Exception>());
+    expect(await newer, isNull);
+    expect(h.session.connected, isTrue);
+    expect(oldDevice.link.disconnects, 0, reason: h.trace.toString());
+  });
+
   sessionTest('Service Changed during discovery discards the obsolete table',
       (tester) async {
     final h = create(android: true);
@@ -569,22 +644,76 @@ void main() {
     expect(h.effects.repositories.single, isNot(same(first)));
   });
 
-  sessionTest('Service Changed while active quiesces then rewires once',
+  for (final platform in ['Android', 'iOS']) {
+    sessionTest('$platform Service Changed while active quiesces then rewires',
+        (tester) async {
+      final h = create(android: platform == 'Android', ios: platform == 'iOS');
+      final result = h.connect('A');
+      await tester.pump();
+      await h.finish(tester, 'A');
+      expect(await result, isNull);
+      h.trace.clear();
+      h.devices['A']!.servicesResets.add(null);
+      await tester.pump();
+      expect(h.trace.first, 'invalidate');
+      expect(h.trace, containsAllInOrder(
+          ['invalidate', 'A.discover', 'A.validate', 'A.wire']));
+      expect(h.effects.repositories, hasLength(2));
+      expect(h.effects.repositories.last,
+          isNot(same(h.effects.repositories.first)));
+    });
+  }
+
+  sessionTest(
+      'supersession while active recovery cancels observation protects newer link',
+      (tester) async {
+    final h = create(android: true);
+    final connected = h.connect('A');
+    await tester.pump();
+    await h.finish(tester, 'A');
+    expect(await connected, isNull);
+    final a = h.devices['A']!;
+    a.servicesResetCancelGate = Completer<void>();
+    h.defaultRepositoryInvalid = 'unsafe';
+    a.servicesResets.add(null);
+    await tester.pump();
+    expect(h.trace.where((event) => event == 'A.validate').length,
+        greaterThanOrEqualTo(3));
+
+    h.defaultRepositoryInvalid = null;
+    final newer = h.connect('B');
+    await tester.pump();
+    await h.finish(tester, 'B');
+    a.servicesResetCancelGate!.complete();
+    await tester.pump();
+    expect(await newer, isNull);
+    expect(h.session.connected, isTrue);
+    expect(h.session.device, same(h.devices['B']));
+    expect(h.devices['B']!.link.disconnects, 0);
+  });
+
+  sessionTest('repeated Service Changed events coalesce serialized discovery',
       (tester) async {
     final h = create(android: true);
     final result = h.connect('A');
     await tester.pump();
     await h.finish(tester, 'A');
     expect(await result, isNull);
-    h.trace.clear();
+
+    final recovery = _Repository(h.devices['A']!, h.trace)
+      ..gate = Completer<void>();
+    h.queuedRepositories[h.devices['A']!] = [recovery];
     h.devices['A']!.servicesResets.add(null);
     await tester.pump();
-    expect(h.trace.first, 'invalidate');
-    expect(h.trace,
-        containsAllInOrder(['invalidate', 'A.discover', 'A.validate', 'A.wire']));
+    expect(h.repositoryHistory, hasLength(2));
+    h.devices['A']!.servicesResets.add(null);
+    await tester.pump();
+    expect(h.repositoryHistory, hasLength(2),
+        reason: 'a second discovery must not overlap the first');
+    recovery.gate!.complete();
+    await tester.pump();
+    expect(h.repositoryHistory, hasLength(3));
     expect(h.effects.repositories, hasLength(2));
-    expect(h.effects.repositories.last,
-        isNot(same(h.effects.repositories.first)));
   });
 
   sessionTest('disconnect during validation cannot wire the repository',
