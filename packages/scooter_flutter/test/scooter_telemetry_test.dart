@@ -37,6 +37,10 @@ class _Extended extends Fake implements BluetoothCharacteristic {
   @override
   bool get isNotifying => true;
   @override
+  Future<bool> setNotifyValue(bool notify,
+          {int timeout = 15, bool forceIndications = false}) async =>
+      true;
+  @override
   Stream<List<int>> get onValueReceived => responses.stream;
   @override
   Future<void> write(List<int> bytes,

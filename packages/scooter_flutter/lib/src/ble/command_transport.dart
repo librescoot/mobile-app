@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
@@ -30,16 +31,51 @@ Future<T> withExtendedChannel<T>(
   return result;
 }
 
-/// Turns notifications on for the extended response characteristic unless
-/// they're already on.
-///
-/// `isNotifying` is derived from the cached CCCD value, which flutter_blue_plus
-/// clears on disconnect, so the subscription lives for exactly one connection.
-/// Toggling it per command cost two extra CCCD writes each time and dropped
-/// any response that arrived while notify was off.
-Future<void> ensureExtendedNotify(BluetoothCharacteristic resp) async {
-  if (resp.isNotifying) return;
-  await resp.setNotifyValue(true);
+/// Turns the extended response notifications on once per connection. Android's
+/// cached CCCD value can claim this is already done, so the write is
+/// unconditional and the result is read back.
+Future<void> ensureExtendedNotify(
+  CharacteristicRepository repo,
+  BluetoothCharacteristic resp,
+) async {
+  if (repo.extendedNotifyVerified) return;
+  try {
+    await resp.setNotifyValue(true);
+  } catch (e) {
+    repo.noteGattRejection(e, 'Extended response notify-enable');
+    rethrow;
+  }
+  // Only after it worked, so a refused enable is retried by the next command.
+  repo.extendedNotifyVerified = true;
+  if (Platform.isAndroid) await verifyExtendedNotify(repo, resp);
+}
+
+/// A subscription that did not take means the phone's table is stale. Not
+/// platform-gated, so tests can drive it.
+Future<void> verifyExtendedNotify(
+    CharacteristicRepository repo, BluetoothCharacteristic resp) async {
+  final cccd = _cccdOf(resp);
+  if (cccd == null) return;
+  try {
+    final value = await cccd.read();
+    final enabled = value.isNotEmpty && (value.first & 0x03) != 0;
+    if (!enabled) {
+      repo.noteStaleGattTable(
+          'the extended response subscription did not enable');
+    }
+  } catch (e) {
+    _log.fine('Could not read the extended response CCCD back: $e');
+  }
+}
+
+final Guid _cccdUuid = Guid("00002902-0000-1000-8000-00805f9b34fb");
+
+BluetoothDescriptor? _cccdOf(BluetoothCharacteristic resp) {
+  try {
+    return resp.descriptors.firstWhere((d) => d.descriptorUuid == _cccdUuid);
+  } catch (_) {
+    return null;
+  }
 }
 
 /// Writes an ASCII command to the scooter's BLE command characteristic.
@@ -113,13 +149,16 @@ Future<String?> _sendLsExtendedCommandUnguarded(
   if (cmd == null || resp == null) {
     throw "Extended command characteristics not available";
   }
+  // Writing anyway spends the whole response timeout to learn nothing.
+  if (repo.gattTableMismatch) {
+    throw "Bluetooth services on this phone are out of date, forget the scooter and pair again";
+  }
 
   _log.info(
       'Extended command acquired channel; notifications=${resp.isNotifying}');
   try {
-    await ensureExtendedNotify(resp);
+    await ensureExtendedNotify(repo, resp);
   } catch (e) {
-    repo.noteGattRejection(e, 'Extended response notify-enable');
     rethrow;
   }
   checkCommandCurrent(isCurrent);

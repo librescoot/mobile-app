@@ -54,6 +54,9 @@ class CharacteristicRepository {
   /// cached GATT table is wrong. See [isGattTableMismatch].
   bool gattTableMismatch = false;
 
+  /// Set once the subscription has been written and checked on this connection.
+  bool extendedNotifyVerified = false;
+
   /// Extended commands written with no answer at all, and whether any answer
   /// ever arrived. Firmware rejects a command it does not know, so silence is
   /// not the same as an unsupported command.
@@ -229,6 +232,14 @@ class CharacteristicRepository {
         primarySOCCharacteristic == null ||
         secondaryCyclesCharacteristic == null ||
         secondarySOCCharacteristic == null;
+  }
+
+  /// Records proof that the phone's cached table does not match the scooter's.
+  void noteStaleGattTable(String detail) {
+    if (gattTableMismatch) return;
+    log.warning(
+        "This phone's Bluetooth table does not match the scooter: $detail");
+    gattTableMismatch = true;
   }
 
   void noteGattRejection(Object error, String operation) {

@@ -58,7 +58,7 @@ Future<Set<String>> getLsCapabilitiesCommand(
         throw "Extended command characteristics not available";
       }
 
-      await ensureExtendedNotify(resp);
+      await ensureExtendedNotify(repo, resp);
       final listener = ExtendedResponseListener(resp.onValueReceived);
       try {
         await sendCommand(scooter, repo, "cap:$category", characteristic: cmd);

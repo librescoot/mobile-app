@@ -17,6 +17,10 @@ class _Channel extends Fake implements BluetoothCharacteristic {
   @override
   bool get isNotifying => true;
   @override
+  Future<bool> setNotifyValue(bool notify,
+          {int timeout = 15, bool forceIndications = false}) async =>
+      true;
+  @override
   Stream<List<int>> get onValueReceived => values.stream;
   @override
   Future<void> write(List<int> value,
@@ -46,6 +50,12 @@ class _Repository extends Fake implements CharacteristicRepository {
   void noteSilentExtendedCommand() {}
   @override
   void noteGattRejection(Object error, String operation) {}
+  @override
+  bool extendedNotifyVerified = false;
+  @override
+  bool gattTableMismatch = false;
+  @override
+  void noteStaleGattTable(String detail) {}
 }
 
 void main() {

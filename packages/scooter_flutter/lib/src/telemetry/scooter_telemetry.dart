@@ -221,7 +221,11 @@ class ScooterTelemetry {
     // cache the capability so the next session doesn't wait for the probe
     effects.cachePatch(connection.id,
         TelemetryCachePatch(supportsHibernateFor: supportsHibernateFor));
+    identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repository);
     _notify(connection);
+    // A proven stale table answers none of the remaining probes, and each
+    // timeout is ten seconds of spinner.
+    if (repository.gattTableMismatch) return;
     if (!_current(connection)) return;
 
     bool? supportsScheduledHibernation;

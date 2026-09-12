@@ -74,7 +74,7 @@ Future<List<NavigationDestination>> listFavDestinationsCommand(
         throw "Extended command characteristics not available";
       }
 
-      await ensureExtendedNotify(resp);
+      await ensureExtendedNotify(repo, resp);
       checkCommandCurrent(isCurrent);
       final listener = ExtendedResponseListener(resp.onValueReceived);
       try {

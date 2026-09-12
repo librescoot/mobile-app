@@ -175,11 +175,13 @@ void main() {
     }
   });
 
-  test('already enabled notifications are not toggled', () async {
+  test('notifications are enabled even when the cache reports them on', () async {
+    // Android's cached CCCD value survives a scooter firmware update, so it
+    // cannot be trusted to mean the subscription exists on this connection.
     response.isNotifying = true;
     extended.onWrite = (_) async => response.reply('ok');
     await expectLater(sendLsExtendedCommand(device, repo, 'test'), completion('ok'));
-    expect(response.notifyCalls, isEmpty);
+    expect(response.notifyCalls, [true]);
     expect(response.cancellations, 1);
   });
 
