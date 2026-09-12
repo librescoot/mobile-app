@@ -12,5 +12,15 @@ abstract interface class SavedScooterRecord {
   bool get autoConnect;
   set autoConnect(bool autoConnect);
 
+  // Per-scooter keyless behaviour. The distance threshold stays global.
+  bool get autoUnlock;
+  set autoUnlock(bool autoUnlock);
+
+  bool get hazardLocking;
+  set hazardLocking(bool hazardLocking);
+
+  bool get openSeatOnUnlock;
+  set openSeatOnUnlock(bool openSeatOnUnlock);
+
   Map<String, dynamic> toJson();
 }

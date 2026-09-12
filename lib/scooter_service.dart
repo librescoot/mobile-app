@@ -82,6 +82,14 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final _actionWarnings = StreamController<HandlebarWarning>.broadcast(sync: true);
   Stream<HandlebarWarning> get actionWarnings => _actionWarnings.stream;
   bool get autoUnlockCoolingDown => actions.coolingDown;
+
+  /// In-range scooters with auto-unlock enabled, the connected one included.
+  /// Refreshed from a throttled scan on the keyless poll cycle.
+  int _autoUnlockScootersInRange = 0;
+  DateTime? _autoUnlockAmbiguityCheckedAt;
+  bool _ambiguityScanRunning = false;
+  static const int _autoUnlockAmbiguityTtlSeconds = 60;
+  static const _keylessSettingsMigratedKey = 'scooterSettingsMigrated';
   Future<Map<String, String?>> readInstalledVersions() => actions.readInstalledVersions();
 
   late ActionPollingTimer rssiTimer;
@@ -120,11 +128,11 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     Future<LatLng?> Function()? pollLocation,
     bool initializeRuntime = true,
     bool allowAutomaticActions = true,
-  }) : store = storage ?? ScooterStorage(),
-       _deviceFromId = deviceFromId ?? BluetoothDevice.fromId,
-       _readLocation = pollLocation ?? location.pollLocation,
-       _runtimeInitialized = initializeRuntime,
-       _automaticActionsAllowed = allowAutomaticActions {
+  })  : store = storage ?? ScooterStorage(),
+        _deviceFromId = deviceFromId ?? BluetoothDevice.fromId,
+        _readLocation = pollLocation ?? location.pollLocation,
+        _runtimeInitialized = initializeRuntime,
+        _automaticActionsAllowed = allowAutomaticActions {
     settings = UserSettings(isInBackgroundService: isInBackgroundService);
     scanner = BleScanner(flutterBluePlus);
     _telemetry = ScooterTelemetry(effects: _ServiceTelemetryEffects(this), identity: identity);
@@ -140,17 +148,25 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         Future.delayed(const Duration(milliseconds: 1500), FlutterNativeSplash.remove);
       },
     );
-    updateController = UpdateController(session: _session, provider: AppUpdateReleaseProvider(),
-      channel: 'stable', cacheDirectory: () async => Directory('${(await getApplicationSupportDirectory()).path}/ota'),
-      onTargetCaptured: (id) => updateTargetName = savedScooters[id]?.name ?? id);
-    actions = ScooterActions(session: _session, telemetry: _telemetry,
-      settings: () => ActionSettings(openSeatOnUnlock: settings.openSeatOnUnlock,
-        hazardLocking: settings.hazardLocking, warnOfUnlockedHandlebars: settings.warnOfUnlockedHandlebars,
-        autoUnlock: _automaticActionsAllowed && settings.autoUnlock,
-        autoUnlockThreshold: settings.autoUnlockThreshold,
-        optionalAuth: settings.optionalAuth),
-      location: () => lastLocation == null ? null : ActionLocation(lastLocation!.latitude, lastLocation!.longitude),
-      effects: _ServiceActionEffects(this));
+    updateController = UpdateController(
+        session: _session,
+        provider: AppUpdateReleaseProvider(),
+        channel: 'stable',
+        cacheDirectory: () async => Directory('${(await getApplicationSupportDirectory()).path}/ota'),
+        onTargetCaptured: (id) => updateTargetName = savedScooters[id]?.name ?? id);
+    actions = ScooterActions(
+        session: _session,
+        telemetry: _telemetry,
+        settings: () => ActionSettings(
+            openSeatOnUnlock: settingsTargetScooter?.openSeatOnUnlock ?? false,
+            hazardLocking: settingsTargetScooter?.hazardLocking ?? false,
+            warnOfUnlockedHandlebars: settings.warnOfUnlockedHandlebars,
+            autoUnlock: _automaticActionsAllowed && (settingsTargetScooter?.autoUnlock ?? false),
+            autoUnlockThreshold: settings.autoUnlockThreshold,
+            optionalAuth: settings.optionalAuth,
+            autoUnlockAmbiguous: _autoUnlockScootersInRange > 1),
+        location: () => lastLocation == null ? null : ActionLocation(lastLocation!.latitude, lastLocation!.longitude),
+        effects: _ServiceActionEffects(this));
     final navigationPreferences = SharedPreferencesAsync();
     navigation = NavigationRuntime(
       loadPending: () => navigationPreferences.getString('pendingNavigation'),
@@ -165,19 +181,27 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       changed: notifyListeners,
       failed: (error, stack) => log.warning('Pending navigation dispatch failed', error, stack),
     );
-    runtime = ScooterRuntime<SavedScooter>(session: _session, telemetry: _telemetry,
-      actions: actions, navigation: navigation, settings: settings, store: store,
-      idOf: (scooter) => scooter.id, cacheOf: _cachedTelemetry,
-      presentCache: _presentCachedScooter, changed: notifyListeners,
-      savedChanged: () => updateBackgroundService({"updateSavedScooters": true}),
-      manualTargetHeartbeat: (target) => updateBackgroundService({"manualConnectionTarget": target}),
-      scanningChanged: (value) => scanning = value, isScanning: () => scanning,
-      readLocation: _readLocation,
-      saveLocation: (id, position) => savedScooters[id]?.lastLocation = position,
-      publishDisconnected: () => state = ScooterState.disconnected,
-      deviceFromId: _deviceFromId);
+    runtime = ScooterRuntime<SavedScooter>(
+        session: _session,
+        telemetry: _telemetry,
+        actions: actions,
+        navigation: navigation,
+        settings: settings,
+        store: store,
+        idOf: (scooter) => scooter.id,
+        cacheOf: _cachedTelemetry,
+        presentCache: _presentCachedScooter,
+        changed: notifyListeners,
+        savedChanged: () => updateBackgroundService({"updateSavedScooters": true}),
+        manualTargetHeartbeat: (target) => updateBackgroundService({"manualConnectionTarget": target}),
+        scanningChanged: (value) => scanning = value,
+        isScanning: () => scanning,
+        readLocation: _readLocation,
+        saveLocation: (id, position) => savedScooters[id]?.lastLocation = position,
+        publishDisconnected: () => state = ScooterState.disconnected,
+        deviceFromId: _deviceFromId);
     if (!_runtimeInitialized) return;
-    runtime.initialize();
+    runtime.initialize().then((_) => unawaited(migrateKeylessSettings()));
     if (!isInBackgroundService) WidgetsBinding.instance.addObserver(this);
     rssiTimer = actions.rssiTimer;
   }
@@ -263,8 +287,10 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   // Compatibility presentation views; state and execution belong to shared navigation.
-  NavDestination? get pendingNavigation => navigation.pending == null ? null : NavDestination.fromDestination(navigation.pending!);
-  NavDestination? get activeNavigation => navigation.active == null ? null : NavDestination.fromDestination(navigation.active!);
+  NavDestination? get pendingNavigation =>
+      navigation.pending == null ? null : NavDestination.fromDestination(navigation.pending!);
+  NavDestination? get activeNavigation =>
+      navigation.active == null ? null : NavDestination.fromDestination(navigation.active!);
   void setActiveNavigation(NavDestination? destination) => navigation.setActive(destination);
   Future<void> setPendingNavigation(NavDestination? destination) => navigation.setPending(destination);
 
@@ -343,11 +369,21 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }) async {
     stopAutoRestart();
 
-    return scanner.findEligibleScooter(
+    final found = await scanner.findEligibleScooters(
       getIds: getSavedScooterIds,
       excludedScooterIds: excludedScooterIds,
       includeSystemScooters: includeSystemScooters,
     );
+    if (found.isEmpty) return null;
+    // Everything in range is known before anything is chosen, so the scooter
+    // used most recently wins instead of whichever answered the scan first.
+    DateTime lastPingOf(BluetoothDevice device) =>
+        savedScooters[device.remoteId.toString()]?.lastPing ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final autoConnect =
+        found.where((device) => savedScooters[device.remoteId.toString()]?.autoConnect == true).toList();
+    final pool = autoConnect.isEmpty ? found : autoConnect;
+    pool.sort((a, b) => lastPingOf(b).compareTo(lastPingOf(a)));
+    return pool.first;
   }
 
   /// Live list of scooters the user could pick from, growing while the scan
@@ -373,22 +409,57 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     String id, {
     bool automatic = false,
     int? expectedIntentGeneration,
-  }) => _session.connectToScooterId(
-    id,
-    automatic: automatic,
-    expectedIntentGeneration: expectedIntentGeneration,
-  );
+  }) =>
+      _session.connectToScooterId(
+        id,
+        automatic: automatic,
+        expectedIntentGeneration: expectedIntentGeneration,
+      );
 
   void start({bool restart = true}) => runtime.start(restart: restart);
 
-  void startAutoRestart({String? targetScooterId}) =>
-      _session.startAutoRestart(targetScooterId: targetScooterId);
+  void startAutoRestart({String? targetScooterId}) => _session.startAutoRestart(targetScooterId: targetScooterId);
 
   void stopAutoRestart({bool clearManualTarget = true}) =>
       _session.stopAutoRestart(clearManualTarget: clearManualTarget);
 
+  SavedScooter? get settingsTargetScooter {
+    final String? id = currentScooterId ?? mostRecentSavedScooterId;
+    return id == null ? null : savedScooters[id];
+  }
+
+  /// The keyless flags used to be phone-wide. Copy the stored choice onto the
+  /// saved scooters once, so the switch from global to per-scooter does not
+  /// silently turn anything off.
+  Future<void> migrateKeylessSettings() async {
+    try {
+      await _migrateKeylessSettings();
+    } catch (e, stack) {
+      log.warning("Couldn't move keyless settings onto the scooters", e, stack);
+    }
+  }
+
+  Future<void> _migrateKeylessSettings() async {
+    final prefs = SharedPreferencesAsync();
+    if (await prefs.getBool(_keylessSettingsMigratedKey) == true) return;
+    for (final scooter in savedScooters.values) {
+      scooter.autoUnlock = settings.legacyAutoUnlock;
+      scooter.hazardLocking = settings.legacyHazardLocking;
+      scooter.openSeatOnUnlock = settings.legacyOpenSeatOnUnlock;
+    }
+    await store.save();
+    await prefs.setBool(_keylessSettingsMigratedKey, true);
+    log.info("Moved keyless settings onto ${savedScooters.length} scooter(s)");
+    notifyListeners();
+  }
+
   void setAutoUnlock(bool enabled) {
-    settings.setAutoUnlock(enabled);
+    final scooter = settingsTargetScooter;
+    if (scooter == null) return;
+    scooter.autoUnlock = enabled;
+    // The ambiguity guard has to follow the setting that just changed.
+    unawaited(refreshAutoUnlockAmbiguity(force: true));
+    notifyListeners();
   }
 
   /// Controls automatic proximity actuation for this runtime without changing
@@ -403,17 +474,59 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   void setOpenSeatOnUnlock(bool enabled) {
-    settings.setOpenSeatOnUnlock(enabled);
+    final scooter = settingsTargetScooter;
+    if (scooter == null) return;
+    scooter.openSeatOnUnlock = enabled;
+    notifyListeners();
   }
 
   void setHazardLocking(bool enabled) {
-    settings.setHazardLocking(enabled);
+    final scooter = settingsTargetScooter;
+    if (scooter == null) return;
+    scooter.hazardLocking = enabled;
+    notifyListeners();
   }
 
-  bool get autoUnlock => settings.autoUnlock;
+  bool get autoUnlock => settingsTargetScooter?.autoUnlock ?? false;
   int get autoUnlockThreshold => settings.autoUnlockThreshold;
-  bool get openSeatOnUnlock => settings.openSeatOnUnlock;
-  bool get hazardLocking => settings.hazardLocking;
+  bool get openSeatOnUnlock => settingsTargetScooter?.openSeatOnUnlock ?? false;
+  bool get hazardLocking => settingsTargetScooter?.hazardLocking ?? false;
+
+  /// How many scooters in range have auto-unlock on. Proximity can only pick a
+  /// scooter when there is exactly one, so the caller refuses to unlock beyond
+  /// that. Best effort: a failed scan leaves the previous answer in place.
+  Future<void> refreshAutoUnlockAmbiguity({bool force = false}) async {
+    final scooter = settingsTargetScooter;
+    if (scooter == null || !scooter.autoUnlock) {
+      _autoUnlockScootersInRange = 0;
+      return;
+    }
+    final checkedAt = _autoUnlockAmbiguityCheckedAt;
+    if (!force && checkedAt != null && DateTime.now().difference(checkedAt) < const Duration(seconds: _autoUnlockAmbiguityTtlSeconds)) {
+      return;
+    }
+    if (_ambiguityScanRunning) return;
+    _ambiguityScanRunning = true;
+    try {
+      final watching = savedScooters.values.where((s) => s.autoUnlock).map((s) => s.id).toList();
+      final inRange = await scanner.idsInRange(watching);
+      final connected = currentScooterId;
+      // The scooter we are connected to is in range by definition, and it does
+      // not advertise while connected, so the scan cannot see it.
+      final int connectedIncluded =
+          connected != null && watching.contains(connected) && !inRange.contains(connected) ? 1 : 0;
+      _autoUnlockScootersInRange = inRange.length + connectedIncluded;
+      _autoUnlockAmbiguityCheckedAt = DateTime.now();
+      if (_autoUnlockScootersInRange > 1) {
+        log.warning("$_autoUnlockScootersInRange scooters in range have auto-unlock on; "
+            "proximity will not unlock");
+      }
+    } catch (e, stack) {
+      log.warning("Couldn't check which scooters are in range", e, stack);
+    } finally {
+      _ambiguityScanRunning = false;
+    }
+  }
 
   // SCOOTER ACTIONS
 
@@ -428,6 +541,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   void warnIfLockingWithOpenSeatbox() {
     if (vehicle.seatClosed == false) log.warning("Locking with open seatbox!");
   }
+
   Future<void> wakeUpAndUnlock({EventSource? source}) => actions.wakeUpAndUnlock(source: source);
   void autoUnlockCooldown() => actions.autoUnlockCooldown();
   Future<void> openSeat({EventSource source = EventSource.app}) => actions.openSeat(source: source);
@@ -440,7 +554,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   Future<void> setCellularApn(String apn) => actions.setCellularApn(apn);
   Future<void> clearCellularApn() => actions.clearCellularApn();
   Future<bool?> getBatteryKeepActive() => actions.getBoolSetting(commands.lsKeyBatteryKeepActiveOnSeatboxOpen);
-  Future<void> setBatteryKeepActive(bool enabled) => actions.setSetting(commands.lsKeyBatteryKeepActiveOnSeatboxOpen, enabled.toString());
+  Future<void> setBatteryKeepActive(bool enabled) =>
+      actions.setSetting(commands.lsKeyBatteryKeepActiveOnSeatboxOpen, enabled.toString());
   Future<bool?> getAlarmEnabled() => actions.getBoolSetting(commands.lsKeyAlarmEnabled);
   Future<void> setAlarmEnabled(bool enabled) => actions.setSetting(commands.lsKeyAlarmEnabled, enabled.toString());
   Future<bool?> getAlarmHonk() => actions.getBoolSetting(commands.lsKeyAlarmHonk);
@@ -457,11 +572,11 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   void setManualConnectionTarget(String? id) => runtime.setManualConnectionTarget(id);
   void touchManualConnectionTarget() => runtime.touchManualConnectionTarget();
   Future<WidgetActionDispatch?> prepareWidgetAction(String actionName) => switch (actionName) {
-    'lock' => runtime.prepareExplicitAction(EventType.lock),
-    'unlock' => runtime.prepareExplicitAction(EventType.unlock),
-    'openseat' => runtime.prepareExplicitAction(EventType.openSeat),
-    _ => Future.value(null),
-  };
+        'lock' => runtime.prepareExplicitAction(EventType.lock),
+        'unlock' => runtime.prepareExplicitAction(EventType.unlock),
+        'openseat' => runtime.prepareExplicitAction(EventType.openSeat),
+        _ => Future.value(null),
+      };
   Future<bool> attemptLatestAutoConnection() => runtime.attemptLatestAutoConnection();
 
   Future<void> refetchSavedScooters() => runtime.refetchSavedScooters();
@@ -476,34 +591,34 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   // Keep the public fire-and-forget API; shared runtime owns mutation/selection.
   void renameSavedScooter({String? id, required String name}) => runtime.renameSavedScooter(
-    id: id,
-    name: name,
-    missingId: () => log.warning(
-      "Attempted to rename scooter, but no ID was given and we're not connected to anything!",
-    ),
-    publish: (isMostRecent) {
-      if (isMostRecent) scooterName = name;
-      updateBackgroundService({
-        "updateSavedScooters": true,
-        if (isMostRecent) "scooterName": name,
-      });
-    },
-  );
+        id: id,
+        name: name,
+        missingId: () => log.warning(
+          "Attempted to rename scooter, but no ID was given and we're not connected to anything!",
+        ),
+        publish: (isMostRecent) {
+          if (isMostRecent) scooterName = name;
+          updateBackgroundService({
+            "updateSavedScooters": true,
+            if (isMostRecent) "scooterName": name,
+          });
+        },
+      );
 
   void recolorSavedScooter({String? id, required int color}) => runtime.recolorSavedScooter(
-    id: id,
-    color: color,
-    missingId: () => log.warning(
-      "Attempted to recolor scooter, but no ID was given and we're not connected to anything!",
-    ),
-    publish: (isMostRecent) {
-      if (isMostRecent) scooterColor = color;
-      updateBackgroundService({
-        "updateSavedScooters": true,
-        if (isMostRecent) "scooterColor": color,
-      });
-    },
-  );
+        id: id,
+        color: color,
+        missingId: () => log.warning(
+          "Attempted to recolor scooter, but no ID was given and we're not connected to anything!",
+        ),
+        publish: (isMostRecent) {
+          if (isMostRecent) scooterColor = color;
+          updateBackgroundService({
+            "updateSavedScooters": true,
+            if (isMostRecent) "scooterColor": color,
+          });
+        },
+      );
 
   void updateBackgroundService(dynamic data) {
     if (!isInBackgroundService) {
@@ -512,9 +627,9 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   void addSavedScooter(String id) => runtime.addSavedScooter(id, () {
-    scooterName = "Scooter Pro";
-    notifyListeners();
-  });
+        scooterName = "Scooter Pro";
+        notifyListeners();
+      });
 
   @override
   void dispose() {
@@ -536,7 +651,6 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) => runtime.didChangeAppLifecycleState(state);
-
 }
 
 class UnavailableCharacteristicsException {}
@@ -624,10 +738,14 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 }
 
 CachedTelemetry _cachedTelemetry(SavedScooter? scooter) => CachedTelemetry(
-  primarySOC: scooter?.lastPrimarySOC, secondarySOC: scooter?.lastSecondarySOC,
-  cbbSOC: scooter?.lastCbbSOC, auxSOC: scooter?.lastAuxSOC,
-  handlebarsLocked: scooter?.handlebarsLocked, isLibrescoot: scooter?.isLibrescoot,
-  supportsHibernateFor: scooter?.supportsHibernateFor, supportsApnConfig: scooter?.supportsApnConfig);
+    primarySOC: scooter?.lastPrimarySOC,
+    secondarySOC: scooter?.lastSecondarySOC,
+    cbbSOC: scooter?.lastCbbSOC,
+    auxSOC: scooter?.lastAuxSOC,
+    handlebarsLocked: scooter?.handlebarsLocked,
+    isLibrescoot: scooter?.isLibrescoot,
+    supportsHibernateFor: scooter?.supportsHibernateFor,
+    supportsApnConfig: scooter?.supportsApnConfig);
 
 class _ServiceTelemetryEffects implements ScooterTelemetryEffects {
   _ServiceTelemetryEffects(this.service);
@@ -672,8 +790,7 @@ class _ServiceTelemetryEffects implements ScooterTelemetryEffects {
   }
 
   @override
-  void probeFailed(String message, Object error, StackTrace stack) =>
-      service.log.warning(message, error, stack);
+  void probeFailed(String message, Object error, StackTrace stack) => service.log.warning(message, error, stack);
 }
 
 class _ServiceActionEffects implements ScooterActionEffects {
@@ -683,31 +800,50 @@ class _ServiceActionEffects implements ScooterActionEffects {
   void acknowledged(ActionEvent event) => acknowledgeAppAction(event);
   @override
   void handlebarWarning(HandlebarWarning warning) {
-    service.log.warning(warning.didNotUnlock ? "Handlebars didn't unlock, sending warning" : "Handlebars didn't lock, sending warning");
+    service.log.warning(
+        warning.didNotUnlock ? "Handlebars didn't unlock, sending warning" : "Handlebars didn't lock, sending warning");
     final connection = service._session.currentConnection;
-    if (connection?.isCurrent != true || connection!.id != warning.action.scooterId ||
+    if (connection?.isCurrent != true ||
+        connection!.id != warning.action.scooterId ||
         connection.generation != warning.action.generation) {
       return;
     }
     service._actionWarnings.add(warning);
   }
+
   @override
   void cooldownStarted() {
     // FlutterBackgroundService is the UI-isolate facade, not ServiceInstance.
     // Always retain the local cooldown, but never relay from the service isolate.
     if (!service.isInBackgroundService) {
-      try { FlutterBackgroundService().invoke("autoUnlockCooldown"); } catch (_) {}
+      try {
+        FlutterBackgroundService().invoke("autoUnlockCooldown");
+      } catch (_) {}
     }
   }
+
   @override
-  void rssiChanged(int value) => service.rssi = value;
+  void rssiChanged(int value) {
+    service.rssi = value;
+    // Cheap no-op unless a scan is due, and the keyless decision happens right
+    // after this on the same poll.
+    unawaited(service.refreshAutoUnlockAmbiguity());
+  }
+
+  @override
+  void autoUnlockRefused() =>
+      service.log.info("More than one scooter in range has auto-unlock on, so proximity did not unlock");
   @override
   void failed(Object error, StackTrace stack) => service.log.warning('Action effect failed', error, stack);
 }
 
 void acknowledgeAppAction(ActionEvent event) {
   if (event.kind == EventType.lock || event.kind == EventType.unlock) HapticFeedback.heavyImpact();
-  StatisticsHelper().logEvent(eventType: event.kind, scooterId: event.scooterId,
-    source: event.source, soc1: event.primarySOC, soc2: event.secondarySOC,
-    location: event.location == null ? null : LatLng(event.location!.latitude, event.location!.longitude));
+  StatisticsHelper().logEvent(
+      eventType: event.kind,
+      scooterId: event.scooterId,
+      source: event.source,
+      soc1: event.primarySOC,
+      soc2: event.secondarySOC,
+      location: event.location == null ? null : LatLng(event.location!.latitude, event.location!.longitude));
 }

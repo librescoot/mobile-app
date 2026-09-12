@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:scooter_flutter/scooter_actions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/state/scooter_identity.dart';
 import 'package:unustasis/state/vehicle_status.dart';
@@ -89,7 +90,14 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   bool get otaAvailable => false;
   @override
-  bool get autoUnlock => false;
+  bool autoUnlock = false;
+  @override
+  void setAutoUnlock(bool value) {
+    autoUnlock = value;
+    notifyListeners();
+  }
+  @override
+  SavedScooter? get settingsTargetScooter => null;
   @override
   int get autoUnlockThreshold => -65;
   @override
@@ -97,9 +105,15 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   bool hazardLocking = false;
   @override
-  void setOpenSeatOnUnlock(bool value) => openSeatOnUnlock = value;
+  void setOpenSeatOnUnlock(bool value) {
+    openSeatOnUnlock = value;
+    notifyListeners();
+  }
   @override
-  void setHazardLocking(bool value) => hazardLocking = value;
+  void setHazardLocking(bool value) {
+    hazardLocking = value;
+    notifyListeners();
+  }
   @override
   Future<String?> getCellularApn() async => '';
   @override
@@ -244,7 +258,18 @@ void main() {
     addTearDown(service.dispose);
     final semantics = tester.ensureSemantics();
 
+    // Flash and open-seat are per-scooter settings that only make sense while
+    // auto-unlock is on for the scooter the section is editing.
+    service.autoUnlock = true;
     await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    final openSeatRow = find.ancestor(
+        of: find.text('Open seatbox on unlock'), matching: find.byType(SwitchListTile));
+    expect(tester.widget<SwitchListTile>(openSeatRow).onChanged, isNotNull);
+    service.setAutoUnlock(false);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(openSeatRow).onChanged, isNull);
+    service.setAutoUnlock(true);
     await tester.pumpAndSettle();
     expect(renderedStyle(tester, 'Auto-unlock').fontSize, 18);
     expect(renderedStyle(tester, 'Auto-unlock').fontWeight, FontWeight.w400);
@@ -253,13 +278,13 @@ void main() {
     final rowTop = tester.getTopLeft(find.byType(SwitchListTile).first).dy;
     expect(rowTop, headingBottom);
     expect(find.byType(Card), findsNothing);
-    await tester.tap(find.text('Open seatbox on unlock'));
+    tester.widget<SwitchListTile>(openSeatRow).onChanged!(true);
     await tester.pumpAndSettle();
     expect(service.openSeatOnUnlock, isTrue);
-    final row = find.ancestor(of: find.text('Open seatbox on unlock'), matching: find.byType(SwitchListTile));
+    final row = openSeatRow;
     expect(tester.widget<SwitchListTile>(row).value, isTrue);
     expect(tester.getSemantics(row).getSemanticsData().label, contains('Open seatbox on unlock'));
-    await tester.tap(find.text('Open seatbox on unlock'));
+    tester.widget<SwitchListTile>(openSeatRow).onChanged!(false);
     await tester.pumpAndSettle();
     expect(service.openSeatOnUnlock, isFalse);
     expect(service.actions.reads, [lsKeyAutoStandbySeconds, lsKeyHibernateTimer]);

@@ -25,7 +25,9 @@ void main() {
   });
   test('app supplies distribution and composes OTA on the existing session', () {
     final service = File('lib/scooter_service.dart').readAsStringSync();
-    expect(service, contains('UpdateController(session: _session'));
+    // Formatting may split the argument list, so match the two facts apart.
+    expect(service, contains('UpdateController('));
+    expect(service, contains('session: _session'));
     expect(service, contains('service.updateController.bind(connection, repository)'));
     expect(service, contains('service.updateController.invalidate()'));
     expect(service, contains('service.updateController.sessionReady()'));

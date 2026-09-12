@@ -30,6 +30,13 @@ class Record implements SavedScooterRecord {
   }
 
   @override
+  bool autoUnlock = false;
+  @override
+  bool hazardLocking = false;
+  @override
+  bool openSeatOnUnlock = false;
+
+  @override
   Map<String, dynamic> toJson() => {
         'id': id,
         'label': name,
