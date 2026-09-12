@@ -7,17 +7,30 @@ import 'package:scooter_flutter/scooter_flutter.dart';
 import 'package:unustasis/service/ble_commands.dart';
 
 class _Device extends Fake implements BluetoothDevice {
+  _Device({this.trace, this.emitResetDuringConnect = false}) {
+    resets = StreamController<void>.broadcast(sync: true);
+  }
+  final List<String>? trace;
+  final bool emitResetDuringConnect;
+  late final StreamController<void> resets;
   bool connected = false;
-  final resets = StreamController<void>.broadcast();
+  bool resetObserved = false;
   @override
   bool get isDisconnected => !connected;
   @override
-  Stream<void> get onServicesReset => resets.stream;
+  Stream<void> get onServicesReset {
+    trace?.add('services-reset-listen');
+    return resets.stream.map((event) {
+      resetObserved = true;
+    });
+  }
   @override
   Future<void> connect(
       {Duration timeout = const Duration(seconds: 35),
       int? mtu = 512,
       bool autoConnect = false}) async {
+    trace?.add('connect');
+    if (emitResetDuringConnect) resets.add(null);
     connected = true;
   }
 }
@@ -76,6 +89,25 @@ void main() {
         repositoryFactory: (device) => _Repository(device, null, command),
         isAndroid: false);
     expect(command.writes, ['power-off']);
+    await device.resets.close();
+  });
+
+  test('static power command observes Service Changed during connect', () async {
+    final trace = <String>[];
+    final device = _Device(trace: trace, emitResetDuringConnect: true);
+    final staleCommand = _Command();
+    final freshCommand = _Command();
+
+    await sendStaticPowerCommand('A', 'power-off',
+        deviceFromId: (_) => device,
+        repositoryFactory: (scooter) => _Repository(scooter, null,
+            device.resetObserved ? freshCommand : staleCommand),
+        isAndroid: false);
+
+    expect(trace, ['services-reset-listen', 'connect']);
+    expect(device.resetObserved, isTrue);
+    expect(staleCommand.writes, isEmpty);
+    expect(freshCommand.writes, ['power-off']);
     await device.resets.close();
   });
 

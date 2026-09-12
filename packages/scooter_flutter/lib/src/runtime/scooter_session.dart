@@ -654,6 +654,7 @@ class ScooterSession {
       SessionConnection attempt,
       int Function() servicesGeneration) async {
     var refreshAttempted = false;
+    var iosRediscoveryAttempted = false;
     String? lastFailure;
     for (var pass = 0; pass < 3; pass++) {
       final discoveryGeneration = servicesGeneration();
@@ -681,7 +682,12 @@ class ScooterSession {
 
       lastFailure = invalid;
       repository.noteStaleGattTable(invalid);
-      if (!isAndroid || refreshAttempted) break;
+      if (!isAndroid) {
+        if (iosRediscoveryAttempted) break;
+        iosRediscoveryAttempted = true;
+        continue;
+      }
+      if (refreshAttempted) break;
       refreshAttempted = true;
       try {
         final accepted = await _clearGattCache(scooter);

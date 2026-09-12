@@ -237,7 +237,12 @@ class CharacteristicRepository {
   /// has no extended channel, so absence of the whole channel is allowed.
   Future<String?> validateGattTable({required bool isAndroid}) async {
     if (anyAreNull()) return 'mandatory characteristics are missing';
-    if (!isAndroid || extendedResponseCharacteristic == null) return null;
+    final hasExtendedCommand = extendedCommandCharacteristic != null;
+    final hasExtendedResponse = extendedResponseCharacteristic != null;
+    if (hasExtendedCommand != hasExtendedResponse) {
+      return 'the extended command and response characteristics are incomplete';
+    }
+    if (!hasExtendedResponse || !isAndroid) return null;
 
     final response = extendedResponseCharacteristic!;
     final cccd = _cccdOf(response);

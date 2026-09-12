@@ -566,6 +566,36 @@ void main() {
     ]));
   });
 
+  sessionTest('iOS retries one transient incomplete table without cache refresh',
+      (tester) async {
+    final h = create(ios: true);
+    final first = _Repository(h.devices['A']!, h.trace)
+      ..invalidTable = 'mandatory characteristics are missing';
+    h.repositories[h.devices['A']!] = first;
+    final result = h.connect('A');
+    await tester.pump();
+    await h.finish(tester, 'A');
+    expect(await result, isNull);
+    expect(h.repositoryHistory, hasLength(2));
+    expect(h.trace.where((event) => event == 'A.validate'), hasLength(2));
+    expect(h.trace, isNot(contains('A.refresh')));
+    expect(h.effects.repositories.single, isNot(same(first)));
+  });
+
+  sessionTest('iOS transient-table rediscovery remains bounded', (tester) async {
+    final h = create(ios: true)
+      ..defaultRepositoryInvalid = 'mandatory characteristics are missing';
+    final result = h.connect('A');
+    await tester.pump();
+    h.devices['A']!.connections.single.complete();
+    await tester.pump();
+    expect(await result, isA<Exception>());
+    expect(h.repositoryHistory, hasLength(2));
+    expect(h.trace.where((event) => event == 'A.validate'), hasLength(2));
+    expect(h.trace, isNot(contains('A.refresh')));
+    expect(h.trace, isNot(contains('A.wire')));
+  });
+
   sessionTest('a successful refresh invocation still requires validation',
       (tester) async {
     final h = create(android: true)

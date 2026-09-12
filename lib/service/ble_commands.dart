@@ -32,8 +32,6 @@ Future<void> sendStaticPowerCommand(String id, String command,
     Future<void> Function(BluetoothDevice)? clearGattCache,
     bool? isAndroid}) async {
   final scooter = (deviceFromId ?? BluetoothDevice.fromId)(id);
-  if (scooter.isDisconnected) await scooter.connect();
-
   var servicesGeneration = 0;
   StreamSubscription<void>? servicesReset;
   try {
@@ -45,8 +43,10 @@ Future<void> sendStaticPowerCommand(String id, String command,
   final makeRepository = repositoryFactory ?? CharacteristicRepository.new;
   final android = isAndroid ?? Platform.isAndroid;
   var refreshAttempted = false;
+  var iosRediscoveryAttempted = false;
   String? lastFailure;
   try {
+    if (scooter.isDisconnected) await scooter.connect();
     for (var pass = 0; pass < 3; pass++) {
       final discoveryGeneration = servicesGeneration;
       final repository = makeRepository(scooter);
@@ -68,7 +68,12 @@ Future<void> sendStaticPowerCommand(String id, String command,
       }
       if (invalid != null) {
         lastFailure = invalid;
-        if (!android || refreshAttempted) break;
+        if (!android) {
+          if (iosRediscoveryAttempted) break;
+          iosRediscoveryAttempted = true;
+          continue;
+        }
+        if (refreshAttempted) break;
         refreshAttempted = true;
         try {
           await (clearGattCache ?? (device) => device.clearGattCache())(scooter);

@@ -37,7 +37,10 @@ class _Service extends Fake implements BluetoothService {
 }
 
 class _ValidationRepository extends CharacteristicRepository {
-  _ValidationRepository(super.scooter, BluetoothCharacteristic? response) {
+  _ValidationRepository(super.scooter,
+      {BluetoothCharacteristic? command,
+      BluetoothCharacteristic? response}) {
+    extendedCommandCharacteristic = command;
     extendedResponseCharacteristic = response;
   }
   @override
@@ -159,7 +162,8 @@ void main() {
   test('Android accepts only an exact valid extended-response CCCD', () async {
     for (final value in [const [0x00, 0x00], const [0x01, 0x00]]) {
       final response = _Characteristic('0402', descriptors: [_Descriptor(value)]);
-      final repo = _ValidationRepository(_Device([]), response);
+      final repo = _ValidationRepository(_Device([]),
+          command: _Characteristic('0401'), response: response);
       expect(await repo.validateGattTable(isAndroid: true), isNull,
           reason: '$value');
     }
@@ -167,28 +171,42 @@ void main() {
     final collidedAlarmValue = <int>[0x01, 0x00, ...List<int>.filled(46, 0)];
     final response = _Characteristic('0402',
         descriptors: [_Descriptor(collidedAlarmValue)]);
-    final repo = _ValidationRepository(_Device([]), response);
+    final repo = _ValidationRepository(_Device([]),
+        command: _Characteristic('0401'), response: response);
     expect(await repo.validateGattTable(isAndroid: true),
         contains('invalid shape'));
   });
 
   test('stock absence and iOS do not require the Android CCCD probe', () async {
     expect(
-        await _ValidationRepository(_Device([]), null)
+        await _ValidationRepository(_Device([]))
             .validateGattTable(isAndroid: true),
         isNull);
     final response = _Characteristic('0402',
         descriptors: [_Descriptor(List<int>.filled(48, 1))]);
     expect(
-        await _ValidationRepository(_Device([]), response)
+        await _ValidationRepository(_Device([]),
+                command: _Characteristic('0401'), response: response)
             .validateGattTable(isAndroid: false),
         isNull);
   });
 
+  for (final missingSide in ['command', 'response']) {
+    test('a channel missing its $missingSide characteristic is unsafe',
+        () async {
+      final repo = _ValidationRepository(_Device([]),
+          command: missingSide == 'command' ? null : _Characteristic('0401'),
+          response: missingSide == 'response' ? null : _Characteristic('0402'));
+      expect(await repo.validateGattTable(isAndroid: false),
+          contains('characteristics are incomplete'));
+    });
+  }
+
   test('an extended response without its CCCD is unsafe on Android', () async {
     final response = _Characteristic('0402');
     expect(
-        await _ValidationRepository(_Device([]), response)
+        await _ValidationRepository(_Device([]),
+                command: _Characteristic('0401'), response: response)
             .validateGattTable(isAndroid: true),
         contains('has no CCCD'));
   });
@@ -198,7 +216,8 @@ void main() {
         descriptors: [_Descriptor(const [0x02, 0x00])],
         properties: const CharacteristicProperties(notify: true));
     expect(
-        await _ValidationRepository(_Device([]), response)
+        await _ValidationRepository(_Device([]),
+                command: _Characteristic('0401'), response: response)
             .validateGattTable(isAndroid: true),
         contains('invalid shape'));
   });
