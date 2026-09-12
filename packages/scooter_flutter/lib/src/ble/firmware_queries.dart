@@ -65,7 +65,7 @@ Future<Set<String>> getLsCapabilitiesCommand(
         final stream = listener.responses.map((response) {
           repo.noteExtendedResponse();
           return response;
-        }).timeout(const Duration(seconds: 10));
+        }).timeout(extendedResponseTimeout);
         final entries = await readExtendedList(
             stream, (msg) => parseCapabilityEntry(category, msg));
         return entries.toSet();

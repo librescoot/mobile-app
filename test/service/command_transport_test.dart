@@ -176,8 +176,7 @@ void main() {
   });
 
   test('notifications are enabled even when the cache reports them on', () async {
-    // Android's cached CCCD value survives a scooter firmware update, so it
-    // cannot be trusted to mean the subscription exists on this connection.
+    // A cached CCCD value can outlive a firmware update.
     response.isNotifying = true;
     extended.onWrite = (_) async => response.reply('ok');
     await expectLater(sendLsExtendedCommand(device, repo, 'test'), completion('ok'));

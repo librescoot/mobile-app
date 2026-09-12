@@ -39,7 +39,7 @@ void main() {
         await closed;
         repo.extendedResponseCharacteristic = replacement;
       }
-      await tester.pump(const Duration(milliseconds: 9999));
+      await tester.pump(extendedResponseTimeout - const Duration(milliseconds: 1));
       await flush();
       expect(completed, isFalse);
       expect(command.writes, hasLength(1));

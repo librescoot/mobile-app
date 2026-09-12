@@ -15,7 +15,8 @@ import '../infrastructure/characteristic_repository.dart';
 export 'package:scooter_core/extended_response.dart';
 export 'package:scooter_core/telemetry.dart'
     show lsKeyScheduledHibernateEnabled, lsKeyBatteryKeepActiveOnSeatboxOpen;
-export 'package:scooter_flutter/command_transport.dart' show sendCommand, sendLsExtendedCommand;
+export 'package:scooter_flutter/command_transport.dart'
+    show sendCommand, sendLsExtendedCommand, extendedResponseTimeout;
 export 'package:scooter_flutter/firmware_queries.dart';
 export 'package:scooter_core/actions.dart';
 export 'package:scooter_flutter/action_commands.dart' hide unlockScooter, lockScooter, openSeatCommand, wakeUpCommand, hibernateCommand, hibernateForCommand;

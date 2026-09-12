@@ -221,12 +221,7 @@ class ScooterTelemetry {
     // cache the capability so the next session doesn't wait for the probe
     effects.cachePatch(connection.id,
         TelemetryCachePatch(supportsHibernateFor: supportsHibernateFor));
-    identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repository);
-    _notify(connection);
-    // A proven stale table answers none of the remaining probes, and each
-    // timeout is ten seconds of spinner.
-    if (repository.gattTableMismatch) return;
-    if (!_current(connection)) return;
+    if (!_publishTableState(connection, repository)) return;
 
     bool? supportsScheduledHibernation;
     try {
@@ -242,8 +237,7 @@ class ScooterTelemetry {
     }
     if (!_current(connection)) return;
     identity.supportsScheduledHibernation = supportsScheduledHibernation;
-    _notify(connection);
-    if (!_current(connection)) return;
+    if (!_publishTableState(connection, repository)) return;
 
     bool? supportsApnConfig;
     try {
@@ -259,8 +253,7 @@ class ScooterTelemetry {
     // reappear every time the probe re-runs on a reconnect
     effects.cachePatch(connection.id,
         TelemetryCachePatch(supportsApnConfig: supportsApnConfig));
-    _notify(connection);
-    if (!_current(connection)) return;
+    if (!_publishTableState(connection, repository)) return;
 
     bool? supportsBondForget;
     try {
@@ -276,8 +269,7 @@ class ScooterTelemetry {
     // firmware rather than the app: a cache would go stale the moment the
     // scooter takes a firmware update.
     identity.supportsBondForget = supportsBondForget;
-    _notify(connection);
-    if (!_current(connection)) return;
+    if (!_publishTableState(connection, repository)) return;
 
     bool? supportsBatteryKeepActive;
     try {
@@ -293,8 +285,7 @@ class ScooterTelemetry {
     }
     if (!_current(connection)) return;
     identity.supportsBatteryKeepActive = supportsBatteryKeepActive;
-    _notify(connection);
-    if (!_current(connection)) return;
+    if (!_publishTableState(connection, repository)) return;
 
     bool? supportsAlarmControl;
     try {
@@ -308,6 +299,18 @@ class ScooterTelemetry {
     identity.supportsAlarmControl = supportsAlarmControl;
     identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repository);
     _notify(connection);
+  }
+
+  /// Publishes the table verdict, and reports whether probing further is worth
+  /// another response timeout.
+  bool _publishTableState(
+      SessionConnection connection, CharacteristicRepository repo) {
+    if (!_current(connection)) return false;
+    identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repo);
+    _notify(connection);
+    // A listener can invalidate the connection while being notified.
+    if (!_current(connection)) return false;
+    return !(repo.gattTableMismatch || repo.extendedChannelSilent);
   }
 
   /// Whether this connection shows a GATT table that cannot be the scooter's

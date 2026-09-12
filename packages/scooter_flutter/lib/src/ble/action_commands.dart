@@ -133,7 +133,7 @@ Future<List<String>> listKeycardsCommand(
       try {
         await sendCommand(scooter, repo, keycardListCommand,
             characteristic: cmd, isCurrent: isCurrent);
-        final stream = listener.responses.timeout(const Duration(seconds: 10));
+        final stream = listener.responses.timeout(extendedResponseTimeout);
         return await readExtendedList(stream, (msg) {
           // format: keycard:card:<uid>
           final parts = msg.split(":");

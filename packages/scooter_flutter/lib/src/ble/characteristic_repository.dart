@@ -46,20 +46,18 @@ class CharacteristicRepository {
   BluetoothCharacteristic? alarmLastTriggerCharacteristic;
   BluetoothCharacteristic? alarmWakeSourcesCharacteristic;
 
-  /// Labels of everything discovery asked for and did not find, in discovery
-  /// order. Missing entries are normal (optional services, older firmware).
+  /// What discovery asked for and did not find, in discovery order.
   final List<String> missingCharacteristics = <String>[];
 
   /// Set when the local stack refused an operation with a code that means its
   /// cached GATT table is wrong. See [isGattTableMismatch].
   bool gattTableMismatch = false;
 
-  /// Set once the subscription has been written and checked on this connection.
   bool extendedNotifyVerified = false;
 
   /// Extended commands written with no answer at all, and whether any answer
-  /// ever arrived. Firmware rejects a command it does not know, so silence is
-  /// not the same as an unsupported command.
+  /// ever arrived. Firmware rejects unknown commands, so silence is not the same
+  /// as an unsupported command.
   int silentExtendedCommands = 0;
   bool extendedResponseSeen = false;
 
@@ -210,8 +208,7 @@ class CharacteristicRepository {
       alarmWakeSourcesCharacteristic != null;
 
   /// Whether the extended command channel is missing from the discovered table.
-  /// Every librescoot firmware exposes it, so a miss is not the firmware being
-  /// old.
+  /// Every librescoot firmware exposes it, so a miss is not an old firmware.
   bool get extendedChannelMissing =>
       extendedCommandCharacteristic == null ||
       extendedResponseCharacteristic == null;
@@ -234,7 +231,6 @@ class CharacteristicRepository {
         secondarySOCCharacteristic == null;
   }
 
-  /// Records proof that the phone's cached table does not match the scooter's.
   void noteStaleGattTable(String detail) {
     if (gattTableMismatch) return;
     log.warning(
@@ -281,9 +277,8 @@ class CharacteristicRepository {
   }
 }
 
-/// Whether a BLE failure is the local stack refusing an operation against its
-/// cached GATT table: 3 (not permitted) and 13 (invalid length) are the codes a
-/// table that no longer matches the peripheral's produces.
+/// Whether a BLE failure means the local stack's cached GATT table is wrong
+/// (3 = not permitted, 13 = invalid length).
 bool isGattTableMismatch(Object error) {
   if (error is! FlutterBluePlusException) return false;
   if (error.platform != ErrorPlatform.android) return false;

@@ -31,9 +31,8 @@ Future<T> withExtendedChannel<T>(
   return result;
 }
 
-/// Turns the extended response notifications on once per connection. Android's
-/// cached CCCD value can claim this is already done, so the write is
-/// unconditional and the result is read back.
+/// Enables the extended response subscription once per connection, without
+/// trusting the cached CCCD value.
 Future<void> ensureExtendedNotify(
   CharacteristicRepository repo,
   BluetoothCharacteristic resp,
@@ -50,8 +49,7 @@ Future<void> ensureExtendedNotify(
   if (Platform.isAndroid) await verifyExtendedNotify(repo, resp);
 }
 
-/// A subscription that did not take means the phone's table is stale. Not
-/// platform-gated, so tests can drive it.
+/// A subscription that did not take means the phone's table is stale.
 Future<void> verifyExtendedNotify(
     CharacteristicRepository repo, BluetoothCharacteristic resp) async {
   final cccd = _cccdOf(resp);
@@ -67,6 +65,9 @@ Future<void> verifyExtendedNotify(
     _log.fine('Could not read the extended response CCCD back: $e');
   }
 }
+
+/// How long an extended command waits for its answer.
+const Duration extendedResponseTimeout = Duration(seconds: 5);
 
 final Guid _cccdUuid = Guid("00002902-0000-1000-8000-00805f9b34fb");
 
@@ -123,7 +124,7 @@ Future<String?> sendLsExtendedCommand(
   CharacteristicRepository repo,
   String command, {
   bool Function()? isCurrent,
-  Duration responseTimeout = const Duration(seconds: 10),
+  Duration responseTimeout = extendedResponseTimeout,
 }) =>
     withExtendedChannel(() => _sendLsExtendedCommandUnguarded(
           scooter,

@@ -4,4 +4,10 @@
 library;
 
 export 'src/ble/command_transport.dart'
-    show sendCommand, sendLsExtendedCommand, withExtendedChannel, ensureExtendedNotify, verifyExtendedNotify;
+    show
+        sendCommand,
+        sendLsExtendedCommand,
+        withExtendedChannel,
+        ensureExtendedNotify,
+        verifyExtendedNotify,
+        extendedResponseTimeout;

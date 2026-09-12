@@ -80,7 +80,7 @@ Future<List<NavigationDestination>> listFavDestinationsCommand(
       try {
         await sendCommand(scooter, repo, "nav:fav:list",
             characteristic: cmd, isCurrent: isCurrent);
-        final stream = listener.responses.timeout(const Duration(seconds: 10));
+        final stream = listener.responses.timeout(extendedResponseTimeout);
         return await readExtendedList(stream, parseFavoriteDestination);
       } finally {
         await listener.cancel();

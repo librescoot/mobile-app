@@ -27,7 +27,6 @@ class _Characteristic extends Fake implements BluetoothCharacteristic {
 
   int notifyWrites = 0;
 
-  /// A stale cache claims the subscription is already on.
   @override
   bool get isNotifying => true;
 
