@@ -25,6 +25,10 @@ class _Characteristic extends Fake implements BluetoothCharacteristic {
   @override
   final List<BluetoothDescriptor> descriptors;
 
+  @override
+  CharacteristicProperties get properties =>
+      const CharacteristicProperties(notify: true, indicate: true);
+
   int notifyWrites = 0;
 
   @override
@@ -47,15 +51,15 @@ void main() {
     await verifyExtendedNotify(
         repo,
         _Characteristic(descriptors: [
-          _Descriptor(const [0x00])
+          _Descriptor(const [0x00, 0x00])
         ]));
     expect(repo.gattTableMismatch, isTrue);
   });
 
   test('notify or indicate read back clean', () async {
     for (final value in [
-      const [0x01],
-      const [0x02]
+      const [0x01, 0x00],
+      const [0x02, 0x00]
     ]) {
       final repo = _repo();
       await verifyExtendedNotify(
@@ -64,12 +68,22 @@ void main() {
     }
   });
 
+  test('a collided long value cannot pass from its 01 00 prefix', () async {
+    final repo = _repo();
+    await verifyExtendedNotify(
+        repo,
+        _Characteristic(descriptors: [
+          _Descriptor(<int>[0x01, 0x00, ...List<int>.filled(46, 0)])
+        ]));
+    expect(repo.gattTableMismatch, isTrue);
+  });
+
   test('a refused or impossible read proves nothing', () async {
     final repo = _repo();
     await verifyExtendedNotify(
         repo,
         _Characteristic(descriptors: [
-          _Descriptor(const [0x01], fails: true)
+          _Descriptor(const [0x01, 0x00], fails: true)
         ]));
     expect(repo.gattTableMismatch, isFalse);
     await verifyExtendedNotify(repo, _Characteristic());
@@ -79,7 +93,7 @@ void main() {
   test('the CCCD write happens even when the cache claims it is on', () async {
     final repo = _repo();
     final characteristic = _Characteristic(descriptors: [
-      _Descriptor(const [0x01])
+      _Descriptor(const [0x01, 0x00])
     ]);
     expect(characteristic.isNotifying, isTrue);
     await ensureExtendedNotify(repo, characteristic);

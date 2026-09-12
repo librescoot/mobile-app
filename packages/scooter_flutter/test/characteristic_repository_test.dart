@@ -4,10 +4,26 @@ import 'package:scooter_flutter/scooter_flutter.dart';
 
 String uuid(String suffix) => '9a59$suffix-6e67-5d0d-aab9-ad9126b66f91';
 
+class _Descriptor extends Fake implements BluetoothDescriptor {
+  _Descriptor(this.readValue);
+  final List<int> readValue;
+  @override
+  Guid get descriptorUuid => Guid('00002902-0000-1000-8000-00805f9b34fb');
+  @override
+  Future<List<int>> read({int timeout = 15}) async => readValue;
+}
+
 class _Characteristic extends Fake implements BluetoothCharacteristic {
-  _Characteristic(String suffix) : characteristicUuid = Guid(uuid(suffix));
+  _Characteristic(String suffix,
+      {this.descriptors = const [],
+      this.properties = const CharacteristicProperties(notify: true)})
+      : characteristicUuid = Guid(uuid(suffix));
   @override
   final Guid characteristicUuid;
+  @override
+  final List<BluetoothDescriptor> descriptors;
+  @override
+  final CharacteristicProperties properties;
 }
 
 class _Service extends Fake implements BluetoothService {
@@ -18,6 +34,14 @@ class _Service extends Fake implements BluetoothService {
   final Guid serviceUuid;
   @override
   final List<BluetoothCharacteristic> characteristics;
+}
+
+class _ValidationRepository extends CharacteristicRepository {
+  _ValidationRepository(super.scooter, BluetoothCharacteristic? response) {
+    extendedResponseCharacteristic = response;
+  }
+  @override
+  bool anyAreNull() => false;
 }
 
 class _Device extends Fake implements BluetoothDevice {
@@ -130,6 +154,45 @@ void main() {
     device.servicesList.add(_Service('0400', ['0401', '0402']));
     await repo.findAll(additionalLibrescootFeatures: true);
     expect(repo.missingCharacteristics, isNot(contains('extended-command')));
+  });
+
+  test('Android accepts only an exact valid extended-response CCCD', () async {
+    for (final value in [const [0x00, 0x00], const [0x01, 0x00]]) {
+      final response = _Characteristic('0402', descriptors: [_Descriptor(value)]);
+      final repo = _ValidationRepository(_Device([]), response);
+      expect(await repo.validateGattTable(isAndroid: true), isNull,
+          reason: '$value');
+    }
+
+    final collidedAlarmValue = <int>[0x01, 0x00, ...List<int>.filled(46, 0)];
+    final response = _Characteristic('0402',
+        descriptors: [_Descriptor(collidedAlarmValue)]);
+    final repo = _ValidationRepository(_Device([]), response);
+    expect(await repo.validateGattTable(isAndroid: true),
+        contains('invalid shape'));
+  });
+
+  test('stock absence and iOS do not require the Android CCCD probe', () async {
+    expect(
+        await _ValidationRepository(_Device([]), null)
+            .validateGattTable(isAndroid: true),
+        isNull);
+    final response = _Characteristic('0402',
+        descriptors: [_Descriptor(List<int>.filled(48, 1))]);
+    expect(
+        await _ValidationRepository(_Device([]), response)
+            .validateGattTable(isAndroid: false),
+        isNull);
+  });
+
+  test('CCCD enabled bits must match the characteristic properties', () async {
+    final response = _Characteristic('0402',
+        descriptors: [_Descriptor(const [0x02, 0x00])],
+        properties: const CharacteristicProperties(notify: true));
+    expect(
+        await _ValidationRepository(_Device([]), response)
+            .validateGattTable(isAndroid: true),
+        contains('invalid shape'));
   });
 
   test('a silent channel needs several unanswered commands and no response',

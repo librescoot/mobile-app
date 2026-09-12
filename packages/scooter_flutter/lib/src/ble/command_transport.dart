@@ -56,10 +56,15 @@ Future<void> verifyExtendedNotify(
   if (cccd == null) return;
   try {
     final value = await cccd.read();
-    final enabled = value.isNotEmpty && (value.first & 0x03) != 0;
+    final enabled = value.length == 2 &&
+        value[1] == 0 &&
+        (value[0] & ~0x03) == 0 &&
+        ((value[0] & 0x01) == 0 || resp.properties.notify) &&
+        ((value[0] & 0x02) == 0 || resp.properties.indicate) &&
+        (value[0] & 0x03) != 0;
     if (!enabled) {
       repo.noteStaleGattTable(
-          'the extended response subscription did not enable');
+          'the extended response subscription did not enable cleanly');
     }
   } catch (e) {
     _log.fine('Could not read the extended response CCCD back: $e');

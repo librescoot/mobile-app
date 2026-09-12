@@ -29,6 +29,19 @@ class _SupersededConnectionAttempt implements Exception {
   const _SupersededConnectionAttempt();
 }
 
+class _UnsafeGattTable implements Exception {
+  const _UnsafeGattTable(this.reason);
+  final String reason;
+  @override
+  String toString() => 'Could not establish a safe Bluetooth service table: $reason';
+}
+
+Future<bool?> _clearGattCacheWithoutResult(BluetoothDevice device) async {
+  // flutter_blue_plus_android 7.0.4 discards refresh()'s boolean result.
+  await device.clearGattCache();
+  return null;
+}
+
 /// Per-call identity, never a BluetoothDevice wrapper identity. Remains usable
 /// by late app reads after connect's finally has released the pending attempt.
 class SessionConnection {
@@ -64,9 +77,11 @@ class ScooterSession {
     BluetoothDevice Function(String)? deviceFromId,
     CharacteristicRepository Function(BluetoothDevice)? repositoryFactory,
     Future<void> Function(Duration)? delay,
+    Future<bool?> Function(BluetoothDevice)? clearGattCache,
     bool? isAndroid,
     bool? isIOS,
   })  : _delay = delay ?? Future<void>.delayed,
+        _clearGattCache = clearGattCache ?? _clearGattCacheWithoutResult,
         _deviceFromId = deviceFromId ?? BluetoothDevice.fromId,
         repositoryFactory = repositoryFactory ?? CharacteristicRepository.new,
         isAndroid = isAndroid ?? Platform.isAndroid,
@@ -83,6 +98,7 @@ class ScooterSession {
   final CharacteristicRepository Function(BluetoothDevice) repositoryFactory;
   final bool isAndroid, isIOS;
   final Future<void> Function(Duration) _delay;
+  final Future<bool?> Function(BluetoothDevice) _clearGattCache;
   bool get scanning => isScanning();
   bool _disposed = false;
   bool get isDisposed => _disposed;
@@ -220,6 +236,26 @@ class ScooterSession {
 
       final attemptedScooter = _deviceFromId(id);
       attempt._device = attemptedScooter;
+      var servicesGeneration = 0;
+      var handledServicesGeneration = 0;
+      var setupPublished = false;
+      var recoveryRunning = false;
+      late void Function() scheduleRecovery;
+      try {
+        _servicesResetSubscription = attemptedScooter.onServicesReset.listen((_) {
+          if (!attempt.isCurrentAttempt) return;
+          servicesGeneration++;
+          effects.invalidateTelemetry();
+          log.info("Scooter reported changed Bluetooth services");
+          if (setupPublished) scheduleRecovery();
+        });
+      } catch (e) {
+        // Android/Linux expose this stream; CoreBluetooth refreshes iOS objects.
+        log.fine("No Service Changed stream available: $e");
+        _servicesResetSubscription = null;
+      }
+      ensureCurrentAttempt();
+
       if (!automatic) {
         await flutterBluePlus.stopScan();
         ensureCurrentAttempt();
@@ -278,44 +314,41 @@ class ScooterSession {
       if (attemptedScooter.isDisconnected) {
         throw "Scooter disconnected, can't set up characteristics!";
       }
-      final repository = repositoryFactory(attemptedScooter);
-      await repository.findAll(additionalLibrescootFeatures: true);
+      scheduleRecovery = () {
+        if (recoveryRunning || !setupPublished) return;
+        recoveryRunning = true;
+        unawaited(() async {
+          try {
+            while (attempt.isCurrent &&
+                !attemptedScooter.isDisconnected &&
+                handledServicesGeneration != servicesGeneration) {
+              final refreshed = await _establishGattTable(
+                  attemptedScooter, attempt, () => servicesGeneration);
+              if (!attempt.isCurrent || attemptedScooter.isDisconnected) return;
+              effects.wireTelemetry(attempt, refreshed);
+              handledServicesGeneration = servicesGeneration;
+            }
+          } catch (e, stack) {
+            await _failUnsafeGattTable(attempt, attemptedScooter, e, stack);
+          } finally {
+            recoveryRunning = false;
+            if (attempt.isCurrent &&
+                handledServicesGeneration != servicesGeneration) {
+              scheduleRecovery();
+            }
+          }
+        }());
+      };
+
+      final live = await _establishGattTable(
+          attemptedScooter, attempt, () => servicesGeneration);
       ensureCurrentAttempt();
-      // Missing base characteristics mean a link that cannot work; re-read the
-      // table once before wiring telemetry against it.
-      CharacteristicRepository live = repository;
-      if (repository.anyAreNull()) {
-        log.warning(
-            "Base characteristics missing after discovery, re-reading services");
-        live = await _rereadServices(attemptedScooter, attempt) ?? repository;
-        ensureCurrentAttempt();
-      }
       effects.wireTelemetry(attempt, live);
+      handledServicesGeneration = servicesGeneration;
+      setupPublished = true;
       ensureCurrentAttempt();
 
       effects.readyMetadata(attempt);
-      ensureCurrentAttempt();
-
-      // A firmware update changes the scooter's GATT table while Android keeps
-      // the one it cached at pairing; this indication is the scooter saying so.
-      previousServicesResetSubscription?.cancel();
-      try {
-        _servicesResetSubscription =
-            attemptedScooter.onServicesReset.listen((_) async {
-          if (!attempt.isCurrentAttempt || attemptedScooter.isDisconnected) {
-            return;
-          }
-          log.info(
-              "Scooter reported changed Bluetooth services, re-reading services");
-          final refreshed = await _rereadServices(attemptedScooter, attempt);
-          if (refreshed == null || !attempt.isCurrentAttempt) return;
-          effects.wireTelemetry(attempt, refreshed);
-        });
-      } catch (e) {
-        // Android/Linux-only in flutter_blue_plus; iOS handles the change itself.
-        log.fine("No Service Changed stream available: $e");
-        _servicesResetSubscription = null;
-      }
       ensureCurrentAttempt();
       _connectingScooterId = null;
       connected = true;
@@ -354,14 +387,23 @@ class ScooterSession {
     } catch (e, stack) {
       log.shout("Couldn't connect to scooter!", e, stack);
       if (isCurrentAttempt()) {
+        final failedServicesResetSubscription = _servicesResetSubscription;
+        _servicesResetSubscription = null;
+        await failedServicesResetSubscription?.cancel();
         foundScooter = false;
         _connectingScooterId = null;
         connected = false;
+        if (e is _UnsafeGattTable) {
+          attempt._active = false;
+          stopAutoRestart(clearManualTarget: false);
+        }
         if (isCurrentAttempt()) effects.disconnected(null);
         if (isCurrentAttempt() && identical(device, attempt._device)) {
           device = null;
         }
-        if (_autoRestarting && _targetScooterId == id) {
+        if (e is _UnsafeGattTable) {
+          await _safeDisconnect(attempt._device!);
+        } else if (_autoRestarting && _targetScooterId == id) {
           unawaited(_attemptAutoRestart());
         }
       }
@@ -596,26 +638,71 @@ class ScooterSession {
     }
   }
 
-  /// Re-reads the scooter's GATT table after the phone's cached copy proved
-  /// wrong. `clearGattCache` reaches a hidden API most devices refuse, so it is
-  /// best-effort.
-  Future<CharacteristicRepository?> _rereadServices(
-      BluetoothDevice scooter, SessionConnection attempt) async {
-    try {
-      await scooter.clearGattCache();
-      log.info("Cleared the cached GATT table, re-reading services");
-    } catch (e) {
-      log.fine("Could not clear the cached GATT table: $e");
+  Future<CharacteristicRepository> _establishGattTable(
+      BluetoothDevice scooter,
+      SessionConnection attempt,
+      int Function() servicesGeneration) async {
+    var refreshAttempted = false;
+    String? lastFailure;
+    for (var pass = 0; pass < 3; pass++) {
+      final discoveryGeneration = servicesGeneration();
+      final repository = repositoryFactory(scooter);
+      await repository.findAll(additionalLibrescootFeatures: true);
+      if (!attempt.isCurrentAttempt) throw const _SupersededConnectionAttempt();
+      if (scooter.isDisconnected) {
+        throw StateError('Scooter disconnected during service discovery');
+      }
+      if (discoveryGeneration != servicesGeneration()) {
+        lastFailure = 'services changed during discovery';
+        continue;
+      }
+
+      final invalid = await repository.validateGattTable(isAndroid: isAndroid);
+      if (!attempt.isCurrentAttempt) throw const _SupersededConnectionAttempt();
+      if (scooter.isDisconnected) {
+        throw StateError('Scooter disconnected during table validation');
+      }
+      if (discoveryGeneration != servicesGeneration()) {
+        lastFailure = 'services changed during validation';
+        continue;
+      }
+      if (invalid == null) return repository;
+
+      lastFailure = invalid;
+      repository.noteStaleGattTable(invalid);
+      if (!isAndroid || refreshAttempted) break;
+      refreshAttempted = true;
+      try {
+        final accepted = await _clearGattCache(scooter);
+        log.info(accepted == true
+            ? 'Android accepted the GATT cache refresh request'
+            : 'Android GATT cache refresh result is unavailable or false');
+      } catch (e) {
+        log.warning('Could not request an Android GATT cache refresh: $e');
+      }
+      if (!attempt.isCurrentAttempt) throw const _SupersededConnectionAttempt();
+      if (scooter.isDisconnected) {
+        throw StateError('Scooter disconnected during GATT cache recovery');
+      }
     }
-    try {
-      final refreshed = repositoryFactory(scooter);
-      await refreshed.findAll(additionalLibrescootFeatures: true);
-      if (!attempt.isCurrentAttempt || scooter.isDisconnected) return null;
-      return refreshed;
-    } catch (e, stack) {
-      log.warning("Re-reading the scooter's GATT table failed", e, stack);
-      return null;
-    }
+    throw _UnsafeGattTable(lastFailure ?? 'validation did not stabilize');
+  }
+
+  Future<void> _failUnsafeGattTable(SessionConnection attempt,
+      BluetoothDevice scooter, Object error, StackTrace stack) async {
+    if (!attempt.isCurrentAttempt) return;
+    log.shout('Bluetooth service recovery failed closed', error, stack);
+    final failedServicesResetSubscription = _servicesResetSubscription;
+    _servicesResetSubscription = null;
+    await failedServicesResetSubscription?.cancel();
+    attempt._active = false;
+    stopAutoRestart(clearManualTarget: false);
+    foundScooter = false;
+    _connectingScooterId = null;
+    connected = false;
+    effects.disconnected(null);
+    if (identical(device, scooter)) device = null;
+    await _safeDisconnect(scooter);
   }
 
   void stopAutoRestart({bool clearManualTarget = true}) {

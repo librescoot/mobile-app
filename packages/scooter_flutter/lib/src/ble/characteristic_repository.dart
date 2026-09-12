@@ -231,6 +231,26 @@ class CharacteristicRepository {
         secondarySOCCharacteristic == null;
   }
 
+  /// Returns why this table is unsafe, or null when its available structure is
+  /// usable. Stock firmware has no extended channel, so its absence is allowed.
+  Future<String?> validateGattTable({required bool isAndroid}) async {
+    if (anyAreNull()) return 'mandatory characteristics are missing';
+    if (!isAndroid || extendedResponseCharacteristic == null) return null;
+
+    final response = extendedResponseCharacteristic!;
+    final cccd = _cccdOf(response);
+    if (cccd == null) return null;
+    try {
+      final value = await cccd.read();
+      if (!_isValidCccdValue(value, response.properties)) {
+        return 'the extended response CCCD has an invalid shape or value';
+      }
+    } catch (e) {
+      return 'the extended response CCCD could not be read: $e';
+    }
+    return null;
+  }
+
   void noteStaleGattTable(String detail) {
     if (gattTableMismatch) return;
     log.warning(
@@ -275,6 +295,24 @@ class CharacteristicRepository {
       return null;
     }
   }
+}
+
+final Guid _cccdUuid = Guid('00002902-0000-1000-8000-00805f9b34fb');
+
+BluetoothDescriptor? _cccdOf(BluetoothCharacteristic characteristic) {
+  for (final descriptor in characteristic.descriptors) {
+    if (descriptor.descriptorUuid == _cccdUuid) return descriptor;
+  }
+  return null;
+}
+
+bool _isValidCccdValue(List<int> value, CharacteristicProperties properties) {
+  if (value.length != 2 || value[1] != 0 || (value[0] & ~0x03) != 0) {
+    return false;
+  }
+  if ((value[0] & 0x01) != 0 && !properties.notify) return false;
+  if ((value[0] & 0x02) != 0 && !properties.indicate) return false;
+  return true;
 }
 
 /// Whether a BLE failure means the local stack's cached GATT table is wrong
