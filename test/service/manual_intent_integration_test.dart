@@ -271,7 +271,9 @@ class _Service extends ScooterService {
   // ignore: use_super_parameters
   _Service(super.flutterBluePlus, _Storage storage, Map<String, _Device> devices, List<String> deviceRequests,
       _Repository repository, List<BluetoothDevice> repositories,
-      {Future<LatLng?> Function()? pollLocation, bool initializeRuntime = false, bool background = true,
+      {Future<LatLng?> Function()? pollLocation,
+      bool initializeRuntime = false,
+      bool background = true,
       bool allowAutomaticActions = true})
       : super(
           pollLocation: pollLocation ?? (() async => null),
@@ -354,10 +356,11 @@ class _ClaimPreferences extends InMemorySharedPreferencesStore {
     if (failure == true) throw StateError('Injected $operation failure');
     return failure == null;
   }
+
   @override
   Future<bool> setValue(String valueType, String key, Object value) => _write(
-    key == 'flutter.pendingWidgetAction' ? (value == false ? 'claim' : 'restoreFlag') : 'restoreName',
-    () => super.setValue(valueType, key, value));
+      key == 'flutter.pendingWidgetAction' ? (value == false ? 'claim' : 'restoreFlag') : 'restoreName',
+      () => super.setValue(valueType, key, value));
   @override
   Future<bool> remove(String key) => _write('remove', () => super.remove(key));
   @override
@@ -369,11 +372,16 @@ class _ClaimPreferences extends InMemorySharedPreferencesStore {
     await after?.call(operation);
     return result;
   }
+
   Future<void> replaceWith(String name, {bool armed = true}) async {
     await super.setValue('String', 'flutter.pendingWidgetActionName', name);
     await super.setValue('Bool', 'flutter.pendingWidgetAction', armed);
   }
-  void arm() { reloads = 0; calls.clear(); }
+
+  void arm() {
+    reloads = 0;
+    calls.clear();
+  }
 }
 
 class _WidgetHarness {
@@ -422,20 +430,31 @@ final class _RuntimePreferences extends SharedPreferencesAsyncPlatform {
   final gates = <String, Completer<void>>{};
   @override
   Future<String?> getString(String key, SharedPreferencesOptions options) async {
-    reads.add(key); await gates[key]?.future; return values[key] as String?;
+    reads.add(key);
+    await gates[key]?.future;
+    return values[key] as String?;
   }
+
   @override
   Future<bool?> getBool(String key, SharedPreferencesOptions options) async {
-    reads.add(key); await gates[key]?.future; return values[key] as bool?;
+    reads.add(key);
+    await gates[key]?.future;
+    return values[key] as bool?;
   }
+
   @override
   Future<int?> getInt(String key, SharedPreferencesOptions options) async {
-    reads.add(key); await gates[key]?.future; return values[key] as int?;
+    reads.add(key);
+    await gates[key]?.future;
+    return values[key] as int?;
   }
+
   @override
   Future<void> clear(ClearPreferencesParameters parameters, SharedPreferencesOptions options) async {
-    reads.add('remove'); await gates['remove']?.future;
+    reads.add('remove');
+    await gates['remove']?.future;
   }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => throw StateError('Unexpected $invocation');
 }
@@ -531,7 +550,9 @@ void main() {
       ..values['autoUnlock'] = true
       ..values['biometrics'] = false;
     SharedPreferencesAsyncPlatform.instance = preferences;
-    final a = _Device('A')..connection.complete()..rssiValue = -50;
+    final a = _Device('A')
+      ..connection.complete()
+      ..rssiValue = -50;
     final repo = _Repository(state: 'stand-by')..discovery.complete();
     final service = _Service(_Bluetooth(), _Storage(), {'A': a}, [], repo, [],
         initializeRuntime: true, allowAutomaticActions: false);
@@ -566,12 +587,16 @@ void main() {
   });
 
   for (final backgroundMode in [false, true]) {
-    testWidgets('production ${backgroundMode ? 'persistent background' : 'foreground'} retains opted-in keyless polling', (tester) async {
+    testWidgets(
+        'production ${backgroundMode ? 'persistent background' : 'foreground'} retains opted-in keyless polling',
+        (tester) async {
       final preferences = _RuntimePreferences()
         ..values['autoUnlock'] = true
         ..values['biometrics'] = false;
       SharedPreferencesAsyncPlatform.instance = preferences;
-      final a = _Device('A')..connection.complete()..rssiValue = -50;
+      final a = _Device('A')
+        ..connection.complete()
+        ..rssiValue = -50;
       final repo = _Repository(state: 'stand-by')..discovery.complete();
       final service = _Service(_Bluetooth(), _Storage(), {'A': a}, [], repo, [],
           initializeRuntime: true, background: backgroundMode);
@@ -591,7 +616,9 @@ void main() {
       ..values['autoUnlock'] = true
       ..values['biometrics'] = false;
     SharedPreferencesAsyncPlatform.instance = preferences;
-    final a = _Device('A')..connection.complete()..rssiValue = -50;
+    final a = _Device('A')
+      ..connection.complete()
+      ..rssiValue = -50;
     final repo = _Repository(state: 'stand-by')..discovery.complete();
     final service = _Service(_Bluetooth(), _Storage(), {'A': a}, [], repo, [],
         initializeRuntime: true, allowAutomaticActions: false);
@@ -612,9 +639,12 @@ void main() {
   });
 
   for (final replacement in [null, 'lock', 'cancel']) {
-    testWidgets('widget reconnect waits for storage and revalidates ${replacement ?? 'unchanged'} request', (tester) async {
+    testWidgets('widget reconnect waits for storage and revalidates ${replacement ?? 'unchanged'} request',
+        (tester) async {
       SharedPreferencesAsyncPlatform.instance = _RuntimePreferences();
-      final storage = _Storage()..scooters = {}..loadGate = Completer<void>();
+      final storage = _Storage()
+        ..scooters = {}
+        ..loadGate = Completer<void>();
       final a = _Device('A')..connection.complete();
       final repo = _Repository()..discovery.complete();
       final requests = <String>[];
@@ -985,24 +1015,40 @@ void main() {
   });
 
   testWidgets('runtime normal init is idempotent and disposal stops scans location RSSI and heartbeat', (tester) async {
-    final prefs = _RuntimePreferences()..values['biometrics'] = true..values['autoUnlock'] = true;
+    final prefs = _RuntimePreferences()
+      ..values['biometrics'] = true
+      ..values['autoUnlock'] = true;
     SharedPreferencesAsyncPlatform.instance = prefs;
     final storage = _Storage();
     final bluetooth = _Bluetooth();
     final a = _Device('A')..connection.complete();
     final repo = _Repository()..discovery.complete();
     var locations = 0;
-    final service = _Service(bluetooth, storage, {'A': a}, [], repo, [],
-        initializeRuntime: true, background: false,
-        pollLocation: () async { locations++; return const LatLng(1, 2); });
+    final service = _Service(bluetooth, storage, {'A': a}, [], repo, [], initializeRuntime: true, background: false,
+        pollLocation: () async {
+      locations++;
+      return const LatLng(1, 2);
+    });
     await tester.pump();
     await service.runtimeReady;
     await service.runtimeReady;
     expect(storage.loads, 1);
     expect(bluetooth.scanStreamReads, 1);
     expect(service.scooterName, 'Alpha');
-    expect(prefs.reads, ['pendingNavigation', 'autoUnlock', 'autoUnlockThreshold',
-      'biometrics', 'openSeatOnUnlock', 'hazardLocking', 'unlockedHandlebarsWarning']);
+    // The fake records every prefs touch, storage reloads included.
+    expect(
+      prefs.reads.where((key) => key != 'savedScooters').toList(),
+      [
+        'pendingNavigation',
+        'autoUnlockThreshold',
+        'biometrics',
+        'autoUnlock',
+        'openSeatOnUnlock',
+        'hazardLocking',
+        'unlockedHandlebarsWarning',
+        'scooterSettingsMigrated',
+      ],
+    );
     await service.connectToScooterId('A');
     await tester.pump();
     expect(locations, 1);
@@ -1022,12 +1068,23 @@ void main() {
     bluetooth.scanEvents.add(false);
     await tester.pump(const Duration(seconds: 65));
     expect(bluetooth.scanEvents.hasListener, isFalse);
-    expect(locations, 4); expect(a.rssiReads, reads); expect(service.updates.length, updates);
+    expect(locations, 4);
+    expect(a.rssiReads, reads);
+    expect(service.updates.length, updates);
     expect(tester.takeException(), isNull);
   });
 
-  for (final phase in ['selection', 'pendingNavigation', 'remove', 'autoUnlock',
-    'autoUnlockThreshold', 'biometrics', 'openSeatOnUnlock', 'hazardLocking', 'unlockedHandlebarsWarning']) {
+  for (final phase in [
+    'selection',
+    'pendingNavigation',
+    'remove',
+    'autoUnlock',
+    'autoUnlockThreshold',
+    'biometrics',
+    'openSeatOnUnlock',
+    'hazardLocking',
+    'unlockedHandlebarsWarning'
+  ]) {
     testWidgets('runtime disposal during $phase has no later publication or live polling', (tester) async {
       final prefs = _RuntimePreferences();
       SharedPreferencesAsyncPlatform.instance = prefs;
@@ -1061,41 +1118,54 @@ void main() {
   }
 
   for (final target in ['A', 'B']) {
-  testWidgets('manual $target during startup cannot be overwritten by A cache but global restoration completes', (tester) async {
-    final prefs = _RuntimePreferences()
-      ..values['openSeatOnUnlock'] = true
-      ..values['pendingNavigation'] = jsonEncode({'latitude': 1.0, 'longitude': 2.0, 'name': 'Home', 'id': 'x'});
-    SharedPreferencesAsyncPlatform.instance = prefs;
-    final storage = _Storage()..loadGate = Completer<void>();
-    final b = _Device(target)..connection.complete();
-    final repo = _Repository()..discovery.complete();
-    final service = _Service(_Bluetooth(), storage, {target: b}, [], repo, [], initializeRuntime: true);
-    await service.connectToScooterId(target);
-    storage.loadGate!.complete();
-    await tester.pump();
-    await service.runtimeReady;
-    expect(service.scooterName, target == 'A' ? 'Alpha' : 'Beta');
-    expect(service.primarySOC, 90);
-    expect(service.settings.openSeatOnUnlock, isTrue);
-    expect(prefs.reads, contains('pendingNavigation'));
-    expect(service.pendingNavigation?.id, 'x');
-    service.dispose(); await tester.pump();
-  });
+    testWidgets('manual $target during startup cannot be overwritten by A cache but global restoration completes',
+        (tester) async {
+      final prefs = _RuntimePreferences()
+        ..values['openSeatOnUnlock'] = true
+        ..values['pendingNavigation'] = jsonEncode({'latitude': 1.0, 'longitude': 2.0, 'name': 'Home', 'id': 'x'});
+      SharedPreferencesAsyncPlatform.instance = prefs;
+      final storage = _Storage()..loadGate = Completer<void>();
+      final b = _Device(target)..connection.complete();
+      final repo = _Repository()..discovery.complete();
+      final service = _Service(_Bluetooth(), storage, {target: b}, [], repo, [], initializeRuntime: true);
+      await service.connectToScooterId(target);
+      storage.loadGate!.complete();
+      await tester.pump();
+      await service.runtimeReady;
+      expect(service.scooterName, target == 'A' ? 'Alpha' : 'Beta');
+      expect(service.primarySOC, 90);
+      expect(service.settings.legacyOpenSeatOnUnlock, isTrue);
+      expect(prefs.reads, contains('pendingNavigation'));
+      expect(service.pendingNavigation?.id, 'x');
+      service.dispose();
+      await tester.pump();
+    });
   }
 
   for (final replacement in [false, true]) {
-    testWidgets('delayed disconnected refetch is suppressed on ${replacement ? 'new target' : 'disposal'}', (tester) async {
+    testWidgets('delayed disconnected refetch is suppressed on ${replacement ? 'new target' : 'disposal'}',
+        (tester) async {
       SharedPreferencesAsyncPlatform.instance = _RuntimePreferences();
       final storage = _Storage();
       final b = _Device('B')..connection.complete();
       final service = _Service(_Bluetooth(), storage, {'B': b}, [], _Repository()..discovery.complete(), [],
           initializeRuntime: true);
-      await tester.pump(); await service.runtimeReady;
+      await tester.pump();
+      await service.runtimeReady;
       storage.loadGate = Completer<void>();
       final refetch = service.refetchSavedScooters();
-      if (replacement) { await service.connectToScooterId('B'); } else { service.dispose(); }
-      storage.loadGate!.complete(); await tester.pump(); await refetch;
-      if (replacement) { expect(service.scooterName, 'Beta'); service.dispose(); }
+      if (replacement) {
+        await service.connectToScooterId('B');
+      } else {
+        service.dispose();
+      }
+      storage.loadGate!.complete();
+      await tester.pump();
+      await refetch;
+      if (replacement) {
+        expect(service.scooterName, 'Beta');
+        service.dispose();
+      }
       expect(tester.takeException(), isNull);
     });
   }
@@ -1104,21 +1174,25 @@ void main() {
     SharedPreferencesAsyncPlatform.instance = _RuntimePreferences();
     final bluetooth = _Bluetooth();
     final a = _Device('A')..connection.complete();
-    final service = _Service(bluetooth, _Storage(), {'A': a}, [], _Repository()..discovery.complete(), [],
-        initializeRuntime: true);
-    await tester.pump(); await service.runtimeReady;
+    final service =
+        _Service(bluetooth, _Storage(), {'A': a}, [], _Repository()..discovery.complete(), [], initializeRuntime: true);
+    await tester.pump();
+    await service.runtimeReady;
     await service.connectToScooterId('A');
     service.scanning = true;
     service.didChangeAppLifecycleState(AppLifecycleState.inactive);
     service.didChangeAppLifecycleState(AppLifecycleState.resumed);
     await tester.pump(const Duration(milliseconds: 500));
-    expect(service.scanning, isTrue); expect(a.rssiReads, 0);
+    expect(service.scanning, isTrue);
+    expect(a.rssiReads, 0);
     service.didChangeAppLifecycleState(AppLifecycleState.hidden);
     service.didChangeAppLifecycleState(AppLifecycleState.resumed);
     await tester.pump(const Duration(milliseconds: 500));
-    expect(service.scanning, isFalse); expect(a.rssiReads, 1);
+    expect(service.scanning, isFalse);
+    expect(a.rssiReads, 1);
     expect(a.timeouts, hasLength(1));
-    service.dispose(); await tester.pump();
+    service.dispose();
+    await tester.pump();
   });
 
   testWidgets('runtime pending location and stale RSSI cannot publish after disposal', (tester) async {
@@ -1128,27 +1202,31 @@ void main() {
     final storage = _Storage();
     final service = _Service(_Bluetooth(), storage, {'A': a}, [], _Repository()..discovery.complete(), [],
         initializeRuntime: true, pollLocation: () => location.future);
-    await tester.pump(); await service.runtimeReady;
+    await tester.pump();
+    await service.runtimeReady;
     await service.connectToScooterId('A');
     a.rssiGate = Completer<int>();
     service.didChangeAppLifecycleState(AppLifecycleState.paused);
     service.didChangeAppLifecycleState(AppLifecycleState.resumed);
     await tester.pump(const Duration(milliseconds: 500));
     service.dispose();
-    location.complete(const LatLng(9, 9)); a.rssiGate!.completeError(StateError('stale'));
+    location.complete(const LatLng(9, 9));
+    a.rssiGate!.completeError(StateError('stale'));
     await tester.pump();
     expect(storage.scooters['A']!.lastLocation, isNull);
     expect(tester.takeException(), isNull);
   });
 
   for (final sameId in [false, true]) {
-    testWidgets('runtime obsolete resume RSSI failure cannot disconnect ${sameId ? 'same-ID replacement' : 'B'}', (tester) async {
+    testWidgets('runtime obsolete resume RSSI failure cannot disconnect ${sameId ? 'same-ID replacement' : 'B'}',
+        (tester) async {
       SharedPreferencesAsyncPlatform.instance = _RuntimePreferences();
       final a = _Device('A')..connection.complete();
       final devices = {'A': a};
       final service = _Service(_Bluetooth(), _Storage(), devices, [], _Repository()..discovery.complete(), [],
           initializeRuntime: true);
-      await tester.pump(); await service.runtimeReady;
+      await tester.pump();
+      await service.runtimeReady;
       await service.connectToScooterId('A');
       a.rssiGate = Completer<int>();
       service.didChangeAppLifecycleState(AppLifecycleState.paused);
@@ -1158,7 +1236,10 @@ void main() {
       final id = sameId ? 'A' : 'B';
       final replacement = _Device(id)..connection.complete();
       devices[id] = replacement;
-      if (sameId) { a.linked = false; service.connected = false; }
+      if (sameId) {
+        a.linked = false;
+        service.connected = false;
+      }
       final connecting = service.connectToScooterId(id);
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pump();
@@ -1168,13 +1249,15 @@ void main() {
       expect(service.connected, isTrue);
       expect(service.currentScooterId, id);
       expect(replacement.timeouts, hasLength(1));
-      service.dispose(); await tester.pump();
+      service.dispose();
+      await tester.pump();
     });
   }
 
   for (final action in ['lock', 'unlock', 'openseat']) {
     test('preissue missing command characteristic retains $action despite connected partial discovery', () async {
-      final h = _WidgetHarness(); addTearDown(h.dispose);
+      final h = _WidgetHarness();
+      addTearDown(h.dispose);
       h.service.setManualConnectionTarget('A');
       final command = h.repoA.commandCharacteristic as _Characteristic;
       h.repoA.commandCharacteristic = null;
@@ -1190,12 +1273,15 @@ void main() {
       if (operation.startsWith('reload') && !throwsError) continue; // reload returns void, not bool.
       for (final applied in [false, true]) {
         if (operation.startsWith('reload') && applied) continue;
-        test('preissue $operation failure throws=$throwsError applied=$applied retains request without write', () async {
-          final h = _WidgetHarness(); addTearDown(h.dispose);
+        test('preissue $operation failure throws=$throwsError applied=$applied retains request without write',
+            () async {
+          final h = _WidgetHarness();
+          addTearDown(h.dispose);
           h.service.setManualConnectionTarget('A');
           final prefs = _ClaimPreferences();
           SharedPreferencesStorePlatform.instance = prefs;
-          await h.pending('unlock'); prefs.arm();
+          await h.pending('unlock');
+          prefs.arm();
           prefs.failures[operation] = throwsError;
           if (applied) prefs.afterPersistence.add(operation);
           await background.executeWidgetAction('unlock');
@@ -1212,15 +1298,21 @@ void main() {
   for (final action in ['lock', 'unlock', 'openseat']) {
     for (final phase in ['reload2', 'remove', 'transport']) {
       test('preissue $action rechecks command readiness at $phase and retains known non-write', () async {
-        final h = _WidgetHarness(); addTearDown(h.dispose);
+        final h = _WidgetHarness();
+        addTearDown(h.dispose);
         h.service.setManualConnectionTarget('A');
         final command = h.repoA.commandCharacteristic as _Characteristic;
-        final prefs = _ClaimPreferences(); SharedPreferencesStorePlatform.instance = prefs;
-        await h.pending(action); prefs.arm();
+        final prefs = _ClaimPreferences();
+        SharedPreferencesStorePlatform.instance = prefs;
+        await h.pending(action);
+        prefs.arm();
         prefs.after = (operation) async {
           if (operation == (phase == 'transport' ? 'remove' : phase)) {
-            if (phase == 'transport') { h.a.forceDisconnected = true; }
-            else { h.repoA.commandCharacteristic = null; }
+            if (phase == 'transport') {
+              h.a.forceDisconnected = true;
+            } else {
+              h.repoA.commandCharacteristic = null;
+            }
           }
         };
         await background.executeWidgetAction(action);
@@ -1233,14 +1325,21 @@ void main() {
   for (final phase in ['claim', 'remove', 'restoreName']) {
     for (final armed in [true, false]) {
       test('preissue recovery at $phase preserves newer distinct request armed=$armed', () async {
-        final h = _WidgetHarness(); addTearDown(h.dispose);
+        final h = _WidgetHarness();
+        addTearDown(h.dispose);
         h.service.setManualConnectionTarget('A');
-        final prefs = _ClaimPreferences(); SharedPreferencesStorePlatform.instance = prefs;
-        await h.pending('unlock'); prefs.arm();
+        final prefs = _ClaimPreferences();
+        SharedPreferencesStorePlatform.instance = prefs;
+        await h.pending('unlock');
+        prefs.arm();
         // Restore-name only runs after an applied removal with an uncertain result.
         if (phase == 'restoreName') {
-          prefs.failures['remove'] = true; prefs.afterPersistence.add('remove');
-        } else { prefs.failures[phase] = true; prefs.afterPersistence.add(phase); }
+          prefs.failures['remove'] = true;
+          prefs.afterPersistence.add('remove');
+        } else {
+          prefs.failures[phase] = true;
+          prefs.afterPersistence.add(phase);
+        }
         prefs.after = (operation) async {
           if (operation == phase) await prefs.replaceWith('lock', armed: armed);
         };
@@ -1257,11 +1356,15 @@ void main() {
     for (final throwsError in [true, false]) {
       if (phase.startsWith('reload') && !throwsError) continue;
       test('preissue recovery $phase failure throws=$throwsError is bounded and reported honestly', () async {
-        final h = _WidgetHarness(); addTearDown(h.dispose);
+        final h = _WidgetHarness();
+        addTearDown(h.dispose);
         h.service.setManualConnectionTarget('A');
-        final prefs = _ClaimPreferences(); SharedPreferencesStorePlatform.instance = prefs;
-        await h.pending('unlock'); prefs.arm();
-        prefs.failures['remove'] = true; prefs.afterPersistence.add('remove');
+        final prefs = _ClaimPreferences();
+        SharedPreferencesStorePlatform.instance = prefs;
+        await h.pending('unlock');
+        prefs.arm();
+        prefs.failures['remove'] = true;
+        prefs.afterPersistence.add('remove');
         prefs.failures[phase] = throwsError;
         final warnings = <LogRecord>[];
         final listener = Logger('bgservice').onRecord.listen(warnings.add);
@@ -1279,43 +1382,51 @@ void main() {
   }
   for (final replacement in ['pin', 'dispose', 'B', 'same-ID']) {
     for (final phase in ['claim', 'remove']) {
-    test('preissue $replacement during awaited $phase restores without stale dispatch', () async {
-      final h = _WidgetHarness();
-      if (replacement != 'dispose') addTearDown(h.dispose);
-      h.service.setManualConnectionTarget('A');
-      final prefs = _ClaimPreferences(); SharedPreferencesStorePlatform.instance = prefs;
-      await h.pending('unlock'); prefs.arm();
-      prefs.after = (operation) async {
-        if (operation != phase) return;
-        switch (replacement) {
-          case 'pin': h.service.setManualConnectionTarget('B');
-          case 'dispose': h.dispose();
-          case 'B': await h.service.connectToScooterId('B');
-          case 'same-ID':
-            h.a.linked = false; h.service.connected = false;
-            h.a.connections.add(Completer<void>()..complete());
-            await h.service.connectToScooterId('A');
-        }
-      };
-      await background.executeWidgetAction('unlock');
-      expect(h.writes('A'), isEmpty); expect(h.writes('B'), isEmpty);
-      await h.expectPending('unlock');
-      if (phase == 'claim') expect(prefs.calls, isNot(contains('remove')));
-    });
+      test('preissue $replacement during awaited $phase restores without stale dispatch', () async {
+        final h = _WidgetHarness();
+        if (replacement != 'dispose') addTearDown(h.dispose);
+        h.service.setManualConnectionTarget('A');
+        final prefs = _ClaimPreferences();
+        SharedPreferencesStorePlatform.instance = prefs;
+        await h.pending('unlock');
+        prefs.arm();
+        prefs.after = (operation) async {
+          if (operation != phase) return;
+          switch (replacement) {
+            case 'pin':
+              h.service.setManualConnectionTarget('B');
+            case 'dispose':
+              h.dispose();
+            case 'B':
+              await h.service.connectToScooterId('B');
+            case 'same-ID':
+              h.a.linked = false;
+              h.service.connected = false;
+              h.a.connections.add(Completer<void>()..complete());
+              await h.service.connectToScooterId('A');
+          }
+        };
+        await background.executeWidgetAction('unlock');
+        expect(h.writes('A'), isEmpty);
+        expect(h.writes('B'), isEmpty);
+        await h.expectPending('unlock');
+        if (phase == 'claim') expect(prefs.calls, isNot(contains('remove')));
+      });
     }
   }
   for (final action in ['lock', 'openseat']) {
     test('preissue $action possible native write error stays consumed with no automatic replay', () async {
-      final h = _WidgetHarness(); addTearDown(h.dispose);
+      final h = _WidgetHarness();
+      addTearDown(h.dispose);
       h.service.setManualConnectionTarget('A');
       final command = h.repoA.commandCharacteristic as _Characteristic;
       command.failWrite = true;
       await h.pending(action);
       await background.executeWidgetAction(action);
-      expect(command.writes, hasLength(1)); await h.expectPending(null);
+      expect(command.writes, hasLength(1));
+      await h.expectPending(null);
       await background.executeWidgetAction(action);
       expect(command.writes, hasLength(1));
     });
   }
-
 }

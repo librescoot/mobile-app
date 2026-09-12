@@ -14,6 +14,9 @@ class SavedScooter implements SavedScooterRecord {
   int _color;
   DateTime _lastPing;
   bool _autoConnect;
+  bool _autoUnlock;
+  bool _hazardLocking;
+  bool _openSeatOnUnlock;
   int? _lastPrimarySOC;
   int? _lastSecondarySOC;
   int? _lastCbbSOC;
@@ -32,6 +35,9 @@ class SavedScooter implements SavedScooterRecord {
     int? color,
     DateTime? lastPing,
     bool? autoConnect,
+    bool? autoUnlock,
+    bool? hazardLocking,
+    bool? openSeatOnUnlock,
     int? lastPrimarySOC,
     int? lastSecondarySOC,
     int? lastCbbSOC,
@@ -48,6 +54,9 @@ class SavedScooter implements SavedScooterRecord {
         _color = color ?? 1,
         _lastPing = lastPing ?? DateTime.now(),
         _autoConnect = autoConnect ?? true,
+        _autoUnlock = autoUnlock ?? false,
+        _hazardLocking = hazardLocking ?? false,
+        _openSeatOnUnlock = openSeatOnUnlock ?? false,
         _lastPrimarySOC = lastPrimarySOC,
         _lastSecondarySOC = lastSecondarySOC,
         _lastCbbSOC = lastCbbSOC,
@@ -83,6 +92,27 @@ class SavedScooter implements SavedScooterRecord {
     _autoConnect = autoConnect;
     updateSharedPreferences();
     FlutterBackgroundService().invoke("update", {"updateSavedScooters": true});
+  }
+
+  @override
+  set autoUnlock(bool autoUnlock) {
+    _autoUnlock = autoUnlock;
+    updateSharedPreferences();
+    _notifyBackgroundService();
+  }
+
+  @override
+  set hazardLocking(bool hazardLocking) {
+    _hazardLocking = hazardLocking;
+    updateSharedPreferences();
+    _notifyBackgroundService();
+  }
+
+  @override
+  set openSeatOnUnlock(bool openSeatOnUnlock) {
+    _openSeatOnUnlock = openSeatOnUnlock;
+    updateSharedPreferences();
+    _notifyBackgroundService();
   }
 
   set lastPrimarySOC(int? lastPrimarySOC) {
@@ -150,6 +180,12 @@ class SavedScooter implements SavedScooterRecord {
   DateTime get lastPing => _lastPing;
   @override
   bool get autoConnect => _autoConnect;
+  @override
+  bool get autoUnlock => _autoUnlock;
+  @override
+  bool get hazardLocking => _hazardLocking;
+  @override
+  bool get openSeatOnUnlock => _openSeatOnUnlock;
   int? get lastPrimarySOC => _lastPrimarySOC;
   int? get lastSecondarySOC => _lastSecondarySOC;
   int? get lastCbbSOC => _lastCbbSOC;
@@ -171,6 +207,9 @@ class SavedScooter implements SavedScooterRecord {
         'color': _color,
         'lastPing': _lastPing.microsecondsSinceEpoch,
         'autoConnect': _autoConnect,
+        'autoUnlock': _autoUnlock,
+        'hazardLocking': _hazardLocking,
+        'openSeatOnUnlock': _openSeatOnUnlock,
         'lastPrimarySOC': _lastPrimarySOC,
         'lastSecondarySOC': _lastSecondarySOC,
         'lastCbbSOC': _lastCbbSOC,
@@ -194,6 +233,9 @@ class SavedScooter implements SavedScooterRecord {
       color: map['color'],
       lastPing: map.containsKey('lastPing') ? DateTime.fromMicrosecondsSinceEpoch(map['lastPing']) : DateTime.now(),
       autoConnect: map['autoConnect'],
+      autoUnlock: map['autoUnlock'] ?? false,
+      hazardLocking: map['hazardLocking'] ?? false,
+      openSeatOnUnlock: map['openSeatOnUnlock'] ?? false,
       lastLocation: map['lastLocation'] != null ? LatLng.fromJson(map['lastLocation']) : null,
       lastAddress: map['lastAddress'],
       lastPrimarySOC: map['lastPrimarySOC'],
@@ -209,6 +251,10 @@ class SavedScooter implements SavedScooterRecord {
           .toList(),
     );
   }
+
+  /// The background isolate holds its own copies of the saved scooters and
+  /// decides auto-unlock, so it has to hear about these.
+  void _notifyBackgroundService() => FlutterBackgroundService().invoke("update", {"updateSavedScooters": true});
 
   bool get dataIsOld {
     return _lastPing.difference(DateTime.now()).inMinutes.abs() > 5;

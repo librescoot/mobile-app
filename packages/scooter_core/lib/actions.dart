@@ -77,10 +77,15 @@ class ActionSettings {
       this.warnOfUnlockedHandlebars = true,
       this.autoUnlock = false,
       this.autoUnlockThreshold = -65,
-      this.optionalAuth = false});
+      this.optionalAuth = false,
+      this.autoUnlockAmbiguous = false});
   final bool openSeatOnUnlock, hazardLocking, warnOfUnlockedHandlebars;
   final bool autoUnlock, optionalAuth;
   final int autoUnlockThreshold;
+
+  /// More than one scooter with auto-unlock enabled is in range, so proximity
+  /// no longer identifies which scooter the user walked up to.
+  final bool autoUnlockAmbiguous;
 }
 
 class HandlebarWarning {

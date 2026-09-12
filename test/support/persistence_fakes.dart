@@ -32,6 +32,41 @@ final class MemoryPreferences extends SharedPreferencesAsyncPlatform {
     values[key] = value;
   }
 
+  final Map<String, bool> bools = {};
+  final Map<String, int> ints = {};
+
+  @override
+  Future<bool?> getBool(String key, SharedPreferencesOptions options) async {
+    reads++;
+    return bools[key];
+  }
+
+  @override
+  Future<void> setBool(
+    String key,
+    bool value,
+    SharedPreferencesOptions options,
+  ) async {
+    writes++;
+    bools[key] = value;
+  }
+
+  @override
+  Future<int?> getInt(String key, SharedPreferencesOptions options) async {
+    reads++;
+    return ints[key];
+  }
+
+  @override
+  Future<void> setInt(
+    String key,
+    int value,
+    SharedPreferencesOptions options,
+  ) async {
+    writes++;
+    ints[key] = value;
+  }
+
   @override
   Future<Set<String>> getKeys(
     GetPreferencesParameters parameters,

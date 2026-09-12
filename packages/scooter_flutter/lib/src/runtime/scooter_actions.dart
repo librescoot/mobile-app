@@ -19,6 +19,10 @@ abstract interface class ScooterActionEffects {
   void cooldownStarted();
   void rssiChanged(int value);
   void failed(Object error, StackTrace stack);
+
+  /// Proximity would have unlocked, but more than one scooter with auto-unlock
+  /// is in range. Reported once per episode.
+  void autoUnlockRefused();
 }
 
 class _Target {
@@ -85,6 +89,7 @@ class ScooterActions {
   CharacteristicRepository? _repository;
   bool _disposed = false;
   bool _cooldown = false;
+  bool _ambiguityWarned = false;
   final Set<Timer> _cooldowns = {};
   Timer? _refreshTimer;
   late final ActionPollingTimer rssiTimer;
@@ -100,13 +105,16 @@ class ScooterActions {
   /// A connected session can have partial discovery. Explicit native requests
   /// require this owner's bound command characteristic, not connectivity alone.
   bool canDispatchExplicitAction(SessionConnection connection) =>
-      !_disposed && identical(_connection, connection) &&
-      identical(session.currentConnection, connection) && connection.isCurrent &&
+      !_disposed &&
+      identical(_connection, connection) &&
+      identical(session.currentConnection, connection) &&
+      connection.isCurrent &&
       _repository?.commandCharacteristic != null;
 
   /// False means no native command write was invoked. Once write is invoked,
   /// any later error propagates: retrying that uncertain actuation is unsafe.
-  Future<bool> dispatchExplicitAction(SessionConnection connection, EventType kind) async {
+  Future<bool> dispatchExplicitAction(
+      SessionConnection connection, EventType kind) async {
     var issued = false;
     try {
       if (!canDispatchExplicitAction(connection)) return false;
@@ -212,8 +220,12 @@ class ScooterActions {
       _unlock(_capture(), checkHandlebars, source);
   Future<void> _unlock(
       _Target t, bool checkHandlebars, EventSource source) async {
-    await _ack(t, EventType.unlock, source,
-        (d, r, c) => commands.unlockScooter(d, r, isCurrent: c, onWriteIssued: t.onWriteIssued));
+    await _ack(
+        t,
+        EventType.unlock,
+        source,
+        (d, r, c) => commands.unlockScooter(d, r,
+            isCurrent: c, onWriteIssued: t.onWriteIssued));
     _check(t);
     if (t.settings.openSeatOnUnlock) {
       await _wait(t, const Duration(seconds: 1));
@@ -234,19 +246,24 @@ class ScooterActions {
   }
 
   Future<void> lock(
-      {bool checkHandlebars = true,
-      bool confirmOpenSeat = false,
-      EventSource source = EventSource.app}) async =>
-      _lock(_capture(), checkHandlebars, source, confirmOpenSeat: confirmOpenSeat);
+          {bool checkHandlebars = true,
+          bool confirmOpenSeat = false,
+          EventSource source = EventSource.app}) async =>
+      _lock(_capture(), checkHandlebars, source,
+          confirmOpenSeat: confirmOpenSeat);
   Future<void> _lock(_Target t, bool checkHandlebars, EventSource source,
       {bool confirmOpenSeat = false}) async {
     // Explicit open-seat intent is two sequential ordinary writes, not a retry.
     // Both use the same captured connection/repository; any failure stops here.
-    await _command(t,
-        (d, r, c) => commands.lockScooter(d, r, isCurrent: c, onWriteIssued: t.onWriteIssued));
+    await _command(
+        t,
+        (d, r, c) => commands.lockScooter(d, r,
+            isCurrent: c, onWriteIssued: t.onWriteIssued));
     if (confirmOpenSeat) {
-      await _command(t,
-          (d, r, c) => commands.lockScooter(d, r, isCurrent: c, onWriteIssued: t.onWriteIssued));
+      await _command(
+          t,
+          (d, r, c) => commands.lockScooter(d, r,
+              isCurrent: c, onWriteIssued: t.onWriteIssued));
     }
     effects.acknowledged(t.event(EventType.lock, source));
     _check(t);
@@ -299,7 +316,8 @@ class ScooterActions {
       t,
       EventType.openSeat,
       source,
-      (d, r, c) => commands.openSeatCommand(d, r, isCurrent: c, onWriteIssued: t.onWriteIssued));
+      (d, r, c) => commands.openSeatCommand(d, r,
+          isCurrent: c, onWriteIssued: t.onWriteIssued));
   Future<void> openSeat({EventSource source = EventSource.app}) =>
       _seat(_capture(), source);
   Future<void> _blink(_Target t, bool left, bool right) => _command(
@@ -348,6 +366,7 @@ class ScooterActions {
       _capture(),
       (d, r, c) => transport.sendLsExtendedCommand(d, r, clockPayload(time),
           isCurrent: c));
+
   /// Read-only diagnostic snapshot. Every query uses one captured session;
   /// replacement or disconnect discards the whole result, without retrying.
   Future<Map<String, String?>> readInstalledVersions() async {
@@ -356,8 +375,10 @@ class ScooterActions {
     if (target.repository.extendedCommandCharacteristic != null &&
         target.repository.extendedResponseCharacteristic != null) {
       for (final component in const ['mdb', 'dbc']) {
-        versions[component] = await _command(target,
-            (d, r, c) => queries.getInstalledVersionCommand(d, r, component, isCurrent: c));
+        versions[component] = await _command(
+            target,
+            (d, r, c) => queries.getInstalledVersionCommand(d, r, component,
+                isCurrent: c));
       }
     }
     _check(target);
@@ -518,11 +539,20 @@ class ScooterActions {
       return;
     }
     final currentSettings = settings();
-    if (currentSettings.autoUnlock &&
+    final bool wouldUnlock = currentSettings.autoUnlock &&
         value > currentSettings.autoUnlockThreshold &&
         telemetry.state == ScooterState.standby &&
         !_cooldown &&
-        currentSettings.optionalAuth) {
+        currentSettings.optionalAuth;
+    if (wouldUnlock && currentSettings.autoUnlockAmbiguous) {
+      if (!_ambiguityWarned) {
+        _ambiguityWarned = true;
+        effects.autoUnlockRefused();
+      }
+      return;
+    }
+    _ambiguityWarned = false;
+    if (wouldUnlock) {
       // The RSSI budget bounds the read, not the subsequent basic unlock.
       final action = _Target(t.connection, t.repository, t.settings, t.soc1,
           t.soc2, t.location, null);
