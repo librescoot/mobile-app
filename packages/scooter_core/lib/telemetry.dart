@@ -10,18 +10,25 @@ enum UsbMode {
   massStorage,
 }
 
-/// Splits `<source>,<RFC3339 timestamp>` into its two halves. The timestamp is
-/// null if it doesn't parse, since the source alone is still worth showing.
+const Set<String> alarmTriggerSources = {
+  'motion',
+  'seatbox',
+  'handlebar_position',
+  'handlebar_lock',
+  'brake_left',
+  'brake_right',
+  'horn_button',
+  'seatbox_button',
+};
+
+/// Parses `<known source>,<RFC3339 timestamp>`.
 ({String source, DateTime? timestamp})? parseAlarmLastTrigger(String value) {
   final int comma = value.indexOf(',');
-  if (comma < 0) {
-    return value.isEmpty ? null : (source: value, timestamp: null);
-  }
-  final String source = value.substring(0, comma);
-  if (source.isEmpty) return null;
+  final String source = comma < 0 ? value : value.substring(0, comma);
+  if (!alarmTriggerSources.contains(source)) return null;
   return (
     source: source,
-    timestamp: DateTime.tryParse(value.substring(comma + 1))
+    timestamp: comma < 0 ? null : DateTime.tryParse(value.substring(comma + 1))
   );
 }
 

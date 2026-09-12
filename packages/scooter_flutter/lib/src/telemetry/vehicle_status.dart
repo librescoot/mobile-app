@@ -165,9 +165,49 @@ class VehicleStatus {
         alarmStatus = AlarmStatus.fromString(decodeCharacteristicString(data));
         onAlarmChanged();
       }, isCurrent: current));
+
+      final alarmLastTriggerCharacteristic =
+          chars.alarmLastTriggerCharacteristic!;
+      var alarmTriggerRecoveryAttempted = false;
+
+      void requestAlarmTriggerRecoveryRead() {
+        if (alarmTriggerRecoveryAttempted || !current()) return;
+        alarmTriggerRecoveryAttempted = true;
+        Future<void>(() async {
+          try {
+            if (current()) await alarmLastTriggerCharacteristic.read();
+          } catch (e, stack) {
+            log.warning('Failed to reread alarm trigger', e, stack);
+          }
+        });
+      }
+
       _subscriptions.add(subscribeProtectionCharacteristic(
-          chars.alarmLastTriggerCharacteristic!, (data) {
-        alarmLastTrigger = parseAlarmLastTrigger(decodeCharacteristicString(data));
+          alarmLastTriggerCharacteristic, (data) {
+        String value;
+        try {
+          value = decodeCharacteristicStringStrict(data);
+        } on FormatException catch (e, stack) {
+          log.warning('Ignoring malformed alarm trigger', e, stack);
+          requestAlarmTriggerRecoveryRead();
+          return;
+        }
+
+        alarmTriggerRecoveryAttempted = false;
+        if (value.isEmpty) {
+          alarmLastTrigger = null;
+          onAlarmChanged();
+          return;
+        }
+
+        final trigger = parseAlarmLastTrigger(value);
+        if (trigger == null) {
+          log.warning('Ignoring alarm trigger with unknown source');
+          requestAlarmTriggerRecoveryRead();
+          return;
+        }
+
+        alarmLastTrigger = trigger;
         onAlarmChanged();
       }, isCurrent: current));
       _subscriptions.add(subscribeProtectionCharacteristic(
