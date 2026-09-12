@@ -1,0 +1,4 @@
+Correctie van de alarmstatus:
+
+• Negeert beschadigde alarmtriggergegevens in plaats van een technische vertaalsleutel te tonen
+• Leest de trigger opnieuw na beschadigde gegevens

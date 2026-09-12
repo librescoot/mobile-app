@@ -1,0 +1,4 @@
+Korrektur der Alarmanzeige:
+
+• Ignoriert beschädigte Alarmauslöser-Daten, statt einen technischen Übersetzungsschlüssel anzuzeigen
+• Liest den Auslöser nach beschädigten Daten erneut

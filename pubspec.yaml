@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # Versioning tracks the matching Librescoot stable release's major.minor
 # numbers. This app uses its own patch version and monotonically increasing
 # build number for independently shipped mobile releases.
-version: 1.3.0-beta.5+50
+version: 1.3.0-beta.6+51
 
 environment:
   sdk: '>=3.5.0 <4.0.0'

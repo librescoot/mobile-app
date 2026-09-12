@@ -1,0 +1,4 @@
+Correction de l’état de l’alarme :
+
+• Ignore les données endommagées du déclencheur au lieu d’afficher une clé de traduction technique
+• Relit le déclencheur après réception de données endommagées
