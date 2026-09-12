@@ -724,6 +724,38 @@ void main() {
     expect(h.effects.repositories.last, same(latest));
   });
 
+  sessionTest('three invalid active handoffs fail closed without a fourth',
+      (tester) async {
+    final h = create(android: true);
+    final connected = h.connect('A');
+    await tester.pump();
+    await h.finish(tester, 'A');
+    expect(await connected, isNull);
+
+    final stale = List.generate(3, (_) {
+      return _Repository(h.devices['A']!, h.trace)
+        ..afterValidationHandoff = () => h.devices['A']!.servicesResets.add(null);
+    });
+    h.queuedRepositories[h.devices['A']!] = stale.toList();
+    h.devices['A']!.servicesResets.add(null);
+    await tester.pump();
+    await tester.pump();
+
+    expect(h.repositoryHistory, hasLength(4),
+        reason: 'the initial table plus exactly three recovery candidates');
+    expect(h.trace.where((event) => event == 'A.discover'), hasLength(4));
+    expect(h.trace.where((event) => event == 'A.validate'), hasLength(4));
+    expect(h.effects.repositories, hasLength(1));
+    for (final repository in stale) {
+      expect(h.effects.repositories, isNot(contains(same(repository))),
+          reason: 'invalidated candidates must not start notify/write work');
+    }
+    expect(h.devices['A']!.link.disconnects, 1);
+    expect(h.devices['A']!.link.connected, isFalse);
+    expect(h.session.connected, isFalse);
+    expect(h.session.device, isNull);
+  });
+
   for (final platform in ['Android', 'iOS']) {
     sessionTest('$platform Service Changed while active quiesces then rewires',
         (tester) async {

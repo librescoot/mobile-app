@@ -344,6 +344,12 @@ class ScooterSession {
                 handledServicesGeneration = candidate.servicesGeneration;
               }
             }
+            if (attempt.isCurrent &&
+                !attemptedScooter.isDisconnected &&
+                handledServicesGeneration != servicesGeneration) {
+              throw const _UnsafeGattTable(
+                  'services kept changing before recovery could be wired');
+            }
           } catch (e, stack) {
             await _failUnsafeGattTable(attempt, attemptedScooter, e, stack);
           } finally {
