@@ -200,6 +200,7 @@ class ScooterTelemetry {
         identity.supportsBatteryKeepActive = false;
         identity.supportsAlarmControl = false;
       }
+      identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repository);
       _notify(connection);
     });
   }
@@ -301,6 +302,20 @@ class ScooterTelemetry {
     }
     if (!_current(connection)) return;
     identity.supportsAlarmControl = supportsAlarmControl;
+    identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repository);
     _notify(connection);
+  }
+
+  /// Whether this connection shows a GATT table that cannot be the scooter's
+  /// current one. Only un-pairing clears the phone's copy, so this reports and
+  /// does not act.
+  bool _bluetoothTableOutOfDate(CharacteristicRepository repo) {
+    if (repo.gattTableMismatch) return true;
+    if (repo.anyAreNull()) return true;
+    // The original unu firmware has no extended channel, so its absence only
+    // means something on librescoot firmware.
+    if (identity.isLibrescoot != true) return false;
+    if (repo.extendedChannelMissing) return true;
+    return repo.extendedChannelSilent;
   }
 }

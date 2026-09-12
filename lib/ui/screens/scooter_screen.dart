@@ -146,8 +146,8 @@ class _ScooterScreenState extends State<ScooterScreen> {
         shrinkWrap: true,
         children: [
           ...scooters.map((scooter) {
-            final bool connected = (scooter.id == scooterService.currentScooterId &&
-                scooterService.state != ScooterState.disconnected);
+            final bool connected =
+                (scooter.id == scooterService.currentScooterId && scooterService.state != ScooterState.disconnected);
             // While a connection attempt is in flight, the status label
             // belongs to the scooter we're connecting to, not to whichever
             // one the service still remembers.
@@ -235,6 +235,25 @@ class SavedScooterCard extends StatelessWidget {
     SharedPreferencesAsync prefs = SharedPreferencesAsync();
     await prefs.setInt("color", newColor);
     if (context.mounted) context.read<ScooterService>().scooterColor = newColor;
+  }
+
+  /// Forgets this scooter, waiting for the removal to land before rebuilding.
+  Future<void> _forget(BuildContext context) async {
+    bool? forget = await showForgetDialog(context);
+    if (forget != true || !context.mounted) return;
+    String name = savedScooter.name;
+    final String message = FlutterI18n.translate(
+      context,
+      "forget_alert_success",
+      translationParams: {"name": name},
+    );
+    final service = context.read<ScooterService>();
+    final id = savedScooter.id;
+    await service.forgetSavedScooter(id);
+    // A replacement/disposal can quietly supersede forgetting.
+    if (!context.mounted || service.savedScooters.containsKey(id)) return;
+    rebuild();
+    Fluttertoast.showToast(msg: message);
   }
 
   Future<void> _connect(BuildContext context) async {
@@ -387,6 +406,12 @@ class SavedScooterCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                if (connected &&
+                    context.select<ScooterService, bool>(
+                        (service) => service.identity.bluetoothTableOutOfDate == true)) ...[
+                  const SizedBox(height: 12),
+                  _StaleBluetoothProfileCard(onForget: () => _forget(context)),
+                ],
                 SizedBox(height: 8),
                 BatteryBars(
                   primarySOC: savedScooter.lastPrimarySOC,
@@ -531,27 +556,7 @@ class SavedScooterCard extends StatelessWidget {
                               horizontal: 16,
                             ),
                           ),
-                          onPressed: () async {
-                            bool? forget = await showForgetDialog(context);
-                            if (forget == true && context.mounted) {
-                              String name = savedScooter.name;
-                              // Wait for the removal to land before rebuilding,
-                              // otherwise the list redraws from the old state
-                              // and the scooter looks like it is still there.
-                              final String message = FlutterI18n.translate(
-                                context,
-                                "forget_alert_success",
-                                translationParams: {"name": name},
-                              );
-                              final service = context.read<ScooterService>();
-                              final id = savedScooter.id;
-                              await service.forgetSavedScooter(id);
-                              // A replacement/disposal can quietly supersede forgetting.
-                              if (!context.mounted || service.savedScooters.containsKey(id)) return;
-                              rebuild();
-                              Fluttertoast.showToast(msg: message);
-                            }
-                          },
+                          onPressed: () => _forget(context),
                           icon: Icon(
                             Icons.delete_outline,
                             color: Theme.of(context).colorScheme.error,
@@ -990,6 +995,56 @@ class SavedScooterListItem extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Shown when the phone is still using the GATT table it cached at pairing, so
+/// un-pairing is the only fix.
+class _StaleBluetoothProfileCard extends StatelessWidget {
+  const _StaleBluetoothProfileCard({required this.onForget});
+
+  final VoidCallback onForget;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.bluetooth_disabled_outlined, size: 20, color: scheme.error),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    FlutterI18n.translate(context, "ls_stale_bluetooth_title"),
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              FlutterI18n.translate(context, "ls_stale_bluetooth_body"),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.tonal(
+                onPressed: onForget,
+                child: Text(FlutterI18n.translate(context, "ls_stale_bluetooth_action")),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

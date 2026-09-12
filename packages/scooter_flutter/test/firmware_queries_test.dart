@@ -20,7 +20,9 @@ class _Channel extends Fake implements BluetoothCharacteristic {
   Stream<List<int>> get onValueReceived => values.stream;
   @override
   Future<void> write(List<int> value,
-      {bool withoutResponse = false, bool allowLongWrite = false, int timeout = 15}) async {
+      {bool withoutResponse = false,
+      bool allowLongWrite = false,
+      int timeout = 15}) async {
     writes.add(ascii.decode(value));
     for (final reply in replies) {
       values.add(utf8.encode(reply));
@@ -35,6 +37,15 @@ class _Repository extends Fake implements CharacteristicRepository {
   BluetoothCharacteristic get extendedCommandCharacteristic => channel;
   @override
   BluetoothCharacteristic get extendedResponseCharacteristic => channel;
+
+  // Discovery accounting is not what these tests exercise; the transport calls
+  // it on every command and response.
+  @override
+  void noteExtendedResponse() {}
+  @override
+  void noteSilentExtendedCommand() {}
+  @override
+  void noteGattRejection(Object error, String operation) {}
 }
 
 void main() {
@@ -61,14 +72,20 @@ void main() {
     expect(await getInstalledVersionCommand(device, repo, 'mdb'), isNull);
   });
 
-  test('unknown installed version is preserved, not treated as no response', () async {
+  test('unknown installed version is preserved, not treated as no response',
+      () async {
     channel.replies = ['status:version:dbc:unknown'];
     expect(await getInstalledVersionCommand(device, repo, 'dbc'), 'unknown');
   });
 
   test('power capabilities retain names and discard argument syntax', () async {
-    channel.replies = ['cap:pm:count:2', 'cap:pm:hibernate-for <duration>', 'cap:pm:hibernate-cancel'];
-    expect(await getPmCapabilitiesCommand(device, repo), {'hibernate-for', 'hibernate-cancel'});
+    channel.replies = [
+      'cap:pm:count:2',
+      'cap:pm:hibernate-for <duration>',
+      'cap:pm:hibernate-cancel'
+    ];
+    expect(await getPmCapabilitiesCommand(device, repo),
+        {'hibernate-for', 'hibernate-cancel'});
     expect(channel.writes, ['cap:pm']);
   });
 
@@ -84,7 +101,8 @@ void main() {
 
   test('setting values preserve spaces and colons', () async {
     channel.replies = ['get:example:value with spaces:and:colons'];
-    expect(await getLsSettingCommand(device, repo, 'example'), 'value with spaces:and:colons');
+    expect(await getLsSettingCommand(device, repo, 'example'),
+        'value with spaces:and:colons');
     expect(channel.writes, ['get:example']);
   });
 
@@ -96,11 +114,13 @@ void main() {
   });
 
   test('empty write is rejected before sending', () async {
-    await expectLater(setLsSettingCommand(device, repo, 'example', ''), throwsA('Setting value must not be empty'));
+    await expectLater(setLsSettingCommand(device, repo, 'example', ''),
+        throwsA('Setting value must not be empty'));
     expect(channel.writes, isEmpty);
   });
 
-  test('setting write requires acknowledgement for exactly its own key', () async {
+  test('setting write requires acknowledgement for exactly its own key',
+      () async {
     channel.replies = ['set:ok:example'];
     await setLsSettingCommand(device, repo, 'example', 'some:value');
     expect(channel.writes, ['set:example:some:value']);

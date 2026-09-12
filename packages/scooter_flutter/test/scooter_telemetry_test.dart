@@ -576,6 +576,65 @@ void main() {
     expect(h.effects.patches.every((p) => p.$1 == 'A'), true);
   });
 
+  test('a librescoot scooter missing the extended channel is reported',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _firmware(r);
+    await _flush();
+    expect(h.telemetry.identity.bluetoothTableOutOfDate, isTrue);
+  });
+
+  test('a complete table on a responsive channel is not reported', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    r.extendedCommandCharacteristic =
+        r.chars['extendedCommand'] = _Characteristic();
+    r.extendedResponseCharacteristic =
+        r.chars['extendedResponse'] = _Characteristic();
+    _firmware(r);
+    await _flush();
+    expect(h.telemetry.identity.bluetoothTableOutOfDate, isFalse);
+  });
+
+  test('a silent extended channel is reported even when nothing is missing',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    r.extendedCommandCharacteristic =
+        r.chars['extendedCommand'] = _Characteristic();
+    r.extendedResponseCharacteristic =
+        r.chars['extendedResponse'] = _Characteristic();
+    r.noteSilentExtendedCommand();
+    r.noteSilentExtendedCommand();
+    _firmware(r);
+    await _flush();
+    expect(h.telemetry.identity.bluetoothTableOutOfDate, isTrue);
+  });
+
+  test('stock firmware is never reported for its missing extended channel',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _firmware(r, 'stock');
+    await _flush();
+    expect(h.telemetry.identity.bluetoothTableOutOfDate, isFalse);
+  });
+
+  test('a refused operation reports the table as out of date', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    r.gattTableMismatch = true;
+    _firmware(r, 'stock');
+    await _flush();
+    expect(h.telemetry.identity.bluetoothTableOutOfDate, isTrue);
+  });
+
   test('stock firmware disables all capabilities without probes', () async {
     final h = _Harness();
     addTearDown(h.dispose);

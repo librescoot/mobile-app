@@ -95,6 +95,7 @@ class ScooterSession {
 
   SessionConnection? _publishedConnectionAttempt;
   SessionConnection? get currentConnection => _publishedConnectionAttempt;
+  StreamSubscription<void>? _servicesResetSubscription;
   String? _connectingScooterId;
   String? get connectingScooterId => _connectingScooterId;
   String? _manualTargetId;
@@ -195,9 +196,12 @@ class ScooterSession {
     effects.invalidateTelemetry();
     final previousSubscription = _connectionStateSubscription;
     _connectionStateSubscription = null;
+    final previousServicesResetSubscription = _servicesResetSubscription;
+    _servicesResetSubscription = null;
 
     try {
       await previousSubscription?.cancel();
+      await previousServicesResetSubscription?.cancel();
       ensureCurrentAttempt();
 
       log.info(
@@ -277,14 +281,41 @@ class ScooterSession {
       final repository = repositoryFactory(attemptedScooter);
       await repository.findAll(additionalLibrescootFeatures: true);
       ensureCurrentAttempt();
-      effects.wireTelemetry(attempt, repository);
-      ensureCurrentAttempt();
+      // Missing base characteristics mean a link that cannot work; re-read the
+      // table once before wiring telemetry against it.
+      CharacteristicRepository live = repository;
       if (repository.anyAreNull()) {
-        log.warning("Some characteristics are null");
+        log.warning(
+            "Base characteristics missing after discovery, re-reading services");
+        live = await _rereadServices(attemptedScooter, attempt) ?? repository;
+        ensureCurrentAttempt();
       }
+      effects.wireTelemetry(attempt, live);
       ensureCurrentAttempt();
 
       effects.readyMetadata(attempt);
+      ensureCurrentAttempt();
+
+      // A firmware update changes the scooter's GATT table while Android keeps
+      // the one it cached at pairing; this indication is the scooter saying so.
+      previousServicesResetSubscription?.cancel();
+      try {
+        _servicesResetSubscription =
+            attemptedScooter.onServicesReset.listen((_) async {
+          if (!attempt.isCurrentAttempt || attemptedScooter.isDisconnected) {
+            return;
+          }
+          log.info(
+              "Scooter reported changed Bluetooth services, re-reading services");
+          final refreshed = await _rereadServices(attemptedScooter, attempt);
+          if (refreshed == null || !attempt.isCurrentAttempt) return;
+          effects.wireTelemetry(attempt, refreshed);
+        });
+      } catch (e) {
+        // Android/Linux-only in flutter_blue_plus; iOS handles the change itself.
+        log.fine("No Service Changed stream available: $e");
+        _servicesResetSubscription = null;
+      }
       ensureCurrentAttempt();
       _connectingScooterId = null;
       connected = true;
@@ -565,6 +596,28 @@ class ScooterSession {
     }
   }
 
+  /// Re-reads the scooter's GATT table after the phone's cached copy proved
+  /// wrong. `clearGattCache` reaches a hidden API most devices refuse, so it is
+  /// best-effort.
+  Future<CharacteristicRepository?> _rereadServices(
+      BluetoothDevice scooter, SessionConnection attempt) async {
+    try {
+      await scooter.clearGattCache();
+      log.info("Cleared the cached GATT table, re-reading services");
+    } catch (e) {
+      log.fine("Could not clear the cached GATT table: $e");
+    }
+    try {
+      final refreshed = repositoryFactory(scooter);
+      await refreshed.findAll(additionalLibrescootFeatures: true);
+      if (!attempt.isCurrentAttempt || scooter.isDisconnected) return null;
+      return refreshed;
+    } catch (e, stack) {
+      log.warning("Re-reading the scooter's GATT table failed", e, stack);
+      return null;
+    }
+  }
+
   void stopAutoRestart({bool clearManualTarget = true}) {
     _autoRestarting = false;
     _targetScooterId = null;
@@ -586,6 +639,8 @@ class ScooterSession {
     stopAutoRestart();
     effects.invalidateTelemetry();
     _connectionStateSubscription?.cancel();
+    _servicesResetSubscription?.cancel();
+    _servicesResetSubscription = null;
     final devices = <String, BluetoothDevice>{};
     for (final transport in [
       device,

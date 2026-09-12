@@ -177,6 +177,7 @@ class _Effects implements ScooterSessionEffects {
     phase('${connection.id}.linking');
     onLinking?.call(connection);
   }
+
   @override
   void transportConnected(SessionConnection connection) {
     connections.add(connection);
@@ -372,8 +373,8 @@ void main() {
         'A.priority',
         'A.published',
         'A.discover',
-        'A.wire',
         'A.complete',
+        'A.wire',
         'A.metadata',
         'connected:true:null',
         'A.ready',

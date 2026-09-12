@@ -33,6 +33,10 @@ class FirmwareIdentity {
   bool? supportsBatteryKeepActive;
   bool? supportsAlarmControl;
 
+  /// True when this connection shows a GATT table that cannot be the scooter's
+  /// current one, i.e. the phone's cached table predates its firmware.
+  bool? bluetoothTableOutOfDate;
+
   void resetLsCapabilities() {
     supportsHibernateFor = null;
     supportsScheduledHibernation = null;
@@ -40,6 +44,7 @@ class FirmwareIdentity {
     supportsBondForget = null;
     supportsBatteryKeepActive = null;
     supportsAlarmControl = null;
+    bluetoothTableOutOfDate = null;
   }
 
   void wireOdometer(

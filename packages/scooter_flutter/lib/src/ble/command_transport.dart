@@ -71,7 +71,12 @@ Future<void> sendCommand(
   // From this point even a synchronous native write error is ambiguous. This
   // optional observation lets explicit requests retain only definite non-writes.
   onWriteIssued?.call();
-  await target.write(bytes, allowLongWrite: allowLongWrite);
+  try {
+    await target.write(bytes, allowLongWrite: allowLongWrite);
+  } catch (e) {
+    characteristicRepository.noteGattRejection(e, 'Command write');
+    rethrow;
+  }
 }
 
 /// Sends a command to the extended characteristic (only available on librescoot
@@ -111,19 +116,31 @@ Future<String?> _sendLsExtendedCommandUnguarded(
 
   _log.info(
       'Extended command acquired channel; notifications=${resp.isNotifying}');
-  await ensureExtendedNotify(resp);
+  try {
+    await ensureExtendedNotify(resp);
+  } catch (e) {
+    repo.noteGattRejection(e, 'Extended response notify-enable');
+    rethrow;
+  }
   checkCommandCurrent(isCurrent);
   final listener = ExtendedResponseListener(resp.onValueReceived);
   try {
     await sendCommand(scooter, repo, command,
         characteristic: cmd, allowLongWrite: true, isCurrent: isCurrent);
     _log.info('Extended command written; waiting for response');
-    final response = await listener.responses.first.timeout(responseTimeout);
+    final response = await listener.responses
+        .map((response) {
+          repo.noteExtendedResponse();
+          return response;
+        })
+        .first
+        .timeout(responseTimeout);
     _log.info(
         'Extended command received ${utf8.encode(response).length} bytes');
     return response;
   } on TimeoutException {
     _log.warning('Extended command timed out');
+    repo.noteSilentExtendedCommand();
     return null;
   } finally {
     await listener.cancel();

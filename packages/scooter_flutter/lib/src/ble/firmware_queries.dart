@@ -62,11 +62,15 @@ Future<Set<String>> getLsCapabilitiesCommand(
       final listener = ExtendedResponseListener(resp.onValueReceived);
       try {
         await sendCommand(scooter, repo, "cap:$category", characteristic: cmd);
-        final stream = listener.responses.timeout(const Duration(seconds: 10));
+        final stream = listener.responses.map((response) {
+          repo.noteExtendedResponse();
+          return response;
+        }).timeout(const Duration(seconds: 10));
         final entries = await readExtendedList(
             stream, (msg) => parseCapabilityEntry(category, msg));
         return entries.toSet();
       } on TimeoutException {
+        repo.noteSilentExtendedCommand();
         _log.info(
             "getLsCapabilitiesCommand: timeout, assuming no $category capabilities");
         return <String>{};
