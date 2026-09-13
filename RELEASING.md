@@ -1,19 +1,21 @@
 # Releasing
 
 Three workflows. `ci.yaml` analyzes and tests every push and PR. `nightly.yaml`
-builds an APK from every push to `main` and publishes it as its own
-`nightly-<timestamp>` prerelease, keeping the last 10. `release.yaml` builds
-signed release artifacts from a version tag or manual dispatch. It can upload
-iOS to TestFlight when configured. Android Play publication is a separate,
-keyless Publisher API step after the signed artifact has been verified.
+builds signed Android artifacts from every push to `main`, publishes the AAB to
+Play internal testing, and publishes its APK as a `nightly-<timestamp>`
+prerelease, keeping the last 10. `release.yaml` builds signed release artifacts
+from a version tag or manual dispatch, uploads the AAB to its resolved Play
+track, and can upload iOS to TestFlight when configured.
 
 ## Cutting a release
 
 The app version tracks the matching Librescoot stable release's `major.minor`.
-Mobile releases use their own patch and prerelease suffix, plus an independently
-monotonic build number. For example, releases aligned with Librescoot 1.3 may be
-`1.3.1+48` or `1.3.2-beta.1+49`. Keep the format conventional Dart/Flutter
-semantic versioning rather than introducing a second embedded version tuple.
+Mobile releases use their own patch and prerelease suffix. CI overrides the
+Android build number with seconds since 2020, which is monotonic and distinct
+from historic manually assigned codes. For example, releases aligned with
+Librescoot 1.3 may be `1.3.1+48` or `1.3.2-beta.1+49`; keep the format
+conventional Dart/Flutter semantic versioning rather than introducing a second
+embedded version tuple.
 
 ```bash
 # bump pubspec.yaml, for example: version: 1.3.1+48
@@ -30,15 +32,15 @@ TestFlight cannot be withdrawn, only superseded.
 
 A hyphen in the tag marks it as a GitHub prerelease. The workflow resolves an
 intended Play track (`internal` for prereleases, `beta` otherwise), which can be
-overridden for a manual dispatch. Android is not uploaded automatically: verify
-the signed AAB, then publish it to the intended track using the keyless process
-below. Every configured iOS build goes to TestFlight, since TestFlight has no
-track split.
+overridden for a manual dispatch. It verifies the uploaded AAB's version code
+and SHA-256 before committing the Play edit, then checks the committed track and
+bundle again. Every configured iOS build goes to TestFlight, since TestFlight
+has no track split.
 
-`changelog.md` becomes the GitHub release body and the staged English Play
-fallback. Keep it within Play's 500-character limit. The localized files under
-`distribution/play/metadata/android/*/changelogs/<build>.txt` are authoritative
-for the keyless Play upload.
+`changelog.md` becomes the GitHub release body and English Play notes. Keep it
+within Play's 500-character limit. The localized files under
+`distribution/play/metadata/android/*/changelogs/<build>.txt` remain the
+localized distribution metadata for a manual Play update.
 
 ## Required secrets
 
@@ -93,26 +95,16 @@ base64 -i upload-keystore.jks | pbcopy   # -> KEYSTORE
 
 ### Keyless Play Publisher access
 
-1. Play Console -> Setup -> API access: link the Google Cloud project.
-2. Give a service account app-level release permissions for
-   `org.librescoot.mobile.unu` in Play Console.
-3. Grant authorized maintainers `roles/iam.serviceAccountTokenCreator` on that
-   service account. Keep organization policy preventing service-account key
-   creation enabled.
-4. Authenticate interactively with `gcloud auth application-default login`,
-   including `https://www.googleapis.com/auth/androidpublisher` in the requested
-   scopes.
-5. Obtain a short-lived Publisher token with `gcloud auth application-default
-   print-access-token --scopes=https://www.googleapis.com/auth/androidpublisher
-   --impersonate-service-account=<publisher-service-account>`.
-6. Use a single Publisher edit to upload the verified AAB, replace only the
-   intended track, verify its staged release name/code/notes, and commit the
-   edit. Open a fresh read-only edit afterward to confirm the bundle digest,
-   committed track state, and that production remains unchanged.
+GitHub Actions authenticates through Google Workload Identity Federation, not a
+stored token or service-account key. The `github-actions` pool's `mobile-app`
+provider accepts only OIDC tokens for `librescoot/mobile-app`; it may impersonate
+`librescoot-play-publisher@android-apps-508215.iam.gserviceaccount.com` through
+`roles/iam.workloadIdentityUser`.
 
-Never publish a first or follow-up release using a downloaded service-account
-key. Never promote an internal release to another track without explicit owner
-approval.
+Keep organization policy preventing service-account key creation enabled. A
+maintainer who needs manual Publisher access must use a short-lived impersonated
+token; never download or store a service-account key. Never promote an internal
+release to another track without explicit owner approval.
 
 ### App Store Connect API key
 
