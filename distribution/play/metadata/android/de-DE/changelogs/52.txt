@@ -1,0 +1,4 @@
+Bereinigung der Einstellungen:
+
+• Blendet die Distanzsteuerung für automatisches Entsperren aus, bis automatisches Entsperren aktiviert ist
+• Entfernt die überflüssige Pro-Roller-Beschriftung aus den Einstellungen für Zugang und Parken

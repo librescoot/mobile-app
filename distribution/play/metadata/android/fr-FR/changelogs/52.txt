@@ -1,0 +1,4 @@
+Nettoyage des réglages :
+
+• Masque le réglage de distance du déverrouillage automatique tant qu’il n’est pas activé
+• Retire l’étiquette redondante par scooter des réglages Accès et stationnement

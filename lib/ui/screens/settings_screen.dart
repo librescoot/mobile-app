@@ -825,16 +825,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool autoUnlock,
     required bool openSeatOnUnlock,
     required bool hazardLocking,
-    required String? scooterName,
   }) =>
       [
         Header(
           FlutterI18n.translate(context, "settings_section_access_parking"),
-          subtitle: FlutterI18n.translate(
-            context,
-            scooterName == null ? "settings_scope_no_scooter" : "settings_scope_scooter",
-            translationParams: scooterName == null ? null : {"name": scooterName},
-          ),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
         ),
         SwitchListTile(
@@ -882,49 +876,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
             context.read<ScooterService>().setAutoUnlock(value);
           },
         ),
-        ListTile(
-          enabled: autoUnlock,
-          title: Text(
-            "${FlutterI18n.translate(context, "settings_auto_unlock_threshold")}: ${autoUnlockDistance.name(context)}",
-          ),
-          subtitle: Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Slider(
-                value: autoUnlockDistance.threshold.toDouble(),
-                min: ScooterKeylessDistance.getMinThresholdDistance().threshold.toDouble(),
-                max: ScooterKeylessDistance.getMaxThresholdDistance().threshold.toDouble(),
-                secondaryTrackValue: context.read<ScooterService>().identity.rssi?.toDouble(),
-                divisions: ScooterKeylessDistance.values.length - 1,
-                label: autoUnlockDistance.getFormattedThreshold(),
-                onChanged: autoUnlock
-                    ? (value) async {
-                        var distance = ScooterKeylessDistance.fromThreshold(
+        if (autoUnlock)
+          ListTile(
+            title: Text(
+              "${FlutterI18n.translate(context, "settings_auto_unlock_threshold")}: ${autoUnlockDistance.name(context)}",
+            ),
+            subtitle: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Slider(
+                  value: autoUnlockDistance.threshold.toDouble(),
+                  min: ScooterKeylessDistance.getMinThresholdDistance().threshold.toDouble(),
+                  max: ScooterKeylessDistance.getMaxThresholdDistance().threshold.toDouble(),
+                  secondaryTrackValue: context.read<ScooterService>().identity.rssi?.toDouble(),
+                  divisions: ScooterKeylessDistance.values.length - 1,
+                  label: autoUnlockDistance.getFormattedThreshold(),
+                  onChanged: (value) async {
+                    var distance = ScooterKeylessDistance.fromThreshold(
+                      value.toInt(),
+                    );
+                    context.read<ScooterService>().setAutoUnlockThreshold(
                           value.toInt(),
                         );
-                        context.read<ScooterService>().setAutoUnlockThreshold(
-                              value.toInt(),
-                            );
-                        setState(() {
-                          autoUnlockDistance = distance;
-                        });
-                      }
-                    : null,
-              ),
-              if (context.read<ScooterService>().identity.rssi != null)
-                Text(
-                  FlutterI18n.translate(
-                    context,
-                    "settings_auto_unlock_threshold_explainer",
-                    translationParams: {
-                      "rssi": context.read<ScooterService>().identity.rssi.toString(),
-                    },
-                  ),
+                    setState(() {
+                      autoUnlockDistance = distance;
+                    });
+                  },
                 ),
-            ],
+                if (context.read<ScooterService>().identity.rssi != null)
+                  Text(
+                    FlutterI18n.translate(
+                      context,
+                      "settings_auto_unlock_threshold_explainer",
+                      translationParams: {
+                        "rssi": context.read<ScooterService>().identity.rssi.toString(),
+                      },
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
         SwitchListTile(
           secondary: SvgPicture.asset(
             "assets/icons/librescoot-seatbox-open.svg",
@@ -1284,8 +1276,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           bool otaAvailable,
           bool autoUnlock,
           bool openSeatOnUnlock,
-          bool hazardLocking,
-          String? scooterName
+          bool hazardLocking
         })>(
       (service) => (
         isLibrescoot: service.identity.isLibrescoot == true,
@@ -1299,7 +1290,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         autoUnlock: service.autoUnlock,
         openSeatOnUnlock: service.openSeatOnUnlock,
         hazardLocking: service.hazardLocking,
-        scooterName: service.settingsTargetScooter?.name,
       ),
     );
     _ensureLsDataLoaded(ls.isLibrescoot);
@@ -1315,7 +1305,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       autoUnlock: ls.autoUnlock,
       openSeatOnUnlock: ls.openSeatOnUnlock,
       hazardLocking: ls.hazardLocking,
-      scooterName: ls.scooterName,
     );
 
     return Scaffold(

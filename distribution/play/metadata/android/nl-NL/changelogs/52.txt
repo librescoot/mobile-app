@@ -1,0 +1,4 @@
+Instellingen opgeschoond:
+
+• Verbergt de afstandsregeling voor automatisch ontgrendelen totdat die functie is ingeschakeld
+• Verwijdert het overbodige label per scooter uit de instellingen voor Toegang en parkeren
