@@ -102,7 +102,7 @@ jobs:
           GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
           python3 .github/scripts/publish_play.py \
-            --aab artifacts/app-release.aab \
+            --aab artifacts/bundle/release/app-release.aab \
             --track internal \
             --name "Nightly ${{ needs.build.outputs.version }}" \
             --version-code "${{ needs.build.outputs.version_code }}" \
@@ -136,7 +136,7 @@ jobs:
             **Version:** ${{ needs.build.outputs.version }}
             **Play version code:** ${{ needs.build.outputs.version_code }}
             **Commit:** ${{ github.sha }}
-          files: artifacts/app-release.apk
+          files: artifacts/flutter-apk/app-release.apk
           prerelease: true
 
       - name: Prune old nightlies

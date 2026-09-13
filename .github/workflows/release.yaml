@@ -160,7 +160,7 @@ jobs:
           GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
           python3 .github/scripts/publish_play.py \
-            --aab artifacts/app-release.aab \
+            --aab artifacts/bundle/release/app-release.aab \
             --track "${{ needs.meta.outputs.play_track }}" \
             --name "${{ needs.meta.outputs.version }}" \
             --version-code "${{ needs.android.outputs.version_code }}" \
