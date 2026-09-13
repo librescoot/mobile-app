@@ -164,7 +164,8 @@ jobs:
             --track "${{ needs.meta.outputs.play_track }}" \
             --name "${{ needs.meta.outputs.version }}" \
             --version-code "${{ needs.android.outputs.version_code }}" \
-            --notes-file changelog.md
+            --notes-dir distribution/play/metadata/android \
+            --notes-version "${{ needs.meta.outputs.version }}"
 
   ios:
     name: iOS

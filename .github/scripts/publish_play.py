@@ -37,17 +37,43 @@ def main():
     parser.add_argument("--track", required=True, choices=("internal", "alpha", "beta", "production"))
     parser.add_argument("--name", required=True)
     parser.add_argument("--version-code", required=True, type=int)
-    parser.add_argument("--notes-file", required=True)
+    parser.add_argument(
+        "--notes-file",
+        help="single-language release notes for every locale",
+    )
+    parser.add_argument(
+        "--notes-language",
+        default="en-US",
+        help="language code for --notes-file (default en-US)",
+    )
+    parser.add_argument(
+        "--notes-dir",
+        help="per-locale changelog root, keyed by version name",
+    )
+    parser.add_argument(
+        "--notes-version",
+        help="version name selecting <locale>/changelogs/<version>.txt under --notes-dir",
+    )
     args = parser.parse_args()
+
+    if bool(args.notes_file) == bool(args.notes_dir):
+        parser.error("pass either --notes-file or --notes-dir/--notes-version")
+    if args.notes_dir and not args.notes_version:
+        parser.error("--notes-dir requires --notes-version")
 
     token = os.environ["GOOGLE_OAUTH_ACCESS_TOKEN"]
     with open(args.aab, "rb") as file:
         bundle = file.read()
     digest = hashlib.sha256(bundle).hexdigest()
-    with open(args.notes_file, encoding="utf-8") as file:
-        notes = file.read()
-    if len(notes) > 500:
-        raise RuntimeError("Google Play release notes exceed 500 characters")
+    release_notes = collect_notes(args)
+    if not release_notes:
+        raise RuntimeError("no release notes found")
+    for note in release_notes:
+        if len(note["text"]) > 500:
+            raise RuntimeError(
+                f"release notes for {note['language']} exceed 500 characters "
+                f"({len(note['text'])})"
+            )
 
     edit = request(token, "POST", f"{BASE}/edits", b"{}")
     edit_id = edit["id"]
@@ -74,7 +100,7 @@ def main():
                 "name": args.name,
                 "status": "completed",
                 "versionCodes": [str(args.version_code)],
-                "releaseNotes": [{"language": "en-US", "text": notes}],
+                "releaseNotes": release_notes,
             }
         ],
     }
@@ -105,6 +131,25 @@ def main():
 
     print(f"Published {args.name} ({args.version_code}) to {args.track}")
     print(f"AAB SHA-256: {digest}")
+    print(f"Release notes languages: {', '.join(n['language'] for n in release_notes)}")
+
+
+def collect_notes(args):
+    if args.notes_file:
+        with open(args.notes_file, encoding="utf-8") as file:
+            return [{"language": args.notes_language, "text": file.read()}]
+
+    root = os.path.join(args.notes_dir, "en-US", "changelogs", f"{args.notes_version}.txt")
+    if not os.path.isfile(root):
+        raise RuntimeError(f"missing required en-US notes: {root}")
+    notes = []
+    for locale in sorted(os.listdir(args.notes_dir)):
+        path = os.path.join(args.notes_dir, locale, "changelogs", f"{args.notes_version}.txt")
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8") as file:
+            notes.append({"language": locale, "text": file.read()})
+    return notes
 
 
 if __name__ == "__main__":

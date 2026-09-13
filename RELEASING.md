@@ -20,6 +20,7 @@ embedded version tuple.
 ```bash
 # bump pubspec.yaml, for example: version: 1.3.1+48
 # rewrite changelog.md and localized distribution/play changelog files
+distribution/play/metadata/android/<locale>/changelogs/<tag>.txt
 git commit pubspec.yaml changelog.md distribution/play/metadata/android \
   -m "Prepare 1.3.1 release"
 git tag -a 1.3.1 -m "Librescoot App for unu 1.3.1"
@@ -37,10 +38,17 @@ and SHA-256 before committing the Play edit, then checks the committed track and
 bundle again. Every configured iOS build goes to TestFlight, since TestFlight
 has no track split.
 
-`changelog.md` becomes the GitHub release body and English Play notes. Keep it
-within Play's 500-character limit. The localized files under
-`distribution/play/metadata/android/*/changelogs/<build>.txt` remain the
-localized distribution metadata for a manual Play update.
+`changelog.md` becomes the GitHub release body. Play release notes come from
+the per-locale files
+`distribution/play/metadata/android/<locale>/changelogs/<version>.txt`, keyed by
+the release version name (the git tag, e.g. `1.3.1.txt` or
+`1.3.2-beta.1.txt`). `en-US` is required and a missing locale file fails the
+release rather than shipping stale text; every file must stay within Play's
+500-character limit.
+
+Nightly internal-track builds synthesize their English notes from the commit
+subjects since the previous `nightly-*` tag instead (see
+`.github/scripts/nightly_notes.py`).
 
 ## Required secrets
 
