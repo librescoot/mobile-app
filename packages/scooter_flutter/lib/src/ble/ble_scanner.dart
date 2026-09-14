@@ -269,6 +269,7 @@ class BleScanner {
     final List<StreamSubscription<dynamic>> subscriptions = [];
     Timer? coalesceTimer;
     Timer? watchdog;
+    bool cleanedUp = false;
     late StreamController<List<ScooterCandidate>> controller;
 
     void emit() {
@@ -331,15 +332,6 @@ class BleScanner {
         }),
       );
 
-      subscriptions.add(
-        _flutterBluePlus.isScanning.skip(1).listen((bool isScanning) {
-          if (!isScanning && !controller.isClosed) {
-            emit();
-            controller.close();
-          }
-        }),
-      );
-
       // The scan-stopped event does go missing, most reliably when the app is
       // suspended mid-scan. Without a backstop the caller waits on a stream
       // that never completes and the UI keeps claiming it is searching.
@@ -362,6 +354,19 @@ class BleScanner {
           continuousUpdates: true,
           androidCheckLocationServices: androidCheckLocationServices,
         );
+        if (cleanedUp || controller.isClosed) {
+          if (_flutterBluePlus.isScanningNow) await _flutterBluePlus.stopScan();
+          return;
+        }
+        // Ignore the false event emitted when startScan replaces an existing scan.
+        subscriptions.add(
+          _flutterBluePlus.isScanning.listen((bool isScanning) {
+            if (!isScanning && !controller.isClosed) {
+              emit();
+              controller.close();
+            }
+          }),
+        );
       } catch (e, stack) {
         _log.severe("Failed to start scan", e, stack);
         if (!controller.isClosed) {
@@ -371,7 +376,6 @@ class BleScanner {
       }
     }
 
-    bool cleanedUp = false;
     Future<void> cleanUp() async {
       if (cleanedUp) return;
       cleanedUp = true;

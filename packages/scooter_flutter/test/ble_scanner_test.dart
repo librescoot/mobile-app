@@ -308,6 +308,30 @@ void main() {
     expectClean(blue);
   });
 
+  testWidgets('manual discovery ignores shutdown of an existing scan',
+      (tester) async {
+    blue.active = true;
+    blue.onStart = () async {
+      blue.setScanning(true);
+      blue.setScanning(false);
+      blue.setScanning(true);
+    };
+    bool done = false;
+    scanner
+        .discoverScooters(getIds: getIds)
+        .drain<void>()
+        .then((_) => done = true);
+    await tester.pump();
+    await tester.pump();
+    expect(done, isFalse);
+    expect(blue.active, isTrue);
+    expect(blue.starts, 1);
+    blue.setScanning(false);
+    await flushStreams(tester);
+    expect(done, isTrue);
+    expectClean(blue);
+  });
+
   testWidgets(
       'manual discovery with no saved IDs uses name filter and closes on stop',
       (tester) async {
