@@ -1,0 +1,2 @@
+#include? "Pods/Target Support Files/Pods-ScooterWidgetExtension/Pods-ScooterWidgetExtension.profile.xcconfig"
+#include "Generated.xcconfig"
