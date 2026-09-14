@@ -24,7 +24,7 @@ jobs:
       version: ${{ steps.version.outputs.name }}
       version_code: ${{ steps.version.outputs.code }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Allocate a monotonically increasing Play version code
         id: version
@@ -34,7 +34,7 @@ jobs:
           echo "name=$(grep '^version:' pubspec.yaml | sed 's/version: //')" >> "$GITHUB_OUTPUT"
           echo "code=$(( $(date -u +%s) - 1577836800 ))" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -64,7 +64,7 @@ jobs:
       - run: flutter build appbundle --release --build-number=${{ steps.version.outputs.code }}
       - run: flutter build apk --release --build-number=${{ steps.version.outputs.code }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: nightly-android
           path: |
@@ -81,7 +81,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -98,13 +98,13 @@ jobs:
             echo "base=(none; using recent commits)" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: nightly-android
           path: artifacts
 
       - id: auth
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: projects/47940350172/locations/global/workloadIdentityPools/github-actions/providers/mobile-app
           audience: https://github.com/librescoot
@@ -128,9 +128,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: nightly-android
           path: artifacts

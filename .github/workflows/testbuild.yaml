@@ -15,9 +15,9 @@ jobs:
     name: Build APK
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -48,7 +48,7 @@ jobs:
 
       - run: flutter build apk --release
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: apk-${{ github.ref_name }}
           path: build/app/outputs/flutter-apk/app-release.apk
