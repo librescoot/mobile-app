@@ -231,7 +231,7 @@ jobs:
             <key>teamID</key><string>${TEAM_ID}</string>
             <key>uploadSymbols</key><true/>
             <key>manageAppVersionAndBuildNumber</key><false/>
-            <key>signingStyle</key><string>manual</string>
+            <key>signingStyle</key><string>automatic</string>
           </dict>
           </plist>
           EOF

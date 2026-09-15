@@ -1,7 +1,7 @@
 name: Nightly
 
-# Every main build is available both as a GitHub prerelease APK and as a signed
-# Android App Bundle on Play's internal track.
+# Every main build is available as a GitHub prerelease APK, as a signed Android
+# App Bundle on Play's internal track, and as an iOS build in TestFlight.
 
 permissions:
   contents: write
@@ -23,8 +23,14 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.name }}
       version_code: ${{ steps.version.outputs.code }}
+      has_ios: ${{ steps.ios.outputs.has_ios }}
     steps:
       - uses: actions/checkout@v5
+
+      - id: ios
+        env:
+          HAS_IOS: ${{ secrets.APPSTORE_KEY_ID != '' && secrets.IOS_DIST_CERT_P12 != '' && secrets.APPLE_TEAM_ID != '' }}
+        run: echo "has_ios=$HAS_IOS" >> "$GITHUB_OUTPUT"
 
       - name: Allocate a monotonically increasing Play version code
         id: version
@@ -123,6 +129,94 @@ jobs:
             --version-code "${{ needs.build.outputs.version_code }}" \
             --notes-file nightly-notes.txt
 
+  publish-testflight:
+    name: Publish TestFlight build
+    if: github.event_name == 'push' && needs.build.outputs.has_ios == 'true'
+    runs-on: macos-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Import signing certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.IOS_DIST_CERT_P12 }}
+          p12-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+
+      - name: Fetch app provisioning profile
+        uses: apple-actions/download-provisioning-profiles@v3
+        with:
+          bundle-id: org.librescoot.mobile.unu
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+
+      - name: Fetch widget extension profile
+        uses: apple-actions/download-provisioning-profiles@v3
+        with:
+          bundle-id: org.librescoot.mobile.unu.ScooterWidget
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+
+      - name: Fetch share extension profile
+        uses: apple-actions/download-provisioning-profiles@v3
+        with:
+          bundle-id: org.librescoot.mobile.unu.ShareExtension
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+
+      - name: Write export options
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat > ios/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>signingStyle</key><string>automatic</string>
+          </dict>
+          </plist>
+          EOF
+          plutil -lint ios/ExportOptions.plist
+
+      - name: Build iOS IPA
+        run: |
+          VERSION="$(grep '^version:' pubspec.yaml | sed 's/version: //' | cut -d+ -f1)"
+          flutter build ipa --release \
+            --build-name="${VERSION%%-*}" \
+            --build-number="${{ needs.build.outputs.version_code }}" \
+            --export-options-plist=ios/ExportOptions.plist
+
+      - name: Upload to TestFlight
+        uses: apple-actions/upload-testflight-build@v3
+        with:
+          app-path: build/ios/ipa/*.ipa
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
+          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: nightly-ios
+          path: build/ios/ipa/*.ipa
+          retention-days: 14
+
   release:
     name: Publish nightly
     runs-on: ubuntu-latest
@@ -146,10 +240,10 @@ jobs:
           tag_name: ${{ steps.facts.outputs.tag }}
           name: Nightly ${{ steps.facts.outputs.date }}
           body: |
-            Automated build from `main`, also published to Play internal testing.
+            Automated build from `main`, also published to Play internal testing and TestFlight.
 
             **Version:** ${{ needs.build.outputs.version }}
-            **Play version code:** ${{ needs.build.outputs.version_code }}
+            **Store build number:** ${{ needs.build.outputs.version_code }}
             **Commit:** ${{ github.sha }}
           files: artifacts/flutter-apk/app-release.apk
           prerelease: true

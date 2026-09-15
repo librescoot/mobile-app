@@ -1,11 +1,11 @@
 # Releasing
 
 Three workflows. `ci.yaml` analyzes and tests every push and PR. `nightly.yaml`
-builds signed Android artifacts from every push to `main`, publishes the AAB to
-Play internal testing, and publishes its APK as a `nightly-<timestamp>`
-prerelease, keeping the last 10. `release.yaml` builds signed release artifacts
-from a version tag or manual dispatch, uploads the AAB to its resolved Play
-track, and can upload iOS to TestFlight when configured.
+builds signed Android and iOS artifacts from every push to `main`, publishes the
+AAB to Play internal testing and the IPA to TestFlight, and publishes the APK as
+a `nightly-<timestamp>` prerelease, keeping the last 10. `release.yaml` builds
+signed release artifacts from a version tag or manual dispatch, uploads the AAB
+to its resolved Play track, and can upload iOS to TestFlight when configured.
 
 ## Cutting a release
 
@@ -46,9 +46,11 @@ the release version name (the git tag, e.g. `1.3.1.txt` or
 release rather than shipping stale text; every file must stay within Play's
 500-character limit.
 
-Nightly internal-track builds synthesize their English notes from the commit
-subjects since the previous `nightly-*` tag instead (see
-`.github/scripts/nightly_notes.py`).
+Nightly internal-track builds synthesize their English Play notes from the
+commit subjects since the previous `nightly-*` tag instead (see
+`.github/scripts/nightly_notes.py`). The nightly workflow uses the same
+seconds-since-2020 value for Android's version code and iOS's TestFlight build
+number, ensuring that every pushed build is newer than its predecessor.
 
 ## Required secrets
 
@@ -77,9 +79,11 @@ service account after interactive user authentication.
 | `IOS_DIST_CERT_PASSWORD` | Password used when exporting that `.p12` |
 | `APPLE_TEAM_ID` | Ten-character team ID |
 
-The iOS job is skipped when `APPSTORE_KEY_ID`, `IOS_DIST_CERT_P12` or
-`APPLE_TEAM_ID` is missing, so Android can release before Apple's side is set
-up.
+The iOS jobs are skipped when `APPSTORE_KEY_ID`, `IOS_DIST_CERT_P12` or
+`APPLE_TEAM_ID` is missing, so Android can publish before Apple's side is set
+up. On pushes to `main`, the nightly iOS job uploads automatically; App Store
+Connect then processes the build and distributes it according to the TestFlight
+group's automatic-distribution setting.
 
 Provisioning profiles are fetched from App Store Connect at build time rather
 than stored, so they cannot drift out of step with the certificate. All three
