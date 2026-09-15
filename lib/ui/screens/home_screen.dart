@@ -28,6 +28,7 @@ import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/domain/scooter_vehicle_state.dart';
 import 'package:unustasis/domain/scooter_power_state.dart';
 import 'package:unustasis/ui/widgets/scooter_visual.dart';
+import 'package:unustasis/ui/widgets/state_circle.dart';
 import 'package:unustasis/ui/screens/battery_screen.dart';
 import 'package:unustasis/ui/screens/scooter_screen.dart';
 import 'package:unustasis/ui/screens/settings_screen.dart';
@@ -70,12 +71,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       } else {
         if (_lockGuidanceBackgrounded) return;
         _dismissLockGuidance();
-        final entry = OverlayEntry(builder: (_) => Positioned(
-          left: 16, right: 16, bottom: 16,
-          child: SafeArea(child: HandlebarLockGuidance(
-            service: service, action: warning.action, onDismiss: _dismissLockGuidance,
-          )),
-        ));
+        final entry = OverlayEntry(
+            builder: (_) => Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 16,
+                  child: SafeArea(
+                      child: HandlebarLockGuidance(
+                    service: service,
+                    action: warning.action,
+                    onDismiss: _dismissLockGuidance,
+                  )),
+                ));
         _lockGuidance = entry;
         Overlay.of(context).insert(entry);
       }
@@ -190,6 +197,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           child: Stack(
             alignment: Alignment.center,
             children: [
+              if (context.isDarkMode)
+                IgnorePointer(
+                  child: StateCircle(
+                    connected: context.select((ScooterService service) => service.connected),
+                    scooterState: context.select((ScooterService service) => service.state),
+                    scanning: context.select((ScooterService service) => service.scanning),
+                    halloween: _fall,
+                    fall: false,
+                  ),
+                ),
               if (_fall && !context.isDarkMode)
                 LeavesBackground(
                   backgroundColor: Colors.transparent,
@@ -822,8 +839,10 @@ class HandlebarStatusLine extends StatelessWidget {
       key: const ValueKey("handlebar-status-slot"),
       alignment: Alignment.center,
       children: [
-        ExcludeSemantics(child: Opacity(opacity: 0, child: Text(lockedText, style: style, textAlign: TextAlign.center))),
-        ExcludeSemantics(child: Opacity(opacity: 0, child: Text(unlockedText, style: style, textAlign: TextAlign.center))),
+        ExcludeSemantics(
+            child: Opacity(opacity: 0, child: Text(lockedText, style: style, textAlign: TextAlign.center))),
+        ExcludeSemantics(
+            child: Opacity(opacity: 0, child: Text(unlockedText, style: style, textAlign: TextAlign.center))),
         if (text != null) Text(text, style: style, textAlign: TextAlign.center),
       ],
     );

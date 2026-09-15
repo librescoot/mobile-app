@@ -37,7 +37,6 @@ class ScooterVisual extends StatefulWidget {
 // dimensions. Pinning the stack to this ratio keeps every layer at its final
 // size from the first frame, instead of growing in as each asset decodes.
 const double _scooterAspectRatio = 866 / 1800;
-const double _darkBackdropScale = 1.85;
 
 class _ScooterVisualState extends State<ScooterVisual> {
   // controls whether the light ring is flickering:
@@ -177,28 +176,6 @@ class _ScooterVisualState extends State<ScooterVisual> {
     return Stack(
       alignment: Alignment.center,
       children: [
-        if (Theme.of(context).brightness == Brightness.dark)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: LayoutBuilder(
-                builder: (context, constraints) => Center(
-                  child: OverflowBox(
-                    maxWidth: double.infinity,
-                    maxHeight: double.infinity,
-                    child: Container(
-                      key: const ValueKey('scooter-dark-backdrop'),
-                      width: min(constraints.maxWidth, constraints.maxHeight) * _darkBackdropScale,
-                      height: min(constraints.maxWidth, constraints.maxHeight) * _darkBackdropScale,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF3D4144),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
         if (widget.halloween)
           AnimatedOpacity(
             opacity: widget.state == ScooterState.disconnected ? 0 : 1,
