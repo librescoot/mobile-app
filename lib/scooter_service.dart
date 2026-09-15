@@ -321,6 +321,19 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     if (connected) _telemetry.refreshOdometer();
   }
 
+  bool? get tripCounterSupported => identity.supportsTripCounter;
+  TripCounterSnapshot? get tripCounter => _telemetry.tripCounter;
+  bool get tripCounterLoading => _telemetry.tripLoading;
+  Future<TripCounterSnapshot?> refreshTripCounter() => _telemetry.refreshTripCounter();
+  Future<void> setTripCounterResetPolicy(TripResetPolicy policy) => _telemetry.setTripCounterResetPolicy(policy);
+  Future<void> resetTripCounter() => _telemetry.resetTripCounter();
+
+  bool? get tripExpungeSupported => identity.supportsTripExpunge;
+  TripExpunge? get tripExpunge => _telemetry.tripExpunge;
+  bool get tripExpungeLoading => _telemetry.tripExpungeLoading;
+  Future<TripExpunge?> refreshTripExpunge() => _telemetry.refreshTripExpunge();
+  Future<void> setTripExpunge(TripExpunge policy) => _telemetry.setTripExpunge(policy);
+
   // Passthrough getters for battery state
   int? get primarySOC => battery.primarySOC;
   int? get secondarySOC => battery.secondarySOC;

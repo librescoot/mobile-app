@@ -90,7 +90,9 @@ class FirmwareSnapshot {
       this.supportsApnConfig,
       this.supportsBondForget,
       this.supportsBatteryKeepActive,
-      this.supportsAlarmControl});
+      this.supportsAlarmControl,
+      this.supportsTripCounter,
+      this.supportsTripExpunge});
   final String? nrfVersion;
   final bool? isLibrescoot;
   final int? odometerMeters;
@@ -100,6 +102,8 @@ class FirmwareSnapshot {
   final bool? supportsBondForget;
   final bool? supportsBatteryKeepActive;
   final bool? supportsAlarmControl;
+  final bool? supportsTripCounter;
+  final bool? supportsTripExpunge;
 }
 
 class CachedTelemetry {

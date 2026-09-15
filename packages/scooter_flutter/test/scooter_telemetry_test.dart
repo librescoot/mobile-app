@@ -43,6 +43,7 @@ class _Extended extends Fake implements BluetoothCharacteristic {
     notifyWrites++;
     return true;
   }
+
   @override
   Stream<List<int>> get onValueReceived => responses.stream;
   @override
@@ -53,13 +54,16 @@ class _Extended extends Fake implements BluetoothCharacteristic {
     expect(responses.hasListener, true);
     final command = ascii.decode(bytes);
     writes.add(command);
-    if (command.startsWith('cap:')) {
-      final feature = {
-        'cap:pm': 'hibernate-for <duration>',
-        'cap:config': 'apn',
-        'cap:ble': 'forget',
-        'cap:alarm': 'enable'
-      }[command]!;
+    if (command == 'cap:ext') {
+      responses.add(ascii.encode('cap:ext:pm:config:ble:alarm'));
+    } else if (command == 'cap:list') {
+      responses.add(ascii.encode('cap:count:4'));
+      responses.add(ascii.encode('cap:pm'));
+      responses.add(ascii.encode('cap:config'));
+      responses.add(ascii.encode('cap:ble'));
+      responses.add(ascii.encode('cap:alarm'));
+    } else if (command.startsWith('cap:')) {
+      final feature = {'cap:ble': 'forget'}[command]!;
       responses.add(ascii.encode('$command:count:1'));
       responses.add(ascii.encode('$command:$feature'));
     } else {
@@ -233,7 +237,8 @@ class _Harness {
       {bool optional = true,
       bool defaultQueries = false,
       Future<Set<String>> Function(String)? caps,
-      Future<String?> Function(String)? setting}) {
+      Future<String?> Function(String)? setting,
+      Future<void> Function(String key, String value)? settingWrite}) {
     telemetry = ScooterTelemetry(
         effects: effects,
         capabilities: defaultQueries
@@ -249,6 +254,26 @@ class _Harness {
             : (_, __, key, {isCurrent}) async {
                 queries.add(key);
                 return setting == null ? '' : await setting(key);
+              },
+        settingWrite: defaultQueries
+            ? null
+            : (_, __, key, value, {isCurrent}) async {
+                queries.add('set:$key:$value');
+                await settingWrite?.call(key, value);
+              },
+        capabilityGroups: defaultQueries
+            ? null
+            : (_, __, {isCurrent}) async {
+                queries.add('cap:ext');
+                try {
+                  if (caps != null) await caps('cap:ext');
+                  return const LsCapabilityGroups(
+                    {'pm': null, 'config': null, 'ble': null, 'alarm': null},
+                    usedFallback: false,
+                  );
+                } catch (_) {
+                  return const LsCapabilityGroups({}, usedFallback: false);
+                }
               });
     sessionEffects = _SessionEffects(telemetry);
     session = ScooterSession(
@@ -305,12 +330,9 @@ List<bool?> _caps(FirmwareIdentity identity) => [
       identity.supportsAlarmControl
     ];
 const _queryOrder = [
-  'pm',
+  'cap:ext',
   'pm.scheduled-hibernate-enabled',
-  'config',
-  'ble',
   'scooter.battery-keep-active-on-seatbox-open',
-  'alarm'
 ];
 
 void main() {
@@ -712,7 +734,7 @@ void main() {
     expect(h.effects.patches[2].$2.supportsApnConfig, false);
   });
 
-  for (final position in [0, 1, 2, 3, 4, 5]) {
+  for (final position in [0, 1, 2]) {
     test(
         'delayed probe $position cannot publish or continue after A/B supersession',
         () async {
@@ -773,7 +795,7 @@ void main() {
       }
       _firmware(r);
       await _flush();
-      expect(h.queries, boundary == 'notify' ? ['pm'] : isEmpty);
+      expect(h.queries, boundary == 'notify' ? ['cap:ext'] : isEmpty);
       expect(h.telemetry.identity.supportsScheduledHibernation, isNull);
       if (boundary == 'cache') {
         expect(h.effects.trace, ['cache:A']);
@@ -813,12 +835,9 @@ void main() {
     _firmware(r);
     await _flush();
     expect(extended.writes, [
-      'cap:pm',
+      'cap:ext',
       'get:pm.scheduled-hibernate-enabled',
-      'cap:config',
-      'cap:ble',
-      'get:scooter.battery-keep-active-on-seatbox-open',
-      'cap:alarm'
+      'get:scooter.battery-keep-active-on-seatbox-open'
     ]);
     expect(_caps(h.telemetry.identity), List.filled(6, true));
     expect(extended.responses.hasListener, false);
@@ -843,7 +862,7 @@ void main() {
       h.effects.trace.clear();
       gate.complete({'hibernate-for'});
       await _flush();
-      expect(h.queries, ['pm']);
+      expect(h.queries, ['cap:ext']);
       expect(h.effects.trace, isEmpty);
       expect(h.telemetry.identity.supportsHibernateFor, isNull);
     });
@@ -954,10 +973,69 @@ void main() {
       _firmware(r);
       await _flush();
       expect(h.queries,
-          capability == 'pm' ? ['pm'] : _queryOrder.take(3).toList());
+          capability == 'pm' ? ['cap:ext'] : _queryOrder.take(2).toList());
       expect(h.effects.trace.last, 'cache:A');
     });
   }
+
+  test('trip retention writes a complete policy and re-reads it', () async {
+    var remote = 'age:365d';
+    final h = _Harness(
+      setting: (_) async => remote,
+      settingWrite: (key, value) async {
+        expect(key, 'trip.expunge');
+        remote = value;
+      },
+    );
+    addTearDown(h.dispose);
+    await h.connect('A');
+    h.telemetry.identity.supportsTripExpunge = true;
+
+    expect((await h.telemetry.refreshTripExpunge())!.wireValue, 'age:365d');
+    await h.telemetry.setTripExpunge(TripExpunge(TripExpungePolicy.size, '0'));
+
+    expect(h.telemetry.tripExpunge!.wireValue, 'size:0');
+    expect(h.queries, [
+      'trip.expunge',
+      'set:trip.expunge:size:0',
+      'trip.expunge',
+    ]);
+  });
+
+  test(
+      'trip retention retains and re-reads the scooter value after a set failure',
+      () async {
+    var reads = 0;
+    final h = _Harness(
+      setting: (_) async {
+        reads++;
+        return 'count:4';
+      },
+      settingWrite: (_, __) async => throw StateError('rejected'),
+    );
+    addTearDown(h.dispose);
+    await h.connect('A');
+    h.telemetry.identity.supportsTripExpunge = true;
+    await h.telemetry.refreshTripExpunge();
+
+    await expectLater(
+        h.telemetry.setTripExpunge(TripExpunge(TripExpungePolicy.count, '5')),
+        throwsStateError);
+    expect(h.telemetry.tripExpunge!.wireValue, 'count:4');
+    expect(reads, 2);
+  });
+
+  test('trip retention is unavailable until its get probe succeeds', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    await h.connect('A');
+    h.telemetry.identity.supportsTripExpunge = false;
+
+    expect(await h.telemetry.refreshTripExpunge(), isNull);
+    await expectLater(h.telemetry.setTripExpunge(const TripExpunge.never()),
+        throwsStateError);
+    expect(h.queries, isEmpty);
+  });
 
   test(
       'late failed capability is logged but never cached or published to replacement',
@@ -972,8 +1050,8 @@ void main() {
     h.effects.trace.clear();
     gate.completeError(StateError('obsolete'));
     await _flush();
-    expect(h.effects.trace, ['failed:pm capability probe failed']);
-    expect(h.queries, ['pm']);
+    expect(h.effects.trace, isEmpty);
+    expect(h.queries, ['cap:ext']);
     expect(h.telemetry.identity.supportsHibernateFor, isNull);
   });
 }

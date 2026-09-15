@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:scooter_core/scooter_core.dart';
 import 'package:scooter_core/telemetry.dart';
+import '../ble/trip_commands.dart' as trip;
+import '../ble/trip_expunge_policy.dart' as expunge;
 
 import '../ble/characteristic_repository.dart';
 import '../ble/firmware_queries.dart' as queries;
@@ -28,24 +30,51 @@ class ScooterTelemetry {
   ScooterTelemetry({
     required this.effects,
     FirmwareIdentity? identity,
-    Future<Set<String>> Function(BluetoothDevice?, CharacteristicRepository,
-            String, {bool Function()? isCurrent})?
+    Future<Set<String>> Function(
+            BluetoothDevice?, CharacteristicRepository, String,
+            {bool Function()? isCurrent})?
         capabilities,
     Future<String?> Function(BluetoothDevice?, CharacteristicRepository, String,
             {bool Function()? isCurrent})?
         setting,
+    Future<queries.LsCapabilityGroups> Function(
+            BluetoothDevice?, CharacteristicRepository,
+            {bool Function()? isCurrent})?
+        capabilityGroups,
+    Future<void> Function(
+            BluetoothDevice?, CharacteristicRepository, String, String,
+            {bool Function()? isCurrent})?
+        settingWrite,
   })  : identity = identity ?? FirmwareIdentity(),
         _capabilities = capabilities ?? queries.getLsCapabilitiesCommand,
-        _setting = setting ?? queries.getLsSettingCommand;
+        _setting = setting ?? queries.getLsSettingCommand,
+        _capabilityGroups =
+            capabilityGroups ?? queries.discoverLsCapabilityGroupsCommand,
+        _settingWrite = settingWrite ?? queries.setLsSettingCommand;
 
   final ScooterTelemetryEffects effects;
   final BatteryState battery = BatteryState();
   final VehicleStatus vehicle = VehicleStatus();
   final FirmwareIdentity identity;
-  final Future<Set<String>> Function(BluetoothDevice?, CharacteristicRepository,
-      String, {bool Function()? isCurrent}) _capabilities;
-  final Future<String?> Function(BluetoothDevice?, CharacteristicRepository,
-      String, {bool Function()? isCurrent}) _setting;
+  final Future<Set<String>> Function(
+      BluetoothDevice?, CharacteristicRepository, String,
+      {bool Function()? isCurrent}) _capabilities;
+  final Future<String?> Function(
+      BluetoothDevice?, CharacteristicRepository, String,
+      {bool Function()? isCurrent}) _setting;
+  final Future<queries.LsCapabilityGroups> Function(
+      BluetoothDevice?, CharacteristicRepository,
+      {bool Function()? isCurrent}) _capabilityGroups;
+  final Future<void> Function(
+      BluetoothDevice?, CharacteristicRepository, String, String,
+      {bool Function()? isCurrent}) _settingWrite;
+  TripCounterSnapshot? tripCounter;
+  TripExpunge? tripExpunge;
+  bool _tripExpungeLoading = false;
+  bool get tripExpungeLoading => _tripExpungeLoading;
+  int? _tripGeneration;
+  bool _tripLoading = false;
+  bool get tripLoading => _tripLoading;
   SessionConnection? _connection;
   CharacteristicRepository? _repository;
   int _revision = 0;
@@ -76,6 +105,11 @@ class ScooterTelemetry {
   void invalidate() {
     _connection = null;
     _repository = null;
+    tripCounter = null;
+    tripExpunge = null;
+    _tripGeneration = null;
+    _tripLoading = false;
+    _tripExpungeLoading = false;
     battery.cancelSubscriptions();
     vehicle.cancelSubscriptions();
   }
@@ -140,6 +174,143 @@ class ScooterTelemetry {
         isCurrent: () => _current(connection));
   }
 
+  Future<TripCounterSnapshot?> refreshTripCounter() async {
+    final connection = _connection;
+    final repository = _repository;
+    if (identity.supportsTripCounter != true ||
+        connection == null ||
+        repository == null ||
+        !_current(connection)) {
+      return null;
+    }
+    _tripLoading = true;
+    _notify(connection);
+    try {
+      final snapshot = await trip.getTripCounterCommand(
+          connection.device, repository,
+          isCurrent: () => _current(connection));
+      if (_current(connection)) {
+        if (snapshot != null &&
+            _tripGeneration != null &&
+            snapshot.generation < _tripGeneration!) {
+          throw StateError('Stale trip counter response');
+        }
+        tripCounter = snapshot;
+        _tripGeneration = snapshot?.generation;
+        _notify(connection);
+      }
+      return snapshot;
+    } on trip.TripCounterUnavailableException {
+      if (_current(connection)) {
+        tripCounter = null;
+        _tripGeneration = null;
+        _notify(connection);
+      }
+      rethrow;
+    } finally {
+      if (_current(connection)) {
+        _tripLoading = false;
+        _notify(connection);
+      }
+    }
+  }
+
+  Future<void> setTripCounterResetPolicy(TripResetPolicy policy) async {
+    final connection = _connection;
+    final repository = _repository;
+    if (identity.supportsTripCounter != true ||
+        connection == null ||
+        repository == null ||
+        !_current(connection)) {
+      throw StateError('Trip counter is unavailable');
+    }
+    await trip.setTripCounterResetPolicyCommand(
+        connection.device, repository, policy,
+        isCurrent: () => _current(connection));
+    await refreshTripCounter();
+  }
+
+  Future<TripExpunge?> refreshTripExpunge() async {
+    final connection = _connection;
+    final repository = _repository;
+    if (identity.supportsTripExpunge != true ||
+        connection == null ||
+        repository == null ||
+        !_current(connection)) {
+      return null;
+    }
+    _tripExpungeLoading = true;
+    _notify(connection);
+    try {
+      final value = await _setting(
+        connection.device,
+        repository,
+        expunge.lsKeyTripExpunge,
+        isCurrent: () => _current(connection),
+      );
+      if (value == null) throw StateError('Trip retention is unavailable');
+      final policy = TripExpunge.parse(value);
+      if (_current(connection)) {
+        tripExpunge = policy;
+        _notify(connection);
+      }
+      return policy;
+    } finally {
+      if (_current(connection)) {
+        _tripExpungeLoading = false;
+        _notify(connection);
+      }
+    }
+  }
+
+  Future<void> setTripExpunge(TripExpunge policy) async {
+    final connection = _connection;
+    final repository = _repository;
+    if (identity.supportsTripExpunge != true ||
+        connection == null ||
+        repository == null ||
+        !_current(connection)) {
+      throw StateError('Trip retention is unavailable');
+    }
+    _tripExpungeLoading = true;
+    _notify(connection);
+    try {
+      await _settingWrite(
+        connection.device,
+        repository,
+        expunge.lsKeyTripExpunge,
+        policy.wireValue,
+        isCurrent: () => _current(connection),
+      );
+      await refreshTripExpunge();
+    } catch (_) {
+      // Do not leave the UI on a locally assumed value after a rejected write.
+      try {
+        await refreshTripExpunge();
+      } catch (_) {}
+      rethrow;
+    } finally {
+      if (_current(connection)) {
+        _tripExpungeLoading = false;
+        _notify(connection);
+      }
+    }
+  }
+
+  Future<void> resetTripCounter() async {
+    final connection = _connection;
+    final repository = _repository;
+    if (identity.supportsTripCounter != true ||
+        connection == null ||
+        repository == null ||
+        !_current(connection)) {
+      throw StateError('Trip counter is unavailable');
+    }
+    await trip.resetTripCounterCommand(connection.device, repository,
+        isCurrent: () => _current(connection));
+    await refreshTripCounter();
+  }
+
   void bind(SessionConnection connection, CharacteristicRepository repository) {
     invalidate();
     if (_disposed || !connection.isCurrent) return;
@@ -199,6 +370,8 @@ class ScooterTelemetry {
         identity.supportsBondForget = false;
         identity.supportsBatteryKeepActive = false;
         identity.supportsAlarmControl = false;
+        identity.supportsTripCounter = false;
+        identity.supportsTripExpunge = false;
       }
       identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repository);
       _notify(connection);
@@ -210,15 +383,17 @@ class ScooterTelemetry {
     final scooter = connection.device;
     bool current() =>
         _current(connection) && identical(_repository, repository);
-    bool? supportsHibernateFor;
+    queries.LsCapabilityGroups groups;
     try {
-      final caps = await _capabilities(scooter, repository, "pm",
-          isCurrent: current);
-      supportsHibernateFor = caps.contains("hibernate-for");
+      groups = await _capabilityGroups(scooter, repository, isCurrent: current);
     } catch (e, stack) {
-      effects.probeFailed("pm capability probe failed", e, stack);
-      supportsHibernateFor = false;
+      effects.probeFailed("capability discovery failed", e, stack);
+      return;
     }
+    if (!current()) return;
+    // A listed group is its complete initial contract unless it supplies a
+    // future version. Only status and BLE have historically varied details.
+    final supportsHibernateFor = groups.contains('pm');
     if (!current()) return;
     identity.supportsHibernateFor = supportsHibernateFor;
     // cache the capability so the next session doesn't wait for the probe
@@ -243,15 +418,7 @@ class ScooterTelemetry {
     identity.supportsScheduledHibernation = supportsScheduledHibernation;
     if (!_publishTableState(connection, repository)) return;
 
-    bool? supportsApnConfig;
-    try {
-      final caps = await _capabilities(scooter, repository, "config",
-          isCurrent: current);
-      supportsApnConfig = caps.contains("apn");
-    } catch (e, stack) {
-      effects.probeFailed("config capability probe failed", e, stack);
-      supportsApnConfig = false;
-    }
+    final supportsApnConfig = groups.contains('config');
     if (!current()) return;
     identity.supportsApnConfig = supportsApnConfig;
     // cached like the pm capability, so the APN tile does not vanish and
@@ -260,14 +427,18 @@ class ScooterTelemetry {
         TelemetryCachePatch(supportsApnConfig: supportsApnConfig));
     if (!_publishTableState(connection, repository)) return;
 
-    bool? supportsBondForget;
-    try {
-      final caps = await _capabilities(scooter, repository, "ble",
-          isCurrent: current);
-      supportsBondForget = caps.contains("forget");
-    } catch (e, stack) {
-      effects.probeFailed("ble capability probe failed", e, stack);
-      supportsBondForget = false;
+    bool supportsBondForget = groups.contains('ble');
+    // `ble` is complete in cap:ext. Legacy cap:list only reports categories,
+    // so it still needs the one historically variable detail query.
+    if (groups.usedFallback && supportsBondForget) {
+      try {
+        final caps =
+            await _capabilities(scooter, repository, 'ble', isCurrent: current);
+        supportsBondForget = caps.contains('forget');
+      } catch (e, stack) {
+        effects.probeFailed('ble capability probe failed', e, stack);
+        supportsBondForget = false;
+      }
     }
     if (!current()) return;
     // Not cached on the SavedScooter, unlike the two above. Nothing renders it,
@@ -294,19 +465,38 @@ class ScooterTelemetry {
     identity.supportsBatteryKeepActive = supportsBatteryKeepActive;
     if (!_publishTableState(connection, repository)) return;
 
-    bool? supportsAlarmControl;
-    try {
-      final caps = await _capabilities(scooter, repository, "alarm",
-          isCurrent: current);
-      supportsAlarmControl = caps.contains("enable");
-    } catch (e, stack) {
-      effects.probeFailed("alarm capability probe failed", e, stack);
-      supportsAlarmControl = false;
-    }
+    final supportsAlarmControl = groups.contains('alarm');
     if (!current()) return;
     identity.supportsAlarmControl = supportsAlarmControl;
+    identity.supportsTripCounter = groups.contains('trip');
+    if (identity.supportsTripCounter == true) {
+      try {
+        final value = await _setting(
+          scooter,
+          repository,
+          expunge.lsKeyTripExpunge,
+          isCurrent: current,
+        );
+        if (!current()) return;
+        if (value == null) {
+          identity.supportsTripExpunge = false;
+        } else {
+          tripExpunge = TripExpunge.parse(value);
+          identity.supportsTripExpunge = true;
+        }
+      } catch (e, stack) {
+        effects.probeFailed('trip retention probe failed', e, stack);
+        identity.supportsTripExpunge = false;
+      }
+    } else {
+      identity.supportsTripExpunge = false;
+    }
+    if (!current()) return;
     identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repository);
     _notify(connection);
+    if (identity.supportsTripCounter == true && current()) {
+      unawaited(refreshTripCounter());
+    }
   }
 
   /// Publishes the table verdict, and reports whether probing further is worth

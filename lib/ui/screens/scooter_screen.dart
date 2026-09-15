@@ -8,10 +8,12 @@ import 'package:logging/logging.dart';
 import 'package:maps_launcher/maps_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:scooter_core/trip_counter.dart';
 
 import 'package:unustasis/ui/screens/home_screen.dart';
 import 'package:unustasis/ui/presentation/relative_time.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
+import 'package:unustasis/ui/screens/trip_counter_screen.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/geo_helper.dart';
@@ -284,6 +286,11 @@ class SavedScooterCard extends StatelessWidget {
     // Odometer only exists for the connected scooter.
     final int? odometerMeters =
         connected ? context.select<ScooterService, int?>((service) => service.odometerMeters) : null;
+    final bool tripSupported =
+        connected && context.select<ScooterService, bool?>((service) => service.tripCounterSupported) == true;
+    final TripCounterSnapshot? trip =
+        tripSupported ? context.select<ScooterService, TripCounterSnapshot?>((service) => service.tripCounter) : null;
+    final tripLoading = tripSupported && context.select<ScooterService, bool>((service) => service.tripCounterLoading);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -404,6 +411,19 @@ class SavedScooterCard extends StatelessWidget {
                               ),
                         ),
                       ],
+                    ),
+                  ),
+                if (tripSupported) _TripSummary(snapshot: trip, loading: tripLoading, compact: false),
+                if (tripSupported)
+                  Semantics(
+                    button: true,
+                    label: FlutterI18n.translate(context, 'trip_open'),
+                    child: TextButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const TripCounterScreen()),
+                      ),
+                      icon: const Icon(Icons.speed_outlined),
+                      label: Text(FlutterI18n.translate(context, 'trip_open')),
                     ),
                   ),
                 if (connected &&
@@ -667,6 +687,11 @@ class SavedScooterListItem extends StatelessWidget {
     // Odometer only exists for the connected scooter.
     final int? odometerMeters =
         connected ? context.select<ScooterService, int?>((service) => service.odometerMeters) : null;
+    final bool tripSupported =
+        connected && context.select<ScooterService, bool?>((service) => service.tripCounterSupported) == true;
+    final TripCounterSnapshot? trip =
+        tripSupported ? context.select<ScooterService, TripCounterSnapshot?>((service) => service.tripCounter) : null;
+    final tripLoading = tripSupported && context.select<ScooterService, bool>((service) => service.tripCounterLoading);
     return GestureDetector(
       onTap: !connected
           ? () async {
@@ -836,6 +861,19 @@ class SavedScooterListItem extends StatelessWidget {
                                         ),
                                   ),
                                 ],
+                              ),
+                            ),
+                          if (tripSupported) _TripSummary(snapshot: trip, loading: tripLoading, compact: true),
+                          if (tripSupported)
+                            Semantics(
+                              button: true,
+                              label: FlutterI18n.translate(context, 'trip_open'),
+                              child: TextButton.icon(
+                                onPressed: () => Navigator.of(context).push(
+                                  MaterialPageRoute(builder: (_) => const TripCounterScreen()),
+                                ),
+                                icon: const Icon(Icons.speed_outlined, size: 16),
+                                label: Text(FlutterI18n.translate(context, 'trip_open')),
                               ),
                             ),
                           // Battery SOC data
@@ -1043,6 +1081,36 @@ class _StaleBluetoothProfileCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TripSummary extends StatelessWidget {
+  const _TripSummary({required this.snapshot, required this.loading, required this.compact});
+
+  final TripCounterSnapshot? snapshot;
+  final bool loading;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = compact ? Theme.of(context).textTheme.bodySmall : Theme.of(context).textTheme.bodyMedium;
+    final text = snapshot == null
+        ? FlutterI18n.translate(context, 'trip_card_loading')
+        : '${FlutterI18n.translate(context, 'trip_distance')}: '
+            '${(snapshot!.distanceMeters / 1000).toStringAsFixed(1)} km • '
+            '${FlutterI18n.translate(context, 'trip_riding_time')}: '
+            '${snapshot!.ridingSeconds ~/ 3600}h ${(snapshot!.ridingSeconds % 3600) ~/ 60}m';
+    return Semantics(
+      liveRegion: loading,
+      label: text,
+      child: Padding(
+        padding: EdgeInsets.only(top: compact ? 0 : 2, bottom: compact ? 2 : 0),
+        child: Text(
+          text,
+          style: style?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ),
     );

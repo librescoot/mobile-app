@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:scooter_core/trip_expunge.dart';
 import 'package:scooter_flutter/scooter_flutter.dart';
 
 class _Device extends Fake implements BluetoothDevice {
@@ -14,6 +15,8 @@ class _Channel extends Fake implements BluetoothCharacteristic {
   final values = StreamController<List<int>>.broadcast(sync: true);
   final writes = <String>[];
   List<String> replies = [];
+  final Map<String, List<String>> repliesFor = {};
+  Future<void> Function(String command)? onWrite;
   int notifyWrites = 0;
   @override
   bool get isNotifying => true;
@@ -23,6 +26,7 @@ class _Channel extends Fake implements BluetoothCharacteristic {
     notifyWrites++;
     return true;
   }
+
   @override
   Stream<List<int>> get onValueReceived => values.stream;
   @override
@@ -30,8 +34,10 @@ class _Channel extends Fake implements BluetoothCharacteristic {
       {bool withoutResponse = false,
       bool allowLongWrite = false,
       int timeout = 15}) async {
-    writes.add(ascii.decode(value));
-    for (final reply in replies) {
+    final command = ascii.decode(value);
+    writes.add(command);
+    await onWrite?.call(command);
+    for (final reply in repliesFor[command] ?? replies) {
       values.add(utf8.encode(reply));
     }
   }
@@ -74,6 +80,35 @@ void main() {
     await channel.values.close();
   });
 
+  test('cap:ext reads unsuffixed and versioned complete groups once', () async {
+    channel.replies = ['cap:ext:trip:pm=2:ble'];
+    final groups = await discoverLsCapabilityGroupsCommand(device, repo);
+    expect(groups.versions, {'trip': null, 'pm': 2, 'ble': null});
+    expect(groups.usedFallback, isFalse);
+    expect(channel.writes, ['cap:ext']);
+  });
+
+  test('cap:list is used when cap:ext is unknown', () async {
+    channel.repliesFor['cap:ext'] = ['error:unknown command'];
+    channel.repliesFor['cap:list'] = ['cap:count:2', 'cap:trip', 'cap:status'];
+    final groups = await discoverLsCapabilityGroupsCommand(device, repo);
+    expect(groups.versions.keys, {'trip', 'status'});
+    expect(groups.usedFallback, isTrue);
+    expect(channel.writes, ['cap:ext', 'cap:list']);
+  });
+
+  test('cap:list fails closed for malformed counted categories', () async {
+    channel.repliesFor['cap:ext'] = ['error:unknown command'];
+    channel.repliesFor['cap:list'] = [
+      'cap:count:2',
+      'cap:trip',
+      'cap:bad:evil'
+    ];
+    final groups = await discoverLsCapabilityGroupsCommand(device, repo);
+    expect(groups.versions, isEmpty);
+    expect(groups.usedFallback, isTrue);
+  });
+
   test('version response retains the complete component version', () async {
     channel.replies = ['status:version:mdb:1.4:custom'];
     expect(await getInstalledVersionCommand(device, repo, 'mdb'), '1.4:custom');
@@ -97,8 +132,8 @@ void main() {
     final blocker = withExtendedChannel(() => gate.future);
     await Future<void>.delayed(Duration.zero);
     var current = true;
-    final probe = getLsCapabilitiesCommand(device, repo, 'pm',
-        isCurrent: () => current);
+    final probe =
+        getLsCapabilitiesCommand(device, repo, 'pm', isCurrent: () => current);
     current = false;
     gate.complete();
     await blocker;
@@ -128,6 +163,52 @@ void main() {
     expect(await getLsCapabilitiesCommand(device, repo, 'config'), isEmpty);
   });
 
+  test('trip commands parse zero and reject negative acknowledgements',
+      () async {
+    channel.replies = [
+      'trip:data:distance-m:0:duration-s:0:average-speed-kmh:0:reset-policy:manual:reset-at:0:reset-reason:initial:generation:0:status:idle'
+    ];
+    expect((await getTripCounterCommand(device, repo))!.distanceMeters, 0);
+    channel.replies = ['trip:reset:error:busy'];
+    await expectLater(
+      resetTripCounterCommand(device, repo),
+      throwsA(isA<TripResetException>()
+          .having((error) => error.failure, 'failure', TripResetFailure.busy)),
+    );
+  });
+
+  test('trip get reports an expired service lease as unavailable', () async {
+    channel.replies = ['trip:data:error:unavailable'];
+    await expectLater(
+      getTripCounterCommand(device, repo),
+      throwsA(isA<TripCounterUnavailableException>()),
+    );
+  });
+
+  test('trip reset maps a transport timeout to its timeout failure', () async {
+    await expectLater(
+      resetTripCounterCommand(device, repo,
+          responseTimeout: const Duration(milliseconds: 1)),
+      throwsA(isA<TripResetException>().having(
+          (error) => error.failure, 'failure', TripResetFailure.timeout)),
+    );
+  });
+
+  test('delayed reset response holds the channel until its acknowledgement',
+      () async {
+    channel.repliesFor['trip:get'] = [
+      'trip:data:distance-m:0:duration-s:0:average-speed-kmh:0:reset-policy:manual:reset-at:0:reset-reason:initial:generation:1:status:idle'
+    ];
+    final reset = resetTripCounterCommand(device, repo);
+    await Future<void>.delayed(Duration.zero);
+    final read = getTripCounterCommand(device, repo);
+    expect(channel.writes, ['trip:reset']);
+    channel.values.add(ascii.encode('trip:reset:ok'));
+    await reset;
+    expect((await read)!.generation, 1);
+    expect(channel.writes, ['trip:reset', 'trip:get']);
+  });
+
   test('setting values preserve spaces and colons', () async {
     channel.replies = ['get:example:value with spaces:and:colons'];
     expect(await getLsSettingCommand(device, repo, 'example'),
@@ -140,6 +221,24 @@ void main() {
     expect(await getLsSettingCommand(device, repo, 'example'), '');
     channel.replies = ['get:error:unknown key'];
     expect(await getLsSettingCommand(device, repo, 'example'), isNull);
+  });
+
+  test('trip retention uses the generic atomic setting transport', () async {
+    channel.replies = ['get:trip.expunge:age:365d'];
+    expect((await getTripExpungePolicySetting(device, repo))!.wireValue,
+        'age:365d');
+    expect(channel.writes, ['get:trip.expunge']);
+
+    channel.replies = ['set:ok:trip.expunge'];
+    await setTripExpungePolicySetting(
+        device, repo, TripExpunge(TripExpungePolicy.count, '0'));
+    expect(channel.writes, ['get:trip.expunge', 'set:trip.expunge:count:0']);
+  });
+
+  test('trip retention rejects malformed firmware values', () async {
+    channel.replies = ['get:trip.expunge:count:01'];
+    await expectLater(
+        getTripExpungePolicySetting(device, repo), throwsFormatException);
   });
 
   test('empty write is rejected before sending', () async {

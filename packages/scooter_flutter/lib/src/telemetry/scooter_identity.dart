@@ -16,6 +16,8 @@ class FirmwareIdentity {
         supportsBondForget: supportsBondForget,
         supportsBatteryKeepActive: supportsBatteryKeepActive,
         supportsAlarmControl: supportsAlarmControl,
+        supportsTripCounter: supportsTripCounter,
+        supportsTripExpunge: supportsTripExpunge,
       );
 
   final _log = Logger('ScooterIdentity');
@@ -32,6 +34,8 @@ class FirmwareIdentity {
   bool? supportsBondForget;
   bool? supportsBatteryKeepActive;
   bool? supportsAlarmControl;
+  bool? supportsTripCounter;
+  bool? supportsTripExpunge;
 
   /// True when this connection shows a GATT table that cannot be the scooter's
   /// current one, i.e. the phone's cached table predates its firmware.
@@ -44,6 +48,8 @@ class FirmwareIdentity {
     supportsBondForget = null;
     supportsBatteryKeepActive = null;
     supportsAlarmControl = null;
+    supportsTripCounter = null;
+    supportsTripExpunge = null;
     bluetoothTableOutOfDate = null;
   }
 
