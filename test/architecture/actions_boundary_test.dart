@@ -35,17 +35,22 @@ void main() {
   });
   test('action settings and keycard UI no longer access characteristics', () {
     for (final screen in ['ls_keycard_screen', 'ls_scheduled_hibernation_screen', 'settings_screen']) {
-      final source = File('lib/ui/screens/$screen.dart')
-          .readAsStringSync();
+      final source = File('lib/ui/screens/$screen.dart').readAsStringSync();
       expect(source, isNot(contains('characteristicRepository')), reason: screen);
     }
     final home = File('lib/ui/screens/home_screen.dart').readAsStringSync();
     expect(home, contains('service.actionWarnings.listen'));
-    expect(home, matches(RegExp(
-      r'if \(warning\.didNotUnlock\)\s*\{\s*'
-      r'_dismissLockGuidance\(\);\s*showHandlebarWarning\(\);',
-    )));
-    expect(home, contains('service: service, action: warning.action, onDismiss: _dismissLockGuidance'));
+    expect(
+        home,
+        matches(RegExp(
+          r'if \(warning\.didNotUnlock\)\s*\{\s*'
+          r'_dismissLockGuidance\(\);\s*showHandlebarWarning\(\);',
+        )));
+    expect(
+        home,
+        matches(RegExp(
+          r'service:\s*service,\s*action:\s*warning\.action,\s*onDismiss:\s*_dismissLockGuidance',
+        )));
     expect(home, contains('onDone: _dismissLockGuidance'));
     final guidance = File('lib/ui/dialogs/handlebar_lock_guidance.dart').readAsStringSync();
     expect(guidance, isNot(contains('service.lock(')));
