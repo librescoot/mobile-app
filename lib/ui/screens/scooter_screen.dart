@@ -16,6 +16,7 @@ import 'package:unustasis/ui/screens/onboarding_screen.dart';
 import 'package:unustasis/ui/screens/trip_counter_screen.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/domain/scooter_state.dart';
+import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
 import 'package:unustasis/geo_helper.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/widgets/color_picker_dialog.dart';
@@ -321,9 +322,10 @@ class SavedScooterCard extends StatelessWidget {
                       rebuild();
                     }
                   },
-                  child: Image.asset(
-                    "images/scooter/side_${forceHover ? 9 : savedScooter.color}.webp",
+                  child: ScooterSideVisual(
+                    imagePath: "images/scooter/side_${forceHover ? 9 : savedScooter.color}.webp",
                     height: 160,
+                    backdropDiameter: 264,
                   ),
                 ),
                 if (showOnboarding)
@@ -764,8 +766,9 @@ class SavedScooterListItem extends StatelessWidget {
                           width: MediaQuery.of(context).size.width * 0.25,
                           child: Stack(
                             children: [
-                              Image.asset(
-                                "images/scooter/side_${savedScooter.color}.webp",
+                              ScooterSideVisual(
+                                imagePath: "images/scooter/side_${savedScooter.color}.webp",
+                                height: MediaQuery.of(context).size.width * 0.16,
                               ),
                               // Green circle indicator for connected scooter
                               if (connected)
