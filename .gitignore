@@ -32,6 +32,8 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+# Running `flutter test` inside a package creates the same build directory there.
+/packages/*/build/
 
 # Symbolication related
 app.*.symbols
