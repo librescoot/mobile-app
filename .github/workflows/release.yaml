@@ -209,14 +209,6 @@ jobs:
 
       # Generated here rather than committed: the team ID is account data, and
       # Xcode's $(VAR) syntax does not expand inside an export options plist.
-      - name: Fetch share extension profile
-        uses: apple-actions/download-provisioning-profiles@v3
-        with:
-          bundle-id: org.librescoot.mobile.unu.ShareExtension
-          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
-          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
-          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
-
       - name: Write export options
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}

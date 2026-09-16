@@ -86,11 +86,12 @@ Connect then processes the build and distributes it according to the TestFlight
 group's automatic-distribution setting.
 
 Provisioning profiles are fetched from App Store Connect at build time rather
-than stored, so they cannot drift out of step with the certificate. All three
-embedded bundle IDs need an App Store provisioning profile:
-`org.librescoot.mobile.unu`, `org.librescoot.mobile.unu.ScooterWidget`, and
-`org.librescoot.mobile.unu.ShareExtension`. The first two need the
-`group.org.librescoot.mobile.unu` app group.
+than stored, so they cannot drift out of step with the certificate. The app and
+embedded widget bundle IDs need App Store provisioning profiles:
+`org.librescoot.mobile.unu` and
+`org.librescoot.mobile.unu.ScooterWidget`. Both need the
+`group.org.librescoot.mobile.unu` app group. The disabled share extension is not
+embedded and therefore needs neither an App ID nor a provisioning profile.
 
 ## Where each secret comes from
 
