@@ -93,16 +93,7 @@ jobs:
           fetch-tags: true
 
       - name: Generate release notes from commits since the last nightly
-        id: notes
-        run: |
-          PREV="$(git tag --list 'nightly-*' --sort=-creatordate | head -1 || true)"
-          if [ -n "$PREV" ]; then
-            python3 .github/scripts/nightly_notes.py --base "$PREV" --output nightly-notes.txt
-            echo "base=$PREV" >> "$GITHUB_OUTPUT"
-          else
-            python3 .github/scripts/nightly_notes.py --output nightly-notes.txt
-            echo "base=(none; using recent commits)" >> "$GITHUB_OUTPUT"
-          fi
+        run: python3 .github/scripts/nightly_notes.py --base auto --output nightly-notes.txt
 
       - uses: actions/download-artifact@v7
         with:
@@ -141,13 +132,7 @@ jobs:
           fetch-tags: true
 
       - name: Generate notes from commits since the last nightly
-        run: |
-          PREV="$(git tag --list 'nightly-*' --sort=-creatordate | head -1 || true)"
-          if [ -n "$PREV" ]; then
-            python3 .github/scripts/nightly_notes.py --base "$PREV" --output testflight-notes.txt
-          else
-            python3 .github/scripts/nightly_notes.py --output testflight-notes.txt
-          fi
+        run: python3 .github/scripts/nightly_notes.py --base auto --output testflight-notes.txt
 
       - uses: subosito/flutter-action@v2
         with:

@@ -24,6 +24,32 @@ def git_log(base, head, max_count):
     return subjects[:max_count]
 
 
+def rev(spec):
+    return subprocess.run(
+        ["git", "rev-parse", spec], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+
+def previous_nightly(head):
+    """Newest nightly-* tag that is an ancestor of head but is not head itself.
+
+    The release job in the same workflow run tags the commit currently being
+    built, so the newest nightly tag can point at head and yield an empty range,
+    which reads as "no notable changes" for a build that has some.
+    """
+    listed = subprocess.run(
+        ["git", "tag", "--list", "nightly-*", "--sort=-creatordate", "--merged", head],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    head_sha = rev(head)
+    for name in listed.split():
+        if rev(f"{name}^{{commit}}") != head_sha:
+            return name
+    return None
+
+
 def render(subjects):
     lines = [f"• {s}" for s in subjects]
     dropped = 0
@@ -42,13 +68,21 @@ def render(subjects):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base", help="previous nightly tag; omit to use recent commits")
+    parser.add_argument(
+        "--base",
+        help="previous nightly tag, or 'auto' to pick the newest one before HEAD; "
+        "omit to use recent commits",
+    )
     parser.add_argument("--head", default="HEAD")
     parser.add_argument("--max-commits", type=int, default=20)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
-    subjects = git_log(args.base, args.head, args.max_commits)
+    base = args.base
+    if base == "auto":
+        base = previous_nightly(args.head)
+        print(f"base tag: {base or '(none found)'}")
+    subjects = git_log(base, args.head, args.max_commits)
     if not subjects:
         subjects = ["Nightly build; no notable changes since the previous nightly"]
     text = render(subjects)

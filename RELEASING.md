@@ -48,7 +48,10 @@ release rather than shipping stale text; every file must stay within Play's
 
 Nightly internal-track builds synthesize their English Play notes from the
 commit subjects since the previous `nightly-*` tag instead (see
-`.github/scripts/nightly_notes.py`).
+`.github/scripts/nightly_notes.py`, invoked with `--base auto`). The release job
+in the same run tags the commit being built, so `auto` deliberately skips the
+newest nightly tag when it points at `HEAD`; otherwise the range is empty and a
+build with changes reports "no notable changes".
 
 Every path uses the same seconds-since-2020 value as its store build number:
 Android's version code and iOS's TestFlight build number, for both releases and
