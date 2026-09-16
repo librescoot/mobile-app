@@ -223,7 +223,14 @@ jobs:
             <key>teamID</key><string>${TEAM_ID}</string>
             <key>uploadSymbols</key><true/>
             <key>manageAppVersionAndBuildNumber</key><false/>
-            <key>signingStyle</key><string>automatic</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>org.librescoot.mobile.unu</key>
+              <string>iOS Team Store Provisioning Profile: org.librescoot.mobile.unu</string>
+              <key>org.librescoot.mobile.unu.ScooterWidget</key>
+              <string>iOS Team Store Provisioning Profile: org.librescoot.mobile.unu.ScooterWidget</string>
+            </dict>
           </dict>
           </plist>
           EOF
