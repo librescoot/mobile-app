@@ -185,7 +185,6 @@ jobs:
       - name: Verify signing profiles
         run: |
           python3 .github/scripts/verify_signing_profiles.py \
-            --keychain signing_temp \
             --require "org.librescoot.mobile.unu=Librescoot App Store CI" \
             --require "org.librescoot.mobile.unu.ScooterWidget=Librescoot Widget App Store CI"
 

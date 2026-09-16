@@ -22,9 +22,41 @@ CERT_PATTERN = "Apple Distribution"
 PEM = re.compile(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", re.S)
 
 
+def resolve_keychain(keychain):
+    """Return the keychain arguments for `security`.
+
+    Nothing is passed by default, so `security` searches the user's keychain
+    search list. That is what the certificate import step configures, and it is
+    the only reliable route: `security` resolves a keychain argument as a file
+    path, while the import step creates `signing_temp.keychain-db` and puts the
+    bare name `signing_temp.keychain` in the search list. Passing that name as an
+    argument silently matches no certificate instead of failing, which would look
+    exactly like a certificate import that did not take effect.
+    """
+    if not keychain:
+        return []
+    candidates = [keychain, f"{keychain}.keychain", f"{keychain}-db", f"{keychain}.keychain-db"]
+    for candidate in candidates:
+        if os.path.exists(os.path.expanduser(candidate)):
+            return [os.path.expanduser(candidate)]
+    raise RuntimeError(
+        f"no keychain file at {keychain!r} or any of "
+        f"{', '.join(repr(c) for c in candidates[1:])}; omit --keychain to search the "
+        "user keychain search list instead"
+    )
+
+
 def keychain_fingerprints(keychain, pattern):
     result = subprocess.run(
-        ["security", "find-certificate", "-a", "-p", "-c", pattern, keychain],
+        [
+            "security",
+            "find-certificate",
+            "-a",
+            "-p",
+            "-c",
+            pattern,
+            *resolve_keychain(keychain),
+        ],
         capture_output=True,
         text=True,
     )
@@ -108,7 +140,10 @@ def check(bundle_id, profile_name, profiles, fingerprints):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--keychain", default="signing_temp")
+    parser.add_argument(
+        "--keychain",
+        help="specific keychain to read; defaults to the user keychain search list",
+    )
     parser.add_argument("--profiles-dir", default=DEFAULT_PROFILES_DIR)
     parser.add_argument("--cert-pattern", default=CERT_PATTERN)
     parser.add_argument(
@@ -130,7 +165,8 @@ def main():
     fingerprints = keychain_fingerprints(args.keychain, args.cert_pattern)
     if not fingerprints:
         raise RuntimeError(
-            f"no {args.cert_pattern!r} certificate in keychain {args.keychain!r}; "
+            f"no {args.cert_pattern!r} certificate found in "
+            f"{args.keychain or 'the keychain search list'}; "
             "the signing certificate import did not take effect"
         )
     print(f"imported {args.cert_pattern!r} certificate(s): {sorted(fingerprints)}")
