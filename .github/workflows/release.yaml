@@ -209,6 +209,17 @@ jobs:
 
       # Generated here rather than committed: the team ID is account data, and
       # Xcode's $(VAR) syntax does not expand inside an export options plist.
+      #
+      # The profile names pinned here and in project.pbxproj are checked against
+      # the imported certificate first, so a rotated certificate fails with a
+      # clear message instead of a signing error after the archive has run.
+      - name: Verify signing profiles
+        run: |
+          python3 .github/scripts/verify_signing_profiles.py \
+            --keychain signing_temp \
+            --require "org.librescoot.mobile.unu=Librescoot App Store CI" \
+            --require "org.librescoot.mobile.unu.ScooterWidget=Librescoot Widget App Store CI"
+
       - name: Write export options
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -236,7 +247,23 @@ jobs:
           EOF
           plutil -lint ios/ExportOptions.plist
 
-      - run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+      # App Store Connect rejects a marketing version carrying a prerelease
+      # suffix, so a -beta/-rc tag is published to iOS as its bare x.y.z while
+      # the tag keeps the suffix everywhere else.
+      #
+      # The build number is seconds since 2020, the same scheme the Android
+      # release and every nightly build use. A pubspec +N would be far below the
+      # nightly builds TestFlight has already seen for this app.
+      - name: Build iOS IPA
+        id: version
+        run: |
+          VERSION="$(grep '^version:' pubspec.yaml | sed 's/version: //' | cut -d+ -f1)"
+          BUILD_NUMBER="$(( $(date -u +%s) - 1577836800 ))"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+          flutter build ipa --release \
+            --build-name="${VERSION%%-*}" \
+            --build-number="$BUILD_NUMBER" \
+            --export-options-plist=ios/ExportOptions.plist
 
       - name: Locate iOS IPA
         id: ipa
@@ -252,6 +279,17 @@ jobs:
           issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
           api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+
+      - name: Publish What to Test notes
+        env:
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+        run: |
+          python3 .github/scripts/testflight_notes.py \
+            --build-number "${{ steps.version.outputs.build_number }}" \
+            --notes-dir distribution/play/metadata/android \
+            --notes-version "${{ needs.meta.outputs.version }}" \
+            --issuer-id "${{ secrets.APPSTORE_ISSUER_ID }}" \
+            --key-id "${{ secrets.APPSTORE_KEY_ID }}"
 
       - uses: actions/upload-artifact@v6
         with:

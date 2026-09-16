@@ -136,6 +136,18 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Generate notes from commits since the last nightly
+        run: |
+          PREV="$(git tag --list 'nightly-*' --sort=-creatordate | head -1 || true)"
+          if [ -n "$PREV" ]; then
+            python3 .github/scripts/nightly_notes.py --base "$PREV" --output testflight-notes.txt
+          else
+            python3 .github/scripts/nightly_notes.py --output testflight-notes.txt
+          fi
 
       - uses: subosito/flutter-action@v2
         with:
@@ -166,6 +178,16 @@ jobs:
           issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
           api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+
+      # The profile names below are pinned in project.pbxproj and
+      # ExportOptions.plist, so a rotated certificate would otherwise surface as
+      # a confusing signing failure after the archive has already run.
+      - name: Verify signing profiles
+        run: |
+          python3 .github/scripts/verify_signing_profiles.py \
+            --keychain signing_temp \
+            --require "org.librescoot.mobile.unu=Librescoot App Store CI" \
+            --require "org.librescoot.mobile.unu.ScooterWidget=Librescoot Widget App Store CI"
 
       - name: Write export options
         env:
@@ -216,6 +238,16 @@ jobs:
           issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
           api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+
+      - name: Publish What to Test notes
+        env:
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+        run: |
+          python3 .github/scripts/testflight_notes.py \
+            --build-number "${{ needs.build.outputs.version_code }}" \
+            --notes-file testflight-notes.txt \
+            --issuer-id "${{ secrets.APPSTORE_ISSUER_ID }}" \
+            --key-id "${{ secrets.APPSTORE_KEY_ID }}"
 
       - uses: actions/upload-artifact@v6
         with:

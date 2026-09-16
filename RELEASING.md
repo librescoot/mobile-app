@@ -48,9 +48,28 @@ release rather than shipping stale text; every file must stay within Play's
 
 Nightly internal-track builds synthesize their English Play notes from the
 commit subjects since the previous `nightly-*` tag instead (see
-`.github/scripts/nightly_notes.py`). The nightly workflow uses the same
-seconds-since-2020 value for Android's version code and iOS's TestFlight build
-number, ensuring that every pushed build is newer than its predecessor.
+`.github/scripts/nightly_notes.py`).
+
+Every path uses the same seconds-since-2020 value as its store build number:
+Android's version code and iOS's TestFlight build number, for both releases and
+nightlies. The `+N` in `pubspec.yaml` is not used for either store, since a
+hand-assigned number would be far below what nightlies have already published.
+
+### TestFlight "What to Test"
+
+The upload action cannot set these, so `.github/scripts/testflight_notes.py`
+writes them through the App Store Connect API after the IPA is uploaded. It
+resolves the build by its build number, waits for App Store Connect to finish
+processing it, then creates or updates the per-locale
+`betaBuildLocalizations.whatsNew`:
+
+- Nightly builds get the same synthesized English notes as the Play internal
+  track, as `en-US`.
+- Tagged releases reuse the per-locale Play changelog files, so each locale
+  gets its own text. Apple allows 4000 characters here, well above Play's 500.
+
+A build rejected during processing (state `FAILED`/`INVALID`) fails the job
+with that state rather than silently leaving the build without notes.
 
 ## Required secrets
 
@@ -92,7 +111,11 @@ and `Librescoot Widget App Store CI` profiles for
 `org.librescoot.mobile.unu` and
 `org.librescoot.mobile.unu.ScooterWidget`. Both need the
 `group.org.librescoot.mobile.unu` app group. Regenerate both profiles when the
-distribution certificate changes. The disabled share extension is not embedded
+distribution certificate changes: before each build,
+`.github/scripts/verify_signing_profiles.py` checks that the downloaded profiles
+still carry the certificate that was just imported and fails with a clear
+message if not, rather than letting Xcode report a signing failure after the
+archive has already run. The disabled share extension is not embedded
 and therefore needs neither an App ID nor a provisioning profile.
 
 ## Where each secret comes from

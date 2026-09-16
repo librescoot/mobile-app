@@ -50,7 +50,9 @@ app.*.map.json
 
 *.mocks.dart
 
-scripts/
+# Anchored: an unanchored 'scripts/' also matches .github/scripts/, which is
+# where the CI release tooling lives.
+/scripts/
 
 # FVM Version Cache
 .fvm/
