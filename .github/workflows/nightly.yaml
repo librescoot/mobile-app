@@ -185,9 +185,9 @@ jobs:
             <key>provisioningProfiles</key>
             <dict>
               <key>org.librescoot.mobile.unu</key>
-              <string>iOS Team Store Provisioning Profile: org.librescoot.mobile.unu</string>
+              <string>Librescoot App Store CI</string>
               <key>org.librescoot.mobile.unu.ScooterWidget</key>
-              <string>iOS Team Store Provisioning Profile: org.librescoot.mobile.unu.ScooterWidget</string>
+              <string>Librescoot Widget App Store CI</string>
             </dict>
           </dict>
           </plist>

@@ -87,11 +87,13 @@ group's automatic-distribution setting.
 
 Provisioning profiles are fetched from App Store Connect at build time rather
 than stored, so they cannot drift out of step with the certificate. The app and
-embedded widget bundle IDs need App Store provisioning profiles:
+embedded widget bundle IDs use the manually managed `Librescoot App Store CI`
+and `Librescoot Widget App Store CI` profiles for
 `org.librescoot.mobile.unu` and
 `org.librescoot.mobile.unu.ScooterWidget`. Both need the
-`group.org.librescoot.mobile.unu` app group. The disabled share extension is not
-embedded and therefore needs neither an App ID nor a provisioning profile.
+`group.org.librescoot.mobile.unu` app group. Regenerate both profiles when the
+distribution certificate changes. The disabled share extension is not embedded
+and therefore needs neither an App ID nor a provisioning profile.
 
 ## Where each secret comes from
 
