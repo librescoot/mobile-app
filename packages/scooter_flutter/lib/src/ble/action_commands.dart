@@ -94,7 +94,21 @@ Future<void> enterNormalUsbModeCommand(
     log.severe("Failed to enter normal USB mode, response: $response");
     throw "Failed to enter normal USB mode, response: $response";
   }
-  return;
+}
+
+Future<void> setServiceModeCommand(
+    BluetoothDevice? scooter, CharacteristicRepository repo, bool enabled,
+    {bool Function()? isCurrent}) async {
+  final response = await sendLsExtendedCommand(
+    scooter,
+    repo,
+    enabled ? serviceModeEnableCommand : serviceModeDisableCommand,
+    isCurrent: isCurrent,
+  );
+  if (response != serviceModeAcknowledgement) {
+    log.severe("Failed to set service mode, response: $response");
+    throw "Failed to set service mode, response: $response";
+  }
 }
 
 /// Counts the number of keycards registered on the scooter by sending a command and listening for the count response.

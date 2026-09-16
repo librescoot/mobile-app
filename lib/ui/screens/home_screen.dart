@@ -4,14 +4,17 @@ import 'dart:math' show Random;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:scooter_core/trip_counter.dart';
 
 import 'package:unustasis/ui/dialogs/seat_warning.dart';
 import 'package:unustasis/ui/widgets/leaves.dart';
@@ -38,6 +41,7 @@ import 'package:unustasis/ui/widgets/snowfall.dart';
 import 'package:unustasis/ui/widgets/clouds.dart';
 import 'package:unustasis/ui/widgets/grassscape.dart';
 import 'package:unustasis/ui/screens/navigation_screen.dart';
+import 'package:unustasis/ui/screens/trip_counter_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool? forceOpen;
@@ -197,16 +201,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              if (context.isDarkMode)
-                IgnorePointer(
-                  child: StateCircle(
-                    connected: context.select((ScooterService service) => service.connected),
-                    scooterState: context.select((ScooterService service) => service.state),
-                    scanning: context.select((ScooterService service) => service.scanning),
-                    halloween: _fall,
-                    fall: false,
-                  ),
-                ),
               if (_fall && !context.isDarkMode)
                 LeavesBackground(
                   backgroundColor: Colors.transparent,
@@ -287,8 +281,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           mainAxisAlignment: MainAxisAlignment.center,
                           mainAxisSize: MainAxisSize.max,
                           children: [
+                            Expanded(
+                              child: Stack(
+                                alignment: Alignment.center,
+                                fit: StackFit.expand,
+                                children: [
+                                  if (context.isDarkMode)
+                                    IgnorePointer(
+                                      child: StateCircle(
+                                        connected: context.select((ScooterService service) => service.connected),
+                                        scooterState: context.select((ScooterService service) => service.state),
+                                        scanning: context.select((ScooterService service) => service.scanning),
+                                        halloween: _fall,
+                                        fall: false,
+                                      ),
+                                    ),
+                                  ScooterVisual(
+                                    color: context.select<ScooterService, int?>(
+                                          (service) => service.identity.color,
+                                        ) ??
+                                        1,
+                                    state: context.select(
+                                      (ScooterService service) => service.state,
+                                    ),
+                                    scanning: context.select(
+                                      (ScooterService service) => service.scanning,
+                                    ),
+                                    blinkerLeft: _hazards,
+                                    blinkerRight: _hazards,
+                                    winter: _snowing,
+                                    aprilFools: _forceHover,
+                                    halloween: _fall && context.isDarkMode,
+                                  ),
+                                ],
+                              ),
+                            ),
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
                               child: Material(
                                 color: Colors.transparent,
                                 child: InkWell(
@@ -345,26 +374,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               ),
                             ),
                             const StatusText(),
-                            if (context.select<ScooterService, String?>(
-                                      (service) => service.identity.name,
-                                    ) !=
-                                    null &&
-                                context.select<ScooterService, String?>(
-                                      (service) => service.identity.name,
-                                    ) !=
-                                    FlutterI18n.translate(
-                                      context,
-                                      "stats_no_name",
-                                    ))
+                            if (!context.select<ScooterService, bool>(
+                                  (service) => service.tripCounter != null || service.cachedTripCounter != null,
+                                ) &&
+                                context.select<ScooterService, String?>((service) => service.identity.name) != null &&
+                                context.select<ScooterService, String?>((service) => service.identity.name) !=
+                                    FlutterI18n.translate(context, "stats_no_name"))
                               Material(
                                 color: Colors.transparent,
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(8),
                                   onTap: () => Navigator.push(
                                     context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const BatteryScreen(),
-                                    ),
+                                    MaterialPageRoute(builder: (_) => const BatteryScreen()),
                                   ),
                                   child: DashboardBatterySummary(
                                     primarySOC: context.select<ScooterService, int?>(
@@ -376,9 +398,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     dataIsOld: context.select<ScooterService, DateTime?>(
                                               (service) => service.identity.lastPing,
                                             ) ==
-                                            null
-                                        ? true
-                                        : context
+                                            null ||
+                                        context
                                                 .select<ScooterService, DateTime?>(
                                                   (service) => service.identity.lastPing,
                                                 )!
@@ -389,25 +410,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   ),
                                 ),
                               ),
-                            Expanded(
-                              child: ScooterVisual(
-                                color: context.select<ScooterService, int?>(
-                                      (service) => service.identity.color,
-                                    ) ??
-                                    1,
-                                state: context.select(
-                                  (ScooterService service) => service.state,
+                            if (context.select<ScooterService, bool>(
+                              (service) => service.tripCounter != null || service.cachedTripCounter != null,
+                            ))
+                              Selector<ScooterService, _DashboardMetricsData>(
+                                selector: (context, service) => (
+                                  odometerMeters: service.odometerMeters ?? service.cachedOdometerMeters,
+                                  trip: service.tripCounter ?? service.cachedTripCounter,
+                                  primarySOC: service.battery.primarySOC,
+                                  secondarySOC: service.battery.secondarySOC,
+                                  dataIsOld: service.identity.lastPing == null ||
+                                      service.identity.lastPing!.difference(DateTime.now()).inMinutes.abs() > 5,
                                 ),
-                                scanning: context.select(
-                                  (ScooterService service) => service.scanning,
+                                builder: (context, metrics, _) => DashboardMetricsSummary(
+                                  odometerMeters: metrics.odometerMeters,
+                                  trip: metrics.trip,
+                                  primarySOC: metrics.primarySOC,
+                                  secondarySOC: metrics.secondarySOC,
+                                  dataIsOld: metrics.dataIsOld,
+                                  onRideTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const TripCounterScreen()),
+                                  ),
+                                  onRangeTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const BatteryScreen()),
+                                  ),
                                 ),
-                                blinkerLeft: _hazards,
-                                blinkerRight: _hazards,
-                                winter: _snowing,
-                                aprilFools: _forceHover,
-                                halloween: _fall && context.isDarkMode,
                               ),
-                            ),
+                            const SizedBox(height: 8),
                             HomeActionRow(
                               leading: const SeatButton(),
                               primary: Selector<ScooterService, ScooterState?>(
@@ -689,6 +720,263 @@ class SeatButton extends StatelessWidget {
   }
 }
 
+typedef _DashboardMetricsData = ({
+  int? odometerMeters,
+  TripCounterSnapshot? trip,
+  int? primarySOC,
+  int? secondarySOC,
+  bool dataIsOld,
+});
+
+class DashboardMetricsSummary extends StatelessWidget {
+  const DashboardMetricsSummary({
+    required this.odometerMeters,
+    required this.trip,
+    required this.primarySOC,
+    required this.secondarySOC,
+    required this.dataIsOld,
+    required this.onRideTap,
+    required this.onRangeTap,
+    super.key,
+  });
+
+  final int? odometerMeters;
+  final TripCounterSnapshot? trip;
+  final int? primarySOC;
+  final int? secondarySOC;
+  final bool dataIsOld;
+  final VoidCallback onRideTap;
+  final VoidCallback onRangeTap;
+
+  IconData _batteryIcon(int soc) {
+    if (soc <= 0) return Icons.battery_0_bar_rounded;
+    if (soc < 30) return Icons.battery_2_bar_rounded;
+    if (soc < 55) return Icons.battery_4_bar_rounded;
+    if (soc < 80) return Icons.battery_5_bar_rounded;
+    return Icons.battery_full_rounded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final accent = dataIsOld ? colors.onSurfaceVariant : colors.primary;
+    final secondaryPresent = secondarySOC != null && secondarySOC! > 0;
+    // Firmware reports a charge of zero for a bay with no pack in it, so zero
+    // reads as "no battery" rather than "flat battery".
+    final primaryPresent = primarySOC != null && primarySOC! > 0;
+    final socs = [
+      if (primaryPresent) primarySOC,
+      if (secondaryPresent) secondarySOC,
+    ].whereType<int>().toList();
+    final range = socs.isEmpty ? null : (socs.fold<int>(0, (total, soc) => total + soc) * 0.45).round();
+    final primaryReadout = primaryPresent ? primarySOC : null;
+    final secondaryReadout = secondaryPresent ? secondarySOC : null;
+    final tripValue = trip == null ? '—' : (trip!.distanceMeters / 1000).toStringAsFixed(1);
+    final odometerValue = odometerMeters == null ? '—' : (odometerMeters! / 1000).toStringAsFixed(1);
+    final ridingTime = trip == null
+        ? '—'
+        : trip!.ridingSeconds < 3600
+            ? '${trip!.ridingSeconds ~/ 60}m'
+            : '${trip!.ridingSeconds ~/ 3600}h ${(trip!.ridingSeconds % 3600) ~/ 60}m';
+    final tripDistance = tripValue == '—' ? tripValue : '$tripValue km';
+    final odometer = odometerValue == '—' ? odometerValue : '$odometerValue km';
+    final numberStyle = Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold);
+    final unitStyle = Theme.of(context).textTheme.labelMedium?.copyWith(color: colors.onSurfaceVariant);
+    // Glyph and number sizes share one baseline, so the optical centre of a
+    // glyph is matched to the optical centre of the digits beside it. Digits
+    // sit centred on roughly 0.36 em above the baseline in the app's fonts.
+    final numberSize = numberStyle?.fontSize ?? 16;
+    const iconSize = 18.0;
+    double glyphBaseline(double size) => size / 2 + numberSize * 0.3635;
+
+    // Material icon glyphs are drawn in a square whose bottom is the baseline,
+    // so an icon font reports no usable baseline. State one that matches the
+    // digits it sits next to and baseline-aligned rows line everything up.
+    Widget glyph(IconData icon, {double size = iconSize}) => _GlyphBaseline(
+          baseline: glyphBaseline(size),
+          child: Icon(icon, size: size, color: accent),
+        );
+
+    // Google's Material Symbols artwork for the ride metrics lives in
+    // assets/icons/material-symbols.
+    Widget symbol(String name, {double size = iconSize}) => _GlyphBaseline(
+          baseline: glyphBaseline(size),
+          child: SvgPicture.asset(
+            'assets/icons/material-symbols/$name.svg',
+            width: size,
+            height: size,
+            colorFilter: ColorFilter.mode(accent, BlendMode.srcIn),
+          ),
+        );
+
+    Widget chevron() => _GlyphBaseline(
+          baseline: glyphBaseline(20),
+          child: Icon(Icons.chevron_right_rounded, size: 20, color: colors.onSurfaceVariant),
+        );
+
+    List<Widget> readout(String value, {String? unit}) => [
+          Text(value, style: numberStyle),
+          if (unit != null && value != '—') ...[
+            const SizedBox(width: 3),
+            Text(unit, style: unitStyle),
+          ],
+        ];
+
+    List<Widget> duration() {
+      if (trip == null) return readout('—');
+      final hours = trip!.ridingSeconds ~/ 3600;
+      final minutes = (trip!.ridingSeconds % 3600) ~/ 60;
+      return [
+        if (hours > 0) ...[
+          Text('$hours', style: numberStyle),
+          Text('h', style: unitStyle),
+          const SizedBox(width: 5),
+        ],
+        Text('$minutes', style: numberStyle),
+        Text('m', style: unitStyle),
+      ];
+    }
+
+    List<Widget> battery(int? soc) => [
+          glyph(soc == null ? Icons.battery_unknown_outlined : _batteryIcon(soc)),
+          const SizedBox(width: 3),
+          Text(soc == null ? '—' : '$soc', style: numberStyle),
+          if (soc != null) Text('%', style: unitStyle),
+        ];
+
+    Widget metricRow({
+      required String semanticsLabel,
+      required VoidCallback onTap,
+      required Widget child,
+    }) =>
+        Semantics(
+          button: true,
+          label: semanticsLabel,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: onTap,
+              child: SizedBox(width: double.infinity, height: 38, child: child),
+            ),
+          ),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          metricRow(
+            semanticsLabel:
+                '${FlutterI18n.translate(context, 'ride.current_trip')}: $tripDistance, ${FlutterI18n.translate(context, 'trip_riding_time')}: $ridingTime, ${FlutterI18n.translate(context, 'ride.odometer')}: $odometer',
+            onTap: onRideTap,
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    symbol('pin_road_2'),
+                    const SizedBox(width: 5),
+                    ...readout(tripValue, unit: 'km'),
+                    const SizedBox(width: 14),
+                    symbol('pace'),
+                    const SizedBox(width: 5),
+                    ...duration(),
+                    const SizedBox(width: 14),
+                    symbol('distance'),
+                    const SizedBox(width: 5),
+                    ...readout(odometerValue, unit: 'km'),
+                    const SizedBox(width: 2),
+                    chevron(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          metricRow(
+            semanticsLabel:
+                '${socs.map((soc) => '$soc%').join(', ')}; ${FlutterI18n.translate(context, 'stats_estimated_range')}: ${range == null ? '—' : '$range km'}',
+            onTap: onRangeTap,
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    ...battery(primaryReadout),
+                    if (secondaryPresent) ...[
+                      const SizedBox(width: 12),
+                      ...battery(secondaryReadout),
+                    ],
+                    const SizedBox(width: 28),
+                    symbol('route'),
+                    const SizedBox(width: 5),
+                    ...readout(range == null ? '—' : '≈$range', unit: 'km'),
+                    const SizedBox(width: 2),
+                    chevron(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Gives a glyph a baseline, so it can sit in a baseline-aligned row next to
+/// text. Icon fonts and SVGs have no text baseline of their own.
+class _GlyphBaseline extends SingleChildRenderObjectWidget {
+  const _GlyphBaseline({required this.baseline, required super.child});
+
+  final double baseline;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderGlyphBaseline(baseline);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderGlyphBaseline renderObject) {
+    renderObject.baseline = baseline;
+  }
+}
+
+class _RenderGlyphBaseline extends RenderShiftedBox {
+  _RenderGlyphBaseline(this._baseline) : super(null);
+
+  double _baseline;
+
+  set baseline(double value) {
+    if (_baseline == value) return;
+    _baseline = value;
+    markNeedsLayout();
+  }
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) => _baseline;
+
+  @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) => _baseline;
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    child.layout(constraints.loosen(), parentUsesSize: true);
+    size = constraints.constrain(child.size);
+  }
+}
+
 class DashboardBatterySummary extends StatelessWidget {
   const DashboardBatterySummary({
     required this.primarySOC,
@@ -726,7 +1014,7 @@ class DashboardBatterySummary extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              value(Icons.route_outlined, '$totalRange km'),
+              value(Icons.radar_rounded, '$totalRange km'),
               const SizedBox(width: 16),
               value(
                 primarySOC != null && primarySOC! > 0 ? Icons.battery_5_bar_rounded : Icons.battery_unknown_outlined,
@@ -895,23 +1183,12 @@ class StatusText extends StatelessWidget {
 
         final handlebarText = data.connected ? data.handlebarsLocked : null;
 
-        final statusColor = data.connected
-            ? Theme.of(context).colorScheme.primary
-            : data.scanning
-                ? const Color(0xFFEAB308)
-                : Theme.of(context).colorScheme.outline;
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
-                ),
-                const SizedBox(width: 8),
                 Flexible(
                   child: Text(
                     stateText,

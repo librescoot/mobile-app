@@ -8,6 +8,38 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'nav_destination.dart';
 
+DateTime? _dateTimeFromMicros(Object? value) => value is int ? DateTime.fromMicrosecondsSinceEpoch(value) : null;
+
+Map<String, dynamic> _tripCounterToJson(TripCounterSnapshot snapshot) => {
+      'distanceMeters': snapshot.distanceMeters,
+      'ridingSeconds': snapshot.ridingSeconds,
+      'averageSpeedKph': snapshot.averageSpeedKph,
+      'resetPolicy': snapshot.resetPolicy.name,
+      'lastResetSeconds': snapshot.lastReset?.seconds,
+      'lastResetReason': snapshot.lastResetReason.name,
+      'generation': snapshot.generation,
+      'status': snapshot.status.name,
+    };
+
+TripCounterSnapshot? _tripCounterFromJson(Object? value) {
+  if (value is! Map<String, dynamic>) return null;
+  try {
+    final lastReset = value['lastResetSeconds'];
+    return TripCounterSnapshot(
+      distanceMeters: value['distanceMeters'] as int,
+      ridingSeconds: value['ridingSeconds'] as int,
+      averageSpeedKph: value['averageSpeedKph'] as int,
+      resetPolicy: TripResetPolicy.values.byName(value['resetPolicy'] as String),
+      lastReset: lastReset is int ? TripTimestamp(lastReset) : null,
+      lastResetReason: TripResetReason.values.byName(value['lastResetReason'] as String),
+      generation: value['generation'] as int,
+      status: TripCounterStatus.values.byName(value['status'] as String),
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
 class SavedScooter implements SavedScooterRecord {
   String _name;
   String _id;
@@ -27,6 +59,10 @@ class SavedScooter implements SavedScooterRecord {
   bool? _isLibrescoot;
   bool? _supportsHibernateFor;
   bool? _supportsApnConfig;
+  int? _cachedOdometerMeters;
+  DateTime? _odometerUpdatedAt;
+  TripCounterSnapshot? _cachedTripCounter;
+  DateTime? _tripCounterUpdatedAt;
   List<NavDestination>? _cachedDestinations;
 
   SavedScooter({
@@ -48,6 +84,10 @@ class SavedScooter implements SavedScooterRecord {
     bool? isLibrescoot,
     bool? supportsHibernateFor,
     bool? supportsApnConfig,
+    int? cachedOdometerMeters,
+    DateTime? odometerUpdatedAt,
+    TripCounterSnapshot? cachedTripCounter,
+    DateTime? tripCounterUpdatedAt,
     List<NavDestination>? cachedDestinations,
   })  : _name = name ?? "Scooter Pro",
         _id = id,
@@ -67,6 +107,10 @@ class SavedScooter implements SavedScooterRecord {
         _isLibrescoot = isLibrescoot,
         _supportsHibernateFor = supportsHibernateFor,
         _supportsApnConfig = supportsApnConfig,
+        _cachedOdometerMeters = cachedOdometerMeters,
+        _odometerUpdatedAt = odometerUpdatedAt,
+        _cachedTripCounter = cachedTripCounter,
+        _tripCounterUpdatedAt = tripCounterUpdatedAt,
         _cachedDestinations = cachedDestinations;
 
   @override
@@ -166,6 +210,18 @@ class SavedScooter implements SavedScooterRecord {
     updateSharedPreferences();
   }
 
+  void cacheOdometer(int meters, {DateTime? updatedAt}) {
+    _cachedOdometerMeters = meters;
+    _odometerUpdatedAt = updatedAt ?? DateTime.now();
+    updateSharedPreferences();
+  }
+
+  void cacheTripCounter(TripCounterSnapshot snapshot, {DateTime? updatedAt}) {
+    _cachedTripCounter = snapshot;
+    _tripCounterUpdatedAt = updatedAt ?? DateTime.now();
+    updateSharedPreferences();
+  }
+
   set cachedDestinations(List<NavDestination>? cachedDestinations) {
     _cachedDestinations = cachedDestinations;
     updateSharedPreferences();
@@ -196,6 +252,10 @@ class SavedScooter implements SavedScooterRecord {
   bool? get isLibrescoot => _isLibrescoot;
   bool? get supportsHibernateFor => _supportsHibernateFor;
   bool? get supportsApnConfig => _supportsApnConfig;
+  int? get cachedOdometerMeters => _cachedOdometerMeters;
+  DateTime? get odometerUpdatedAt => _odometerUpdatedAt;
+  TripCounterSnapshot? get cachedTripCounter => _cachedTripCounter;
+  DateTime? get tripCounterUpdatedAt => _tripCounterUpdatedAt;
   List<NavDestination>? get cachedDestinations => _cachedDestinations;
 
   BluetoothDevice get bluetoothDevice => BluetoothDevice.fromId(_id);
@@ -220,6 +280,10 @@ class SavedScooter implements SavedScooterRecord {
         'isLibrescoot': _isLibrescoot,
         'supportsHibernateFor': _supportsHibernateFor,
         'supportsApnConfig': _supportsApnConfig,
+        'cachedOdometerMeters': _cachedOdometerMeters,
+        'odometerUpdatedAt': _odometerUpdatedAt?.microsecondsSinceEpoch,
+        'cachedTripCounter': _cachedTripCounter == null ? null : _tripCounterToJson(_cachedTripCounter!),
+        'tripCounterUpdatedAt': _tripCounterUpdatedAt?.microsecondsSinceEpoch,
         'cachedDestinations': _cachedDestinations?.map((d) => d.toJson()).toList(),
       };
 
@@ -246,6 +310,10 @@ class SavedScooter implements SavedScooterRecord {
       isLibrescoot: map['isLibrescoot'],
       supportsHibernateFor: map['supportsHibernateFor'],
       supportsApnConfig: map['supportsApnConfig'],
+      cachedOdometerMeters: map['cachedOdometerMeters'],
+      odometerUpdatedAt: _dateTimeFromMicros(map['odometerUpdatedAt']),
+      cachedTripCounter: _tripCounterFromJson(map['cachedTripCounter']),
+      tripCounterUpdatedAt: _dateTimeFromMicros(map['tripCounterUpdatedAt']),
       cachedDestinations: (map['cachedDestinations'] as List<dynamic>?)
           ?.map((e) => NavDestination.fromJson(e as Map<String, dynamic>))
           .toList(),

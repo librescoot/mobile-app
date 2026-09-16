@@ -37,8 +37,8 @@ class StateCircle extends StatelessWidget {
               ? 1.5
               : 0,
       child: Container(
-        width: MediaQuery.of(context).size.width,
-        height: MediaQuery.of(context).size.width,
+        width: MediaQuery.sizeOf(context).width * 0.85,
+        height: MediaQuery.sizeOf(context).width * 0.85,
         decoration: BoxDecoration(
           boxShadow: _halloween && _scooterState?.isOn == true
               ? [

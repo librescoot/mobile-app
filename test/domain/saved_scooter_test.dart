@@ -4,6 +4,7 @@ import 'package:flutter_background_service_platform_interface/flutter_background
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+import 'package:scooter_core/trip_counter.dart';
 import '../support/persistence_fakes.dart';
 import 'package:unustasis/domain/nav_destination.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
@@ -56,6 +57,19 @@ void main() {
       isLibrescoot: true,
       supportsHibernateFor: false,
       supportsApnConfig: true,
+      cachedOdometerMeters: 123456,
+      odometerUpdatedAt: DateTime.fromMicrosecondsSinceEpoch(micros, isUtc: true),
+      cachedTripCounter: const TripCounterSnapshot(
+        distanceMeters: 4321,
+        ridingSeconds: 987,
+        averageSpeedKph: 16,
+        resetPolicy: TripResetPolicy.manual,
+        lastReset: TripTimestamp(1700000000),
+        lastResetReason: TripResetReason.manual,
+        generation: 7,
+        status: TripCounterStatus.idle,
+      ),
+      tripCounterUpdatedAt: DateTime.fromMicrosecondsSinceEpoch(micros, isUtc: true),
       cachedDestinations: [
         NavDestination(
           location: const LatLng(51.2, 12.3),
@@ -86,6 +100,19 @@ void main() {
       'isLibrescoot': true,
       'supportsHibernateFor': false,
       'supportsApnConfig': true,
+      'cachedOdometerMeters': 123456,
+      'odometerUpdatedAt': micros,
+      'cachedTripCounter': {
+        'distanceMeters': 4321,
+        'ridingSeconds': 987,
+        'averageSpeedKph': 16,
+        'resetPolicy': 'manual',
+        'lastResetSeconds': 1700000000,
+        'lastResetReason': 'manual',
+        'generation': 7,
+        'status': 'idle',
+      },
+      'tripCounterUpdatedAt': micros,
       'cachedDestinations': [
         {
           'latitude': 51.2,
@@ -126,6 +153,10 @@ void main() {
       'isLibrescoot',
       'supportsHibernateFor',
       'supportsApnConfig',
+      'cachedOdometerMeters',
+      'odometerUpdatedAt',
+      'cachedTripCounter',
+      'tripCounterUpdatedAt',
       'cachedDestinations'
     ]) {
       expect(json.containsKey(key), isTrue, reason: key);
@@ -163,6 +194,15 @@ void main() {
     expect(() => SavedScooter.fromJson('id', {'lastPing': null}), throwsA(isA<TypeError>()));
   });
 
+  test('malformed cached trip data is ignored without losing other cached ride data', () {
+    final scooter = SavedScooter.fromJson('id', {
+      'cachedOdometerMeters': 42,
+      'cachedTripCounter': {'distanceMeters': 'not-an-int'},
+    });
+    expect(scooter.cachedOdometerMeters, 42);
+    expect(scooter.cachedTripCounter, isNull);
+  });
+
   test('empty destination cache stays distinct from an unknown cache', () {
     expect(SavedScooter.fromJson('id', {}).cachedDestinations, isNull);
     expect(SavedScooter.fromJson('id', {'cachedDestinations': []}).toJson()['cachedDestinations'], isEmpty);
@@ -189,6 +229,20 @@ void main() {
       () => scooter.isLibrescoot = false,
       () => scooter.supportsHibernateFor = true,
       () => scooter.supportsApnConfig = false,
+      () => scooter.cacheOdometer(1200, updatedAt: DateTime.fromMicrosecondsSinceEpoch(10)),
+      () => scooter.cacheTripCounter(
+            const TripCounterSnapshot(
+              distanceMeters: 300,
+              ridingSeconds: 40,
+              averageSpeedKph: 27,
+              resetPolicy: TripResetPolicy.ride,
+              lastReset: null,
+              lastResetReason: TripResetReason.initial,
+              generation: 1,
+              status: TripCounterStatus.recording,
+            ),
+            updatedAt: DateTime.fromMicrosecondsSinceEpoch(20),
+          ),
       () => scooter.cachedDestinations = [],
     ];
     for (final change in changes) {

@@ -416,6 +416,9 @@ class ScooterActions {
     await write(lsKeyScheduledHibernateEnabled, enabled.toString());
   }
 
+  Future<void> setServiceMode(bool enabled) => _command(_capture(),
+      (d, r, c) => commands.setServiceModeCommand(d, r, enabled, isCurrent: c));
+
   Future<void> setAutoStandbyTime(Duration time) => _command(
       _capture(),
       (d, r, c) =>

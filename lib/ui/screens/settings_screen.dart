@@ -14,6 +14,10 @@ import 'package:local_auth/local_auth.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:scooter_core/actions.dart';
+import 'package:scooter_core/trip_counter.dart';
+import 'package:scooter_flutter/trip_commands.dart';
+import 'package:scooter_core/trip_expunge.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:unustasis/domain/alarm_status.dart';
@@ -28,7 +32,6 @@ import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
 import 'package:unustasis/ui/screens/system_information_screen.dart';
 import 'package:unustasis/ui/screens/ls_scheduled_hibernation_screen.dart';
-import 'package:scooter_core/actions.dart';
 import 'package:unustasis/state/vehicle_status.dart';
 import 'package:unustasis/ui/screens/log_screen.dart';
 
@@ -57,6 +60,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isSendingApn = false;
   bool _isUpdatingUsbMode = false;
   bool _isSendingTime = false;
+  bool _isSendingServiceMode = false;
+  bool? _serviceMode;
+  bool _serviceModeLoaded = false;
   bool _apnLoaded = false;
   String? _apn;
   bool _isSendingBatteryKeepActive = false;
@@ -140,7 +146,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _getApn();
       _getBatteryKeepActive();
       _getAlarmSettings();
+      _getServiceMode();
     });
+  }
+
+  Future<void> _getServiceMode() async {
+    bool? enabled;
+    try {
+      enabled = await context.read<ScooterService>().actions.getBoolSetting(lsKeyServiceModeActive);
+    } catch (error, stack) {
+      log.warning('Could not read service mode', error, stack);
+    }
+    if (mounted) {
+      setState(() {
+        _serviceMode = enabled;
+        _serviceModeLoaded = true;
+      });
+    }
+  }
+
+  Future<void> _setServiceMode(bool enabled) async {
+    setState(() => _isSendingServiceMode = true);
+    try {
+      await context.read<ScooterService>().actions.setServiceMode(enabled);
+      if (!mounted) return;
+      setState(() => _serviceMode = enabled);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(FlutterI18n.translate(
+            context,
+            enabled ? 'ls_settings_service_mode_on_success' : 'ls_settings_service_mode_off_success',
+          )),
+        ),
+      );
+    } catch (error, stack) {
+      log.warning('Could not set service mode', error, stack);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(FlutterI18n.translate(
+            context,
+            'ls_settings_service_mode_error',
+          )),
+        ),
+      );
+      unawaited(_getServiceMode());
+    } finally {
+      if (mounted) setState(() => _isSendingServiceMode = false);
+    }
   }
 
   Future<void> _getKeycardCount() async {
@@ -811,6 +864,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
           ),
         ),
+        ListTile(
+          leading: const Icon(Icons.build_circle_outlined),
+          title: Text(FlutterI18n.translate(context, 'ls_settings_service_mode_title')),
+          subtitle: Text(FlutterI18n.translate(context, 'ls_settings_service_mode_subtitle')),
+          trailing: !_serviceModeLoaded
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : Switch(
+                  value: _serviceMode ?? false,
+                  onChanged: _serviceMode == null || _isSendingServiceMode ? null : _setServiceMode,
+                ),
+        ),
       ];
 
   List<Widget> settingsItems({
@@ -825,6 +889,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool autoUnlock,
     required bool openSeatOnUnlock,
     required bool hazardLocking,
+    required bool showTripSettings,
   }) =>
       [
         Header(
@@ -963,6 +1028,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               : null,
         ),
         if (isLibrescoot) ..._connectionRequiredItems(_librescootAccessSettingsItems()),
+        if (showTripSettings) ...[
+          Header(FlutterI18n.translate(context, 'trip_title')),
+          const RideStatsSettingsSection(),
+        ],
         if (isLibrescoot) ...[
           Header(FlutterI18n.translate(context, "settings_section_power")),
           ..._connectionRequiredItems(_librescootPowerSettingsItems(
@@ -1276,7 +1345,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           bool otaAvailable,
           bool autoUnlock,
           bool openSeatOnUnlock,
-          bool hazardLocking
+          bool hazardLocking,
+          bool showTripSettings
         })>(
       (service) => (
         isLibrescoot: service.identity.isLibrescoot == true,
@@ -1290,6 +1360,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         autoUnlock: service.autoUnlock,
         openSeatOnUnlock: service.openSeatOnUnlock,
         hazardLocking: service.hazardLocking,
+        showTripSettings: service.connected && service.tripCounterSupported == true,
       ),
     );
     _ensureLsDataLoaded(ls.isLibrescoot);
@@ -1305,6 +1376,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       autoUnlock: ls.autoUnlock,
       openSeatOnUnlock: ls.openSeatOnUnlock,
       hazardLocking: ls.hazardLocking,
+      showTripSettings: ls.showTripSettings,
     );
 
     return Scaffold(
@@ -1405,6 +1477,284 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+class RideStatsSettingsSection extends StatefulWidget {
+  const RideStatsSettingsSection({super.key});
+
+  @override
+  State<RideStatsSettingsSection> createState() => RideStatsSettingsSectionState();
+}
+
+class RideStatsSettingsSectionState extends State<RideStatsSettingsSection> {
+  bool _loading = true;
+  bool _busy = false;
+  // Owned by the state, not the dialog: disposing it when showDialog returns
+  // races the route's exit animation, which still rebuilds the field.
+  final _retentionValue = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+  }
+
+  Future<void> _refresh() async {
+    final service = context.read<ScooterService>();
+    try {
+      await service.refreshTripCounter();
+      if (service.tripExpungeSupported != false) await service.refreshTripExpunge();
+    } catch (error) {
+      if (mounted) _showError(error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Trip failures are reported the same way the Ride stats screen does, so a
+  /// timeout and a dropped connection are not both flattened into one message.
+  String _errorText(Object? error) {
+    if (error is TimeoutException || error is TripResetException && error.failure == TripResetFailure.timeout) {
+      return FlutterI18n.translate(context, 'trip_timeout');
+    }
+    if (error.toString().toLowerCase().contains('connected')) {
+      return FlutterI18n.translate(context, 'trip_disconnected');
+    }
+    return FlutterI18n.translate(context, 'trip_error');
+  }
+
+  void _showError(Object? error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(_errorText(error))),
+    );
+  }
+
+  Future<void> _setPolicy(TripResetPolicy policy) async {
+    setState(() => _busy = true);
+    try {
+      await context.read<ScooterService>().setTripCounterResetPolicy(policy);
+    } catch (error) {
+      if (mounted) _showError(error);
+      await _refresh();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reset() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(FlutterI18n.translate(dialogContext, 'trip_reset_confirm_title')),
+        content: Text(FlutterI18n.translate(dialogContext, 'trip_reset_confirm_body')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(FlutterI18n.translate(dialogContext, 'trip_cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(FlutterI18n.translate(dialogContext, 'trip_reset_now')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await context.read<ScooterService>().resetTripCounter();
+    } catch (error) {
+      if (mounted) _showError(error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  String _policyLabel(BuildContext context, TripResetPolicy policy) =>
+      FlutterI18n.translate(context, 'trip_policy_${policy.wireName}');
+
+  String _retentionLabel(BuildContext context, TripExpunge expunge) {
+    final policy = FlutterI18n.translate(context, 'trip_retention_policy_${expunge.policy.name}');
+    return expunge.value == null ? policy : '$policy · ${expunge.value}';
+  }
+
+  Future<void> _editRetention(TripExpunge current) async {
+    var policy = current.policy;
+    var value = current.value ?? '';
+    String? validationKey;
+    _retentionValue.text = value;
+    final result = await showDialog<TripExpunge>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(FlutterI18n.translate(dialogContext, 'trip_retention_title')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<TripExpungePolicy>(
+                initialValue: policy,
+                decoration: InputDecoration(
+                  labelText: FlutterI18n.translate(dialogContext, 'trip_retention_policy'),
+                ),
+                items: TripExpungePolicy.values
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item,
+                        child: Text(FlutterI18n.translate(
+                          dialogContext,
+                          'trip_retention_policy_${item.name}',
+                        )),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (next) {
+                  if (next == null) return;
+                  setDialogState(() {
+                    policy = next;
+                    validationKey = null;
+                    if (next == TripExpungePolicy.age && value.isEmpty) {
+                      value = '365d';
+                      _retentionValue.text = value;
+                    } else if (next != TripExpungePolicy.never && value.isEmpty) {
+                      value = '0';
+                      _retentionValue.text = value;
+                    }
+                  });
+                },
+              ),
+              if (policy != TripExpungePolicy.never) ...[
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _retentionValue,
+                  keyboardType: policy == TripExpungePolicy.age ? TextInputType.text : TextInputType.number,
+                  onChanged: (next) {
+                    value = next;
+                    if (validationKey != null) setDialogState(() => validationKey = null);
+                  },
+                  decoration: InputDecoration(
+                    labelText: FlutterI18n.translate(
+                      dialogContext,
+                      policy == TripExpungePolicy.age
+                          ? 'trip_retention_value_age'
+                          : policy == TripExpungePolicy.count
+                              ? 'trip_retention_value_count'
+                              : 'trip_retention_value_size',
+                    ),
+                    errorText: validationKey == null ? null : FlutterI18n.translate(dialogContext, validationKey!),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(FlutterI18n.translate(dialogContext, 'trip_cancel')),
+            ),
+            FilledButton(
+              onPressed: () {
+                try {
+                  Navigator.pop(
+                    dialogContext,
+                    TripExpunge(policy, policy == TripExpungePolicy.never ? null : _retentionValue.text),
+                  );
+                } on FormatException {
+                  setDialogState(() {
+                    validationKey = policy == TripExpungePolicy.age
+                        ? 'trip_retention_invalid_age'
+                        : 'trip_retention_invalid_number';
+                  });
+                }
+              },
+              child: Text(FlutterI18n.translate(dialogContext, 'stats_rename_save')),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await context.read<ScooterService>().setTripExpunge(result);
+    } catch (error) {
+      if (mounted) _showError(error);
+      await _refresh();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _retentionValue.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final service = context.watch<ScooterService>();
+    final snapshot = service.tripCounter;
+    final expunge = service.tripExpunge;
+    final disabled = _loading || _busy || service.tripCounterLoading;
+    final divider = Divider(
+      indent: 16,
+      endIndent: 16,
+      height: 24,
+      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+    );
+
+    if (snapshot == null) {
+      return ListTile(
+        leading: const Icon(Icons.route_outlined),
+        title: Text(FlutterI18n.translate(context, 'ride.current_trip')),
+        subtitle: Text(FlutterI18n.translate(context, 'trip_loading')),
+        trailing: const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    return Column(
+      children: [
+        SettingsDropdownTile<TripResetPolicy>(
+          leading: const Icon(Icons.event_repeat_outlined),
+          title: Text(FlutterI18n.translate(context, 'ride.current_trip')),
+          subtitle: Text(FlutterI18n.translate(context, 'trip_reset_policy')),
+          value: snapshot.resetPolicy,
+          hint: const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+          items: TripResetPolicy.values
+              .map((policy) => DropdownMenuItem(value: policy, child: Text(_policyLabel(context, policy))))
+              .toList(),
+          onChanged: disabled
+              ? null
+              : (policy) {
+                  if (policy != null) _setPolicy(policy);
+                },
+        ),
+        divider,
+        ListTile(
+          leading: Icon(Icons.restart_alt, color: Theme.of(context).colorScheme.error),
+          title: Text(
+            FlutterI18n.translate(context, 'trip_reset_now'),
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+          onTap: disabled ? null : _reset,
+        ),
+        if (service.tripExpungeSupported == true) ...[
+          divider,
+          ListTile(
+            leading: const Icon(Icons.auto_delete_outlined),
+            title: Text(FlutterI18n.translate(context, 'trip_retention_title')),
+            subtitle: expunge == null
+                ? Text(FlutterI18n.translate(context, 'trip_loading'))
+                : Text(_retentionLabel(context, expunge)),
+            trailing: expunge == null
+                ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.chevron_right),
+            onTap: disabled || expunge == null ? null : () => _editRetention(expunge),
+          ),
+        ],
+      ],
     );
   }
 }

@@ -41,8 +41,9 @@ void main() {
       expect(animation.curve, Curves.easeOutBack);
       final circle = find.descendant(of: find.byType(StateCircle), matching: find.byType(Container));
       final widget = tester.widget<Container>(circle);
-      expect(widget.constraints!.maxWidth, 412);
-      expect(widget.constraints!.maxHeight, 412);
+      // Slightly smaller than the viewport so the ring does not touch the edges.
+      expect(widget.constraints!.maxWidth, 412 * 0.85);
+      expect(widget.constraints!.maxHeight, 412 * 0.85);
       final decoration = widget.decoration! as BoxDecoration;
       expect(decoration.shape, BoxShape.circle);
       if (state.isOn) {

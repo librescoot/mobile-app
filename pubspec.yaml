@@ -135,6 +135,7 @@ flutter:
     - assets/
     - assets/anim/
     - assets/icons/
+    - assets/icons/material-symbols/
     - assets/fonts/licenses/
 
   fonts:

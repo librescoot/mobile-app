@@ -32,13 +32,19 @@ void main() {
       lockCommand,
       seatCommand,
       wakeCommand,
-      hibernatePowerCommand
+      hibernatePowerCommand,
+      serviceModeEnableCommand,
+      serviceModeDisableCommand,
+      serviceModeAcknowledgement,
     ], [
       'scooter:state unlock',
       'scooter:state lock',
       'scooter:seatbox open',
       'wakeup',
-      'hibernate'
+      'hibernate',
+      'service-mode:on',
+      'service-mode:off',
+      'service-mode:ok',
     ]);
     expect([
       blinkerCommand(true, false),

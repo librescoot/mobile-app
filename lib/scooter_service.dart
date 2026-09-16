@@ -316,6 +316,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   // Read-only total distance reported by Librescoot, in metres.
   int? get odometerMeters => identity.odometerMeters;
+  int? get cachedOdometerMeters => settingsTargetScooter?.cachedOdometerMeters;
+  TripCounterSnapshot? get cachedTripCounter => settingsTargetScooter?.cachedTripCounter;
 
   void refreshOdometer() {
     if (connected) _telemetry.refreshOdometer();
@@ -324,9 +326,30 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   bool? get tripCounterSupported => identity.supportsTripCounter;
   TripCounterSnapshot? get tripCounter => _telemetry.tripCounter;
   bool get tripCounterLoading => _telemetry.tripLoading;
-  Future<TripCounterSnapshot?> refreshTripCounter() => _telemetry.refreshTripCounter();
-  Future<void> setTripCounterResetPolicy(TripResetPolicy policy) => _telemetry.setTripCounterResetPolicy(policy);
-  Future<void> resetTripCounter() => _telemetry.resetTripCounter();
+  Future<TripCounterSnapshot?> refreshTripCounter() async {
+    final scooterId = currentScooterId;
+    final snapshot = await _telemetry.refreshTripCounter();
+    _cacheTripCounter(scooterId, snapshot);
+    return snapshot;
+  }
+
+  Future<void> setTripCounterResetPolicy(TripResetPolicy policy) async {
+    final scooterId = currentScooterId;
+    await _telemetry.setTripCounterResetPolicy(policy);
+    _cacheTripCounter(scooterId, _telemetry.tripCounter);
+  }
+
+  Future<void> resetTripCounter() async {
+    final scooterId = currentScooterId;
+    await _telemetry.resetTripCounter();
+    _cacheTripCounter(scooterId, _telemetry.tripCounter);
+  }
+
+  void _cacheTripCounter(String? scooterId, TripCounterSnapshot? snapshot) {
+    if (snapshot != null && scooterId != null && currentScooterId == scooterId) {
+      savedScooters[scooterId]?.cacheTripCounter(snapshot);
+    }
+  }
 
   bool? get tripExpungeSupported => identity.supportsTripExpunge;
   TripExpunge? get tripExpunge => _telemetry.tripExpunge;
@@ -515,7 +538,9 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       return;
     }
     final checkedAt = _autoUnlockAmbiguityCheckedAt;
-    if (!force && checkedAt != null && DateTime.now().difference(checkedAt) < const Duration(seconds: _autoUnlockAmbiguityTtlSeconds)) {
+    if (!force &&
+        checkedAt != null &&
+        DateTime.now().difference(checkedAt) < const Duration(seconds: _autoUnlockAmbiguityTtlSeconds)) {
       return;
     }
     if (_ambiguityScanRunning) return;
@@ -760,6 +785,17 @@ CachedTelemetry _cachedTelemetry(SavedScooter? scooter) => CachedTelemetry(
     supportsHibernateFor: scooter?.supportsHibernateFor,
     supportsApnConfig: scooter?.supportsApnConfig);
 
+bool _sameTripCounter(TripCounterSnapshot? a, TripCounterSnapshot b) =>
+    a != null &&
+    a.distanceMeters == b.distanceMeters &&
+    a.ridingSeconds == b.ridingSeconds &&
+    a.averageSpeedKph == b.averageSpeedKph &&
+    a.resetPolicy == b.resetPolicy &&
+    a.lastReset?.seconds == b.lastReset?.seconds &&
+    a.lastResetReason == b.lastResetReason &&
+    a.generation == b.generation &&
+    a.status == b.status;
+
 class _ServiceTelemetryEffects implements ScooterTelemetryEffects {
   _ServiceTelemetryEffects(this.service);
   final ScooterService service;
@@ -783,6 +819,16 @@ class _ServiceTelemetryEffects implements ScooterTelemetryEffects {
 
   @override
   void changed(TelemetrySnapshot snapshot) {
+    final scooterId = snapshot.scooterId;
+    final odometer = snapshot.firmware.odometerMeters;
+    final saved = scooterId == null ? null : service.savedScooters[scooterId];
+    if (saved != null && odometer != null && saved.cachedOdometerMeters != odometer) {
+      saved.cacheOdometer(odometer);
+    }
+    final trip = service._telemetry.tripCounter;
+    if (saved != null && trip != null && !_sameTripCounter(saved.cachedTripCounter, trip)) {
+      saved.cacheTripCounter(trip);
+    }
     service._telemetryChanged();
     service.actions.telemetryChanged();
   }

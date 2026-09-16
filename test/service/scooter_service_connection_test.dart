@@ -336,14 +336,14 @@ void main() {
     expect(service.battery.primarySOC, 90);
     expect(service.identity.nrfVersion, 'test-firmware');
     expect(service.identity.odometerMeters, 123);
+    expect(storage.scooters[device.remoteId.toString()]?.cachedOdometerMeters, 123);
   }
 
   test('production adapter never restores cached protection and resets before B linking', () async {
     storage.scooters['A']!.handlebarsLocked = true;
     storage.scooters['B']!.handlebarsLocked = true;
     repository.alarmStatusCharacteristic = repository.characteristic('armed'.codeUnits);
-    repository.alarmLastTriggerCharacteristic =
-        repository.characteristic('motion,2026-01-02T03:04:05Z'.codeUnits);
+    repository.alarmLastTriggerCharacteristic = repository.characteristic('motion,2026-01-02T03:04:05Z'.codeUnits);
     repository.alarmWakeSourcesCharacteristic = repository.characteristic([1, 3, 60, 0, 0, 0]);
     createService();
     await service.runtime.refetchSavedScooters();

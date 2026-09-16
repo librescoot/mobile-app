@@ -56,6 +56,10 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   bool connected = true;
   @override
+  TripCounterSnapshot? tripCounter;
+  @override
+  TripCounterSnapshot? get cachedTripCounter => null;
+  @override
   bool get scanning => false;
   final warnings = StreamController<HandlebarWarning>.broadcast(sync: true);
   @override
@@ -69,6 +73,7 @@ class _Service extends ChangeNotifier implements ScooterService {
       ActionEvent(scooterId: 'A', generation: 1, kind: EventType.lock, source: EventSource.app),
     ));
   }
+
   @override
   Future<void> lock(
       {bool checkHandlebars = true, bool confirmOpenSeat = false, EventSource source = EventSource.app}) async {

@@ -7,6 +7,7 @@ const String lsKeyScheduledHibernateDuration =
 const String lsKeyAutoStandbySeconds = "scooter.auto-standby-seconds";
 const String lsKeyHibernateTimer = "pm.hibernation-timer";
 const String lsKeyCellularApn = "cellular.apn";
+const String lsKeyServiceModeActive = "dashboard.service-mode-active";
 
 /// Librescoot settings key for the alarm as a whole. Off means the scooter
 /// never arms, whatever the vehicle is doing.
@@ -110,6 +111,9 @@ const hardRebootPowerCommand = 'hard-reboot';
 const usbUmsCommand = 'usb:ums';
 const usbNormalCommand = 'usb:normal';
 const usbAcknowledgement = 'usb:ok';
+const serviceModeEnableCommand = 'service-mode:on';
+const serviceModeDisableCommand = 'service-mode:off';
+const serviceModeAcknowledgement = 'service-mode:ok';
 const keycardCountCommand = 'keycard:count';
 const keycardListCommand = 'keycard:list';
 const keycardAcknowledgement = 'keycard:ok';

@@ -37,8 +37,16 @@ class _Actions implements ScooterActions {
   final hibernateWrites = <Duration>[];
   Completer<void>? readGate;
   Completer<void>? writeGate;
+  final serviceModeWrites = <bool>[];
   @override
   Future<int?> countKeycards() async => 0;
+  @override
+  Future<bool?> getBoolSetting(String key) async => false;
+  @override
+  Future<void> setServiceMode(bool enabled) async {
+    serviceModeWrites.add(enabled);
+  }
+
   @override
   Future<String?> getSetting(String key) async {
     reads.add(key);
@@ -96,8 +104,13 @@ class _Service extends ChangeNotifier implements ScooterService {
     autoUnlock = value;
     notifyListeners();
   }
+
   @override
   SavedScooter? get settingsTargetScooter => null;
+  // Settings only offers the Ride stats section to a scooter that reports the
+  // trip counter capability over BLE.
+  @override
+  bool get tripCounterSupported => false;
   @override
   int get autoUnlockThreshold => -65;
   @override
@@ -109,11 +122,13 @@ class _Service extends ChangeNotifier implements ScooterService {
     openSeatOnUnlock = value;
     notifyListeners();
   }
+
   @override
   void setHazardLocking(bool value) {
     hazardLocking = value;
     notifyListeners();
   }
+
   @override
   Future<String?> getCellularApn() async => '';
   @override
@@ -166,6 +181,10 @@ Widget _screen(_Service service, {String locale = 'en', double scale = 1, Bright
     );
 
 Future<void> _show(WidgetTester tester, Finder finder) async {
+  for (var attempt = 0; attempt < 20 && finder.evaluate().isEmpty; attempt++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pump();
+  }
   await tester.scrollUntilVisible(finder, 180, scrollable: find.byType(Scrollable).first);
   await tester.pumpAndSettle();
 }
@@ -199,7 +218,8 @@ void main() {
       'ls_settings_battery_keep_active_title',
       'ls_settings_apn_title',
       'ls_settings_ota_title',
-      'ls_settings_update_mode_title'
+      'ls_settings_update_mode_title',
+      'ls_settings_service_mode_title'
     ]) {
       final title = find.text(FlutterI18n.translate(context, key));
       await _show(tester, title);
@@ -212,6 +232,21 @@ void main() {
     expect(service.actions.standbyWrites, isEmpty);
     expect(service.actions.hibernateWrites, isEmpty);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('service mode switch sends the requested state', (tester) async {
+    final service = _Service();
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    final title = find.text('Service mode');
+    await _show(tester, title);
+    final tile = find.ancestor(of: title, matching: find.byType(ListTile));
+    final toggle = find.descendant(of: tile, matching: find.byType(Switch));
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(service.actions.serviceModeWrites, [true]);
+    expect(tester.widget<Switch>(toggle).value, isTrue);
   });
 
   testWidgets('failed extended reads settle as unavailable instead of spinning forever', (tester) async {
@@ -263,8 +298,7 @@ void main() {
     service.autoUnlock = true;
     await tester.pumpWidget(_screen(service));
     await tester.pumpAndSettle();
-    final openSeatRow = find.ancestor(
-        of: find.text('Open seatbox on unlock'), matching: find.byType(SwitchListTile));
+    final openSeatRow = find.ancestor(of: find.text('Open seatbox on unlock'), matching: find.byType(SwitchListTile));
     expect(tester.widget<SwitchListTile>(openSeatRow).onChanged, isNotNull);
     service.setAutoUnlock(false);
     await tester.pumpAndSettle();
