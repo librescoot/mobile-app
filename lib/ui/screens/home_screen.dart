@@ -247,34 +247,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: SafeArea(
                   child: Stack(
                     children: [
-                      Positioned(
-                        top: 0,
-                        left: 8,
-                        child: IconButton(
-                          tooltip: FlutterI18n.translate(context, "stats_title_support"),
-                          icon: const Icon(Icons.help_outline),
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SupportScreen(),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 0,
-                        right: 8,
-                        child: IconButton(
-                          tooltip: FlutterI18n.translate(context, "stats_title_settings"),
-                          icon: const Icon(Icons.settings_outlined),
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SettingsScreen(),
-                            ),
-                          ),
-                        ),
-                      ),
                       Padding(
                         padding: const EdgeInsets.only(top: 40, bottom: 20),
                         child: Column(
@@ -562,6 +534,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             ),
                             _navigationCue(),
                           ],
+                        ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        left: 8,
+                        child: IconButton(
+                          tooltip: FlutterI18n.translate(context, "stats_title_support"),
+                          icon: const Icon(Icons.help_outline),
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SupportScreen(),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        right: 8,
+                        child: IconButton(
+                          tooltip: FlutterI18n.translate(context, "stats_title_settings"),
+                          icon: const Icon(Icons.settings_outlined),
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SettingsScreen(),
+                            ),
+                          ),
                         ),
                       ),
                     ],

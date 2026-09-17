@@ -12,6 +12,7 @@ import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/state/scooter_identity.dart';
 import 'package:unustasis/ui/dialogs/handlebar_lock_guidance.dart';
 import 'package:unustasis/ui/screens/home_screen.dart';
+import 'package:unustasis/ui/widgets/scooter_visual.dart';
 
 class _Connection extends Fake implements SessionConnection {
   @override
@@ -256,4 +257,34 @@ void main() {
       await _finish(tester, service);
     });
   }
+
+  testWidgets('corner actions paint above the scooter backdrop', (tester) async {
+    final service = _Service();
+    await _mountHome(tester, service);
+
+    // The scooter backdrop is a large circle that reaches into the top
+    // corners, so the help and settings buttons have to be the last children
+    // of the Stack that holds them: a Stack paints in child order.
+    Stack? content;
+    for (final element in find.ancestor(of: find.byType(ScooterVisual), matching: find.byType(Stack)).evaluate()) {
+      final stack = element.widget as Stack;
+      final hasActions = find
+          .descendant(of: find.byWidget(stack), matching: find.byIcon(Icons.settings_outlined))
+          .evaluate()
+          .isNotEmpty;
+      if (hasActions) {
+        content = stack;
+        break;
+      }
+    }
+    expect(content, isNotNull, reason: 'no Stack holds both the scooter and the corner actions');
+
+    final children = content!.children;
+    expect(children.whereType<Positioned>(), hasLength(2));
+    // Both corner actions follow the content they overlap.
+    expect(children.last, isA<Positioned>());
+    expect(children[children.length - 2], isA<Positioned>());
+    expect(children.first, isNot(isA<Positioned>()));
+    _lifecycle(tester, AppLifecycleState.resumed);
+  });
 }
