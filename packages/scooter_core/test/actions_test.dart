@@ -25,6 +25,7 @@ void main() {
     expect(settings.warnOfUnlockedHandlebars, true);
     expect(settings.autoUnlockThreshold, -65);
     expect(settings.optionalAuth, false);
+    expect(settings.autoUnlockPaused, false);
   });
   test('basic command strings and blink combinations are pinned', () {
     expect([

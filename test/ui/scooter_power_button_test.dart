@@ -3,24 +3,46 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:scooter_core/scooter_core.dart' show ScooterState;
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:unustasis/ui/dialogs/seat_warning.dart';
 import 'package:unustasis/ui/screens/home_screen.dart';
 
-Future<void> pumpButton(WidgetTester tester, Future<void> Function()? action) async {
+Future<void> pumpButton(
+  WidgetTester tester,
+  Future<void> Function()? action, {
+  bool keylessArmed = false,
+  bool keylessPaused = false,
+  DateTime? keylessPendingSince,
+  VoidCallback? onKeylessToggle,
+  double textScale = 1,
+}) async {
   await tester.pumpWidget(MaterialApp(
     home: Scaffold(
       body: Center(
-        child: ScooterPowerButton(
-          action: action,
-          icon: Icons.lock_outline,
-          label: 'Lock',
-          instruction: 'Hold to lock',
+        child: MediaQuery(
+          data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+          child: ScooterPowerButton(
+            action: action,
+            icon: Icons.lock_outline,
+            label: 'Lock',
+            instruction: 'Hold to lock',
+            keylessArmed: keylessArmed,
+            keylessPaused: keylessPaused,
+            keylessPendingSince: keylessPendingSince,
+            keylessActiveLabel: 'Auto-unlock active',
+            keylessCountingLabel: 'tap to stop',
+            keylessPausedLabel: 'Auto-unlock paused',
+            onKeylessToggle: onKeylessToggle,
+          ),
         ),
       ),
     ),
   ));
 }
+
+double fillFraction(WidgetTester tester) =>
+    tester.widget<FractionallySizedBox>(find.byType(FractionallySizedBox)).widthFactor ?? 0;
 
 Future<void> holdButton(WidgetTester tester) async {
   final gesture = await tester.startGesture(tester.getCenter(find.byType(ElevatedButton)));
@@ -32,6 +54,22 @@ Future<void> holdButton(WidgetTester tester) async {
 }
 
 void main() {
+  test('keyless only takes the button while unlocking is the action on offer', () {
+    // Nothing known or no connection: unlocking is what the button does.
+    expect(showsKeylessAction(null), isTrue);
+    expect(showsKeylessAction(ScooterState.disconnected), isTrue);
+    expect(showsKeylessAction(ScooterState.off), isTrue);
+    expect(showsKeylessAction(ScooterState.hibernating), isTrue);
+    expect(showsKeylessAction(ScooterState.booting), isTrue);
+    // Standby is where proximity actually unlocks.
+    expect(showsKeylessAction(ScooterState.standby), isTrue);
+    // Already unlocked: the button offers Lock, so keyless stays out of it.
+    expect(showsKeylessAction(ScooterState.parked), isFalse);
+    expect(showsKeylessAction(ScooterState.ready), isFalse);
+    expect(showsKeylessAction(ScooterState.waitingSeatbox), isFalse);
+    expect(showsKeylessAction(ScooterState.waitingHibernation), isFalse);
+  });
+
   testWidgets('hold hint is hidden and only short presses show its toast', (tester) async {
     const channel = MethodChannel('PonnamKarthik/fluttertoast');
     final toasts = <MethodCall>[];
@@ -182,5 +220,132 @@ void main() {
     await pumpButton(tester, null);
     await holdButton(tester);
     expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('an armed button swaps the lock icon for a spinner and keeps its label', (tester) async {
+    var unlocks = 0;
+    var toggles = 0;
+    await pumpButton(
+      tester,
+      () async {
+        unlocks++;
+      },
+      keylessArmed: true,
+      onKeylessToggle: () => toggles++,
+    );
+    expect(find.text('Lock'), findsOneWidget);
+    expect(find.text('Auto-unlock active'), findsOneWidget);
+    expect(find.byIcon(Icons.lock_outline), findsNothing, reason: 'the spinner replaces the icon');
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    await tester.tapAt(tester.getCenter(find.byType(AnimatedScale)));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(toggles, 1);
+    expect(unlocks, 0, reason: 'a tap does not unlock');
+  });
+
+  testWidgets('a paused button keeps the lock icon and names the pause underneath', (tester) async {
+    var toggles = 0;
+    await pumpButton(
+      tester,
+      () async {},
+      keylessArmed: true,
+      keylessPaused: true,
+      onKeylessToggle: () => toggles++,
+    );
+    expect(find.text('Lock'), findsOneWidget);
+    expect(find.text('Auto-unlock paused'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+
+    await tester.tapAt(tester.getCenter(find.byType(AnimatedScale)));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(toggles, 1);
+  });
+
+  testWidgets('a proximity countdown fills the button and offers the stop', (tester) async {
+    var unlocks = 0;
+    var toggles = 0;
+    await pumpButton(
+      tester,
+      () async {
+        unlocks++;
+      },
+      keylessArmed: true,
+      keylessPendingSince: DateTime.now(),
+      onKeylessToggle: () => toggles++,
+    );
+    expect(find.text('Lock'), findsOneWidget);
+    expect(find.text('tap to stop'), findsOneWidget);
+    expect(find.text('Auto-unlock active'), findsNothing);
+    expect(fillFraction(tester), closeTo(0, 0.05), reason: 'the fill starts empty');
+
+    await tester.pump(const Duration(milliseconds: 1500));
+    expect(fillFraction(tester), closeTo(0.5, 0.1), reason: 'the fill tracks the countdown');
+    expect(unlocks, 0, reason: 'the service owns the actual unlock');
+
+    await tester.tapAt(tester.getCenter(find.byType(AnimatedScale)));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(toggles, 1, reason: 'tapping stops the countdown');
+    expect(unlocks, 0);
+  });
+
+  testWidgets('a countdown that is already running resumes part-filled', (tester) async {
+    await pumpButton(
+      tester,
+      () async {},
+      keylessArmed: true,
+      keylessPendingSince: DateTime.now().subtract(const Duration(seconds: 2)),
+      onKeylessToggle: () {},
+    );
+    await tester.pump();
+    expect(fillFraction(tester), closeTo(0, 0.05), reason: 'a late button starts near the end');
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(fillFraction(tester), greaterThan(0.5));
+  });
+
+  testWidgets('a subline ellipsises at 2x text instead of widening the button', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await pumpButton(
+      tester,
+      () async {},
+      keylessArmed: true,
+      keylessPaused: true,
+      onKeylessToggle: () {},
+      textScale: 2,
+    );
+    expect(find.text('Auto-unlock paused'), findsOneWidget);
+    expect(tester.getSize(find.byType(ScooterPowerButton)).width, 136,
+        reason: 'the subline must not stretch the button column');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('holding still unlocks by hand while keyless is paused', (tester) async {
+    var unlocks = 0;
+    var toggles = 0;
+    await pumpButton(
+      tester,
+      () async {
+        unlocks++;
+      },
+      keylessArmed: true,
+      keylessPaused: true,
+      onKeylessToggle: () => toggles++,
+    );
+
+    await holdButton(tester);
+    expect(unlocks, 1, reason: 'hold still unlocks while paused');
+    expect(toggles, 0);
+  });
+
+  testWidgets('keyless stays controllable while the unlock action is unavailable', (tester) async {
+    var toggles = 0;
+    await pumpButton(tester, null, keylessArmed: true, onKeylessToggle: () => toggles++);
+
+    await tester.tapAt(tester.getCenter(find.byType(AnimatedScale)));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(toggles, 1, reason: 'a disconnected scooter is still keyless-armed');
   });
 }

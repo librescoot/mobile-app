@@ -163,6 +163,14 @@ class Effects implements ScooterActionEffects {
   void autoUnlockRefused() {
     trace.add('refused');
   }
+
+  final pendingStates = <bool>[];
+  void Function()? onPending;
+  @override
+  void autoUnlockPendingChanged(bool pending) {
+    pendingStates.add(pending);
+    onPending?.call();
+  }
 }
 
 class SessionEffects implements ScooterSessionEffects {
@@ -771,6 +779,8 @@ void main() {
       time.elapse(const Duration(seconds: 3));
       h.device.rssi.last.complete(-64);
       time.flushMicrotasks();
+      time.elapse(keylessApproachCountdown);
+      time.flushMicrotasks();
       expect(h.effects.events.single.source, EventSource.auto);
       expect(h.actions.coolingDown, true);
       time.elapse(const Duration(seconds: 59));
@@ -803,6 +813,76 @@ void main() {
       h.settings = const ActionSettings(autoUnlock: true, optionalAuth: true);
       time.elapse(const Duration(seconds: 3));
       h.device.rssi.last.complete(-20);
+      time.flushMicrotasks();
+      time.elapse(keylessApproachCountdown);
+      time.flushMicrotasks();
+      expect(h.effects.events.single.source, EventSource.auto);
+      h.dispose();
+    });
+  });
+
+  test('proximity unlocks only after the countdown, and stopping it cancels',
+      () {
+    fakeAsync((time) {
+      final h = Harness(time);
+      h.settings = const ActionSettings(autoUnlock: true, optionalAuth: true);
+      h.standby();
+      h.actions.startPolling();
+      time.elapse(const Duration(seconds: 3));
+      h.device.rssi.last.complete(-20);
+      time.flushMicrotasks();
+      expect(h.effects.events, isEmpty, reason: 'the window is still open');
+      expect(h.effects.pendingStates, [true]);
+
+      h.actions.cancelAutoUnlock();
+      expect(h.effects.pendingStates, [true, false]);
+      time.elapse(const Duration(seconds: 30));
+      expect(h.effects.events, isEmpty,
+          reason: 'a stopped countdown never unlocks');
+      h.dispose();
+    });
+  });
+
+  test('leaving standby during the countdown cancels the unlock', () {
+    fakeAsync((time) {
+      final h = Harness(time);
+      h.settings = const ActionSettings(autoUnlock: true, optionalAuth: true);
+      h.standby();
+      h.actions.startPolling();
+      time.elapse(const Duration(seconds: 3));
+      h.device.rssi.last.complete(-20);
+      time.flushMicrotasks();
+      expect(h.effects.pendingStates, [true]);
+
+      h.telemetry.state = ScooterState.off;
+      h.actions.aggregateTransition(ScooterState.standby, ScooterState.off);
+      time.elapse(const Duration(seconds: 30));
+      expect(h.effects.events, isEmpty);
+      expect(h.effects.pendingStates, [true, false]);
+      h.dispose();
+    });
+  });
+
+  test('paused keyless keeps polling RSSI but holds the unlock back', () {
+    fakeAsync((time) {
+      final h = Harness(time);
+      h.settings = const ActionSettings(
+          autoUnlock: true, optionalAuth: true, autoUnlockPaused: true);
+      h.standby();
+      h.actions.startPolling();
+      time.elapse(const Duration(seconds: 3));
+      h.device.rssi.last.complete(-20);
+      time.flushMicrotasks();
+      expect(h.trace.where((e) => e.startsWith('rssi:')), ['rssi:-20'],
+          reason: 'the distance reading stays live while held back');
+      expect(h.effects.events, isEmpty);
+
+      // A resume applies on the next poll.
+      h.settings = const ActionSettings(autoUnlock: true, optionalAuth: true);
+      time.elapse(const Duration(seconds: 3));
+      h.device.rssi.last.complete(-20);
+      time.flushMicrotasks();
+      time.elapse(keylessApproachCountdown);
       time.flushMicrotasks();
       expect(h.effects.events.single.source, EventSource.auto);
       h.dispose();

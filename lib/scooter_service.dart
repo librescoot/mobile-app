@@ -97,6 +97,9 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final FlutterBluePlusMockable flutterBluePlus;
   bool _automaticActionsAllowed;
 
+  /// Set while the proximity countdown runs. The button fills for that window.
+  DateTime? _keylessPendingSince;
+
   // Passthrough for optionalAuth (used by home_screen for biometrics)
   bool get optionalAuth => settings.optionalAuth;
   set optionalAuth(bool value) => settings.optionalAuth = value;
@@ -162,6 +165,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
             hazardLocking: settingsTargetScooter?.hazardLocking ?? false,
             warnOfUnlockedHandlebars: settings.warnOfUnlockedHandlebars,
             autoUnlock: _automaticActionsAllowed && (settingsTargetScooter?.autoUnlock ?? false),
+            autoUnlockPaused: keylessPaused,
             autoUnlockThreshold: settings.autoUnlockThreshold,
             optionalAuth: settings.optionalAuth,
             autoUnlockAmbiguous: _autoUnlockScootersInRange > 1),
@@ -524,6 +528,38 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   bool get autoUnlock => settingsTargetScooter?.autoUnlock ?? false;
+
+  /// True while proximity unlocking is suspended for the target scooter. The
+  /// keyless setting itself is unchanged.
+  bool get keylessPaused => settingsTargetScooter?.keylessPaused ?? false;
+
+  /// Non-null while proximity has been met and the unlock is counting down.
+  DateTime? get keylessPendingSince => _keylessPendingSince;
+
+  void _keylessPendingChanged(bool pending) {
+    _keylessPendingSince = pending ? DateTime.now() : null;
+    notifyListeners();
+  }
+
+  void setKeylessPaused(bool paused) {
+    final scooter = settingsTargetScooter;
+    if (scooter == null) return;
+    scooter.keylessPaused = paused;
+    // A pause has to reach a countdown that is already running.
+    if (paused) actions.cancelAutoUnlock();
+    notifyListeners();
+  }
+
+  /// Clears the keyless pause; called for manual unlocks and park transitions.
+  void rearmKeyless() {
+    if (settingsTargetScooter?.keylessPaused == true) setKeylessPaused(false);
+  }
+
+  void _rearmKeylessOnPark(ScooterState? previous, ScooterState? next) {
+    if (next != ScooterState.parked || previous == ScooterState.parked) return;
+    rearmKeyless();
+  }
+
   int get autoUnlockThreshold => settings.autoUnlockThreshold;
   bool get openSeatOnUnlock => settingsTargetScooter?.openSeatOnUnlock ?? false;
   bool get hazardLocking => settingsTargetScooter?.hazardLocking ?? false;
@@ -568,8 +604,12 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   // SCOOTER ACTIONS
 
-  Future<void> unlock({bool checkHandlebars = true, EventSource source = EventSource.app}) =>
-      actions.unlock(checkHandlebars: checkHandlebars, source: source);
+  Future<void> unlock({bool checkHandlebars = true, EventSource source = EventSource.app}) {
+    rearmKeyless();
+    actions.cancelAutoUnlock();
+    return actions.unlock(checkHandlebars: checkHandlebars, source: source);
+  }
+
   Future<void> lock({bool checkHandlebars = true, bool confirmOpenSeat = false, EventSource source = EventSource.app}) {
     warnIfLockingWithOpenSeatbox();
     return actions.lock(checkHandlebars: checkHandlebars, confirmOpenSeat: confirmOpenSeat, source: source);
@@ -580,7 +620,12 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     if (vehicle.seatClosed == false) log.warning("Locking with open seatbox!");
   }
 
-  Future<void> wakeUpAndUnlock({EventSource? source}) => actions.wakeUpAndUnlock(source: source);
+  Future<void> wakeUpAndUnlock({EventSource? source}) {
+    rearmKeyless();
+    actions.cancelAutoUnlock();
+    return actions.wakeUpAndUnlock(source: source);
+  }
+
   void autoUnlockCooldown() => actions.autoUnlockCooldown();
   Future<void> openSeat({EventSource source = EventSource.app}) => actions.openSeat(source: source);
   Future<void> blink({required bool left, required bool right}) => actions.blink(left: left, right: right);
@@ -688,7 +733,9 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) => runtime.didChangeAppLifecycleState(state);
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    runtime.didChangeAppLifecycleState(state);
+  }
 }
 
 class UnavailableCharacteristicsException {}
@@ -847,6 +894,7 @@ class _ServiceTelemetryEffects implements ScooterTelemetryEffects {
 
   @override
   void aggregateTransition(ScooterState? previous, ScooterState? next) {
+    service._rearmKeylessOnPark(previous, next);
     service.actions.aggregateTransition(previous, next);
   }
 
@@ -890,6 +938,9 @@ class _ServiceActionEffects implements ScooterActionEffects {
     // after this on the same poll.
     unawaited(service.refreshAutoUnlockAmbiguity());
   }
+
+  @override
+  void autoUnlockPendingChanged(bool pending) => service._keylessPendingChanged(pending);
 
   @override
   void autoUnlockRefused() =>

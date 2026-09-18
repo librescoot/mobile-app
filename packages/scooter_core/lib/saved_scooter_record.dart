@@ -16,6 +16,11 @@ abstract interface class SavedScooterRecord {
   bool get autoUnlock;
   set autoUnlock(bool autoUnlock);
 
+  /// True while the user has suspended proximity unlocking for this scooter.
+  /// Persisted, so the background isolate honours the same value.
+  bool get keylessPaused;
+  set keylessPaused(bool keylessPaused);
+
   bool get hazardLocking;
   set hazardLocking(bool hazardLocking);
 

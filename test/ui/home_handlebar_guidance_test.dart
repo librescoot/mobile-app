@@ -57,6 +57,14 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   bool connected = true;
   @override
+  bool autoUnlock = false;
+  @override
+  bool keylessPaused = false;
+  @override
+  DateTime? keylessPendingSince;
+  @override
+  void setKeylessPaused(bool paused) => keylessPaused = paused;
+  @override
   TripCounterSnapshot? tripCounter;
   @override
   TripCounterSnapshot? get cachedTripCounter => null;

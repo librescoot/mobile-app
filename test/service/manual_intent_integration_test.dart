@@ -1,4 +1,5 @@
 import 'package:logging/logging.dart';
+import 'package:scooter_core/actions.dart' as actions;
 import 'package:scooter_core/scooter_core.dart' show ScooterState;
 import 'dart:convert';
 import 'package:shared_preferences_platform_interface/types.dart';
@@ -604,12 +605,120 @@ void main() {
       await service.connectToScooterId('A');
       await tester.pump(const Duration(seconds: 3));
       expect(a.rssiReads, greaterThan(0));
+      // Proximity opens a countdown in both isolates before the unlock goes out.
+      expect(service.keylessPaused, isFalse);
+      expect((repo.commandCharacteristic as _Characteristic).writes, isEmpty);
+      expect(service.keylessPendingSince, isNotNull, reason: 'the stop window is open');
+      await tester.pump(actions.keylessApproachCountdown);
       expect((repo.commandCharacteristic as _Characteristic).writes, ['scooter:state unlock']);
+      expect(service.keylessPendingSince, isNull);
       expect(preferences.values['autoUnlock'], isTrue);
       service.dispose();
       await tester.pump(const Duration(seconds: 6));
     });
   }
+
+  testWidgets('pausing keyless on the home screen holds proximity back until resumed', (tester) async {
+    final preferences = _RuntimePreferences()
+      ..values['autoUnlock'] = true
+      ..values['biometrics'] = false;
+    SharedPreferencesAsyncPlatform.instance = preferences;
+    final updates = RecordingBackgroundService();
+    FlutterBackgroundServicePlatform.instance = updates;
+    final a = _Device('A')
+      ..connection.complete()
+      ..rssiValue = -50;
+    final repo = _Repository(state: 'stand-by')..discovery.complete();
+    final service =
+        _Service(_Bluetooth(), _Storage(), {'A': a}, [], repo, [], initializeRuntime: true, background: false);
+    await service.runtimeReady;
+    await service.connectToScooterId('A');
+    await tester.pump(const Duration(seconds: 3));
+    expect(service.autoUnlock, isTrue);
+    expect(service.keylessPendingSince, isNotNull, reason: 'proximity opened the stop window');
+    expect((repo.commandCharacteristic as _Characteristic).writes, isEmpty);
+
+    service.setKeylessPaused(true);
+    expect(service.keylessPaused, isTrue);
+    expect(service.keylessPendingSince, isNull, reason: 'the pause stops a running countdown');
+    expect(service.savedScooters['A']!.keylessPaused, isTrue);
+    expect(service.savedScooters['B']!.keylessPaused, isFalse, reason: 'pausing is per scooter');
+    expect(updates.updates.where((u) => (u['args'] as Map?)?['updateSavedScooters'] == true), isNotEmpty,
+        reason: 'the background isolate decides auto-unlock');
+
+    await tester.pump(actions.keylessApproachCountdown * 2);
+    expect(a.rssiReads, greaterThan(0), reason: 'distance reporting continues while paused');
+    expect((repo.commandCharacteristic as _Characteristic).writes, isEmpty,
+        reason: 'a stopped countdown never unlocks');
+
+    // A resume applies on the next poll, and the countdown runs again in full.
+    service.setKeylessPaused(false);
+    expect(service.keylessPaused, isFalse);
+    await tester.pump(const Duration(seconds: 3));
+    expect(service.keylessPendingSince, isNotNull);
+    expect((repo.commandCharacteristic as _Characteristic).writes, isEmpty);
+    await tester.pump(actions.keylessApproachCountdown);
+    expect((repo.commandCharacteristic as _Characteristic).writes, ['scooter:state unlock']);
+    service.dispose();
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('unlocking by hand re-arms keyless', (tester) async {
+    final preferences = _RuntimePreferences()
+      ..values['autoUnlock'] = true
+      ..values['biometrics'] = false;
+    SharedPreferencesAsyncPlatform.instance = preferences;
+    FlutterBackgroundServicePlatform.instance = RecordingBackgroundService();
+    final a = _Device('A')
+      ..connection.complete()
+      ..rssiValue = -50;
+    final repo = _Repository(state: 'stand-by')..discovery.complete();
+    final service =
+        _Service(_Bluetooth(), _Storage(), {'A': a}, [], repo, [], initializeRuntime: true, background: false);
+    await service.runtimeReady;
+    await service.connectToScooterId('A');
+    await tester.pump(const Duration(seconds: 3));
+
+    service.setKeylessPaused(true);
+    // The handlebar check runs on app timers, which the test drives with pump.
+    final unlocking = service.unlock();
+    expect(service.keylessPaused, isFalse, reason: 'a manual unlock clears the pause');
+    expect(service.savedScooters['A']!.keylessPaused, isFalse, reason: 'and the cleared pause is persisted');
+    await tester.pump(const Duration(seconds: 1));
+    expect((repo.commandCharacteristic as _Characteristic).writes, ['scooter:state unlock']);
+    await tester.pump(const Duration(seconds: 10));
+    await unlocking;
+    service.dispose();
+    await tester.pump(const Duration(seconds: 6));
+  });
+
+  testWidgets('parking the scooter re-arms keyless', (tester) async {
+    final preferences = _RuntimePreferences()
+      ..values['autoUnlock'] = true
+      ..values['biometrics'] = false;
+    SharedPreferencesAsyncPlatform.instance = preferences;
+    FlutterBackgroundServicePlatform.instance = RecordingBackgroundService();
+    final a = _Device('A')
+      ..connection.complete()
+      ..rssiValue = -50;
+    final repo = _Repository(state: 'stand-by')..discovery.complete();
+    final service =
+        _Service(_Bluetooth(), _Storage(), {'A': a}, [], repo, [], initializeRuntime: true, background: false);
+    await service.runtimeReady;
+    await service.connectToScooterId('A');
+    await tester.pump(const Duration(seconds: 3));
+
+    service.setKeylessPaused(true);
+    expect(service.keylessPaused, isTrue);
+
+    (repo.stateCharacteristic as _Characteristic).values.add('parked'.codeUnits);
+    await tester.pump();
+    expect(service.state, ScooterState.parked);
+    expect(service.keylessPaused, isFalse, reason: 'parking clears the pause');
+    expect(service.savedScooters['A']!.keylessPaused, isFalse);
+    service.dispose();
+    await tester.pump(const Duration(seconds: 6));
+  });
 
   testWidgets('enabling background scan restores automatic policy without rewriting preference', (tester) async {
     final preferences = _RuntimePreferences()
@@ -631,6 +740,7 @@ void main() {
     service.rssiTimer.start();
     await tester.pump(const Duration(seconds: 3));
     expect(a.rssiReads, greaterThan(0));
+    await tester.pump(actions.keylessApproachCountdown);
     expect((repo.commandCharacteristic as _Characteristic).writes, ['scooter:state unlock']);
     expect(service.autoUnlock, isTrue);
     expect(preferences.values['autoUnlock'], isTrue);

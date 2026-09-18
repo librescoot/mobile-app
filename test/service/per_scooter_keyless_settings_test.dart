@@ -14,6 +14,7 @@ class _Ble extends Fake implements FlutterBluePlusMockable {
 
 void main() {
   late MemoryPreferences prefs;
+  final laterMicros = DateTime.now().add(const Duration(hours: 1)).microsecondsSinceEpoch;
 
   setUp(() {
     prefs = MemoryPreferences();
@@ -26,17 +27,44 @@ void main() {
     expect(untouched.autoUnlock, isFalse);
     expect(untouched.hazardLocking, isFalse);
     expect(untouched.openSeatOnUnlock, isFalse);
+    expect(untouched.keylessPaused, isFalse);
 
     final stored = SavedScooter.fromJson('B', {
       'name': 'Beta',
       'autoUnlock': true,
       'hazardLocking': true,
       'openSeatOnUnlock': true,
+      'keylessPaused': true,
     });
     expect(stored.autoUnlock, isTrue);
     expect(stored.toJson()['autoUnlock'], isTrue);
     expect(stored.toJson()['hazardLocking'], isTrue);
     expect(stored.toJson()['openSeatOnUnlock'], isTrue);
+    expect(stored.keylessPaused, isTrue);
+    expect(stored.toJson()['keylessPaused'], isTrue);
+  });
+
+  test('pausing keyless targets one scooter and persists through the setter', () async {
+    prefs.values['savedScooters'] = '{"A":{"name":"Alpha","autoUnlock":true,"lastPing":1},'
+        '"B":{"name":"Beta","autoUnlock":true,"lastPing":$laterMicros}}';
+    final service = ScooterService(_Ble(), initializeRuntime: false);
+    addTearDown(service.dispose);
+    await service.settings.restore();
+    await service.store.load();
+    expect(service.settingsTargetScooter?.name, 'Beta');
+
+    service.setKeylessPaused(true);
+    expect(service.keylessPaused, isTrue);
+    expect(service.savedScooters['B']!.keylessPaused, isTrue);
+    expect(service.savedScooters['A']!.keylessPaused, isFalse);
+
+    await drainPreferenceWrites();
+    expect(prefs.saved['B']['keylessPaused'], isTrue);
+    expect(prefs.saved['A'].containsKey('keylessPaused'), isFalse);
+
+    service.setKeylessPaused(false);
+    expect(service.keylessPaused, isFalse);
+    expect(service.savedScooters['B']!.keylessPaused, isFalse);
   });
 
   test('migration copies the phone-wide choice onto every scooter once', () async {

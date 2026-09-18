@@ -48,6 +48,7 @@ class SavedScooter implements SavedScooterRecord {
   DateTime _lastPing;
   bool _autoConnect;
   bool _autoUnlock;
+  bool _keylessPaused;
   bool _hazardLocking;
   bool _openSeatOnUnlock;
   int? _lastPrimarySOC;
@@ -73,6 +74,7 @@ class SavedScooter implements SavedScooterRecord {
     DateTime? lastPing,
     bool? autoConnect,
     bool? autoUnlock,
+    bool? keylessPaused,
     bool? hazardLocking,
     bool? openSeatOnUnlock,
     int? lastPrimarySOC,
@@ -96,6 +98,7 @@ class SavedScooter implements SavedScooterRecord {
         _lastPing = lastPing ?? DateTime.now(),
         _autoConnect = autoConnect ?? true,
         _autoUnlock = autoUnlock ?? false,
+        _keylessPaused = keylessPaused ?? false,
         _hazardLocking = hazardLocking ?? false,
         _openSeatOnUnlock = openSeatOnUnlock ?? false,
         _lastPrimarySOC = lastPrimarySOC,
@@ -142,6 +145,13 @@ class SavedScooter implements SavedScooterRecord {
   @override
   set autoUnlock(bool autoUnlock) {
     _autoUnlock = autoUnlock;
+    updateSharedPreferences();
+    _notifyBackgroundService();
+  }
+
+  @override
+  set keylessPaused(bool keylessPaused) {
+    _keylessPaused = keylessPaused;
     updateSharedPreferences();
     _notifyBackgroundService();
   }
@@ -240,6 +250,8 @@ class SavedScooter implements SavedScooterRecord {
   @override
   bool get autoUnlock => _autoUnlock;
   @override
+  bool get keylessPaused => _keylessPaused;
+  @override
   bool get hazardLocking => _hazardLocking;
   @override
   bool get openSeatOnUnlock => _openSeatOnUnlock;
@@ -269,6 +281,7 @@ class SavedScooter implements SavedScooterRecord {
         'lastPing': _lastPing.microsecondsSinceEpoch,
         'autoConnect': _autoConnect,
         'autoUnlock': _autoUnlock,
+        'keylessPaused': _keylessPaused,
         'hazardLocking': _hazardLocking,
         'openSeatOnUnlock': _openSeatOnUnlock,
         'lastPrimarySOC': _lastPrimarySOC,
@@ -299,6 +312,7 @@ class SavedScooter implements SavedScooterRecord {
       lastPing: map.containsKey('lastPing') ? DateTime.fromMicrosecondsSinceEpoch(map['lastPing']) : DateTime.now(),
       autoConnect: map['autoConnect'],
       autoUnlock: map['autoUnlock'] ?? false,
+      keylessPaused: map['keylessPaused'] ?? false,
       hazardLocking: map['hazardLocking'] ?? false,
       openSeatOnUnlock: map['openSeatOnUnlock'] ?? false,
       lastLocation: map['lastLocation'] != null ? LatLng.fromJson(map['lastLocation']) : null,

@@ -23,6 +23,10 @@ abstract interface class ScooterActionEffects {
   /// Proximity would have unlocked, but more than one scooter with auto-unlock
   /// is in range. Reported once per episode.
   void autoUnlockRefused();
+
+  /// The proximity countdown started or ended. Non-null while it runs, so a
+  /// foreground button can fill for exactly that window.
+  void autoUnlockPendingChanged(bool pending);
 }
 
 class _Target {
@@ -90,6 +94,8 @@ class ScooterActions {
   bool _disposed = false;
   bool _cooldown = false;
   bool _ambiguityWarned = false;
+  Timer? _pendingUnlock;
+  int? _latestRssi;
   final Set<Timer> _cooldowns = {};
   Timer? _refreshTimer;
   late final ActionPollingTimer rssiTimer;
@@ -138,6 +144,7 @@ class ScooterActions {
   }
 
   void invalidate() {
+    cancelAutoUnlock();
     _connection = null;
     _repository = null;
     if (!_disposed) _changes.changed();
@@ -486,7 +493,45 @@ class ScooterActions {
   }
 
   void aggregateTransition(ScooterState? previous, ScooterState? next) {
+    if (next != ScooterState.standby) cancelAutoUnlock();
     if (previous?.isOn == true && next?.isOn == false) autoUnlockCooldown();
+  }
+
+  /// Starts the countdown that ends in a keyless unlock. Reaching the end
+  /// re-checks the same conditions, so a rider who walks away in the meantime
+  /// is not unlocked for.
+  void _startAutoUnlock(_Target t) {
+    if (_pendingUnlock != null) return;
+    final target = _Target(t.connection, t.repository, t.settings, t.soc1,
+        t.soc2, t.location, null);
+    _pendingUnlock = Timer(keylessApproachCountdown, () {
+      _pendingUnlock = null;
+      effects.autoUnlockPendingChanged(false);
+      final currentSettings = settings();
+      if (_disposed ||
+          _cooldown ||
+          !currentSettings.autoUnlock ||
+          currentSettings.autoUnlockPaused ||
+          !currentSettings.optionalAuth ||
+          telemetry.state != ScooterState.standby ||
+          (_latestRssi ?? double.negativeInfinity) <=
+              currentSettings.autoUnlockThreshold ||
+          !_current(target)) {
+        return;
+      }
+      // The RSSI budget bounds the read, not the subsequent basic unlock.
+      _background(() => _unlock(target, true, EventSource.auto));
+      if (_current(target)) autoUnlockCooldown();
+    });
+    effects.autoUnlockPendingChanged(true);
+  }
+
+  /// Stops a countdown in progress, leaving keyless itself alone.
+  void cancelAutoUnlock() {
+    if (_pendingUnlock == null) return;
+    _pendingUnlock!.cancel();
+    _pendingUnlock = null;
+    if (!_disposed) effects.autoUnlockPendingChanged(false);
   }
 
   void autoUnlockCooldown() {
@@ -510,6 +555,7 @@ class ScooterActions {
   }
 
   void stopPolling() {
+    cancelAutoUnlock();
     rssiTimer.pause();
     _refreshTimer?.cancel();
     _refreshTimer = null;
@@ -536,6 +582,7 @@ class ScooterActions {
       return;
     }
     effects.rssiChanged(value);
+    _latestRssi = value;
     if (!_current(t) ||
         !rssiTimer.enabled ||
         pollRevision != rssiTimer.revision) {
@@ -543,11 +590,13 @@ class ScooterActions {
     }
     final currentSettings = settings();
     final bool wouldUnlock = currentSettings.autoUnlock &&
+        !currentSettings.autoUnlockPaused &&
         value > currentSettings.autoUnlockThreshold &&
         telemetry.state == ScooterState.standby &&
         !_cooldown &&
         currentSettings.optionalAuth;
     if (wouldUnlock && currentSettings.autoUnlockAmbiguous) {
+      cancelAutoUnlock();
       if (!_ambiguityWarned) {
         _ambiguityWarned = true;
         effects.autoUnlockRefused();
@@ -556,11 +605,9 @@ class ScooterActions {
     }
     _ambiguityWarned = false;
     if (wouldUnlock) {
-      // The RSSI budget bounds the read, not the subsequent basic unlock.
-      final action = _Target(t.connection, t.repository, t.settings, t.soc1,
-          t.soc2, t.location, null);
-      _background(() => _unlock(action, true, EventSource.auto));
-      if (_current(t)) autoUnlockCooldown();
+      _startAutoUnlock(t);
+    } else {
+      cancelAutoUnlock();
     }
   }
 

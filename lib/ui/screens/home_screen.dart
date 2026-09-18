@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:scooter_core/actions.dart' as actions;
-import 'dart:math' show Random;
+import 'dart:math' show Random, max;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -429,9 +429,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             const SizedBox(height: 8),
                             HomeActionRow(
                               leading: const SeatButton(),
-                              primary: Selector<ScooterService, ScooterState?>(
-                                selector: (context, service) => service.state,
-                                builder: (context, state, _) {
+                              primary: Selector<ScooterService,
+                                  ({ScooterState? state, bool armed, bool paused, DateTime? pendingSince})>(
+                                selector: (context, service) => (
+                                  state: service.state,
+                                  armed: service.autoUnlock,
+                                  paused: service.keylessPaused,
+                                  pendingSince: service.keylessPendingSince,
+                                ),
+                                builder: (context, keyless, _) {
+                                  final state = keyless.state;
+                                  // Keyless only owns the button while unlocking
+                                  // is the action on offer; an unlocked scooter
+                                  // reads as a plain Lock button.
+                                  final keylessShown = keyless.armed && showsKeylessAction(state);
                                   return ScooterPowerButton(
                                     action: state != null && state.isReadyForLockChange
                                         ? (state.isOn
@@ -497,6 +508,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     instruction: state != null && state.isOn
                                         ? FlutterI18n.translate(context, "home_hold_to_lock")
                                         : FlutterI18n.translate(context, "home_hold_to_unlock"),
+                                    // Keyless rides on the unlock button: a spinner
+                                    // while it watches, and a tap suspends it.
+                                    keylessArmed: keylessShown,
+                                    keylessPaused: keyless.paused,
+                                    keylessPendingSince: keylessShown ? keyless.pendingSince : null,
+                                    keylessActiveLabel: FlutterI18n.translate(context, "home_keyless_active"),
+                                    keylessCountingLabel: FlutterI18n.translate(context, "home_keyless_tap_to_stop"),
+                                    keylessPausedLabel: FlutterI18n.translate(context, "home_keyless_paused"),
+                                    onKeylessToggle: keylessShown
+                                        ? () {
+                                            final paused = !keyless.paused;
+                                            context.read<ScooterService>().setKeylessPaused(paused);
+                                            Fluttertoast.showToast(
+                                              msg: FlutterI18n.translate(
+                                                context,
+                                                paused ? "home_keyless_paused" : "home_keyless_active",
+                                              ),
+                                            );
+                                          }
+                                        : null,
                                   );
                                 },
                               ),
@@ -1223,6 +1254,11 @@ class StatusText extends StatelessWidget {
   }
 }
 
+/// Keyless takes over the power button only while unlocking is what the button
+/// can do: a disconnected scooter is still keyless-armed, an unlocked one is
+/// not waiting for proximity.
+bool showsKeylessAction(ScooterState? state) => state == null || !state.isOn;
+
 class ScooterPowerButton extends StatefulWidget {
   const ScooterPowerButton({
     super.key,
@@ -1232,11 +1268,25 @@ class ScooterPowerButton extends StatefulWidget {
     required String label,
     required String instruction,
     bool? easterEgg,
+    bool keylessArmed = false,
+    bool keylessPaused = false,
+    DateTime? keylessPendingSince,
+    String? keylessActiveLabel,
+    String? keylessCountingLabel,
+    String? keylessPausedLabel,
+    VoidCallback? onKeylessToggle,
   })  : _action = action,
         _icon = icon,
         _label = label,
         _instruction = instruction,
-        _easterEgg = easterEgg;
+        _easterEgg = easterEgg,
+        _keylessArmed = keylessArmed,
+        _keylessPaused = keylessPaused,
+        _keylessPendingSince = keylessPendingSince,
+        _keylessActiveLabel = keylessActiveLabel,
+        _keylessCountingLabel = keylessCountingLabel,
+        _keylessPausedLabel = keylessPausedLabel,
+        _onKeylessToggle = onKeylessToggle;
 
   final Future<void> Function()? _action;
   final String _label;
@@ -1244,22 +1294,59 @@ class ScooterPowerButton extends StatefulWidget {
   final IconData _icon;
   final bool? _easterEgg;
 
+  /// Keyless go is on for this scooter and it is not unlocked yet: the button
+  /// shows a spinner in place of the lock icon, a tap suspends it, and the
+  /// subline says which state it is in.
+  final bool _keylessArmed;
+  final bool _keylessPaused;
+
+  /// Non-null once proximity is met and the unlock is counting down.
+  final DateTime? _keylessPendingSince;
+  final String? _keylessActiveLabel;
+  final String? _keylessCountingLabel;
+  final String? _keylessPausedLabel;
+  final VoidCallback? _onKeylessToggle;
+
   @override
   State<ScooterPowerButton> createState() => _ScooterPowerButtonState();
 }
 
-class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTickerProviderStateMixin {
+class _ScooterPowerButtonState extends State<ScooterPowerButton> with TickerProviderStateMixin {
   bool loading = false;
   final int randomEgg = Random().nextInt(8);
   double scale = 1.0;
   bool _holdActivated = false;
   late final AnimationController _holdProgress;
+  late final AnimationController _countdown;
 
   @override
   void initState() {
     super.initState();
     _holdProgress = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))
       ..addStatusListener(_onHoldStatusChanged);
+    _countdown = AnimationController(vsync: this, duration: actions.keylessApproachCountdown);
+    _syncCountdown(null);
+  }
+
+  @override
+  void didUpdateWidget(covariant ScooterPowerButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncCountdown(oldWidget._keylessPendingSince);
+  }
+
+  /// The countdown is the service's, not the animation's: only start filling on
+  /// the transition, and start part-way through if the button appeared late.
+  void _syncCountdown(DateTime? previous) {
+    final since = widget._keylessPendingSince;
+    if (since == null) {
+      if (previous != null) _countdown.stop();
+      _countdown.value = 0;
+      return;
+    }
+    if (previous != null) return;
+    final remaining = actions.keylessApproachCountdown - DateTime.now().difference(since);
+    _countdown.duration = remaining.isNegative ? Duration.zero : remaining;
+    _countdown.forward(from: 0);
   }
 
   void _onHoldStatusChanged(AnimationStatus status) async {
@@ -1291,6 +1378,7 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
   @override
   void dispose() {
     _holdProgress.dispose();
+    _countdown.dispose();
     super.dispose();
   }
 
@@ -1301,8 +1389,14 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
   }
 
   void _finishPress() {
-    if (!_holdActivated && !loading && widget._action != null) {
-      Fluttertoast.showToast(msg: widget._instruction);
+    if (!_holdActivated && !loading) {
+      final toggle = widget._onKeylessToggle;
+      // Tap toggles keyless; only a hold unlocks.
+      if (toggle != null) {
+        toggle();
+      } else if (widget._action != null) {
+        Fluttertoast.showToast(msg: widget._instruction);
+      }
     }
     _restoreScale();
   }
@@ -1311,6 +1405,10 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final disabled = widget._action == null;
+    final counting = widget._keylessPendingSince != null;
+    // Keyless watching shows as a spinner instead of the lock icon; the label
+    // stays the button's own, and the subline says what keyless is doing.
+    final watching = widget._keylessArmed && !widget._keylessPaused;
     final mainColor = disabled ? colors.onSurface.withValues(alpha: 0.28) : colors.primary;
     final buttonColor = loading
         ? colors.surface
@@ -1327,22 +1425,42 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
             ? Colors.black87
             : colors.onPrimary;
 
+    final String? subline = widget._keylessPaused
+        ? widget._keylessPausedLabel
+        : counting
+            ? widget._keylessCountingLabel
+            : watching
+                ? widget._keylessActiveLabel
+                : null;
+
     return Semantics(
       button: true,
       enabled: !disabled && !loading,
-      label: widget._label,
+      label: subline == null ? widget._label : '${widget._label} · $subline',
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTapDown: (_) {
-              if (disabled || loading) return;
+              if (loading) return;
+              if (disabled) {
+                // Unlock is unavailable out of range; the keyless tap works.
+                if (widget._onKeylessToggle != null) setState(() => scale = 0.96);
+                return;
+              }
               _holdActivated = false;
               _holdProgress.forward(from: 0);
               setState(() => scale = 0.96);
             },
-            onTapUp: (_) => _finishPress(),
+            onTapUp: (_) {
+              if (disabled) {
+                widget._onKeylessToggle?.call();
+                _restoreScale();
+                return;
+              }
+              _finishPress();
+            },
             onTapCancel: _restoreScale,
             child: AnimatedScale(
               scale: scale,
@@ -1379,11 +1497,11 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
                         children: [
                           if (!disabled && widget._easterEgg != true)
                             AnimatedBuilder(
-                              animation: _holdProgress,
+                              animation: Listenable.merge([_holdProgress, _countdown]),
                               builder: (context, child) => Align(
                                 alignment: Alignment.centerLeft,
                                 child: FractionallySizedBox(
-                                  widthFactor: _holdProgress.value,
+                                  widthFactor: max(_holdProgress.value, _countdown.value),
                                   heightFactor: 1,
                                   child: ColoredBox(
                                     color: colors.onPrimary.withValues(alpha: 0.42),
@@ -1401,12 +1519,24 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
                                 : Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(widget._icon, color: foregroundColor, size: 26),
+                                      if (watching)
+                                        SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: foregroundColor,
+                                          ),
+                                        )
+                                      else
+                                        Icon(widget._icon, color: foregroundColor, size: 26),
                                       const SizedBox(width: 10),
                                       Flexible(
                                         child: Text(
                                           widget._label,
                                           textAlign: TextAlign.center,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                           style:
                                               Theme.of(context).textTheme.titleSmall?.copyWith(color: foregroundColor),
                                         ),
@@ -1423,8 +1553,20 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with SingleTick
             ),
           ),
           const SizedBox(height: 8),
-          ExcludeSemantics(
-            child: Text(' ', key: const ValueKey('power-label-spacer'), style: Theme.of(context).textTheme.labelLarge),
+          // Width-pinned to the button, so a long subline ellipsises instead of
+          // widening the column it sits in.
+          SizedBox(
+            width: 136,
+            child: ExcludeSemantics(
+              child: Text(
+                subline ?? ' ',
+                key: const ValueKey('power-label-spacer'),
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+            ),
           ),
         ],
       ),

@@ -32,6 +32,8 @@ class Record implements SavedScooterRecord {
   @override
   bool autoUnlock = false;
   @override
+  bool keylessPaused = false;
+  @override
   bool hazardLocking = false;
   @override
   bool openSeatOnUnlock = false;
