@@ -772,6 +772,8 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
     service._telemetry.invalidate();
     service.state = ScooterState.disconnected;
     if (id != null) service.updateScooterPing(id);
+    // Telemetry has stopped, so nothing will carry the coalesced writes out.
+    unawaited(SavedScooter.flushPendingWrites());
   }
 }
 

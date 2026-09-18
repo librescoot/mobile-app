@@ -294,6 +294,68 @@ void main() {
     }
   });
 
+  test('telemetry is rate limited instead of one map rewrite per field', () async {
+    final scooter = SavedScooter(id: 'id');
+    prefs.seed({
+      'id': scooter,
+      'sibling': {'name': 'Untouched'},
+    });
+    final writesBefore = prefs.writes;
+    final readsBefore = prefs.reads;
+
+    // One battery packet: ping, two SOCs, handlebars, plus a ride snapshot.
+    scooter.lastPing = DateTime.now();
+    scooter.lastPrimarySOC = 91;
+    scooter.lastSecondarySOC = 12;
+    scooter.handlebarsLocked = true;
+    scooter.cacheOdometer(4200);
+    scooter.cacheTripCounter(TripCounterSnapshot(
+      distanceMeters: 1200,
+      ridingSeconds: 600,
+      averageSpeedKph: 7,
+      resetPolicy: TripResetPolicy.manual,
+      lastReset: TripTimestamp(1700000000),
+      lastResetReason: TripResetReason.manual,
+      generation: 4,
+      status: TripCounterStatus.idle,
+    ));
+    await drainPreferenceWrites();
+
+    // Six fields, one read and one write.
+    expect(prefs.writes, writesBefore + 1);
+    expect(prefs.reads, readsBefore + 1);
+    expect(prefs.saved['id'], scooter.toJson());
+    expect(prefs.saved['id']['lastPrimarySOC'], 91);
+    expect(prefs.saved['id']['cachedOdometerMeters'], 4200);
+    expect(prefs.saved['sibling'], {'name': 'Untouched'});
+
+    // Still inside the window: further telemetry waits for the next event or
+    // for an explicit flush rather than writing again.
+    final afterFirstWrite = prefs.writes;
+    scooter.lastPrimarySOC = 90;
+    scooter.cacheOdometer(4300);
+    expect(prefs.writes, afterFirstWrite);
+    await drainPreferenceWrites();
+    expect(prefs.writes, afterFirstWrite + 1);
+    expect(prefs.saved['id']['lastPrimarySOC'], 90);
+    expect(prefs.saved['id']['cachedOdometerMeters'], 4300);
+  });
+
+  test('deliberate edits still write immediately', () async {
+    final scooter = SavedScooter(id: 'id');
+    prefs.seed({'id': scooter});
+    final writesBefore = prefs.writes;
+
+    scooter.name = 'Commuter';
+    scooter.autoUnlock = true;
+    await drainPreferenceWrites();
+
+    // One write each, not one per window: the user just changed something.
+    expect(prefs.writes, writesBefore + 2);
+    expect(prefs.saved['id']['name'], 'Commuter');
+    expect(prefs.saved['id']['autoUnlock'], isTrue);
+  });
+
   test('autoConnect persists and notifies even when assigned the same value', () async {
     final scooter = SavedScooter(id: 'id');
     prefs.seed({'id': scooter});

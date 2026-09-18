@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_background_service/flutter_background_service.dart';
@@ -128,7 +129,7 @@ class SavedScooter implements SavedScooterRecord {
   @override
   set lastPing(DateTime lastPing) {
     _lastPing = lastPing;
-    updateSharedPreferences();
+    _scheduleTelemetryWrite();
   }
 
   @override
@@ -161,22 +162,22 @@ class SavedScooter implements SavedScooterRecord {
 
   set lastPrimarySOC(int? lastPrimarySOC) {
     _lastPrimarySOC = lastPrimarySOC;
-    updateSharedPreferences();
+    _scheduleTelemetryWrite();
   }
 
   set lastSecondarySOC(int? lastSecondarySOC) {
     _lastSecondarySOC = lastSecondarySOC;
-    updateSharedPreferences();
+    _scheduleTelemetryWrite();
   }
 
   set lastCbbSOC(int? lastCbbSOC) {
     _lastCbbSOC = lastCbbSOC;
-    updateSharedPreferences();
+    _scheduleTelemetryWrite();
   }
 
   set lastAuxSOC(int? lastAuxSOC) {
     _lastAuxSOC = lastAuxSOC;
-    updateSharedPreferences();
+    _scheduleTelemetryWrite();
   }
 
   set lastLocation(LatLng? lastLocation) {
@@ -192,34 +193,34 @@ class SavedScooter implements SavedScooterRecord {
 
   set handlebarsLocked(bool? handlebarsLocked) {
     _handlebarsLocked = handlebarsLocked;
-    updateSharedPreferences();
+    _scheduleTelemetryWrite();
   }
 
   set isLibrescoot(bool? isLibrescoot) {
     _isLibrescoot = isLibrescoot;
-    updateSharedPreferences();
+    _scheduleTelemetryWrite();
   }
 
   set supportsHibernateFor(bool? supportsHibernateFor) {
     _supportsHibernateFor = supportsHibernateFor;
-    updateSharedPreferences();
+    _scheduleTelemetryWrite();
   }
 
   set supportsApnConfig(bool? supportsApnConfig) {
     _supportsApnConfig = supportsApnConfig;
-    updateSharedPreferences();
+    _scheduleTelemetryWrite();
   }
 
   void cacheOdometer(int meters, {DateTime? updatedAt}) {
     _cachedOdometerMeters = meters;
     _odometerUpdatedAt = updatedAt ?? DateTime.now();
-    updateSharedPreferences();
+    _scheduleTelemetryWrite();
   }
 
   void cacheTripCounter(TripCounterSnapshot snapshot, {DateTime? updatedAt}) {
     _cachedTripCounter = snapshot;
     _tripCounterUpdatedAt = updatedAt ?? DateTime.now();
-    updateSharedPreferences();
+    _scheduleTelemetryWrite();
   }
 
   set cachedDestinations(List<NavDestination>? cachedDestinations) {
@@ -328,6 +329,8 @@ class SavedScooter implements SavedScooterRecord {
     return _lastPing.difference(DateTime.now()).inMinutes.abs() > 5;
   }
 
+  /// Whole-map write, used by deliberate user edits and one-off state that
+  /// other processes read back promptly.
   void updateSharedPreferences() async {
     SharedPreferencesAsync prefs = SharedPreferencesAsync();
     Map<String, dynamic> savedScooters =
@@ -341,4 +344,70 @@ class SavedScooter implements SavedScooterRecord {
     savedScooters[_id] = toJson();
     await prefs.setString("savedScooters", jsonEncode(savedScooters));
   }
+
+  void _scheduleTelemetryWrite() => _telemetryWrites.schedule(this);
+
+  /// Writes every scooter with outstanding telemetry. Call this when the app
+  /// is leaving the foreground or a session ends, so the coalescing window
+  /// cannot swallow the last update.
+  static Future<void> flushPendingWrites() => _telemetryWrites.flush();
+}
+
+final _TelemetryWriteCoalescer _telemetryWrites = _TelemetryWriteCoalescer();
+
+/// At most one map rewrite per window, however many setters ran.
+///
+/// Telemetry used to rewrite the whole saved-scooter map on every update, and
+/// a single battery packet sets several fields while `ping()` sets `lastPing`
+/// on nearly every notification. That put multiple read/decode/encode/write
+/// passes of the entire blob on the UI isolate per second while riding. This
+/// defers everything inside the window and lets the next telemetry event,
+/// [SavedScooter.flushPendingWrites] or app departure carry it out.
+///
+/// Deliberately not a timer: a debounce would keep widget tests from settling
+/// and would leave a window running in the background isolate forever.
+class _TelemetryWriteCoalescer {
+  static const Duration _window = Duration(seconds: 1);
+
+  final Set<SavedScooter> _dirty = <SavedScooter>{};
+  DateTime? _lastWrite;
+  Future<void>? _pending;
+
+  void schedule(SavedScooter scooter) {
+    _dirty.add(scooter);
+    final last = _lastWrite;
+    if (last == null || DateTime.now().difference(last) >= _window) {
+      unawaited(flush());
+    }
+  }
+
+  Future<void> flush() async {
+    // Serialise read-modify-write cycles; concurrent ones could drop a field.
+    await _pending;
+    if (_dirty.isEmpty) return;
+    final batch = Set<SavedScooter>.of(_dirty);
+    _dirty.clear();
+    _lastWrite = DateTime.now();
+    _pending = _writeTelemetryBatch(batch);
+    try {
+      await _pending;
+    } finally {
+      _pending = null;
+    }
+  }
+}
+
+Future<void> _writeTelemetryBatch(Set<SavedScooter> scooters) async {
+  final prefs = SharedPreferencesAsync();
+  final raw = await prefs.getString("savedScooters");
+  if (raw == null) return;
+  final stored = jsonDecode(raw) as Map<String, dynamic>;
+  var changed = false;
+  for (final scooter in scooters) {
+    // Same forgotten-scooter guard as the immediate write above.
+    if (!stored.containsKey(scooter.id)) continue;
+    stored[scooter.id] = scooter.toJson();
+    changed = true;
+  }
+  if (changed) await prefs.setString("savedScooters", jsonEncode(stored));
 }

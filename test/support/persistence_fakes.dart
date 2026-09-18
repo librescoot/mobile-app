@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_background_service_platform_interface/flutter_background_service_platform_interface.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:shared_preferences_platform_interface/types.dart';
+import 'package:unustasis/domain/saved_scooter.dart';
 
 // Shared by the storage tests. No platform channels, BLE or service startup.
 final class MemoryPreferences extends SharedPreferencesAsyncPlatform {
@@ -92,6 +93,10 @@ class RecordingBackgroundService extends FlutterBackgroundServicePlatform {
       throw UnsupportedError('Unexpected service actuation: ${invocation.memberName}');
 }
 
-// Setters return void while persisting asynchronously. The fake completes all
-// work in microtasks, so an event-loop turn drains those writes before asserting.
-Future<void> drainPreferenceWrites() => Future<void>.delayed(Duration.zero);
+// Setters return void while persisting asynchronously, and telemetry setters
+// coalesce into one write per window. Flush that window, then let the fake's
+// microtasks finish, so assertions see everything the setters asked for.
+Future<void> drainPreferenceWrites() async {
+  await SavedScooter.flushPendingWrites();
+  await Future<void>.delayed(Duration.zero);
+}
