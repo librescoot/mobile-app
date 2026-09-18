@@ -86,4 +86,42 @@ void main() {
       expect(parseFavoriteDestination(message), isNull);
     }
   });
+
+  test('route plan commands fit the extended-command budget', () {
+    expect(
+        addNavStopCommand(NavigationDestination(
+            location: const LatLng(52.51, 13.41), name: 'Home')),
+        'nav:route:add 52.51,13.41,Home');
+    // A long name is truncated so the command stays within the byte budget.
+    final long = addNavStopCommand(NavigationDestination(
+        location: const LatLng(52.51, 13.41), name: 'x' * 200));
+    expect(long.length, lessThanOrEqualTo(100));
+    expect(long, startsWith('nav:route:add 52.51,13.41,'));
+    expect(removeNavStopCommand(2), 'nav:route:remove 2');
+    expect(skipNavStopCommand, 'nav:route:skip');
+    expect(listNavPlanCommand, 'nav:route:list');
+  });
+
+  test('route plan responses parse', () {
+    expect(parseNavPlanStep('nav:route:count:3:1'), 1);
+    expect(parseNavPlanStep('nav:route:count:0:0'), 0);
+    expect(parseNavPlanStep('nav:route:0:1,2,Home'), isNull);
+    expect(parseNavPlanStep('bad'), isNull);
+
+    final stop = parseNavPlanStop('nav:route:1:52.51,13.41,Home, sweet home');
+    expect(stop, isNotNull);
+    expect(stop!.location.latitude, 52.51);
+    expect(stop.location.longitude, 13.41);
+    expect(stop.name, 'Home, sweet home');
+    expect(stop.id, '1');
+    expect(parseNavPlanStop('nav:route:1:52.51,13.41')!.name, isNull);
+    for (final message in [
+      'bad',
+      'nav:route:1:52.51',
+      'nav:route:1:x,13.41',
+      'nav:route:count:3:1'
+    ]) {
+      expect(parseNavPlanStop(message), isNull);
+    }
+  });
 }

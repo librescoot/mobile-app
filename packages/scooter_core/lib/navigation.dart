@@ -58,6 +58,54 @@ String navigateDestinationCommand(NavigationDestination destination) {
   return name != null ? '$base,$name' : base;
 }
 
+/// Appends a stop to the scooter's multi-hop plan. One stop per command: the
+/// BLE extended command is capped at 100 bytes, so a whole plan cannot be sent
+/// at once.
+String addNavStopCommand(NavigationDestination stop) {
+  final base =
+      'nav:route:add ${stop.location.latitude},${stop.location.longitude}';
+  final name = _truncateNavName(base, stop.name);
+  return name != null ? '$base,$name' : base;
+}
+
+String removeNavStopCommand(int index) => 'nav:route:remove $index';
+const String skipNavStopCommand = 'nav:route:skip';
+const String listNavPlanCommand = 'nav:route:list';
+const String clearNavPlanCommand = 'nav:route:clear';
+
+/// Reads the current step out of a `nav:route:count:<n>:<step>` response.
+int? parseNavPlanStep(String message) {
+  final parts = message.split(':');
+  if (parts.length < 5 ||
+      parts[0] != 'nav' ||
+      parts[1] != 'route' ||
+      parts[2] != 'count') {
+    return null;
+  }
+  return int.tryParse(parts[4]);
+}
+
+/// Parses a `nav:route:<index>:<lat>,<lon>,<name>` plan list entry.
+NavigationDestination? parseNavPlanStop(String message) {
+  final parts = message.split(':');
+  if (parts.length < 4 ||
+      parts[0] != 'nav' ||
+      parts[1] != 'route' ||
+      parts[2] == 'count') {
+    return null;
+  }
+  final coords = parts[3].split(',');
+  if (coords.length < 2) return null;
+  final lat = double.tryParse(coords[0]);
+  final lon = double.tryParse(coords[1]);
+  if (lat == null || lon == null) return null;
+  final name = coords.length >= 3 ? coords.sublist(2).join(',') : null;
+  return NavigationDestination(
+      location: LatLng(lat, lon),
+      name: name?.isNotEmpty == true ? name : null,
+      id: parts[2]);
+}
+
 String saveFavoriteCommand(NavigationDestination destination) {
   if (destination.name == null || destination.name!.isEmpty) {
     throw 'Destination name cannot be empty when storing as favorite';
