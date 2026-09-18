@@ -5,7 +5,7 @@
     },
     "Verbindung und Kopplung": {
         "Warum findet die App meinen Roller nicht?": "Stelle dich neben den eingeschalteten Roller und prüfe, ob Bluetooth aktiv und kein anderes Smartphone verbunden ist. Ein Bluetooth-Symbol im Dashboard bedeutet meist, dass bereits ein anderes Gerät verbunden ist.",
-        "Warum erscheint eine Kopplungsanfrage vor dem Code?": "Manche Smartphones zeigen eine vorzeitige Kopplungsanfrage, bevor der Roller den Code anzeigt. Schließe diese Anfrage und fahre in der App fort. Bestätige die Anfrage, die erscheint, sobald der Code am Roller sichtbar ist.",
+        "Warum erscheinen zwei Kopplungsanfragen?": "Bestätige jede Kopplungsanfrage, die erscheint. Ältere Roller senden zwei nacheinander, und die Kopplung ist erst abgeschlossen, wenn alle bestätigt sind. Gib den Code ein, der am Rollerdisplay angezeigt wird.",
         "Was kann ich tun, wenn die Verbindung weiterhin fehlschlägt?": "Schließe andere Roller-Apps, schalte Bluetooth aus und wieder ein und versuche es in der Nähe des Rollers erneut. Prüfe, ob sich der Roller noch mit einer Keycard entsperren lässt. Falls nicht, liegt das Problem möglicherweise am Roller."
     },
     "Librescoot": {

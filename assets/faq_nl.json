@@ -5,7 +5,7 @@
     },
     "Verbinding en koppeling": {
         "Waarom vindt de app mijn scooter niet?": "Ga naast de ingeschakelde scooter staan en controleer of Bluetooth aanstaat en er geen andere telefoon verbonden is. Een Bluetooth-symbool op het dashboard betekent meestal dat een ander apparaat de verbinding al gebruikt.",
-        "Waarom verschijnt een koppelingsverzoek vóór de code?": "Sommige telefoons tonen te vroeg een koppelingsverzoek, voordat de scooter de code laat zien. Sluit dit verzoek en ga verder in de app. Accepteer het verzoek dat verschijnt wanneer de code op de scooter zichtbaar is.",
+        "Waarom verschijnen er twee koppelingsverzoeken?": "Accepteer elk koppelingsverzoek dat verschijnt. Oudere scooters sturen er twee achter elkaar, en de koppeling is pas klaar als alle verzoeken zijn bevestigd. Voer de code in die op het scherm van de scooter staat.",
         "Wat kan ik doen als opnieuw verbinden blijft mislukken?": "Sluit andere scooterapps, schakel Bluetooth uit en weer in en probeer het opnieuw in de buurt van de scooter. Controleer of de scooter nog met een keycard ontgrendelt. Zo niet, dan ligt het probleem mogelijk bij de scooter."
     },
     "Librescoot": {

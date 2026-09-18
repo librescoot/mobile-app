@@ -5,7 +5,7 @@
     },
     "Connection and pairin’": {
         "Why can’t the app find me ship?": "Stand beside the powered-on ship and check that Bluetooth be enabled and no other phone be connected. A Bluetooth mark on the dashboard usually means another device already holds the link.",
-        "Why did a pairin’ request appear before a code?": "Some phones show an early request before the ship displays its code. Dismiss it and continue in the app. Accept the request that appears when the code be visible on the ship.",
+        "Why did two pairin’ requests appear?": "Accept every pairin’ request that pops up. Older ships send two in a row, and the bond only be sealed once all o’ them be confirmed. Type in the code shown on the ship’s display when ye be asked for it.",
         "What if reconnectin’ keeps failin’?": "Close other scooter apps, toggle Bluetooth, and try again beside the ship. Check that a keycard still unlocks it. If not, the trouble may be aboard the ship rather than the phone."
     },
     "Librescoot": {

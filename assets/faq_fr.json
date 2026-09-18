@@ -5,7 +5,7 @@
     },
     "Connexion et appairage": {
         "Pourquoi l'application ne trouve-t-elle pas mon scooter ?": "Placez-vous près du scooter allumé et vérifiez que le Bluetooth est activé et qu'aucun autre téléphone n'est connecté. Un symbole Bluetooth sur le tableau de bord indique généralement qu'un autre appareil utilise déjà la connexion.",
-        "Pourquoi une demande d'appairage apparaît-elle avant le code ?": "Certains téléphones affichent une demande trop tôt, avant que le scooter ne présente son code. Fermez cette demande et continuez dans l'application. Acceptez celle qui apparaît lorsque le code est visible sur le scooter.",
+        "Pourquoi deux demandes d'appairage apparaissent-elles ?": "Acceptez chaque demande d'appairage qui s'affiche. Les scooters plus anciens en envoient deux d'affilée, et l'appairage ne se termine que lorsque toutes sont confirmées. Saisissez le code affiché sur l'écran du scooter lorsqu'il vous est demandé.",
         "Que faire si la reconnexion échoue toujours ?": "Fermez les autres applications du scooter, désactivez puis réactivez le Bluetooth et réessayez près du scooter. Vérifiez que le scooter se déverrouille encore avec une carte-clé. Sinon, le problème peut venir du scooter plutôt que du téléphone."
     },
     "Librescoot": {

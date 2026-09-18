@@ -5,7 +5,7 @@
     },
     "Connection and pairing": {
         "Why can't the app find my scooter?": "Stand next to the scooter and make sure it is switched on, Bluetooth is enabled, and no other phone is connected. A Bluetooth symbol on the dashboard usually means another device already has the active connection.",
-        "Why did a pairing request appear before a code?": "Some phones show an early pairing request before the scooter displays its code. Dismiss that request and continue in the app. Accept the request that appears when the code is visible on the scooter.",
+        "Why did two pairing requests appear?": "Accept every pairing request that pops up. Older scooters send two in a row, and pairing only finishes once all of them are confirmed. Enter the code shown on the scooter display when you are asked for it.",
         "What should I do if reconnecting keeps failing?": "Close other scooter apps, toggle Bluetooth, and try again near the scooter. Check that the scooter still unlocks with a keycard. If it does not, the problem may be with the scooter rather than the phone."
     },
     "Librescoot": {
