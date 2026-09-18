@@ -143,6 +143,11 @@ class ScooterSession {
   bool foundScooter = false;
   bool _autoRestarting = false;
   String? _targetScooterId;
+
+  /// iOS pairs lazily, so the connect waits for the first encrypted read.
+  /// Cleared per connection attempt; recovery passes reuse the live bond.
+  bool _pairingConfirmed = false;
+
   bool _connected = false;
   bool get connected => _connected;
   set connected(bool value) => setConnected(value);
@@ -236,6 +241,7 @@ class ScooterSession {
       _connectingScooterId = id;
       foundScooter = true;
       connected = false;
+      _pairingConfirmed = false;
       ensureCurrentAttempt();
       effects.linking(attempt);
       ensureCurrentAttempt();
@@ -721,6 +727,17 @@ class ScooterSession {
         continue;
       }
       if (invalid == null) {
+        if (isIOS && !_pairingConfirmed) {
+          await repository.confirmPairing(
+              isCurrent: () => attempt.isCurrentAttempt);
+          if (!attempt.isCurrentAttempt) {
+            throw const _SupersededConnectionAttempt();
+          }
+          if (scooter.isDisconnected) {
+            throw StateError('Scooter disconnected while pairing');
+          }
+          _pairingConfirmed = true;
+        }
         return _ValidatedGattTable(repository, discoveryGeneration);
       }
 

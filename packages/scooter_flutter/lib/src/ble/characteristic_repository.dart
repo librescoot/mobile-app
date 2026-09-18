@@ -260,6 +260,30 @@ class CharacteristicRepository {
     return null;
   }
 
+  /// Confirms the LE bond on iOS by touching an encrypted characteristic.
+  ///
+  /// iOS starts pairing only when the app accesses a characteristic whose
+  /// permissions need encryption, or when the peripheral sends an SMP Security
+  /// Request. The scooter stopped sending that request, so the prompt would
+  /// otherwise arrive whenever the fire-and-forget telemetry reads happen to
+  /// land, long after the session is announced as ready. Reading a mandatory
+  /// encrypted characteristic here makes the prompt part of the connect.
+  /// Android has [BluetoothDevice.createBond] and does not use this.
+  Future<void> confirmPairing({
+    bool Function()? isCurrent,
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
+    final characteristic = stateCharacteristic;
+    if (characteristic == null) {
+      throw StateError('the state characteristic is missing, cannot pair');
+    }
+    if (isCurrent != null && !isCurrent()) return;
+    log.info('Waiting for the system pairing prompt on the state characteristic');
+    await characteristic.read(timeout: timeout.inSeconds);
+    if (isCurrent != null && !isCurrent()) return;
+    log.info('Pairing confirmed');
+  }
+
   void noteStaleGattTable(String detail) {
     if (gattTableMismatch) return;
     log.warning(

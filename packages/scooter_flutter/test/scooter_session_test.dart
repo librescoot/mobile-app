@@ -190,12 +190,25 @@ class _Repository extends CharacteristicRepository {
   Completer<void>? validationGate;
   void Function()? afterValidationHandoff;
   int discoveries = 0;
+  int pairingChecks = 0;
+  Completer<void>? pairingGate;
+  Object? pairingError;
   @override
   Future<void> findAll({bool additionalLibrescootFeatures = false}) async {
     expect(additionalLibrescootFeatures, isTrue);
     discoveries++;
     trace.add('${scooter.remoteId}.discover');
     await gate?.future;
+  }
+
+  @override
+  Future<void> confirmPairing(
+      {bool Function()? isCurrent,
+      Duration timeout = const Duration(seconds: 60)}) async {
+    pairingChecks++;
+    trace.add('${scooter.remoteId}.pair');
+    await pairingGate?.future;
+    if (pairingError != null) throw pairingError!;
   }
 
   @override
@@ -390,6 +403,9 @@ class _Harness {
       if (repository.validationGate case final gate? when !gate.isCompleted) {
         gate.complete();
       }
+      if (repository.pairingGate case final gate? when !gate.isCompleted) {
+        gate.complete();
+      }
     }
     if (effects.widgetGate case final gate? when !gate.isCompleted) {
       gate.complete();
@@ -484,6 +500,51 @@ void main() {
       ]);
     });
   }
+
+  sessionTest('iOS confirms pairing before the session is published as ready',
+      (tester) async {
+    final h = create(ios: true);
+    final a = h.devices['A']!;
+    final repository = _Repository(a, h.trace)
+      ..pairingGate = Completer<void>();
+    h.repositories[a] = repository;
+    final result = h.connect('A');
+    await tester.pump();
+    a.connections.single.complete();
+    await tester.pump();
+
+    expect(repository.pairingChecks, 1);
+    expect(h.session.connected, isFalse);
+    final pairIndex = h.trace.indexOf('A.pair');
+    expect(pairIndex, greaterThan(h.trace.indexOf('A.validate')));
+    expect(h.trace.indexOf('A.wire'), -1);
+
+    repository.pairingGate!.complete();
+    await tester.pump();
+
+    expect(await result, isNull);
+    expect(h.session.connected, isTrue);
+    expect(h.trace.indexOf('A.wire'), greaterThan(pairIndex));
+    expect(h.trace,
+        containsAllInOrder(['A.pair', 'A.wire', 'A.metadata', 'A.ready']));
+  });
+
+  sessionTest(
+      'iOS pairing failure fails the connect instead of reporting ready',
+      (tester) async {
+    final h = create(ios: true);
+    final a = h.devices['A']!;
+    h.repositories[a] = _Repository(a, h.trace)
+      ..pairingError = StateError('pairing was dismissed');
+    final result = h.connect('A');
+    await tester.pump();
+    a.connections.single.complete();
+    await tester.pump();
+
+    expect(await result, isA<StateError>());
+    expect(h.session.connected, isFalse);
+    expect(h.trace, isNot(contains('A.wire')));
+  });
 
   sessionTest(
       'priority failure is non-fatal and missing characteristics recover before ready',
