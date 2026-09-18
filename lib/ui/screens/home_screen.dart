@@ -27,6 +27,7 @@ import 'package:unustasis/ui/theme/icomoon.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
 import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/domain/scooter_vehicle_state.dart';
 import 'package:unustasis/domain/scooter_power_state.dart';
@@ -107,6 +108,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.hidden || state == AppLifecycleState.paused) {
       _lockGuidanceBackgrounded = true;
       _dismissLockGuidance();
+      // Telemetry writes are coalesced; leaving the foreground is the moment
+      // to make sure the last one is not still waiting on its window.
+      unawaited(SavedScooter.flushPendingWrites());
     } else if (state == AppLifecycleState.resumed) {
       _lockGuidanceBackgrounded = false;
     }
@@ -117,6 +121,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _dismissLockGuidance();
     _warningSubscription?.cancel();
+    // The tree going away is the last chance to persist coalesced telemetry.
+    unawaited(SavedScooter.flushPendingWrites());
     super.dispose();
   }
 
@@ -218,16 +224,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   snowflakeColor:
                       context.isDarkMode ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.05),
                 ),
+              // Selector, not watch: a watch here subscribes the whole home
+              // tree to every telemetry notification for a decoration's fade.
               if (_fall && context.isDarkMode)
-                AnimatedOpacity(
-                  opacity: context.watch<ScooterService>().connected == true ? 1.0 : 0.5,
-                  duration: Duration(milliseconds: 500),
+                Selector<ScooterService, bool>(
+                  selector: (context, service) => service.connected,
+                  builder: (context, connected, child) => AnimatedOpacity(
+                    opacity: connected ? 1.0 : 0.5,
+                    duration: Duration(milliseconds: 500),
+                    child: child,
+                  ),
                   child: Clouds(),
                 ),
               if (_spring)
-                AnimatedOpacity(
-                  opacity: context.watch<ScooterService>().connected == true ? 1.0 : 0.0,
-                  duration: Duration(milliseconds: 500),
+                Selector<ScooterService, bool>(
+                  selector: (context, service) => service.connected,
+                  builder: (context, connected, child) => AnimatedOpacity(
+                    opacity: connected ? 1.0 : 0.0,
+                    duration: Duration(milliseconds: 500),
+                    child: child,
+                  ),
                   child: GrassScape(),
                 ),
               GestureDetector(
