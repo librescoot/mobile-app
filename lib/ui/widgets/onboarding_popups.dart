@@ -55,7 +55,8 @@ Future<void> showWidgetOnboarding(BuildContext context) async {
 }
 
 /// Shows the server-pushed dialogs described in `docs/notifications.json`
-/// (published as https://reunu.github.io/unustasis/notifications.json).
+/// (published from this repository as
+/// https://librescoot.org/mobile-app/notifications.json).
 ///
 /// An entry is shown when it targets this app (`app-id`, or the older `branch`,
 /// plus `platform` and `build-number`), is inside its `timestamp` + `duration-days`
@@ -68,11 +69,11 @@ Future<void> showWidgetOnboarding(BuildContext context) async {
 Future<void> showServerNotifications(BuildContext context) async {
   final log = Logger('ServerNotifications');
   log.info("Fetching server notifications");
-  // get the notifications json from https://reunu.github.io/unustasis/notifications.json
+  // get the notifications json from https://librescoot.org/mobile-app/notifications.json
   List<dynamic> notifications;
   try {
     final response = await httpsGet(
-      Uri.parse("https://reunu.github.io/unustasis/notifications.json"),
+      Uri.parse("https://librescoot.org/mobile-app/notifications.json"),
     );
     if (response.statusCode != 200) {
       log.warning("Failed to fetch notifications: ${response.statusCode}");
