@@ -2,7 +2,6 @@
     {
         "id": "sample-ios-unustasis",
         "timestamp": "1970-01-01T00:00:00Z",
-        "branch": "Librescoot App for unu",
         "platform": "ios",
         "duration-days": 100,
         "min-build-number": 40,
@@ -38,12 +37,12 @@
             "en": "Don't show again",
             "de": "Nicht mehr anzeigen",
             "fr": "Ne plus afficher"
-        }
+        },
+        "app-id": "org.librescoot.mobile.unu*"
     },
     {
         "id": "sample-android-unu",
         "timestamp": "1970-01-01T00:00:00Z",
-        "branch": "Librescoot App for unu",
         "platform": "android",
         "duration-days": 100,
         "build-number": [
@@ -68,6 +67,10 @@
             "en": "OK",
             "de": "OK",
             "fr": "OK"
-        }
+        },
+        "app-id": [
+            "org.librescoot.mobile.unu",
+            "org.librescoot.mobile.unu.profile"
+        ]
     }
 ]
