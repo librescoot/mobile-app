@@ -12,6 +12,7 @@ import 'package:unustasis/domain/alarm_status.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/state/scooter_identity.dart';
 import 'package:unustasis/ui/screens/home_screen.dart';
+import 'package:unustasis/ui/widgets/state_circle.dart';
 
 class _Connection extends Fake implements SessionConnection {
   @override
@@ -38,7 +39,7 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   final _Actions actions = _Actions();
   @override
-  final identity = ScooterIdentity();
+  final identity = ScooterIdentity()..supportsAlarmControl = true;
   @override
   final vehicle = VehicleStatus()
     ..handlebarsLocked = true
@@ -74,7 +75,7 @@ class _Service extends ChangeNotifier implements ScooterService {
   Object? stopError;
 
   @override
-  Future<void> stopAlarm() async {
+  Future<void> disarmAlarm() async {
     stops++;
     if (stopError != null) throw stopError!;
   }
@@ -138,52 +139,82 @@ void main() {
     addTearDown(service.dispose);
     await _mountHome(tester, service);
 
-    expect(find.byType(AlarmBanner), findsNothing);
-    expect(find.byType(AlarmBackdrop), findsNothing);
+    expect(find.byType(StateCircle), findsNothing, reason: 'the circle stays a dark-mode flourish');
+    expect(find.text('Stop alarm'), findsNothing);
+    expect(find.text('Armed'), findsNothing, reason: 'the status line stays about the scooter');
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a sounding alarm tints the dashboard and offers the one useful control', (tester) async {
+  testWidgets('a sounding alarm pulses the circle and names it in the status line', (tester) async {
     final service = _Service()..vehicle.alarmStatus = AlarmStatus.level2Triggered;
     addTearDown(service.dispose);
     await _mountHome(tester, service);
 
-    expect(find.byType(AlarmBackdrop), findsOneWidget, reason: 'the backdrop tints while it sounds');
-    expect(find.byType(AlarmBanner), findsOneWidget);
-    expect(find.text('Alarm triggered'), findsOneWidget);
-    expect(find.text('Alarm sounding'), findsOneWidget, reason: 'the banner names the alarm state');
-
-    await tester.tap(find.text('Stop alarm'));
-    await tester.pump();
-    expect(service.stops, 1);
+    final circle = tester.widget<StateCircle>(find.byType(StateCircle));
+    expect(circle, isNotNull);
+    expect(find.text('Alarm sounding'), findsOneWidget, reason: 'the status line says what is happening');
+    expect(find.text('Stop alarm'), findsOneWidget, reason: 'the power button becomes the stop control');
+    expect(find.text('Unlock'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('stopping a level 1 warning works the same way', (tester) async {
-    final service = _Service()..vehicle.alarmStatus = AlarmStatus.level1Triggered;
-    addTearDown(service.dispose);
-    await _mountHome(tester, service);
+  testWidgets('the circle is showing the alarm, not just decorating', (tester) async {
+    final quiet = _Service()..vehicle.alarmStatus = AlarmStatus.armed;
+    addTearDown(quiet.dispose);
+    await _mountHome(tester, quiet);
+    expect(find.byType(StateCircle), findsNothing);
 
+    final alarming = _Service()..vehicle.alarmStatus = AlarmStatus.level1Triggered;
+    addTearDown(alarming.dispose);
+    await _mountHome(tester, alarming);
+    // The circle only appears for the alarm in light mode, so its presence is
+    // the alarm state showing through.
+    expect(find.byType(StateCircle), findsOneWidget);
     expect(find.text('Warning sounded'), findsOneWidget);
-    await tester.tap(find.text('Stop alarm'));
-    await tester.pump();
-    expect(service.stops, 1);
+    expect(find.text('Stop alarm'), findsOneWidget);
   });
 
-  testWidgets('the banner clears once the alarm stops sounding', (tester) async {
+  testWidgets('a scooter that cannot take alarm commands gets no stop control', (tester) async {
+    final service = _Service()..vehicle.alarmStatus = AlarmStatus.level2Triggered;
+    service.identity.supportsAlarmControl = false;
+    addTearDown(service.dispose);
+    await _mountHome(tester, service);
+
+    // The state is still reported: the rider should know it is sounding.
+    expect(find.text('Alarm sounding'), findsOneWidget);
+    expect(find.byType(StateCircle), findsOneWidget);
+    // But the button must not offer a command the firmware cannot take.
+    expect(find.text('Stop alarm'), findsNothing);
+    expect(find.text('Unlock'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tapping the stop control silences the alarm', (tester) async {
     final service = _Service()..vehicle.alarmStatus = AlarmStatus.level2Triggered;
     addTearDown(service.dispose);
     await _mountHome(tester, service);
-    expect(find.byType(AlarmBanner), findsOneWidget);
+
+    await tester.tapAt(tester.getCenter(find.byType(ScooterPowerButton)));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(service.stops, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the alarm treatment clears once the alarm stops sounding', (tester) async {
+    final service = _Service()..vehicle.alarmStatus = AlarmStatus.level2Triggered;
+    addTearDown(service.dispose);
+    await _mountHome(tester, service);
+    expect(find.text('Stop alarm'), findsOneWidget);
 
     service.vehicle.alarmStatus = AlarmStatus.armed;
     service.changed();
     await tester.pump();
-    expect(find.byType(AlarmBanner), findsNothing);
-    expect(find.byType(AlarmBackdrop), findsNothing);
+    expect(find.text('Stop alarm'), findsNothing);
+    expect(find.byType(StateCircle), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a failed stop reports itself and leaves the banner usable', (tester) async {
+  testWidgets('a failed stop reports itself and leaves the control usable', (tester) async {
     const channel = MethodChannel('PonnamKarthik/fluttertoast');
     final toasts = <MethodCall>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
@@ -198,9 +229,8 @@ void main() {
     addTearDown(service.dispose);
     await _mountHome(tester, service);
 
-    await tester.tap(find.text('Stop alarm'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tapAt(tester.getCenter(find.byType(ScooterPowerButton)));
+    await tester.pump(const Duration(milliseconds: 200));
     expect(service.stops, 1);
     expect(toasts, hasLength(1));
     expect((toasts.single.arguments as Map)['msg'], 'Could not stop the alarm');

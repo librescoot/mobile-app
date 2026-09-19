@@ -821,7 +821,7 @@ void main() {
     });
   });
 
-  test('silencing the alarm sends the runtime command, not the alarm setting',
+  test('silencing the alarm disarms it rather than stopping the siren',
       () async {
     final time = FakeAsync();
     final h = Harness(time);
@@ -829,13 +829,14 @@ void main() {
     h.trace.clear();
     h.wire.onWrite = (c) async => h.wire.reply('alarm:ok');
 
-    await h.actions.stopAlarm();
-    expect(h.trace.where((s) => s.startsWith('A:')), ['A:alarm:stop'],
-        reason: 'the alarm stays armed, so this must not write alarm.enabled');
+    await h.actions.disarmAlarm();
+    expect(h.trace.where((s) => s.startsWith('A:')), ['A:alarm:disarm'],
+        reason: 'stop only ends the current siren, so it must be a disarm; the '
+            'alarm setting itself is left alone');
 
     h.trace.clear();
     h.wire.onWrite = (c) async => h.wire.reply('alarm:error:unknown command');
-    await expectLater(h.actions.stopAlarm(),
+    await expectLater(h.actions.disarmAlarm(),
         throwsA(contains('Failed to silence the alarm')));
     h.dispose();
   });

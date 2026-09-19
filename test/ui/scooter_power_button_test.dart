@@ -14,7 +14,7 @@ Future<void> pumpButton(
   bool keylessArmed = false,
   bool keylessPaused = false,
   DateTime? keylessPendingSince,
-  VoidCallback? onKeylessToggle,
+  VoidCallback? onTap,
   double textScale = 1,
 }) async {
   await tester.pumpWidget(MaterialApp(
@@ -33,7 +33,7 @@ Future<void> pumpButton(
             keylessActiveLabel: 'Auto-unlock active',
             keylessCountingLabel: 'tap to stop',
             keylessPausedLabel: 'Auto-unlock paused',
-            onKeylessToggle: onKeylessToggle,
+            onTap: onTap,
           ),
         ),
       ),
@@ -231,7 +231,7 @@ void main() {
         unlocks++;
       },
       keylessArmed: true,
-      onKeylessToggle: () => toggles++,
+      onTap: () => toggles++,
     );
     expect(find.text('Lock'), findsOneWidget);
     expect(find.text('Auto-unlock active'), findsOneWidget);
@@ -251,7 +251,7 @@ void main() {
       () async {},
       keylessArmed: true,
       keylessPaused: true,
-      onKeylessToggle: () => toggles++,
+      onTap: () => toggles++,
     );
     expect(find.text('Lock'), findsOneWidget);
     expect(find.text('Auto-unlock paused'), findsOneWidget);
@@ -273,7 +273,7 @@ void main() {
       },
       keylessArmed: true,
       keylessPendingSince: DateTime.now(),
-      onKeylessToggle: () => toggles++,
+      onTap: () => toggles++,
     );
     expect(find.text('Lock'), findsOneWidget);
     expect(find.text('tap to stop'), findsOneWidget);
@@ -296,7 +296,7 @@ void main() {
       () async {},
       keylessArmed: true,
       keylessPendingSince: DateTime.now().subtract(const Duration(seconds: 2)),
-      onKeylessToggle: () {},
+      onTap: () {},
     );
     await tester.pump();
     expect(fillFraction(tester), closeTo(0, 0.05), reason: 'a late button starts near the end');
@@ -313,7 +313,7 @@ void main() {
       () async {},
       keylessArmed: true,
       keylessPaused: true,
-      onKeylessToggle: () {},
+      onTap: () {},
       textScale: 2,
     );
     expect(find.text('Auto-unlock paused'), findsOneWidget);
@@ -332,7 +332,7 @@ void main() {
       },
       keylessArmed: true,
       keylessPaused: true,
-      onKeylessToggle: () => toggles++,
+      onTap: () => toggles++,
     );
 
     await holdButton(tester);
@@ -342,7 +342,7 @@ void main() {
 
   testWidgets('keyless stays controllable while the unlock action is unavailable', (tester) async {
     var toggles = 0;
-    await pumpButton(tester, null, keylessArmed: true, onKeylessToggle: () => toggles++);
+    await pumpButton(tester, null, keylessArmed: true, onTap: () => toggles++);
 
     await tester.tapAt(tester.getCenter(find.byType(AnimatedScale)));
     await tester.pump(const Duration(milliseconds: 200));

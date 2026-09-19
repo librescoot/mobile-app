@@ -134,9 +134,15 @@ void main() {
       });
     }
   }
-  testWidgets('a value that would wrap takes its own line instead', (tester) async {
-    // The narrow test window is what pushes these labels over one line.
-    for (final label in ['When battery changes', 'After each ride']) {
+  testWidgets('a value claims the room it needs before wrapping to its own line', (tester) async {
+    // The title and the value share a text style, so a value the same height as
+    // the title is on one line.
+    double titleHeight() => tester.getSize(find.text('Current trip')).height;
+    double valueHeight(String label) => tester.getSize(find.text(label)).height;
+
+    Future<void> pumpValue(String label, {double width = 800}) async {
+      tester.view.physicalSize = Size(width, 640);
+      tester.view.devicePixelRatio = 1;
       await tester.pumpWidget(MaterialApp(
         theme: rowTestTheme(Brightness.light),
         home: Scaffold(
@@ -159,20 +165,28 @@ void main() {
         ),
       ));
       await tester.pumpAndSettle();
-
-      final tile = tester.widget<ListTile>(find.byType(ListTile));
-      expect(tile.trailing, isNull, reason: '"$label" must not be squeezed beside the description');
-      final value = find.text(label);
-      expect(value, findsOneWidget);
-      final rendered = tester.renderObject<RenderParagraph>(
-        find.descendant(of: value, matching: find.byType(RichText)),
-      );
-      expect(rendered.text.style?.fontSize, isNotNull);
-      expect(tester.getSize(value).height, lessThan(40), reason: '"$label" is one line, not a wrapped pair');
-      expect(tester.getTopLeft(find.byType(DropdownButton<int>)).dy,
-          greaterThan(tester.getBottomLeft(find.text('Reset policy')).dy));
-      expect(tester.takeException(), isNull);
     }
+
+    addTearDown(tester.view.reset);
+
+    // A realistic option: the description column gives up the room instead of
+    // the value wrapping or dropping to its own line.
+    await pumpValue('When battery changes');
+    expect(tester.widget<ListTile>(find.byType(ListTile)).trailing, isNotNull,
+        reason: 'it fits beside the description');
+    expect(valueHeight('When battery changes'), lessThan(titleHeight() * 1.5), reason: 'and stays on one line');
+    expect(tester.takeException(), isNull);
+
+    // Too narrow for any share of the row (the test font is wide): the value
+    // moves onto its own line rather than squeezing a wrapped one beside the
+    // description.
+    await pumpValue('When battery changes', width: 320);
+    expect(tester.widget<ListTile>(find.byType(ListTile)).trailing, isNull);
+    expect(tester.getTopLeft(find.byType(DropdownButton<int>)).dy,
+        greaterThan(tester.getBottomLeft(find.text('Reset policy')).dy));
+    expect(tester.getSize(find.byType(DropdownButton<int>)).width, greaterThan(200),
+        reason: 'it gets the row to itself instead of the description column width');
+    expect(tester.takeException(), isNull);
   });
 
   for (final direction in TextDirection.values) {

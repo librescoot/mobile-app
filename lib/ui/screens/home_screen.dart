@@ -190,14 +190,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
-  /// The alarm that needs silencing, or null while the scooter is quiet.
-  AlarmStatus? get _triggeredAlarm {
-    final status = context.select<ScooterService, AlarmStatus?>((service) => service.vehicle.alarmStatus);
-    return status != null && status.isTriggered ? status : null;
-  }
-
   @override
   Widget build(BuildContext context) {
+    // Resolved once per build: provider forbids select() from nested builders.
+    final ({AlarmStatus? status, bool controllable}) alarm =
+        context.select<ScooterService, ({AlarmStatus? status, bool controllable})>((service) => (
+              status: service.vehicle.alarmStatus,
+              controllable: service.identity.supportsAlarmControl == true,
+            ));
+    final triggeredAlarm = alarm.status != null && alarm.status!.isTriggered ? alarm.status : null;
+    // Without the alarm command category the app can report the alarm but not
+    // silence it, so the button must not pretend otherwise.
+    final stoppableAlarm = alarm.controllable ? triggeredAlarm : null;
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -253,7 +257,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   child: GrassScape(),
                 ),
-              if (_triggeredAlarm != null) AlarmBackdrop(),
               GestureDetector(
                 behavior: HitTestBehavior.translucent,
                 onVerticalDragStart: (_) => _navigationDragDistance = 0,
@@ -271,16 +274,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: SafeArea(
                   child: Stack(
                     children: [
-                      if (_triggeredAlarm != null)
-                        Positioned(
-                          top: 12,
-                          left: 16,
-                          right: 16,
-                          child: AlarmBanner(
-                            status: _triggeredAlarm!,
-                            onStop: context.read<ScooterService>().stopAlarm,
-                          ),
-                        ),
                       Padding(
                         padding: const EdgeInsets.only(top: 40, bottom: 20),
                         child: Column(
@@ -292,7 +285,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 alignment: Alignment.center,
                                 fit: StackFit.expand,
                                 children: [
-                                  if (context.isDarkMode)
+                                  // A sounding alarm needs the circle in either
+                                  // theme; otherwise it stays a dark-mode flourish.
+                                  if (context.isDarkMode || triggeredAlarm != null)
                                     IgnorePointer(
                                       child: StateCircle(
                                         connected: context.select((ScooterService service) => service.connected),
@@ -300,6 +295,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                         scanning: context.select((ScooterService service) => service.scanning),
                                         halloween: _fall,
                                         fall: false,
+                                        alarm: triggeredAlarm != null,
                                       ),
                                     ),
                                   ScooterVisual(
@@ -461,91 +457,115 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   // is the action on offer; an unlocked scooter
                                   // reads as a plain Lock button.
                                   final keylessShown = keyless.armed && showsKeylessAction(state);
+                                  final alarm = stoppableAlarm;
                                   return ScooterPowerButton(
-                                    action: state != null && state.isReadyForLockChange
-                                        ? (state.isOn
-                                            ? () async {
-                                                final service = context.read<ScooterService>();
-                                                try {
-                                                  if (!await lockWithSeatConfirmation(context, service)) return;
-                                                  if (!context.mounted) return;
-                                                  if (service.hazardLocking) {
-                                                    _flashHazards(1);
-                                                  }
-                                                } catch (e, stack) {
-                                                  log.severe(
-                                                    "Could not lock scooter",
-                                                    e,
-                                                    stack,
-                                                  );
-                                                  if (context.mounted) {
-                                                    Fluttertoast.showToast(
-                                                      msg: e.toString(),
-                                                    );
-                                                  }
-                                                }
-                                              }
-                                            : (state == ScooterState.standby
+                                    action: alarm != null
+                                        ? context.read<ScooterService>().disarmAlarm
+                                        : state != null && state.isReadyForLockChange
+                                            ? (state.isOn
                                                 ? () async {
+                                                    final service = context.read<ScooterService>();
                                                     try {
-                                                      await context.read<ScooterService>().unlock();
-                                                      if (context.mounted &&
-                                                          context.read<ScooterService>().hazardLocking) {
-                                                        _flashHazards(2);
+                                                      if (!await lockWithSeatConfirmation(context, service)) return;
+                                                      if (!context.mounted) return;
+                                                      if (service.hazardLocking) {
+                                                        _flashHazards(1);
                                                       }
                                                     } catch (e, stack) {
-                                                      log.warning("Could not unlock scooter", e, stack);
+                                                      log.severe(
+                                                        "Could not lock scooter",
+                                                        e,
+                                                        stack,
+                                                      );
                                                       if (context.mounted) {
                                                         Fluttertoast.showToast(
-                                                          msg: FlutterI18n.translate(context, "home_unlock_failed"),
+                                                          msg: e.toString(),
                                                         );
                                                       }
                                                     }
                                                   }
-                                                : () async {
-                                                    try {
-                                                      await context.read<ScooterService>().wakeUpAndUnlock();
-                                                      if (context.mounted &&
-                                                          context.read<ScooterService>().hazardLocking) {
-                                                        _flashHazards(2);
+                                                : (state == ScooterState.standby
+                                                    ? () async {
+                                                        try {
+                                                          await context.read<ScooterService>().unlock();
+                                                          if (context.mounted &&
+                                                              context.read<ScooterService>().hazardLocking) {
+                                                            _flashHazards(2);
+                                                          }
+                                                        } catch (e, stack) {
+                                                          log.warning("Could not unlock scooter", e, stack);
+                                                          if (context.mounted) {
+                                                            Fluttertoast.showToast(
+                                                              msg: FlutterI18n.translate(context, "home_unlock_failed"),
+                                                            );
+                                                          }
+                                                        }
                                                       }
-                                                    } catch (e, stack) {
-                                                      log.warning("Could not wake and unlock scooter", e, stack);
-                                                      if (context.mounted) {
-                                                        Fluttertoast.showToast(
-                                                          msg: FlutterI18n.translate(context, "home_unlock_failed"),
-                                                        );
-                                                      }
-                                                    }
-                                                  }))
-                                        : null,
-                                    icon: state != null && state.isOn ? Icons.lock_outline : Icons.lock_open,
-                                    label: state != null && state.isOn
-                                        ? FlutterI18n.translate(context, "home_lock_button")
-                                        : FlutterI18n.translate(context, "home_unlock_button"),
-                                    instruction: state != null && state.isOn
-                                        ? FlutterI18n.translate(context, "home_hold_to_lock")
-                                        : FlutterI18n.translate(context, "home_hold_to_unlock"),
+                                                    : () async {
+                                                        try {
+                                                          await context.read<ScooterService>().wakeUpAndUnlock();
+                                                          if (context.mounted &&
+                                                              context.read<ScooterService>().hazardLocking) {
+                                                            _flashHazards(2);
+                                                          }
+                                                        } catch (e, stack) {
+                                                          log.warning("Could not wake and unlock scooter", e, stack);
+                                                          if (context.mounted) {
+                                                            Fluttertoast.showToast(
+                                                              msg: FlutterI18n.translate(context, "home_unlock_failed"),
+                                                            );
+                                                          }
+                                                        }
+                                                      }))
+                                            : null,
+                                    icon: alarm != null
+                                        ? Icons.notifications_active_rounded
+                                        : state != null && state.isOn
+                                            ? Icons.lock_outline
+                                            : Icons.lock_open,
+                                    label: alarm != null
+                                        ? FlutterI18n.translate(context, "alarm_stop")
+                                        : state != null && state.isOn
+                                            ? FlutterI18n.translate(context, "home_lock_button")
+                                            : FlutterI18n.translate(context, "home_unlock_button"),
+                                    instruction: alarm != null
+                                        ? FlutterI18n.translate(context, "alarm_stop")
+                                        : state != null && state.isOn
+                                            ? FlutterI18n.translate(context, "home_hold_to_lock")
+                                            : FlutterI18n.translate(context, "home_hold_to_unlock"),
                                     // Keyless rides on the unlock button: a spinner
                                     // while it watches, and a tap suspends it.
-                                    keylessArmed: keylessShown,
+                                    keylessArmed: alarm == null && keylessShown,
                                     keylessPaused: keyless.paused,
-                                    keylessPendingSince: keylessShown ? keyless.pendingSince : null,
+                                    keylessPendingSince: alarm == null && keylessShown ? keyless.pendingSince : null,
                                     keylessActiveLabel: FlutterI18n.translate(context, "home_keyless_active"),
                                     keylessCountingLabel: FlutterI18n.translate(context, "home_keyless_tap_to_stop"),
                                     keylessPausedLabel: FlutterI18n.translate(context, "home_keyless_paused"),
-                                    onKeylessToggle: keylessShown
-                                        ? () {
-                                            final paused = !keyless.paused;
-                                            context.read<ScooterService>().setKeylessPaused(paused);
-                                            Fluttertoast.showToast(
-                                              msg: FlutterI18n.translate(
-                                                context,
-                                                paused ? "home_keyless_paused" : "home_keyless_active",
-                                              ),
-                                            );
+                                    onTap: alarm != null
+                                        ? () async {
+                                            try {
+                                              await context.read<ScooterService>().disarmAlarm();
+                                            } catch (e, stack) {
+                                              log.warning('Could not stop the alarm', e, stack);
+                                              if (context.mounted) {
+                                                Fluttertoast.showToast(
+                                                  msg: FlutterI18n.translate(context, "alarm_stop_failed"),
+                                                );
+                                              }
+                                            }
                                           }
-                                        : null,
+                                        : keylessShown
+                                            ? () {
+                                                final paused = !keyless.paused;
+                                                context.read<ScooterService>().setKeylessPaused(paused);
+                                                Fluttertoast.showToast(
+                                                  msg: FlutterI18n.translate(
+                                                    context,
+                                                    paused ? "home_keyless_paused" : "home_keyless_active",
+                                                  ),
+                                                );
+                                              }
+                                            : null,
                                   );
                                 },
                               ),
@@ -879,6 +899,10 @@ class DashboardMetricsSummary extends StatelessWidget {
           child: Icon(Icons.chevron_right_rounded, size: 20, color: colors.onSurfaceVariant),
         );
 
+    // The chevron hangs off the right edge, so the same width is reserved on the
+    // left and the readouts centre like the scooter name above them.
+    const chevronInset = 22.0;
+
     List<Widget> readout(String value, {String? unit}) => [
           Text(value, style: numberStyle),
           if (unit != null && value != '—') ...[
@@ -944,6 +968,7 @@ class DashboardMetricsSummary extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
+                    const SizedBox(width: chevronInset),
                     symbol('pin_road_2'),
                     const SizedBox(width: 5),
                     ...readout(tripValue, unit: 'km'),
@@ -975,6 +1000,7 @@ class DashboardMetricsSummary extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
+                    const SizedBox(width: chevronInset),
                     ...battery(primaryReadout),
                     if (secondaryPresent) ...[
                       const SizedBox(width: 12),
@@ -1218,6 +1244,7 @@ class StatusText extends StatelessWidget {
           ScooterVehicleState? vehicleState,
           ScooterPowerState? powerState,
           bool? handlebarsLocked,
+          AlarmStatus? alarm,
         })>(
       selector: (context, service) => (
         state: service.state,
@@ -1226,11 +1253,14 @@ class StatusText extends StatelessWidget {
         vehicleState: service.vehicleState,
         powerState: service.powerState,
         handlebarsLocked: service.vehicle.handlebarsLocked,
+        alarm: service.vehicle.alarmStatus,
       ),
       builder: (context, data, _) {
         String stateText;
 
-        if (data.scanning && (data.state == null || data.state == ScooterState.disconnected)) {
+        if (data.alarm?.isTriggered == true) {
+          stateText = data.alarm!.name(context);
+        } else if (data.scanning && (data.state == null || data.state == ScooterState.disconnected)) {
           stateText = context.read<ScooterService>().savedScooters.isNotEmpty
               ? FlutterI18n.translate(context, "home_scanning_known")
               : FlutterI18n.translate(context, "home_scanning");
@@ -1246,6 +1276,7 @@ class StatusText extends StatelessWidget {
               data.state != null ? data.state!.name(context) : FlutterI18n.translate(context, "home_loading_state");
         }
 
+        final alarming = data.alarm?.isTriggered == true;
         final handlebarText = data.connected ? data.handlebarsLocked : null;
 
         return Column(
@@ -1257,7 +1288,10 @@ class StatusText extends StatelessWidget {
                 Flexible(
                   child: Text(
                     stateText,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: alarming ? Theme.of(context).colorScheme.error : null,
+                          fontWeight: alarming ? FontWeight.bold : null,
+                        ),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -1268,151 +1302,6 @@ class StatusText extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-/// A triggered alarm tints the whole dashboard, so it is obvious from arm's
-/// length that the scooter is sounding.
-class AlarmBackdrop extends StatefulWidget {
-  const AlarmBackdrop({super.key});
-
-  @override
-  State<AlarmBackdrop> createState() => _AlarmBackdropState();
-}
-
-class _AlarmBackdropState extends State<AlarmBackdrop> with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final error = Theme.of(context).colorScheme.error;
-    return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: _pulse,
-        builder: (context, child) => ColoredBox(
-          color: error.withValues(alpha: 0.10 + 0.14 * _pulse.value),
-          child: const SizedBox.expand(),
-        ),
-      ),
-    );
-  }
-}
-
-/// The one useful control while the alarm sounds: silence the siren. The alarm
-/// stays armed, so it can sound again on the next tamper event.
-class AlarmBanner extends StatefulWidget {
-  const AlarmBanner({required this.status, required this.onStop, super.key});
-
-  final AlarmStatus status;
-  final Future<void> Function() onStop;
-
-  @override
-  State<AlarmBanner> createState() => _AlarmBannerState();
-}
-
-final _alarmLog = Logger('AlarmBanner');
-
-class _AlarmBannerState extends State<AlarmBanner> with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse;
-  bool _stopping = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  Future<void> _stop() async {
-    if (_stopping) return;
-    setState(() => _stopping = true);
-    try {
-      await widget.onStop();
-    } catch (error, stack) {
-      _alarmLog.warning('Could not stop the alarm', error, stack);
-      if (mounted) Fluttertoast.showToast(msg: FlutterI18n.translate(context, "alarm_banner_stop_failed"));
-    } finally {
-      if (mounted) setState(() => _stopping = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Semantics(
-      liveRegion: true,
-      label: '${FlutterI18n.translate(context, "alarm_banner_title")}: ${widget.status.name(context)}',
-      child: FadeTransition(
-        opacity: Tween<double>(begin: 0.6, end: 1).animate(_pulse),
-        child: Material(
-          color: colors.errorContainer,
-          elevation: 6,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-            child: Row(
-              children: [
-                Icon(Icons.notifications_active_rounded, color: colors.onErrorContainer),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        FlutterI18n.translate(context, "alarm_banner_title"),
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: colors.onErrorContainer,
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      Text(
-                        widget.status.name(context),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onErrorContainer),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (_stopping)
-                  Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: SizedBox.square(
-                      dimension: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: colors.onErrorContainer),
-                    ),
-                  )
-                else
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colors.error,
-                      foregroundColor: colors.onError,
-                    ),
-                    onPressed: _stop,
-                    child: Text(FlutterI18n.translate(context, "alarm_banner_stop")),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1437,7 +1326,7 @@ class ScooterPowerButton extends StatefulWidget {
     String? keylessActiveLabel,
     String? keylessCountingLabel,
     String? keylessPausedLabel,
-    VoidCallback? onKeylessToggle,
+    VoidCallback? onTap,
   })  : _action = action,
         _icon = icon,
         _label = label,
@@ -1449,7 +1338,7 @@ class ScooterPowerButton extends StatefulWidget {
         _keylessActiveLabel = keylessActiveLabel,
         _keylessCountingLabel = keylessCountingLabel,
         _keylessPausedLabel = keylessPausedLabel,
-        _onKeylessToggle = onKeylessToggle;
+        _onTap = onTap;
 
   final Future<void> Function()? _action;
   final String _label;
@@ -1468,7 +1357,7 @@ class ScooterPowerButton extends StatefulWidget {
   final String? _keylessActiveLabel;
   final String? _keylessCountingLabel;
   final String? _keylessPausedLabel;
-  final VoidCallback? _onKeylessToggle;
+  final VoidCallback? _onTap;
 
   @override
   State<ScooterPowerButton> createState() => _ScooterPowerButtonState();
@@ -1553,10 +1442,10 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with TickerProv
 
   void _finishPress() {
     if (!_holdActivated && !loading) {
-      final toggle = widget._onKeylessToggle;
-      // Tap toggles keyless; only a hold unlocks.
-      if (toggle != null) {
-        toggle();
+      final onTap = widget._onTap;
+      // A tap is the button's quick action; only a hold runs the main one.
+      if (onTap != null) {
+        onTap();
       } else if (widget._action != null) {
         Fluttertoast.showToast(msg: widget._instruction);
       }
@@ -1608,8 +1497,8 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with TickerProv
             onTapDown: (_) {
               if (loading) return;
               if (disabled) {
-                // Unlock is unavailable out of range; the keyless tap works.
-                if (widget._onKeylessToggle != null) setState(() => scale = 0.96);
+                // The main action is unavailable; a tap action may still work.
+                if (widget._onTap != null) setState(() => scale = 0.96);
                 return;
               }
               _holdActivated = false;
@@ -1618,7 +1507,7 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with TickerProv
             },
             onTapUp: (_) {
               if (disabled) {
-                widget._onKeylessToggle?.call();
+                widget._onTap?.call();
                 _restoreScale();
                 return;
               }

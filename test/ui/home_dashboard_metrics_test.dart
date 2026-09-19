@@ -121,6 +121,42 @@ void main() {
     expect(find.text('≈39'), findsOneWidget);
   });
 
+  testWidgets('each readout centres its content, with the chevron hanging off the right', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(412, 800);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+
+    await tester.pumpWidget(_summary());
+    await tester.pumpAndSettle();
+
+    // Each row reserves the chevron's width on its leading edge, so the content
+    // centres the same way the scooter name above it does.
+    final rows = find.byWidgetPredicate(
+      (widget) => widget is SizedBox && widget.width == double.infinity && widget.height == 38,
+    );
+    expect(rows, findsNWidgets(2));
+    for (var index = 0; index < 2; index++) {
+      final row = tester.getRect(rows.at(index));
+      // Leftmost glyph (a battery is an Icon, a ride metric an SVG) up to the
+      // last readout text: the chevron sits after both.
+      var contentStart = double.infinity;
+      for (final glyphs in [
+        find.descendant(of: rows.at(index), matching: find.byType(SvgPicture)),
+        find.descendant(of: rows.at(index), matching: find.byType(Icon)),
+      ]) {
+        if (glyphs.evaluate().isEmpty) continue;
+        final left = tester.getRect(glyphs.first).left;
+        if (left < contentStart) contentStart = left;
+      }
+      final contentEnd = tester.getRect(find.descendant(of: rows.at(index), matching: find.byType(Text)).last).right;
+      expect((contentStart + contentEnd) / 2, closeTo(row.center.dx, 1.5),
+          reason: 'row $index centres its content rather than the chevron');
+    }
+  });
+
   testWidgets('every glyph shares the optical centre of the digits beside it', (tester) async {
     tester.view.devicePixelRatio = 1;
     // Wide enough that the metrics row is not scaled by its FittedBox, so

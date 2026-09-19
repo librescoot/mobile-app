@@ -111,16 +111,18 @@ Future<void> setServiceModeCommand(
   }
 }
 
-/// Runtime alarm command that silences a sounding alarm. It goes through the
-/// alarm service command queue instead of the alarm setting, so the alarm stays
-/// armed and a later tamper event can sound it again.
-const String alarmStopCommand = "alarm:stop";
+/// Runtime command that silences a sounding alarm and leaves the alarm service
+/// idle. `alarm:stop` is deliberately not used: it only ends the current siren,
+/// while the triggered state keeps re-arming the siren on its own check cycle.
+/// Disarming leaves `alarm.enabled` alone, so the alarm re-arms as usual.
+const String alarmDisarmCommand = "alarm:disarm";
 const String alarmAcknowledgement = "alarm:ok";
 
-Future<void> stopAlarmCommand(
+Future<void> disarmAlarmCommand(
     BluetoothDevice? scooter, CharacteristicRepository repo,
     {bool Function()? isCurrent}) async {
-  final response = await sendLsExtendedCommand(scooter, repo, alarmStopCommand,
+  final response = await sendLsExtendedCommand(
+      scooter, repo, alarmDisarmCommand,
       isCurrent: isCurrent);
   if (response != alarmAcknowledgement) {
     log.severe("Failed to silence the alarm, response: $response");
