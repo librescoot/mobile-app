@@ -61,6 +61,11 @@ class SavedScooter implements SavedScooterRecord {
   bool? _isLibrescoot;
   bool? _supportsHibernateFor;
   bool? _supportsApnConfig;
+  bool? _supportsAlarmControl;
+  bool? _supportsTripCounter;
+  bool? _supportsTripExpunge;
+  bool? _supportsScheduledHibernation;
+  bool? _supportsBatteryKeepActive;
   int? _cachedOdometerMeters;
   DateTime? _odometerUpdatedAt;
   TripCounterSnapshot? _cachedTripCounter;
@@ -87,6 +92,11 @@ class SavedScooter implements SavedScooterRecord {
     bool? isLibrescoot,
     bool? supportsHibernateFor,
     bool? supportsApnConfig,
+    bool? supportsAlarmControl,
+    bool? supportsTripCounter,
+    bool? supportsTripExpunge,
+    bool? supportsScheduledHibernation,
+    bool? supportsBatteryKeepActive,
     int? cachedOdometerMeters,
     DateTime? odometerUpdatedAt,
     TripCounterSnapshot? cachedTripCounter,
@@ -111,6 +121,11 @@ class SavedScooter implements SavedScooterRecord {
         _isLibrescoot = isLibrescoot,
         _supportsHibernateFor = supportsHibernateFor,
         _supportsApnConfig = supportsApnConfig,
+        _supportsAlarmControl = supportsAlarmControl,
+        _supportsTripCounter = supportsTripCounter,
+        _supportsTripExpunge = supportsTripExpunge,
+        _supportsScheduledHibernation = supportsScheduledHibernation,
+        _supportsBatteryKeepActive = supportsBatteryKeepActive,
         _cachedOdometerMeters = cachedOdometerMeters,
         _odometerUpdatedAt = odometerUpdatedAt,
         _cachedTripCounter = cachedTripCounter,
@@ -221,6 +236,31 @@ class SavedScooter implements SavedScooterRecord {
     _scheduleTelemetryWrite();
   }
 
+  set supportsAlarmControl(bool? supportsAlarmControl) {
+    _supportsAlarmControl = supportsAlarmControl;
+    _scheduleTelemetryWrite();
+  }
+
+  set supportsTripCounter(bool? supportsTripCounter) {
+    _supportsTripCounter = supportsTripCounter;
+    _scheduleTelemetryWrite();
+  }
+
+  set supportsTripExpunge(bool? supportsTripExpunge) {
+    _supportsTripExpunge = supportsTripExpunge;
+    _scheduleTelemetryWrite();
+  }
+
+  set supportsScheduledHibernation(bool? supportsScheduledHibernation) {
+    _supportsScheduledHibernation = supportsScheduledHibernation;
+    _scheduleTelemetryWrite();
+  }
+
+  set supportsBatteryKeepActive(bool? supportsBatteryKeepActive) {
+    _supportsBatteryKeepActive = supportsBatteryKeepActive;
+    _scheduleTelemetryWrite();
+  }
+
   void cacheOdometer(int meters, {DateTime? updatedAt}) {
     _cachedOdometerMeters = meters;
     _odometerUpdatedAt = updatedAt ?? DateTime.now();
@@ -265,6 +305,11 @@ class SavedScooter implements SavedScooterRecord {
   bool? get isLibrescoot => _isLibrescoot;
   bool? get supportsHibernateFor => _supportsHibernateFor;
   bool? get supportsApnConfig => _supportsApnConfig;
+  bool? get supportsAlarmControl => _supportsAlarmControl;
+  bool? get supportsTripCounter => _supportsTripCounter;
+  bool? get supportsTripExpunge => _supportsTripExpunge;
+  bool? get supportsScheduledHibernation => _supportsScheduledHibernation;
+  bool? get supportsBatteryKeepActive => _supportsBatteryKeepActive;
   int? get cachedOdometerMeters => _cachedOdometerMeters;
   DateTime? get odometerUpdatedAt => _odometerUpdatedAt;
   TripCounterSnapshot? get cachedTripCounter => _cachedTripCounter;
@@ -294,6 +339,11 @@ class SavedScooter implements SavedScooterRecord {
         'isLibrescoot': _isLibrescoot,
         'supportsHibernateFor': _supportsHibernateFor,
         'supportsApnConfig': _supportsApnConfig,
+        'supportsAlarmControl': _supportsAlarmControl,
+        'supportsTripCounter': _supportsTripCounter,
+        'supportsTripExpunge': _supportsTripExpunge,
+        'supportsScheduledHibernation': _supportsScheduledHibernation,
+        'supportsBatteryKeepActive': _supportsBatteryKeepActive,
         'cachedOdometerMeters': _cachedOdometerMeters,
         'odometerUpdatedAt': _odometerUpdatedAt?.microsecondsSinceEpoch,
         'cachedTripCounter': _cachedTripCounter == null ? null : _tripCounterToJson(_cachedTripCounter!),
@@ -325,6 +375,11 @@ class SavedScooter implements SavedScooterRecord {
       isLibrescoot: map['isLibrescoot'],
       supportsHibernateFor: map['supportsHibernateFor'],
       supportsApnConfig: map['supportsApnConfig'],
+      supportsAlarmControl: map['supportsAlarmControl'],
+      supportsTripCounter: map['supportsTripCounter'],
+      supportsTripExpunge: map['supportsTripExpunge'],
+      supportsScheduledHibernation: map['supportsScheduledHibernation'],
+      supportsBatteryKeepActive: map['supportsBatteryKeepActive'],
       cachedOdometerMeters: map['cachedOdometerMeters'],
       odometerUpdatedAt: _dateTimeFromMicros(map['odometerUpdatedAt']),
       cachedTripCounter: _tripCounterFromJson(map['cachedTripCounter']),

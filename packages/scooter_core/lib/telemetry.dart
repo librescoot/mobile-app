@@ -115,7 +115,12 @@ class CachedTelemetry {
       this.handlebarsLocked,
       this.isLibrescoot,
       this.supportsHibernateFor,
-      this.supportsApnConfig});
+      this.supportsApnConfig,
+      this.supportsAlarmControl,
+      this.supportsTripCounter,
+      this.supportsTripExpunge,
+      this.supportsScheduledHibernation,
+      this.supportsBatteryKeepActive});
   final int? primarySOC;
   final int? secondarySOC;
   final int? cbbSOC;
@@ -124,6 +129,14 @@ class CachedTelemetry {
   final bool? isLibrescoot;
   final bool? supportsHibernateFor;
   final bool? supportsApnConfig;
+
+  /// Cached the same way, so a session does not start blind: an unknown
+  /// capability hides settings sections and controls until the probe lands.
+  final bool? supportsAlarmControl;
+  final bool? supportsTripCounter;
+  final bool? supportsTripExpunge;
+  final bool? supportsScheduledHibernation;
+  final bool? supportsBatteryKeepActive;
 }
 
 /// A partial cache update: null means leave the saved field unchanged. Wire
@@ -137,7 +150,12 @@ class TelemetryCachePatch {
       this.handlebarsLocked,
       this.isLibrescoot,
       this.supportsHibernateFor,
-      this.supportsApnConfig});
+      this.supportsApnConfig,
+      this.supportsAlarmControl,
+      this.supportsTripCounter,
+      this.supportsTripExpunge,
+      this.supportsScheduledHibernation,
+      this.supportsBatteryKeepActive});
   final int? primarySOC;
   final int? secondarySOC;
   final int? cbbSOC;
@@ -146,6 +164,14 @@ class TelemetryCachePatch {
   final bool? isLibrescoot;
   final bool? supportsHibernateFor;
   final bool? supportsApnConfig;
+
+  /// Cached the same way, so a session does not start blind: an unknown
+  /// capability hides settings sections and controls until the probe lands.
+  final bool? supportsAlarmControl;
+  final bool? supportsTripCounter;
+  final bool? supportsTripExpunge;
+  final bool? supportsScheduledHibernation;
+  final bool? supportsBatteryKeepActive;
 }
 
 /// A copied view; no mutable BLE state or application metadata escapes here.

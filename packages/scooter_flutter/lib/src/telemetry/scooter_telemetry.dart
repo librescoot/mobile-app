@@ -157,10 +157,18 @@ class ScooterTelemetry {
     _seedCapabilities(cache);
   }
 
+  /// Capabilities are persisted per scooter. A session starts with what the last
+  /// probe learned instead of an unknown, which would hide settings sections and
+  /// controls until the probe lands (or until the rider reconnects).
   void _seedCapabilities(CachedTelemetry cache) {
     identity.resetLsCapabilities();
     identity.supportsHibernateFor = cache.supportsHibernateFor;
     identity.supportsApnConfig = cache.supportsApnConfig;
+    identity.supportsAlarmControl = cache.supportsAlarmControl;
+    identity.supportsTripCounter = cache.supportsTripCounter;
+    identity.supportsTripExpunge = cache.supportsTripExpunge;
+    identity.supportsScheduledHibernation = cache.supportsScheduledHibernation;
+    identity.supportsBatteryKeepActive = cache.supportsBatteryKeepActive;
   }
 
   void refreshOdometer() {
@@ -416,6 +424,10 @@ class ScooterTelemetry {
     }
     if (!current()) return;
     identity.supportsScheduledHibernation = supportsScheduledHibernation;
+    effects.cachePatch(
+        connection.id,
+        TelemetryCachePatch(
+            supportsScheduledHibernation: supportsScheduledHibernation));
     if (!_publishTableState(connection, repository)) return;
 
     final supportsApnConfig = groups.contains('config');
@@ -463,12 +475,22 @@ class ScooterTelemetry {
     }
     if (!current()) return;
     identity.supportsBatteryKeepActive = supportsBatteryKeepActive;
+    effects.cachePatch(
+        connection.id,
+        TelemetryCachePatch(
+            supportsBatteryKeepActive: supportsBatteryKeepActive));
     if (!_publishTableState(connection, repository)) return;
 
     final supportsAlarmControl = groups.contains('alarm');
     if (!current()) return;
     identity.supportsAlarmControl = supportsAlarmControl;
-    identity.supportsTripCounter = groups.contains('trip');
+    final supportsTripCounter = groups.contains('trip');
+    identity.supportsTripCounter = supportsTripCounter;
+    effects.cachePatch(
+        connection.id,
+        TelemetryCachePatch(
+            supportsAlarmControl: supportsAlarmControl,
+            supportsTripCounter: supportsTripCounter));
     if (identity.supportsTripCounter == true) {
       try {
         final value = await _setting(
@@ -492,10 +514,19 @@ class ScooterTelemetry {
       identity.supportsTripExpunge = false;
     }
     if (!current()) return;
+    // Retention decides whether its row is offered at all, so cache the answer
+    // rather than let a failed probe hide it for the session.
+    effects.cachePatch(connection.id,
+        TelemetryCachePatch(supportsTripExpunge: identity.supportsTripExpunge));
     identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repository);
     _notify(connection);
     if (identity.supportsTripCounter == true && current()) {
-      unawaited(refreshTripCounter());
+      // Opportunistic: a failure here is reported, not thrown into the void.
+      unawaited(
+          refreshTripCounter().catchError((Object error, StackTrace stack) {
+        effects.probeFailed('trip counter refresh failed', error, stack);
+        return null;
+      }));
     }
   }
 

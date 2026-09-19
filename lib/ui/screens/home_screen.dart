@@ -193,15 +193,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     // Resolved once per build: provider forbids select() from nested builders.
-    final ({AlarmStatus? status, bool controllable}) alarm =
-        context.select<ScooterService, ({AlarmStatus? status, bool controllable})>((service) => (
+    final ({AlarmStatus? status, bool unsupported}) alarm =
+        context.select<ScooterService, ({AlarmStatus? status, bool unsupported})>((service) => (
               status: service.vehicle.alarmStatus,
-              controllable: service.identity.supportsAlarmControl == true,
+              unsupported: service.identity.supportsAlarmControl == false,
             ));
     final triggeredAlarm = alarm.status != null && alarm.status!.isTriggered ? alarm.status : null;
-    // Without the alarm command category the app can report the alarm but not
-    // silence it, so the button must not pretend otherwise.
-    final stoppableAlarm = alarm.controllable ? triggeredAlarm : null;
+    // Firmware that reports no alarm command category cannot be commanded, so
+    // the button must not pretend. Unknown counts as available: the alarm is
+    // sounding now, and a rejected command reports itself on the button.
+    final stoppableAlarm = alarm.unsupported ? null : triggeredAlarm;
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(

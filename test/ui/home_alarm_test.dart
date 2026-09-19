@@ -174,6 +174,16 @@ void main() {
     expect(find.text('Stop alarm'), findsOneWidget);
   });
 
+  testWidgets('an unprobed capability still offers the stop control', (tester) async {
+    final service = _Service()..vehicle.alarmStatus = AlarmStatus.level2Triggered;
+    service.identity.supportsAlarmControl = null;
+    addTearDown(service.dispose);
+    await _mountHome(tester, service);
+
+    expect(find.text('Stop alarm'), findsOneWidget,
+        reason: 'a sounding alarm with an unknown capability is still stoppable');
+  });
+
   testWidgets('a scooter that cannot take alarm commands gets no stop control', (tester) async {
     final service = _Service()..vehicle.alarmStatus = AlarmStatus.level2Triggered;
     service.identity.supportsAlarmControl = false;

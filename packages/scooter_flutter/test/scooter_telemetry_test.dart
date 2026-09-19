@@ -236,6 +236,7 @@ class _Harness {
   _Harness(
       {bool optional = true,
       bool defaultQueries = false,
+      Set<String> groups = const {'pm', 'config', 'ble', 'alarm'},
       Future<Set<String>> Function(String)? caps,
       Future<String?> Function(String)? setting,
       Future<void> Function(String key, String value)? settingWrite}) {
@@ -267,8 +268,8 @@ class _Harness {
                 queries.add('cap:ext');
                 try {
                   if (caps != null) await caps('cap:ext');
-                  return const LsCapabilityGroups(
-                    {'pm': null, 'config': null, 'ble': null, 'alarm': null},
+                  return LsCapabilityGroups(
+                    {for (final group in groups) group: null},
                     usedFallback: false,
                   );
                 } catch (_) {
@@ -592,7 +593,7 @@ void main() {
   });
 
   test(
-      'firmware-ready dispatch precedes sequential probes and only two capability patches persist',
+      'firmware-ready dispatch precedes sequential probes and every capability is cached',
       () async {
     final h = _Harness();
     addTearDown(h.dispose);
@@ -602,11 +603,58 @@ void main() {
     expect(h.queries, _queryOrder);
     expect(_caps(h.telemetry.identity), List.filled(6, true));
     expect(h.effects.trace.take(3), ['cache:A', 'firmware:A:true', 'notify']);
-    expect(h.effects.patches.length, 3);
+    expect(h.effects.patches.length, 7);
     expect(h.effects.patches[0].$2.isLibrescoot, true);
     expect(h.effects.patches[1].$2.supportsHibernateFor, true);
-    expect(h.effects.patches[2].$2.supportsApnConfig, true);
+    expect(h.effects.patches[2].$2.supportsScheduledHibernation, true);
+    expect(h.effects.patches[3].$2.supportsApnConfig, true);
+    expect(h.effects.patches[4].$2.supportsBatteryKeepActive, true);
+    expect(h.effects.patches[5].$2.supportsAlarmControl, true);
+    // Trip and retention follow their own probes, so the patches carry what the
+    // probe concluded rather than an assumption about the harness.
+    expect(h.effects.patches[5].$2.supportsTripCounter,
+        h.telemetry.identity.supportsTripCounter);
+    expect(h.effects.patches[6].$2.supportsTripExpunge,
+        h.telemetry.identity.supportsTripExpunge);
     expect(h.effects.patches.every((p) => p.$1 == 'A'), true);
+  });
+
+  test('a session starts with the capabilities the last probe cached',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    await h.connect('A');
+    h.telemetry.seed(const CachedTelemetry(
+        supportsAlarmControl: true,
+        supportsTripCounter: true,
+        supportsTripExpunge: false,
+        supportsScheduledHibernation: true,
+        supportsBatteryKeepActive: false));
+    final identity = h.telemetry.identity;
+    expect(identity.supportsAlarmControl, true);
+    expect(identity.supportsTripCounter, true);
+    expect(identity.supportsTripExpunge, false);
+    expect(identity.supportsScheduledHibernation, true);
+    expect(identity.supportsBatteryKeepActive, false);
+  });
+
+  test('a scooter that reports the trip counter caches that too', () async {
+    final h = _Harness(groups: const {'pm', 'config', 'ble', 'alarm', 'trip'});
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    // The trip counter is read over the extended channel as soon as the probe
+    // reports support for it, so the harness needs that channel wired.
+    final extended = _Extended();
+    r.extendedCommandCharacteristic = extended;
+    r.extendedResponseCharacteristic = extended;
+    _firmware(r);
+    await _flush();
+    expect(h.telemetry.identity.supportsTripCounter, true);
+    final cached = h.effects.patches
+        .map((p) => p.$2)
+        .firstWhere((patch) => patch.supportsTripCounter != null);
+    expect(cached.supportsTripCounter, true);
+    expect(cached.supportsAlarmControl, true);
   });
 
   test('a librescoot scooter missing the extended channel is reported',
@@ -713,7 +761,7 @@ void main() {
     _firmware(r);
     await _flush();
     expect(_caps(h.telemetry.identity), List.filled(6, false));
-    expect(h.effects.patches.length, 3);
+    expect(h.effects.patches.length, 7);
   });
 
   test(
@@ -730,8 +778,10 @@ void main() {
     await _flush();
     expect(h.queries, _queryOrder);
     expect(_caps(h.telemetry.identity), List.filled(6, false));
-    expect(h.effects.patches[1].$2.supportsHibernateFor, false);
-    expect(h.effects.patches[2].$2.supportsApnConfig, false);
+    expect(h.effects.patches.map((p) => p.$2.supportsHibernateFor).nonNulls,
+        [false]);
+    expect(
+        h.effects.patches.map((p) => p.$2.supportsApnConfig).nonNulls, [false]);
   });
 
   for (final position in [0, 1, 2]) {

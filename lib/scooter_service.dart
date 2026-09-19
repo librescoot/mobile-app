@@ -836,7 +836,12 @@ CachedTelemetry _cachedTelemetry(SavedScooter? scooter) => CachedTelemetry(
     handlebarsLocked: scooter?.handlebarsLocked,
     isLibrescoot: scooter?.isLibrescoot,
     supportsHibernateFor: scooter?.supportsHibernateFor,
-    supportsApnConfig: scooter?.supportsApnConfig);
+    supportsApnConfig: scooter?.supportsApnConfig,
+    supportsAlarmControl: scooter?.supportsAlarmControl,
+    supportsTripCounter: scooter?.supportsTripCounter,
+    supportsTripExpunge: scooter?.supportsTripExpunge,
+    supportsScheduledHibernation: scooter?.supportsScheduledHibernation,
+    supportsBatteryKeepActive: scooter?.supportsBatteryKeepActive);
 
 bool _sameTripCounter(TripCounterSnapshot? a, TripCounterSnapshot b) =>
     a != null &&
@@ -865,6 +870,15 @@ class _ServiceTelemetryEffects implements ScooterTelemetryEffects {
     if (patch.isLibrescoot != null) saved.isLibrescoot = patch.isLibrescoot;
     if (patch.supportsHibernateFor != null) saved.supportsHibernateFor = patch.supportsHibernateFor;
     if (patch.supportsApnConfig != null) saved.supportsApnConfig = patch.supportsApnConfig;
+    if (patch.supportsAlarmControl != null) saved.supportsAlarmControl = patch.supportsAlarmControl;
+    if (patch.supportsTripCounter != null) saved.supportsTripCounter = patch.supportsTripCounter;
+    if (patch.supportsTripExpunge != null) saved.supportsTripExpunge = patch.supportsTripExpunge;
+    if (patch.supportsScheduledHibernation != null) {
+      saved.supportsScheduledHibernation = patch.supportsScheduledHibernation;
+    }
+    if (patch.supportsBatteryKeepActive != null) {
+      saved.supportsBatteryKeepActive = patch.supportsBatteryKeepActive;
+    }
   }
 
   @override

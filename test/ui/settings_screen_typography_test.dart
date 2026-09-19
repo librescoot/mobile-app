@@ -225,6 +225,19 @@ Finder _timer(int index) => find.byWidgetPredicate((widget) =>
 Finder _button(Finder row) => find.descendant(of: row, matching: find.byType(DropdownButton<int>));
 
 void main() {
+  testWidgets('an unprobed alarm capability still shows the alarm settings', (tester) async {
+    final service = _Service();
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    final context = tester.element(find.byType(SettingsScreen));
+
+    final alarmHeader = find.text(FlutterI18n.translate(context, 'ls_settings_section_alarm'));
+    await _show(tester, alarmHeader);
+    expect(alarmHeader, findsOneWidget, reason: 'unknown is not unsupported, so the section is offered');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('ride stats sits below the scooter sections that matter more', (tester) async {
     final service = _TripService();
     addTearDown(service.dispose);

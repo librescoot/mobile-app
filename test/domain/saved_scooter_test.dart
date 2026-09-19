@@ -58,6 +58,11 @@ void main() {
       isLibrescoot: true,
       supportsHibernateFor: false,
       supportsApnConfig: true,
+      supportsAlarmControl: true,
+      supportsTripCounter: true,
+      supportsTripExpunge: false,
+      supportsScheduledHibernation: true,
+      supportsBatteryKeepActive: false,
       cachedOdometerMeters: 123456,
       odometerUpdatedAt: DateTime.fromMicrosecondsSinceEpoch(micros, isUtc: true),
       cachedTripCounter: const TripCounterSnapshot(
@@ -102,6 +107,11 @@ void main() {
       'isLibrescoot': true,
       'supportsHibernateFor': false,
       'supportsApnConfig': true,
+      'supportsAlarmControl': true,
+      'supportsTripCounter': true,
+      'supportsTripExpunge': false,
+      'supportsScheduledHibernation': true,
+      'supportsBatteryKeepActive': false,
       'cachedOdometerMeters': 123456,
       'odometerUpdatedAt': micros,
       'cachedTripCounter': {
@@ -155,6 +165,11 @@ void main() {
       'isLibrescoot',
       'supportsHibernateFor',
       'supportsApnConfig',
+      'supportsAlarmControl',
+      'supportsTripCounter',
+      'supportsTripExpunge',
+      'supportsScheduledHibernation',
+      'supportsBatteryKeepActive',
       'cachedOdometerMeters',
       'odometerUpdatedAt',
       'cachedTripCounter',
@@ -173,12 +188,32 @@ void main() {
         'supportsHibernateFor': flag,
         'supportsApnConfig': flag,
         'handlebarsLocked': flag,
+        'supportsAlarmControl': flag,
+        'supportsTripCounter': flag,
+        'supportsTripExpunge': flag,
+        'supportsScheduledHibernation': flag,
+        'supportsBatteryKeepActive': flag,
       });
       expect(scooter.isLibrescoot, flag);
       expect(scooter.supportsHibernateFor, flag);
       expect(scooter.supportsApnConfig, flag);
       expect(scooter.handlebarsLocked, flag);
-      for (final key in ['isLibrescoot', 'supportsHibernateFor', 'supportsApnConfig', 'handlebarsLocked']) {
+      expect(scooter.supportsAlarmControl, flag);
+      expect(scooter.supportsTripCounter, flag);
+      expect(scooter.supportsTripExpunge, flag);
+      expect(scooter.supportsScheduledHibernation, flag);
+      expect(scooter.supportsBatteryKeepActive, flag);
+      for (final key in [
+        'isLibrescoot',
+        'supportsHibernateFor',
+        'supportsApnConfig',
+        'handlebarsLocked',
+        'supportsAlarmControl',
+        'supportsTripCounter',
+        'supportsTripExpunge',
+        'supportsScheduledHibernation',
+        'supportsBatteryKeepActive',
+      ]) {
         expect(scooter.toJson()[key], flag);
       }
     });
@@ -231,6 +266,11 @@ void main() {
       () => scooter.isLibrescoot = false,
       () => scooter.supportsHibernateFor = true,
       () => scooter.supportsApnConfig = false,
+      () => scooter.supportsAlarmControl = true,
+      () => scooter.supportsTripCounter = true,
+      () => scooter.supportsTripExpunge = true,
+      () => scooter.supportsScheduledHibernation = true,
+      () => scooter.supportsBatteryKeepActive = true,
       () => scooter.cacheOdometer(1200, updatedAt: DateTime.fromMicrosecondsSinceEpoch(10)),
       () => scooter.cacheTripCounter(
             const TripCounterSnapshot(
@@ -271,6 +311,11 @@ void main() {
         isLibrescoot: true,
         supportsHibernateFor: true,
         supportsApnConfig: true,
+        supportsAlarmControl: true,
+        supportsTripCounter: true,
+        supportsTripExpunge: true,
+        supportsScheduledHibernation: true,
+        supportsBatteryKeepActive: true,
         cachedDestinations: []);
     prefs.seed({'id': scooter});
     scooter.lastLocation = const LatLng(1, 2);
@@ -288,6 +333,11 @@ void main() {
       () => scooter.isLibrescoot = null,
       () => scooter.supportsHibernateFor = null,
       () => scooter.supportsApnConfig = null,
+      () => scooter.supportsAlarmControl = null,
+      () => scooter.supportsTripCounter = null,
+      () => scooter.supportsTripExpunge = null,
+      () => scooter.supportsScheduledHibernation = null,
+      () => scooter.supportsBatteryKeepActive = null,
       () => scooter.cachedDestinations = null,
     ]) {
       clear();

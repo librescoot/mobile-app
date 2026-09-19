@@ -393,7 +393,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   List<Widget> alarmItems() {
-    if (_scooterConnected && context.watch<ScooterService>().identity.supportsAlarmControl != true) return [];
+    // Unknown is not "unsupported": the probe may not have answered yet, and the
+    // switches below ride the extended settings channel either way.
+    if (_scooterConnected && context.watch<ScooterService>().identity.supportsAlarmControl == false) return [];
     final service = context.watch<ScooterService>();
     // The two switches ride the extended channel; everything else needs the
     // alarm service, which older firmware doesn't have.
@@ -881,7 +883,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool isLibrescoot,
     required bool supportsScheduledHibernation,
     required bool supportsBatteryKeepActive,
-    required bool supportsAlarmControl,
+    required bool? supportsAlarmControl,
     required bool supportsApnConfig,
     required UsbMode? usbMode,
     required bool connected,
@@ -1035,7 +1037,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             supportsBatteryKeepActive: supportsBatteryKeepActive,
           )),
         ],
-        if (isLibrescoot && (!connected || supportsAlarmControl)) ...[
+        if (isLibrescoot && (!connected || supportsAlarmControl != false)) ...[
           Header(FlutterI18n.translate(context, "ls_settings_section_alarm")),
           ..._connectionRequiredItems(alarmItems()),
         ],
@@ -1340,7 +1342,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           bool isLibrescoot,
           bool supportsScheduled,
           bool supportsBatteryKeepActive,
-          bool supportsAlarmControl,
+          bool? supportsAlarmControl,
           bool supportsApn,
           UsbMode? usbMode,
           bool connected,
@@ -1354,7 +1356,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         isLibrescoot: service.identity.isLibrescoot == true,
         supportsScheduled: service.identity.supportsScheduledHibernation == true,
         supportsBatteryKeepActive: service.identity.supportsBatteryKeepActive == true,
-        supportsAlarmControl: service.identity.supportsAlarmControl == true,
+        supportsAlarmControl: service.identity.supportsAlarmControl,
         supportsApn: service.identity.supportsApnConfig == true,
         usbMode: service.vehicle.usbMode,
         connected: service.connected,
