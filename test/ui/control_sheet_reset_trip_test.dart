@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -146,6 +147,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(service.resets, 1);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the reset control is labelled and actionable for screen readers', (tester) async {
+    final semantics = tester.ensureSemantics();
+    final service = _Service();
+    addTearDown(service.dispose);
+    await _pumpSheet(tester, service);
+
+    final label = find.text('Reset now');
+    if (label.evaluate().isEmpty) {
+      await tester.scrollUntilVisible(label, 120, scrollable: find.byType(Scrollable).last);
+      await tester.pumpAndSettle();
+    }
+    final button = find.ancestor(of: label, matching: find.byType(OutlinedButton)).first;
+    final data = tester.getSemantics(button).getSemanticsData();
+    expect(data.label, 'Reset now');
+    expect(data.hasAction(SemanticsAction.tap), isTrue);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
   });
 
   testWidgets('cancelling the confirmation leaves the trip alone', (tester) async {

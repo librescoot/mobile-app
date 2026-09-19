@@ -124,6 +124,22 @@ void main() {
     expect(find.text('Beta'), findsOneWidget);
   });
 
+  testWidgets('shows genuine zero data and a localized reset reason', (tester) async {
+    final service = _Service()..tripCounter = _snapshot();
+    await _mount(tester, service);
+
+    // A zero reading is real data, not a missing one: it renders as zero rather
+    // than as the dash used for unknown values.
+    expect(find.text('0.0 km'), findsOneWidget);
+    expect(find.text('0h 0m'), findsOneWidget);
+
+    // The reason a counter last reset is shown in the rider's language.
+    final reason = find.textContaining('Manual reset');
+    await tester.ensureVisible(reason);
+    await tester.pumpAndSettle();
+    expect(reason, findsOneWidget);
+  });
+
   testWidgets('hides live trip controls while only cached data is available', (tester) async {
     final service = _Service()
       ..tripCounterSupported = true
