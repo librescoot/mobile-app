@@ -4,13 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:scooter_core/trip_counter.dart';
 import 'package:scooter_core/trip_expunge.dart';
-import 'package:scooter_flutter/trip_commands.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/screens/settings_screen.dart';
 import 'package:unustasis/ui/widgets/settings_help_row_theme.dart';
 
-/// Reset, reset policy and history retention live in Settings now, so these
-/// tests drive that section directly instead of the old Trip settings screen.
+/// Reset policy and history retention live in Settings; resetting the counter
+/// itself is a control and is covered by control_sheet_reset_trip_test.dart.
 class _Service extends ChangeNotifier implements ScooterService {
   @override
   bool connected = true;
@@ -145,39 +144,7 @@ void main() {
       ..tripCounter = _snapshot()
       ..tripExpungeSupported = false;
     await _mount(tester, service);
-    expect(find.text('Reset now'), findsOneWidget);
+    expect(find.text('Current trip'), findsOneWidget, reason: 'the policy row stays');
     expect(find.text('History retention'), findsNothing);
-  });
-
-  testWidgets('requires confirmation before resetting', (tester) async {
-    final service = _Service()..tripCounter = _snapshot();
-    await _mount(tester, service);
-    await tester.tap(find.text('Reset now'));
-    await tester.pumpAndSettle();
-    expect(find.text('Reset trip counter?'), findsOneWidget);
-    expect(find.textContaining('does not delete trip history'), findsOneWidget);
-    expect(service.resets, 0);
-
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-    expect(service.resets, 0);
-
-    await tester.tap(find.text('Reset now'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('Reset now')));
-    await tester.pumpAndSettle();
-    expect(service.resets, 1);
-  });
-
-  testWidgets('a reset transport timeout is reported as a timeout', (tester) async {
-    final service = _Service()
-      ..tripCounter = _snapshot()
-      ..resetError = const TripResetException(TripResetFailure.timeout);
-    await _mount(tester, service);
-    await tester.tap(find.text('Reset now'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('Reset now')));
-    await tester.pumpAndSettle();
-    expect(find.text('The scooter did not answer in time.'), findsOneWidget);
   });
 }

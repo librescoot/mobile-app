@@ -111,6 +111,23 @@ Future<void> setServiceModeCommand(
   }
 }
 
+/// Runtime alarm command that silences a sounding alarm. It goes through the
+/// alarm service command queue instead of the alarm setting, so the alarm stays
+/// armed and a later tamper event can sound it again.
+const String alarmStopCommand = "alarm:stop";
+const String alarmAcknowledgement = "alarm:ok";
+
+Future<void> stopAlarmCommand(
+    BluetoothDevice? scooter, CharacteristicRepository repo,
+    {bool Function()? isCurrent}) async {
+  final response = await sendLsExtendedCommand(scooter, repo, alarmStopCommand,
+      isCurrent: isCurrent);
+  if (response != alarmAcknowledgement) {
+    log.severe("Failed to silence the alarm, response: $response");
+    throw "Failed to silence the alarm, response: $response";
+  }
+}
+
 /// Counts the number of keycards registered on the scooter by sending a command and listening for the count response.
 /// Returns the count as an integer, or null if the command fails or times out.
 Future<int?> countKeycardsCommand(

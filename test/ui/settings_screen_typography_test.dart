@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:scooter_core/trip_counter.dart';
+import 'package:scooter_core/trip_expunge.dart';
 import 'package:scooter_flutter/scooter_actions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
@@ -141,6 +143,34 @@ class _Service extends ChangeNotifier implements ScooterService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// Connected scooter that reports the trip counter, so the Ride stats block is
+/// part of the list under test.
+class _TripService extends _Service {
+  @override
+  bool get tripCounterSupported => true;
+  @override
+  TripCounterSnapshot? get tripCounter => const TripCounterSnapshot(
+        distanceMeters: 12400,
+        ridingSeconds: 4980,
+        averageSpeedKph: 245,
+        resetPolicy: TripResetPolicy.manual,
+        lastReset: null,
+        lastResetReason: TripResetReason.manual,
+        generation: 1,
+        status: TripCounterStatus.idle,
+      );
+  @override
+  bool get tripCounterLoading => false;
+  @override
+  TripExpunge? get tripExpunge => null;
+  @override
+  bool get tripExpungeSupported => false;
+  @override
+  Future<TripCounterSnapshot?> refreshTripCounter() async => null;
+  @override
+  Future<TripExpunge?> refreshTripExpunge() async => null;
+}
+
 class _FailingService extends _Service {
   final _FailingActions _failingActions = _FailingActions();
   @override
@@ -195,6 +225,29 @@ Finder _timer(int index) => find.byWidgetPredicate((widget) =>
 Finder _button(Finder row) => find.descendant(of: row, matching: find.byType(DropdownButton<int>));
 
 void main() {
+  testWidgets('ride stats sits below the scooter sections that matter more', (tester) async {
+    final service = _TripService();
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    final context = tester.element(find.byType(SettingsScreen));
+
+    // How far the list has to scroll before each header shows up. The sections
+    // are further apart than the scroll step, so the offsets are comparable.
+    Future<double> depthOf(String translationKey) async {
+      final scrollable = find.byType(Scrollable).first;
+      await tester.drag(scrollable, const Offset(0, 20000));
+      await tester.pumpAndSettle();
+      await _show(tester, find.text(FlutterI18n.translate(context, translationKey)));
+      return tester.state<ScrollableState>(scrollable).position.pixels;
+    }
+
+    final power = await depthOf('settings_section_power');
+    final rideStats = await depthOf('trip_title');
+    expect(rideStats, greaterThan(power), reason: 'ride stats is no longer up with the first sections');
+    expect(tester.takeException(), isNull);
+  });
+
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     SharedPreferencesAsyncPlatform.instance = _Preferences();

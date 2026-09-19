@@ -3,6 +3,9 @@ import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:scooter_core/scooter_core.dart';
 
 extension AlarmStatusExtension on AlarmStatus {
+  /// The alarm is sounding. Armed, disarmed and the settled states are not.
+  bool get isTriggered => this == AlarmStatus.level1Triggered || this == AlarmStatus.level2Triggered;
+
   String name(BuildContext context) {
     switch (this) {
       case AlarmStatus.disabled:

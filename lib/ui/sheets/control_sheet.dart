@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -6,6 +8,8 @@ import 'package:provider/provider.dart';
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/widgets/header.dart';
 import 'package:unustasis/ui/sheets/hibernate_sheet.dart';
+import 'package:scooter_flutter/trip_commands.dart';
+
 import 'package:unustasis/scooter_service.dart';
 
 enum BlinkerMode { left, right, hazard, off }
@@ -35,9 +39,53 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
       children: [
         Icon(icon, color: iconColor),
         const SizedBox(width: 8),
-        Text(FlutterI18n.translate(context, translationKey)),
+        // Segment labels shrink instead of overflowing at large text sizes.
+        Flexible(
+          child: Text(
+            FlutterI18n.translate(context, translationKey),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
+  }
+
+  String _tripError(Object error) {
+    if (error is TimeoutException || error is TripResetException && error.failure == TripResetFailure.timeout) {
+      return FlutterI18n.translate(context, 'trip_timeout');
+    }
+    if (error.toString().toLowerCase().contains('connected')) {
+      return FlutterI18n.translate(context, 'trip_disconnected');
+    }
+    return FlutterI18n.translate(context, 'trip_error');
+  }
+
+  Future<void> _confirmTripReset() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(FlutterI18n.translate(dialogContext, 'trip_reset_confirm_title')),
+        content: Text(FlutterI18n.translate(dialogContext, 'trip_reset_confirm_body')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(FlutterI18n.translate(dialogContext, 'trip_cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(FlutterI18n.translate(dialogContext, 'trip_reset_now')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await context.read<ScooterService>().resetTripCounter();
+      if (mounted) Fluttertoast.showToast(msg: FlutterI18n.translate(context, 'trip_reset_done'));
+    } catch (error) {
+      if (mounted) Fluttertoast.showToast(msg: _tripError(error));
+    }
   }
 
   Future<bool> _confirmHardReboot(BuildContext context) async {
@@ -331,6 +379,34 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
                         ),
                       );
                     },
+                  ),
+                ],
+              );
+            },
+          ),
+          Selector<ScooterService, bool>(
+            selector: (context, s) => s.connected && s.tripCounterSupported == true,
+            builder: (context, canReset, _) {
+              if (!canReset) return const SizedBox.shrink();
+              final colors = Theme.of(context).colorScheme;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Header(
+                      FlutterI18n.translate(context, "trip_title"),
+                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _confirmTripReset,
+                    style: OutlinedButton.styleFrom(
+                      fixedSize: const Size.fromHeight(52),
+                      foregroundColor: colors.error,
+                      side: BorderSide(color: colors.error.withValues(alpha: 0.5)),
+                    ),
+                    icon: const Icon(Icons.restart_alt_rounded),
+                    label: Text(FlutterI18n.translate(context, "trip_reset_now")),
                   ),
                 ],
               );

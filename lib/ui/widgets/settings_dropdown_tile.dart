@@ -57,7 +57,9 @@ class SettingsDropdownTile<T> extends StatelessWidget {
         textDirection: direction,
         textScaler: MediaQuery.textScalerOf(context),
       )..layout(maxWidth: trailingWidth - 24);
-      final belowDescription = painter.height > 56;
+      // A value that needs a second line reads as broken beside the
+      // description, so it takes its own line instead.
+      final belowDescription = painter.height > painter.preferredLineHeight * 1.5;
       painter.dispose();
       final dropdown = ConstrainedBox(
         constraints: BoxConstraints(maxWidth: belowDescription ? rowWidth - textInset : trailingWidth),

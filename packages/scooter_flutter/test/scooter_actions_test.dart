@@ -821,6 +821,25 @@ void main() {
     });
   });
 
+  test('silencing the alarm sends the runtime command, not the alarm setting',
+      () async {
+    final time = FakeAsync();
+    final h = Harness(time);
+    await settleTransport();
+    h.trace.clear();
+    h.wire.onWrite = (c) async => h.wire.reply('alarm:ok');
+
+    await h.actions.stopAlarm();
+    expect(h.trace.where((s) => s.startsWith('A:')), ['A:alarm:stop'],
+        reason: 'the alarm stays armed, so this must not write alarm.enabled');
+
+    h.trace.clear();
+    h.wire.onWrite = (c) async => h.wire.reply('alarm:error:unknown command');
+    await expectLater(h.actions.stopAlarm(),
+        throwsA(contains('Failed to silence the alarm')));
+    h.dispose();
+  });
+
   test('proximity unlocks only after the countdown, and stopping it cancels',
       () {
     fakeAsync((time) {

@@ -628,6 +628,9 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   void autoUnlockCooldown() => actions.autoUnlockCooldown();
   Future<void> openSeat({EventSource source = EventSource.app}) => actions.openSeat(source: source);
+
+  /// Silences a sounding alarm without changing the alarm setting.
+  Future<void> stopAlarm() => actions.stopAlarm();
   Future<void> blink({required bool left, required bool right}) => actions.blink(left: left, right: right);
   Future<void> hazard({int times = 1}) => actions.hazard(times: times);
   Future<void> wakeUp() => actions.wakeUp();

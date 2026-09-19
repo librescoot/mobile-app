@@ -1028,10 +1028,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               : null,
         ),
         if (isLibrescoot) ..._connectionRequiredItems(_librescootAccessSettingsItems()),
-        if (showTripSettings) ...[
-          Header(FlutterI18n.translate(context, 'trip_title')),
-          const RideStatsSettingsSection(),
-        ],
         if (isLibrescoot) ...[
           Header(FlutterI18n.translate(context, "settings_section_power")),
           ..._connectionRequiredItems(_librescootPowerSettingsItems(
@@ -1115,6 +1111,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SystemInformationScreen())),
           ),
+        ],
+        // Ride stats sits last among the scooter sections: it is a diagnostic
+        // view, not something riders change often.
+        if (showTripSettings) ...[
+          Header(FlutterI18n.translate(context, 'trip_title')),
+          const RideStatsSettingsSection(),
         ],
         Header(FlutterI18n.translate(context, "stats_settings_section_app")),
         FutureBuilder<List<BiometricType>>(
@@ -1543,35 +1545,6 @@ class RideStatsSettingsSectionState extends State<RideStatsSettingsSection> {
     }
   }
 
-  Future<void> _reset() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(FlutterI18n.translate(dialogContext, 'trip_reset_confirm_title')),
-        content: Text(FlutterI18n.translate(dialogContext, 'trip_reset_confirm_body')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(FlutterI18n.translate(dialogContext, 'trip_cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(FlutterI18n.translate(dialogContext, 'trip_reset_now')),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    setState(() => _busy = true);
-    try {
-      await context.read<ScooterService>().resetTripCounter();
-    } catch (error) {
-      if (mounted) _showError(error);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   String _policyLabel(BuildContext context, TripResetPolicy policy) =>
       FlutterI18n.translate(context, 'trip_policy_${policy.wireName}');
 
@@ -1730,15 +1703,6 @@ class RideStatsSettingsSectionState extends State<RideStatsSettingsSection> {
               : (policy) {
                   if (policy != null) _setPolicy(policy);
                 },
-        ),
-        divider,
-        ListTile(
-          leading: Icon(Icons.restart_alt, color: Theme.of(context).colorScheme.error),
-          title: Text(
-            FlutterI18n.translate(context, 'trip_reset_now'),
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-          onTap: disabled ? null : _reset,
         ),
         if (service.tripExpungeSupported == true) ...[
           divider,

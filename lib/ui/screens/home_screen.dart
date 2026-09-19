@@ -27,6 +27,7 @@ import 'package:unustasis/ui/theme/icomoon.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
 import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/domain/alarm_status.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/domain/scooter_vehicle_state.dart';
@@ -189,6 +190,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
+  /// The alarm that needs silencing, or null while the scooter is quiet.
+  AlarmStatus? get _triggeredAlarm {
+    final status = context.select<ScooterService, AlarmStatus?>((service) => service.vehicle.alarmStatus);
+    return status != null && status.isTriggered ? status : null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -246,6 +253,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   child: GrassScape(),
                 ),
+              if (_triggeredAlarm != null) AlarmBackdrop(),
               GestureDetector(
                 behavior: HitTestBehavior.translucent,
                 onVerticalDragStart: (_) => _navigationDragDistance = 0,
@@ -263,6 +271,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: SafeArea(
                   child: Stack(
                     children: [
+                      if (_triggeredAlarm != null)
+                        Positioned(
+                          top: 12,
+                          left: 16,
+                          right: 16,
+                          child: AlarmBanner(
+                            status: _triggeredAlarm!,
+                            onStop: context.read<ScooterService>().stopAlarm,
+                          ),
+                        ),
                       Padding(
                         padding: const EdgeInsets.only(top: 40, bottom: 20),
                         child: Column(
@@ -1250,6 +1268,151 @@ class StatusText extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// A triggered alarm tints the whole dashboard, so it is obvious from arm's
+/// length that the scooter is sounding.
+class AlarmBackdrop extends StatefulWidget {
+  const AlarmBackdrop({super.key});
+
+  @override
+  State<AlarmBackdrop> createState() => _AlarmBackdropState();
+}
+
+class _AlarmBackdropState extends State<AlarmBackdrop> with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final error = Theme.of(context).colorScheme.error;
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _pulse,
+        builder: (context, child) => ColoredBox(
+          color: error.withValues(alpha: 0.10 + 0.14 * _pulse.value),
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
+  }
+}
+
+/// The one useful control while the alarm sounds: silence the siren. The alarm
+/// stays armed, so it can sound again on the next tamper event.
+class AlarmBanner extends StatefulWidget {
+  const AlarmBanner({required this.status, required this.onStop, super.key});
+
+  final AlarmStatus status;
+  final Future<void> Function() onStop;
+
+  @override
+  State<AlarmBanner> createState() => _AlarmBannerState();
+}
+
+final _alarmLog = Logger('AlarmBanner');
+
+class _AlarmBannerState extends State<AlarmBanner> with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+  bool _stopping = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  Future<void> _stop() async {
+    if (_stopping) return;
+    setState(() => _stopping = true);
+    try {
+      await widget.onStop();
+    } catch (error, stack) {
+      _alarmLog.warning('Could not stop the alarm', error, stack);
+      if (mounted) Fluttertoast.showToast(msg: FlutterI18n.translate(context, "alarm_banner_stop_failed"));
+    } finally {
+      if (mounted) setState(() => _stopping = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      liveRegion: true,
+      label: '${FlutterI18n.translate(context, "alarm_banner_title")}: ${widget.status.name(context)}',
+      child: FadeTransition(
+        opacity: Tween<double>(begin: 0.6, end: 1).animate(_pulse),
+        child: Material(
+          color: colors.errorContainer,
+          elevation: 6,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+            child: Row(
+              children: [
+                Icon(Icons.notifications_active_rounded, color: colors.onErrorContainer),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        FlutterI18n.translate(context, "alarm_banner_title"),
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: colors.onErrorContainer,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      Text(
+                        widget.status.name(context),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onErrorContainer),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (_stopping)
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: colors.onErrorContainer),
+                    ),
+                  )
+                else
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colors.error,
+                      foregroundColor: colors.onError,
+                    ),
+                    onPressed: _stop,
+                    child: Text(FlutterI18n.translate(context, "alarm_banner_stop")),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

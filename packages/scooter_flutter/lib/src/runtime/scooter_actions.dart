@@ -327,6 +327,11 @@ class ScooterActions {
           isCurrent: c, onWriteIssued: t.onWriteIssued));
   Future<void> openSeat({EventSource source = EventSource.app}) =>
       _seat(_capture(), source);
+
+  /// Silences a sounding alarm without touching the alarm setting.
+  Future<void> stopAlarm() => _command(
+      _capture(), (d, r, c) => commands.stopAlarmCommand(d, r, isCurrent: c));
+
   Future<void> _blink(_Target t, bool left, bool right) => _command(
       t,
       (d, r, c) =>

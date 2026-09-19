@@ -134,6 +134,47 @@ void main() {
       });
     }
   }
+  testWidgets('a value that would wrap takes its own line instead', (tester) async {
+    // The narrow test window is what pushes these labels over one line.
+    for (final label in ['When battery changes', 'After each ride']) {
+      await tester.pumpWidget(MaterialApp(
+        theme: rowTestTheme(Brightness.light),
+        home: Scaffold(
+          body: SettingsHelpRowTheme(
+            child: ListView(children: [
+              SettingsDropdownTile<int>(
+                leading: const Icon(Icons.event_repeat_outlined),
+                title: const Text('Current trip'),
+                subtitle: const Text('Reset policy'),
+                value: 1,
+                hint: const Text('Policy'),
+                items: [
+                  const DropdownMenuItem(value: 0, child: Text('Manual only')),
+                  DropdownMenuItem(value: 1, child: Text(label)),
+                ],
+                onChanged: (_) {},
+              ),
+            ]),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final tile = tester.widget<ListTile>(find.byType(ListTile));
+      expect(tile.trailing, isNull, reason: '"$label" must not be squeezed beside the description');
+      final value = find.text(label);
+      expect(value, findsOneWidget);
+      final rendered = tester.renderObject<RenderParagraph>(
+        find.descendant(of: value, matching: find.byType(RichText)),
+      );
+      expect(rendered.text.style?.fontSize, isNotNull);
+      expect(tester.getSize(value).height, lessThan(40), reason: '"$label" is one line, not a wrapped pair');
+      expect(tester.getTopLeft(find.byType(DropdownButton<int>)).dy,
+          greaterThan(tester.getBottomLeft(find.text('Reset policy')).dy));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   for (final direction in TextDirection.values) {
     testWidgets('scaled fallback retains single selector semantics and disabled state in $direction', (tester) async {
       final semantics = tester.ensureSemantics();
