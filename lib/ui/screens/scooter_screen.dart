@@ -53,7 +53,12 @@ class _ScooterScreenState extends State<ScooterScreen> {
     _loadViewMode();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshOdometer();
-      _odometerRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) => _refreshOdometer());
+      _odometerRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+        _refreshOdometer();
+        // Ordering and the relative "last seen" labels no longer follow every
+        // telemetry notification, so refresh them on this cadence instead.
+        if (mounted && ModalRoute.of(context)?.isCurrent == true) setState(() {});
+      });
     });
   }
 
@@ -114,9 +119,22 @@ class _ScooterScreenState extends State<ScooterScreen> {
     return scooters;
   }
 
+  /// What the screen itself depends on: which scooters exist, which one the
+  /// service is on, and whether a connection attempt is in flight. Everything
+  /// else - ping times, battery, odometer, state text - belongs to the cards,
+  /// which subscribe for themselves. Watching the whole service here rebuilt
+  /// every card several times a second while riding.
+  String _listSignature(ScooterService service) => [
+        for (final scooter in sortedScooters(service)) scooter.id,
+        service.currentScooterId ?? '',
+        service.state?.name ?? '',
+        service.connectingScooterId ?? '',
+      ].join('|');
+
   @override
   Widget build(BuildContext context) {
-    final scooterService = context.watch<ScooterService>();
+    context.select<ScooterService, String>(_listSignature);
+    final scooterService = context.read<ScooterService>();
     final scooters = sortedScooters(scooterService);
     final bool single = scooters.length == 1;
 
@@ -124,9 +142,9 @@ class _ScooterScreenState extends State<ScooterScreen> {
       appBar: AppBar(
         title: Text(FlutterI18n.translate(context, 'stats_title_scooter')),
         actions: [
-          Consumer<ScooterService>(
-            builder: (context, scooterService, child) {
-              final scooterCount = scooterService.savedScooters.length;
+          Selector<ScooterService, int>(
+            selector: (context, service) => service.savedScooters.length,
+            builder: (context, scooterCount, child) {
               if (scooterCount > 1) {
                 return IconButton(
                   icon: Icon(_isListView ? Icons.grid_view : Icons.list),
@@ -142,66 +160,71 @@ class _ScooterScreenState extends State<ScooterScreen> {
           ),
         ],
       ),
-      body: ListView(
+      // Built lazily and keyed per scooter, so reordering (the connected
+      // scooter is pinned first) reuses elements instead of remounting every
+      // card and re-decoding its art.
+      body: ListView.builder(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewPadding.bottom),
-        shrinkWrap: true,
-        children: [
-          ...scooters.map((scooter) {
-            final bool connected =
-                (scooter.id == scooterService.currentScooterId && scooterService.state != ScooterState.disconnected);
-            // While a connection attempt is in flight, the status label
-            // belongs to the scooter we're connecting to, not to whichever
-            // one the service still remembers.
-            final bool active = connected ||
-                (scooterService.state == ScooterState.linking && scooterService.connectingScooterId == scooter.id);
-
-            if (_isListView) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-                child: SavedScooterListItem(
-                  savedScooter: scooter,
-                  single: single,
-                  connected: active,
-                  rebuild: () => setState(() {}),
-                  onNavigateBack: widget.onNavigateBack,
-                ),
-              );
-            } else {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                child: SavedScooterCard(
-                  savedScooter: scooter,
-                  single: single,
-                  connected: active,
-                  rebuild: () => setState(() {}),
-                  onNavigateBack: widget.onNavigateBack,
-                ),
-              );
-            }
-          }),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-            child: TextButton.icon(
-              style: TextButton.styleFrom(
-                minimumSize: const Size.fromHeight(60),
-                backgroundColor: Theme.of(context).colorScheme.onSurface,
-              ),
-              onPressed: () => _handleAddScooter(context),
-              icon: Icon(
-                Icons.add,
-                color: Theme.of(context).colorScheme.surface,
-                size: 16,
-              ),
-              label: Text(
-                FlutterI18n.translate(context, "settings_add_scooter").toUpperCase(),
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: Theme.of(context).colorScheme.surface,
-                ),
-              ),
+        itemCount: scooters.length + 1,
+        itemBuilder: (context, index) {
+          if (index == scooters.length) return _addScooterButton(context);
+          final scooter = scooters[index];
+          final bool connected =
+              (scooter.id == scooterService.currentScooterId && scooterService.state != ScooterState.disconnected);
+          // While a connection attempt is in flight, the status label belongs
+          // to the scooter we're connecting to, not to whichever one the
+          // service still remembers.
+          final bool active = connected ||
+              (scooterService.state == ScooterState.linking && scooterService.connectingScooterId == scooter.id);
+          return KeyedSubtree(
+            key: ValueKey(scooter.id),
+            child: Padding(
+              padding: _isListView
+                  ? const EdgeInsets.symmetric(vertical: 4, horizontal: 16)
+                  : const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: _isListView
+                  ? SavedScooterListItem(
+                      savedScooter: scooter,
+                      single: single,
+                      connected: active,
+                      rebuild: () => setState(() {}),
+                      onNavigateBack: widget.onNavigateBack,
+                    )
+                  : SavedScooterCard(
+                      savedScooter: scooter,
+                      single: single,
+                      connected: active,
+                      rebuild: () => setState(() {}),
+                      onNavigateBack: widget.onNavigateBack,
+                    ),
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _addScooterButton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: TextButton.icon(
+        style: TextButton.styleFrom(
+          minimumSize: const Size.fromHeight(60),
+          backgroundColor: Theme.of(context).colorScheme.onSurface,
+        ),
+        onPressed: () => _handleAddScooter(context),
+        icon: Icon(
+          Icons.add,
+          color: Theme.of(context).colorScheme.surface,
+          size: 16,
+        ),
+        label: Text(
+          FlutterI18n.translate(context, "settings_add_scooter").toUpperCase(),
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: Theme.of(context).colorScheme.surface,
           ),
-        ],
+        ),
       ),
     );
   }
