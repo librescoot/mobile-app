@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_background_service_platform_interface/flutter_background_service_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
@@ -27,12 +28,11 @@ class _CountingScooter extends SavedScooter {
 }
 
 class _Service extends ChangeNotifier implements ScooterService {
-  _Service(this.scooter) {
-    savedScooters = {scooter.id: scooter};
-    currentScooterId = scooter.id;
+  _Service(List<_CountingScooter> scooters) {
+    savedScooters = {for (final scooter in scooters) scooter.id: scooter};
+    currentScooterId = scooters.first.id;
   }
 
-  final _CountingScooter scooter;
   @override
   Map<String, SavedScooter> savedScooters = {};
   @override
@@ -54,7 +54,7 @@ class _Service extends ChangeNotifier implements ScooterService {
 
 Future<void> _mount(WidgetTester tester, _Service service) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(412, 900);
+  tester.view.physicalSize = const Size(412, 1600);
   addTearDown(() {
     tester.view.resetDevicePixelRatio();
     tester.view.resetPhysicalSize();
@@ -82,18 +82,28 @@ Future<void> _mount(WidgetTester tester, _Service service) async {
 void main() {
   late MemoryPreferences prefs;
   SharedPreferencesAsyncPlatform? previousPrefs;
+  FlutterBackgroundServicePlatform? previousService;
 
   setUp(() {
     previousPrefs = SharedPreferencesAsyncPlatform.instance;
+    try {
+      previousService = FlutterBackgroundServicePlatform.instance;
+    } catch (_) {
+      previousService = null;
+    }
     prefs = MemoryPreferences();
     SharedPreferencesAsyncPlatform.instance = prefs;
+    FlutterBackgroundServicePlatform.instance = RecordingBackgroundService();
     SharedPreferences.setMockInitialValues({});
   });
-  tearDown(() => SharedPreferencesAsyncPlatform.instance = previousPrefs);
+  tearDown(() {
+    SharedPreferencesAsyncPlatform.instance = previousPrefs;
+    if (previousService != null) FlutterBackgroundServicePlatform.instance = previousService!;
+  });
 
   testWidgets('telemetry notifications do not rebuild the scooter cards', (tester) async {
     final scooter = _CountingScooter(id: 'A', name: 'Alpha');
-    final service = _Service(scooter);
+    final service = _Service([scooter]);
     await _mount(tester, service);
     expect(find.text('Alpha'), findsOneWidget);
 
@@ -108,9 +118,29 @@ void main() {
     expect(scooter.nameReads, readsAfterFirstBuild);
   });
 
+  testWidgets('a card-local edit rebuilds only that card', (tester) async {
+    final alpha = _CountingScooter(id: 'A', name: 'Alpha');
+    final beta = _CountingScooter(id: 'B', name: 'Beta');
+    final service = _Service([alpha, beta]);
+    await _mount(tester, service);
+    expect(find.text('Beta'), findsOneWidget);
+
+    final alphaBefore = alpha.nameReads;
+    final betaBefore = beta.nameReads;
+    final betaCard = find.ancestor(of: find.text('Beta'), matching: find.byType(SavedScooterCard));
+    final betaSwitch = find.descendant(of: betaCard, matching: find.byType(Switch));
+    await tester.ensureVisible(betaSwitch);
+    await tester.pumpAndSettle();
+    await tester.tap(betaSwitch);
+    await tester.pumpAndSettle();
+
+    expect(beta.nameReads, greaterThan(betaBefore));
+    expect(alpha.nameReads, alphaBefore);
+  });
+
   testWidgets('list changes still rebuild the cards', (tester) async {
     final scooter = _CountingScooter(id: 'A', name: 'Alpha');
-    final service = _Service(scooter);
+    final service = _Service([scooter]);
     await _mount(tester, service);
 
     final before = scooter.nameReads;

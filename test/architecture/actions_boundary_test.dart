@@ -30,7 +30,7 @@ void main() {
           r'await service\.forgetSavedScooter\(id\);\s*'
           r'//[^\n]*\n\s*'
           r'if \(!context\.mounted \|\| service\.savedScooters\.containsKey\(id\)\) return;\s*'
-          r'rebuild\(\);\s*Fluttertoast\.showToast\(msg: message\);',
+          r'onListChanged\(\);\s*Fluttertoast\.showToast\(msg: message\);',
         )));
   });
   test('action settings and keycard UI no longer access characteristics', () {
