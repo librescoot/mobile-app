@@ -4,9 +4,8 @@ import 'package:flutter/services.dart';
 
 /// Decodes translation assets on the main isolate.
 ///
-/// [AssetBundle.loadString] hands files of 50 KB or more to an isolate, and
-/// that future does not complete under the widget-test clock, so a locale file
-/// that size would hang `Localizations` and render an empty screen.
+/// [AssetBundle.loadString] hands files of 50 KB or more to an isolate, whose
+/// future never completes under the widget-test clock.
 class InlineStringBundle extends CachingAssetBundle {
   @override
   Future<ByteData> load(String key) => rootBundle.load(key);

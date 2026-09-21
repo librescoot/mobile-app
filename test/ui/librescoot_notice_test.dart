@@ -25,7 +25,7 @@ final class _Preferences extends SharedPreferencesAsyncPlatform {
       throw UnsupportedError('${invocation.memberName}');
 }
 
-Future<void> _open(WidgetTester tester) async {
+Future<void> _open(WidgetTester tester, {bool fromStockScooter = false}) async {
   await tester.pumpWidget(MaterialApp(
     localizationsDelegates: [
       FlutterI18nDelegate(
@@ -40,7 +40,8 @@ Future<void> _open(WidgetTester tester) async {
       builder: (context) => Scaffold(
         body: Center(
           child: ElevatedButton(
-            onPressed: () => showLibrescootNotice(context),
+            onPressed: () =>
+                showLibrescootNotice(context, fromStockScooter: fromStockScooter),
             child: const Text('open'),
           ),
         ),
@@ -57,12 +58,18 @@ void main() {
 
   test('a definitive stock verdict while the system answers is the only show',
       () {
-    bool show({bool connected = true, bool? stock = false, bool awake = true, bool seen = false}) =>
+    bool show(
+            {bool connected = true,
+            bool? stock = false,
+            bool awake = true,
+            bool seen = false,
+            bool savedLibre = false}) =>
         LibrescootNotice.shouldShow(
           connected: connected,
           isLibrescoot: stock,
           systemCanAnswer: awake,
           alreadySeen: seen,
+          hasLibrescootScooter: savedLibre,
         );
 
     expect(show(), isTrue);
@@ -71,6 +78,8 @@ void main() {
     expect(show(connected: false), isFalse);
     expect(show(awake: false), isFalse, reason: 'hibernating is not stock');
     expect(show(seen: true), isFalse);
+    expect(show(savedLibre: true), isFalse,
+        reason: 'a saved Librescoot scooter already makes this a rider');
   });
 
   test('the seen flag round-trips', () async {
@@ -80,6 +89,34 @@ void main() {
     expect(await LibrescootNotice.alreadySeen(), isTrue);
     await LibrescootNotice.reset();
     expect(await LibrescootNotice.alreadySeen(), isFalse);
+  });
+
+  testWidgets('the menu path does not claim what the scooter runs', (tester) async {
+    await _open(tester);
+    expect(find.textContaining('original unu software'), findsNothing);
+    expect(find.textContaining('open-source firmware'), findsOneWidget);
+  });
+
+  testWidgets('the automatic path names the software the scooter runs',
+      (tester) async {
+    await _open(tester, fromStockScooter: true);
+    expect(find.textContaining('original unu software'), findsOneWidget);
+  });
+
+  testWidgets('overflowing content shows a scroll hint that clears at the end',
+      (tester) async {
+    tester.view.physicalSize = const Size(400, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    await _open(tester);
+
+    expect(find.byIcon(Icons.keyboard_double_arrow_down), findsOneWidget);
+    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -2000));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.keyboard_double_arrow_down), findsNothing);
   });
 
   testWidgets('lists what Librescoot adds and offers the website', (tester) async {
@@ -92,7 +129,7 @@ void main() {
     expect(find.text("Navigation with offline maps on the scooter's display"),
         findsOneWidget);
     expect(find.text('Built-in alarm'), findsOneWidget);
-    expect(find.text('Hop-on for short stops'), findsOneWidget);
+    expect(find.text('Hop-on / hop-off for short stops'), findsOneWidget);
     expect(find.textContaining('WireGuard VPN'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Learn more'), findsOneWidget);
     expect(

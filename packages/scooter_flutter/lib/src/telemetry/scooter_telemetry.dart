@@ -638,8 +638,8 @@ class ScooterTelemetry {
     // means something on librescoot firmware.
     if (identity.isLibrescoot != true) return false;
     if (repo.extendedChannelMissing) return true;
-    // Without a system version the system never reported itself, so a silent
-    // channel is an absent system rather than a stale table.
+    // No system version means the system never answered, so silence is not a
+    // stale table.
     if (identity.imxVersion == null) return false;
     return repo.extendedChannelSilent;
   }

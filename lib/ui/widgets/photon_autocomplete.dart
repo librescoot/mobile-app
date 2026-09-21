@@ -8,8 +8,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:unustasis/service/location_polling.dart';
 import 'package:unustasis/service/photon_service.dart';
 
-/// Photon-backed place search field. Suggestions render in an overlay anchored
-/// under the field so the calling layout does not have to reserve space.
+/// Photon place search field. Suggestions render in an overlay under the field.
 class PhotonAutocomplete extends StatefulWidget {
   final void Function(PhotonFeature feature) onSelected;
   final String Function(PhotonFeature feature) formatFeature;

@@ -202,11 +202,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final verdict = service.identity.isLibrescoot;
       if (verdict == null) return;
       if (verdict == true) {
-        // The rider already runs Librescoot; never pitch it at them.
+        // Already on Librescoot; do not show.
         _librescootNoticeHandled = true;
         await LibrescootNotice.markSeen();
         return;
       }
+      final hasLibrescootScooter =
+          service.savedScooters.values.any((s) => s.isLibrescoot == true);
       if (await LibrescootNotice.alreadySeen()) {
         _librescootNoticeHandled = true;
         return;
@@ -216,14 +218,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         isLibrescoot: verdict,
         systemCanAnswer: service.vehicle.systemCanAnswer,
         alreadySeen: false,
+        hasLibrescootScooter: hasLibrescootScooter,
       )) {
+        if (hasLibrescootScooter) {
+          // Already a Librescoot rider; do not show. Mark it so it stays that
+          // way if the saved scooter is removed later.
+          _librescootNoticeHandled = true;
+          await LibrescootNotice.markSeen();
+        }
         return;
       }
       if (!mounted) return;
       _librescootNoticeHandled = true;
       await LibrescootNotice.markSeen();
       if (!mounted) return;
-      await showLibrescootNotice(context);
+      await showLibrescootNotice(context, fromStockScooter: true);
     } finally {
       _librescootNoticeRunning = false;
     }
