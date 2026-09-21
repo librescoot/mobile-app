@@ -106,8 +106,10 @@ service account after interactive user authentication.
 The iOS jobs are skipped when `APPSTORE_KEY_ID`, `IOS_DIST_CERT_P12` or
 `APPLE_TEAM_ID` is missing, so Android can publish before Apple's side is set
 up. On pushes to `main`, the nightly iOS job uploads automatically; App Store
-Connect then processes the build and distributes it according to the TestFlight
-group's automatic-distribution setting.
+Connect then processes the build and distributes it to every group whose
+automatic distribution is on. Both the internal testers and the External
+Testing group take nightlies and tagged builds alike — TestFlight has no
+per-build track split.
 
 Provisioning profiles are fetched from App Store Connect at build time rather
 than stored, so they cannot drift out of step with the certificate. The app and
