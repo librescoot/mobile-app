@@ -192,6 +192,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final bool showRideMetrics = context.select<ScooterService, bool>(_showsRideMetrics);
     // Resolved once per build: provider forbids select() from nested builders.
     final ({AlarmStatus? status, bool unsupported}) alarm =
         context.select<ScooterService, ({AlarmStatus? status, bool unsupported})>((service) => (
@@ -377,9 +378,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               ),
                             ),
                             const StatusText(),
-                            if (!context.select<ScooterService, bool>(
-                                  (service) => service.tripCounter != null || service.cachedTripCounter != null,
-                                ) &&
+                            if (!showRideMetrics &&
                                 context.select<ScooterService, String?>((service) => service.identity.name) != null &&
                                 context.select<ScooterService, String?>((service) => service.identity.name) !=
                                     FlutterI18n.translate(context, "stats_no_name"))
@@ -413,9 +412,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   ),
                                 ),
                               ),
-                            if (context.select<ScooterService, bool>(
-                              (service) => service.tripCounter != null || service.cachedTripCounter != null,
-                            ))
+                            if (showRideMetrics)
                               Selector<ScooterService, _DashboardMetricsData>(
                                 selector: (context, service) => (
                                   odometerMeters: service.odometerMeters ?? service.cachedOdometerMeters,
@@ -659,6 +656,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  /// Whether this scooter has ride data worth showing.
+  ///
+  /// Cached values count while the scooter has not denied the capability: an
+  /// offline scooter still shows what it last reported. A scooter that reports
+  /// no trip counter at all (stock firmware, or a librescoot nRF whose system
+  /// went back to stock) drops the row instead of advertising the values its
+  /// librescoot past left behind.
+  static bool _showsRideMetrics(ScooterService service) {
+    if (service.tripCounter != null) return true;
+    if (service.tripCounterSupported == false) return false;
+    return service.cachedTripCounter != null;
   }
 
   Widget _navigationCue() {
@@ -1089,7 +1099,10 @@ class DashboardBatterySummary extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final valueColor = dataIsOld ? colors.onSurfaceVariant : colors.onSurface;
     final accentColor = dataIsOld ? colors.onSurfaceVariant : colors.primary;
-    final totalRange = ((primarySOC ?? 0) * 0.45 + (secondarySOC ?? 0) * 0.45).round();
+    // No reading is not a reading of zero: an absent or unread battery must not
+    // turn into a 0 km range claim.
+    final bool anySOC = (primarySOC != null && primarySOC! > 0) || (secondarySOC != null && secondarySOC! > 0);
+    final int? totalRange = anySOC ? ((primarySOC ?? 0) * 0.45 + (secondarySOC ?? 0) * 0.45).round() : null;
 
     Widget value(IconData icon, String text) => Row(
           mainAxisSize: MainAxisSize.min,
@@ -1109,7 +1122,7 @@ class DashboardBatterySummary extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              value(Icons.radar_rounded, '$totalRange km'),
+              value(Icons.radar_rounded, totalRange == null ? '—' : '$totalRange km'),
               const SizedBox(width: 16),
               value(
                 primarySOC != null && primarySOC! > 0 ? Icons.battery_5_bar_rounded : Icons.battery_unknown_outlined,

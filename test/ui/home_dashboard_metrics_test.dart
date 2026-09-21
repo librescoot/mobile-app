@@ -157,6 +157,30 @@ void main() {
     }
   });
 
+  testWidgets('the battery fallback does not claim a range without a reading', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: [
+          FlutterI18nDelegate(
+            translationLoader: FileTranslationLoader(
+              basePath: 'assets/i18n',
+              fallbackFile: 'en',
+              forcedLocale: const Locale('en'),
+            ),
+          ),
+        ],
+        home: const Scaffold(
+          body: DashboardBatterySummary(primarySOC: null, secondarySOC: null, dataIsOld: true),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('—'), findsNWidgets(2));
+    expect(find.text('0 km'), findsNothing);
+    expect(find.textContaining('km'), findsNothing);
+  });
+
   testWidgets('every glyph shares the optical centre of the digits beside it', (tester) async {
     tester.view.devicePixelRatio = 1;
     // Wide enough that the metrics row is not scaled by its FittedBox, so

@@ -66,6 +66,8 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   TripCounterSnapshot? tripCounter;
   @override
+  bool? tripCounterSupported;
+  @override
   TripCounterSnapshot? get cachedTripCounter => null;
   @override
   bool get scanning => false;

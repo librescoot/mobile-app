@@ -67,7 +67,15 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   TripCounterSnapshot? tripCounter;
   @override
-  TripCounterSnapshot? get cachedTripCounter => null;
+  bool? tripCounterSupported;
+  @override
+  TripCounterSnapshot? cachedTripCounter;
+  @override
+  int? odometerMeters;
+  @override
+  int? cachedOdometerMeters;
+  @override
+  final BatteryState battery = BatteryState();
   @override
   bool get scanning => false;
   final warnings = StreamController<HandlebarWarning>.broadcast(sync: true);
@@ -265,6 +273,46 @@ void main() {
       await _finish(tester, service);
     });
   }
+
+  TripCounterSnapshot trip() => TripCounterSnapshot(
+        distanceMeters: 1200,
+        ridingSeconds: 600,
+        averageSpeedKph: 7,
+        resetPolicy: TripResetPolicy.manual,
+        lastReset: null,
+        lastResetReason: TripResetReason.initial,
+        generation: 1,
+        status: TripCounterStatus.idle,
+      );
+
+  testWidgets('cached ride data shows until the scooter denies the capability', (tester) async {
+    final service = _Service()
+      ..cachedTripCounter = trip()
+      ..tripCounterSupported = null;
+    await _mountHome(tester, service);
+    expect(find.byType(DashboardMetricsSummary), findsOneWidget);
+    _lifecycle(tester, AppLifecycleState.resumed);
+  });
+
+  testWidgets('a scooter that reports no trip counter drops the cached row', (tester) async {
+    // A librescoot nRF whose system went back to stock leaves cached values
+    // behind; they must not be advertised as ride data.
+    final service = _Service()
+      ..cachedTripCounter = trip()
+      ..tripCounterSupported = false;
+    await _mountHome(tester, service);
+    expect(find.byType(DashboardMetricsSummary), findsNothing);
+    _lifecycle(tester, AppLifecycleState.resumed);
+  });
+
+  testWidgets('live ride data shows even before the capability is known', (tester) async {
+    final service = _Service()
+      ..tripCounter = trip()
+      ..tripCounterSupported = null;
+    await _mountHome(tester, service);
+    expect(find.byType(DashboardMetricsSummary), findsOneWidget);
+    _lifecycle(tester, AppLifecycleState.resumed);
+  });
 
   testWidgets('corner actions paint above the scooter backdrop', (tester) async {
     final service = _Service();
