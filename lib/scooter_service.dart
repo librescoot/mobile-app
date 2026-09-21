@@ -973,6 +973,7 @@ class _ServiceActionEffects implements ScooterActionEffects {
   @override
   void rssiChanged(int value) {
     service.rssi = value;
+    service.log.info('RSSI: $value dBm');
     // Cheap no-op unless a scan is due, and the keyless decision happens right
     // after this on the same poll.
     unawaited(service.refreshAutoUnlockAmbiguity());
