@@ -15,16 +15,19 @@ allprojects {
     }
 }
 
-rootProject.buildDir = '../build'
+rootProject.layout.buildDirectory = file('../build')
 subprojects {
-    project.buildDir = "${rootProject.buildDir}/${project.name}"
+    project.layout.buildDirectory = file("${rootProject.layout.buildDirectory.get().asFile}/${project.name}")
 }
 subprojects {
     project.evaluationDependsOn(':app')
     if (project.name != 'app') {
         afterEvaluate {
             if (project.hasProperty('android')) {
+                def appCompileSdk = project(':app').android.compileSdk
                 project.android {
+                    // Stale plugins pin an old compileSdk; their AndroidX deps need the app's.
+                    compileSdk = appCompileSdk
                     if (it.hasProperty('compileOptions')) {
                         compileOptions {
                             sourceCompatibility = JavaVersion.VERSION_11
@@ -43,6 +46,6 @@ subprojects {
 }
 
 tasks.register("clean", Delete) {
-    delete rootProject.buildDir
+    delete rootProject.layout.buildDirectory
 }
 

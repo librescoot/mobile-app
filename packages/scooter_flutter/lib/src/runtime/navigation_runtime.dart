@@ -36,8 +36,7 @@ class NavigationRuntime {
   NavigationDestination? get pending => _pending?.copy();
   NavigationDestination? get active => _active?.copy();
 
-  /// The last plan read from the scooter, or null before the first read and
-  /// after a session change. Every mutation refreshes it.
+  /// Last plan read from the scooter; null until the first read.
   NavigationRoutePlan? get plan => _plan?.copy();
 
   void bind(SessionConnection connection, CharacteristicRepository repository) {
@@ -270,7 +269,6 @@ class NavigationRuntime {
   /// Reads and caches the current multi-hop plan.
   Future<NavigationRoutePlan> refreshPlan() => _readPlan(_capture());
 
-  /// Appends a stop, then re-reads the plan.
   Future<void> addStop(NavigationDestination stop) async {
     final target = _capture();
     await commands.addRouteStopCommand(
@@ -280,7 +278,7 @@ class NavigationRuntime {
     await _readPlan(target);
   }
 
-  /// Removes the stop at a 1-based index, then re-reads the plan.
+  /// Removes the stop at a 1-based index.
   Future<void> removeStopAt(int index) async {
     final target = _capture();
     await commands.removeRouteStopCommand(
@@ -290,7 +288,6 @@ class NavigationRuntime {
     await _readPlan(target);
   }
 
-  /// Advances past the current stop, then re-reads the plan.
   Future<void> skipStop() async {
     final target = _capture();
     await commands.skipRouteStopCommand(
@@ -309,10 +306,8 @@ class NavigationRuntime {
     _publishPlan(const NavigationRoutePlan(stops: [], currentStep: 0));
   }
 
-  /// Replaces the plan's stop order. The protocol only appends stops, so this
-  /// clears the plan and re-adds the stops in the given order. Guidance always
-  /// restarts at the first stop, and the intermediate clears are visible to the
-  /// dashboard while the rebuild runs.
+  /// Clears and re-adds in the given order, since the protocol only appends.
+  /// Guidance restarts at the first stop.
   Future<void> reorderPlan(List<NavigationDestination> ordered) async {
     final target = _capture();
     bool current() => _current(target);

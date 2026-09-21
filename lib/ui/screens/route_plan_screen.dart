@@ -9,9 +9,8 @@ import 'package:unustasis/scooter_service.dart';
 import '../widgets/header.dart';
 import '../widgets/photon_autocomplete.dart';
 
-/// Editor for the scooter's multi-hop route plan: an ordered stop list the
-/// dashboard guides through. Edits are sent over BLE one stop per command,
-/// because the extended command is capped at 100 bytes.
+/// Editor for the scooter's multi-hop route plan. Edits go over BLE one stop
+/// per command, capped at 100 bytes.
 class RoutePlanScreen extends StatefulWidget {
   const RoutePlanScreen({super.key});
 
@@ -150,8 +149,7 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
         ),
       );
       if (confirmed != true) {
-        // The list is derived from the service, so a plain rebuild puts the
-        // rows back where the plan still has them.
+        // Rows come from the service; a rebuild restores them on cancel.
         if (mounted) setState(() {});
         return;
       }
@@ -368,8 +366,7 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
       '${destination.location.longitude.toStringAsFixed(5)}';
 }
 
-/// Bottom sheet that appends one stop: Photon search plus the scooter's saved
-/// destinations. Pops the chosen destination, or null when dismissed.
+/// Picks one stop: Photon search plus saved destinations.
 class _StopPickerSheet extends StatelessWidget {
   const _StopPickerSheet({required this.favorites});
 

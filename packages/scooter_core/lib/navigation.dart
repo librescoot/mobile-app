@@ -46,8 +46,7 @@ class NavigationDestination {
   NavigationDestination copy() => NavigationDestination.fromJson(toJson());
 }
 
-/// An ordered multi-hop route plan and the index of the stop currently being
-/// guided to. Wire shape only; presentation and editing belong to the app.
+/// An ordered multi-hop route plan and the index of the stop being guided to.
 class NavigationRoutePlan {
   const NavigationRoutePlan({required this.stops, required this.currentStep});
 
