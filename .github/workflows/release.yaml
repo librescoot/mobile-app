@@ -6,7 +6,8 @@ name: Release
 # service-account key is stored or consumed.
 #
 # A tag carrying a hyphen is marked as a GitHub prerelease. Prereleases go to
-# internal testing; releases without a suffix go to beta unless manually set.
+# the alpha track (external closed testing); releases without a suffix go to
+# beta unless manually set.
 
 permissions:
   contents: write
@@ -56,7 +57,7 @@ jobs:
 
           TRACK="${{ inputs.play_track }}"
           if [ -z "$TRACK" ]; then
-            [ "$PRE" = "true" ] && TRACK=internal || TRACK=beta
+            [ "$PRE" = "true" ] && TRACK=alpha || TRACK=beta
           fi
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
