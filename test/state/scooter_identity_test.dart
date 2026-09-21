@@ -186,19 +186,25 @@ void main() {
       });
 
       if (nrf) {
-        final cases = <(String, List<int>, String, bool)>[
-          ('malformed UTF-8', [0xff, 45, 108, 115], '\uFFFD-ls', true),
-          ('empty payload', [], '', false),
-          ('NUL and whitespace only', [0, 32, 0], '', false),
-        ];
-        for (final entry in cases) {
-          test('${entry.$1} publishes the permissively decoded version', () async {
+        test('malformed UTF-8 publishes the permissively decoded version',
+            () async {
+          start(isCurrent: () => true);
+          characteristic.reads.single.complete([0xff, 45, 108, 115]);
+          await pumpEventQueue(times: 2);
+          final expected = ('\uFFFD-ls', true, 900);
+          expect(_snapshot(identity), expected);
+          expect(updates, [expected]);
+        });
+        for (final bytes in <List<int>>[
+          [],
+          [0, 32, 0],
+        ]) {
+          test('an empty payload preserves state without publishing', () async {
             start(isCurrent: () => true);
-            characteristic.reads.single.complete(entry.$2);
+            characteristic.reads.single.complete(bytes);
             await pumpEventQueue(times: 2);
-            final expected = (entry.$3, entry.$4, 900);
-            expect(_snapshot(identity), expected);
-            expect(updates, [expected]);
+            expect(_snapshot(identity), initial);
+            expect(updates, isEmpty);
           });
         }
       } else {

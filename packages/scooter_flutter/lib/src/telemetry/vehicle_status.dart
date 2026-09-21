@@ -40,6 +40,19 @@ class VehicleStatus {
     return ScooterState.fromVehicleAndPowerState(vehicleState, powerState);
   }
 
+  /// Whether the system behind the nRF can answer an extended command.
+  bool get systemCanAnswer {
+    switch (powerState) {
+      case ScooterPowerState.booting:
+      case ScooterPowerState.hibernating:
+      case ScooterPowerState.hibernatingImminent:
+        return false;
+      default:
+        break;
+    }
+    return vehicleState != ScooterVehicleState.off;
+  }
+
   final List<StreamSubscription<List<int>>> _subscriptions = [];
 
   /// Drops every characteristic listener from the previous connection. Without

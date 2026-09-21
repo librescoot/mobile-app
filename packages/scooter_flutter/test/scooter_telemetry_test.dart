@@ -248,6 +248,7 @@ class _Harness {
       bool defaultQueries = false,
       String? imxVersion = 'v1.15.0',
       Set<String> groups = const {'pm', 'config', 'ble', 'alarm'},
+      Future<LsCapabilityGroups> Function()? capabilityGroups,
       Future<Set<String>> Function(String)? caps,
       Future<String?> Function(String)? setting,
       Future<void> Function(String key, String value)? settingWrite}) {
@@ -277,6 +278,7 @@ class _Harness {
             ? null
             : (_, __, {isCurrent}) async {
                 queries.add('cap:ext');
+                if (capabilityGroups != null) return capabilityGroups();
                 try {
                   if (caps != null) await caps('cap:ext');
                   return LsCapabilityGroups(
@@ -334,6 +336,12 @@ class _Harness {
 Future<void> _flush() => Future<void>.delayed(Duration.zero);
 void _firmware(_Repository repo, [String version = '1.2-ls']) =>
     repo['nrfVersion'].reads.single.complete(utf8.encode(version));
+void _wireExtended(_Repository repo) {
+  final channel = _Characteristic();
+  repo.extendedCommandCharacteristic = repo.chars['extendedCommand'] = channel;
+  repo.extendedResponseCharacteristic =
+      repo.chars['extendedResponse'] = channel;
+}
 List<bool?> _caps(FirmwareIdentity identity) => [
       identity.supportsHibernateFor,
       identity.supportsScheduledHibernation,
@@ -792,6 +800,76 @@ void main() {
 
     expect(h.queries, isEmpty);
     expect(h.telemetry.identity.isLibrescoot, false);
+  });
+
+  test('a hibernating system keeps the cached capabilities', () async {
+    final h = _Harness(imxVersion: '');
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _wireExtended(r);
+    h.telemetry.identity
+      ..supportsAlarmControl = true
+      ..supportsApnConfig = true
+      ..supportsTripCounter = true;
+    r['powerState'].text('hibernating');
+    _firmware(r);
+    await _flush();
+
+    expect(h.queries, isEmpty, reason: 'a hibernating MDB cannot answer');
+    expect(h.telemetry.identity.supportsAlarmControl, true);
+    expect(h.telemetry.identity.supportsApnConfig, true);
+    expect(h.telemetry.identity.supportsTripCounter, true);
+    expect(h.telemetry.identity.bluetoothTableOutOfDate, isFalse);
+  });
+
+  test('an off system keeps the cached capabilities', () async {
+    final h = _Harness(imxVersion: '');
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _wireExtended(r);
+    h.telemetry.identity.supportsAlarmControl = true;
+    r['state'].text('off');
+    _firmware(r);
+    await _flush();
+
+    expect(h.queries, isEmpty);
+    expect(h.telemetry.identity.supportsAlarmControl, true);
+    expect(h.telemetry.identity.bluetoothTableOutOfDate, isFalse);
+  });
+
+  test('a silent capability answer keeps the cached capabilities', () async {
+    final h = _Harness(
+        capabilityGroups: () async =>
+            const LsCapabilityGroups({}, usedFallback: true, answered: false));
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _wireExtended(r);
+    h.telemetry.identity
+      ..supportsAlarmControl = true
+      ..supportsTripCounter = true;
+    _firmware(r);
+    await _flush();
+
+    expect(h.queries, ['cap:ext']);
+    expect(h.telemetry.identity.supportsAlarmControl, true);
+    expect(h.telemetry.identity.supportsTripCounter, true);
+    expect(h.telemetry.identity.bluetoothTableOutOfDate, isFalse);
+  });
+
+  test('an answered empty capability list clears the capabilities', () async {
+    final h = _Harness(
+        capabilityGroups: () async =>
+            const LsCapabilityGroups({}, usedFallback: true),
+        setting: (_) async => null);
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _wireExtended(r);
+    h.telemetry.identity.supportsAlarmControl = true;
+    _firmware(r);
+    await _flush();
+
+    expect(h.queries, _queryOrder);
+    expect(_caps(h.telemetry.identity), List.filled(8, false));
   });
 
   test('a channel that stops answering clears the cached capabilities',

@@ -394,14 +394,15 @@ class ScooterTelemetry {
       if (imxVersion != null) {
         // Only a librescoot system answers with a version over usock.
         _log.info('nRF ${identity.nrfVersion} runs a $imxVersion system');
-      } else if (repository.imxVersionCharacteristic != null) {
+      } else if (repository.imxVersionCharacteristic != null &&
+          vehicle.systemCanAnswer) {
         _log.info(
             'nRF ${identity.nrfVersion} reported no system version, so this is not a librescoot scooter');
         // Everything gated on librescoot follows the system, not the nRF.
         identity.isLibrescoot = false;
       }
-      // A firmware without the characteristic is expected to stay silent, so
-      // the nRF verdict stands.
+      // A firmware without the characteristic, or one that is powered down, is
+      // expected to stay silent, so the nRF verdict stands.
     }
     effects.cachePatch(connection.id,
         TelemetryCachePatch(isLibrescoot: identity.isLibrescoot));
@@ -410,6 +411,9 @@ class ScooterTelemetry {
     if (!current()) return;
     if (identity.isLibrescoot != true) {
       _clearLsCapabilities(connection);
+    } else if (!vehicle.systemCanAnswer) {
+      _log.info(
+          'System is off or hibernating; keeping the cached capabilities');
     } else {
       await _probeLsCapabilities(connection, repository);
       if (!current()) return;
@@ -464,6 +468,11 @@ class ScooterTelemetry {
       return;
     }
     if (!current()) return;
+    if (!groups.answered) {
+      _log.info('No capability answer; keeping the cached capabilities');
+      _notify(connection);
+      return;
+    }
     // A listed group is its complete initial contract unless it supplies a
     // future version. Only status and BLE have historically varied details.
     final supportsHibernateFor = groups.contains('pm');
@@ -629,6 +638,9 @@ class ScooterTelemetry {
     // means something on librescoot firmware.
     if (identity.isLibrescoot != true) return false;
     if (repo.extendedChannelMissing) return true;
+    // Without a system version the system never reported itself, so a silent
+    // channel is an absent system rather than a stale table.
+    if (identity.imxVersion == null) return false;
     return repo.extendedChannelSilent;
   }
 }

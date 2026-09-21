@@ -66,6 +66,8 @@ class _Repository extends Fake implements CharacteristicRepository {
   @override
   bool extendedChannelUnresponsive = false;
   @override
+  bool extendedChannelMissing = false;
+  @override
   bool extendedChannelSilent = false;
   @override
   void noteStaleGattTable(String detail) {}
@@ -89,6 +91,7 @@ void main() {
     final groups = await discoverLsCapabilityGroupsCommand(device, repo);
     expect(groups.versions, {'trip': null, 'pm': 2, 'ble': null});
     expect(groups.usedFallback, isFalse);
+    expect(groups.answered, isTrue);
     expect(channel.writes, ['cap:ext']);
   });
 
@@ -98,6 +101,7 @@ void main() {
     final groups = await discoverLsCapabilityGroupsCommand(device, repo);
     expect(groups.versions.keys, {'trip', 'status'});
     expect(groups.usedFallback, isTrue);
+    expect(groups.answered, isTrue);
     expect(channel.writes, ['cap:ext', 'cap:list']);
   });
 
@@ -111,6 +115,16 @@ void main() {
     final groups = await discoverLsCapabilityGroupsCommand(device, repo);
     expect(groups.versions, isEmpty);
     expect(groups.usedFallback, isTrue);
+    expect(groups.answered, isTrue);
+  });
+
+  test('a silent capability query reports no answer, not an empty list',
+      () async {
+    final groups = await discoverLsCapabilityGroupsCommand(device, repo,
+        responseTimeout: const Duration(milliseconds: 1));
+    expect(groups.answered, isFalse);
+    expect(groups.versions, isEmpty);
+    expect(channel.writes, ['cap:ext', 'cap:list']);
   });
 
   test('version response retains the complete component version', () async {

@@ -153,8 +153,9 @@ Future<void> readNrfVersion(
 ) async {
   try {
     List<int> value = await characteristic.read();
-    String version = decodeCharacteristicString(value);
+    String version = decodeCharacteristicString(value).trim();
     _log.info("nRF version received: $version");
+    if (version.isEmpty) return;
     onRead(version, version.contains("-ls"));
   } catch (e, stack) {
     _log.warning("Failed to read nRF version", e, stack);
