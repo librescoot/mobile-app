@@ -82,7 +82,17 @@ class _FailingActions extends _Actions {
 
 class _Service extends ChangeNotifier implements ScooterService {
   @override
-  final identity = ScooterIdentity()..isLibrescoot = true;
+  // Every capability the screen gates a librescoot row on: these tests are
+  // about how the rows render, not about what the firmware answers.
+  final identity = ScooterIdentity()
+    ..isLibrescoot = true
+    ..supportsApnConfig = true
+    ..supportsScheduledHibernation = true
+    ..supportsBatteryKeepActive = true
+    ..supportsAlarmControl = true
+    ..supportsClockSync = true
+    ..supportsUsbMode = true
+    ..supportsServiceMode = true;
   @override
   final vehicle = VehicleStatus();
   final _Actions _actions = _Actions();
@@ -301,7 +311,8 @@ void main() {
   });
 
   testWidgets('service mode switch sends the requested state', (tester) async {
-    final service = _Service();
+    // The firmware reports this in cap:ext; without it the row is hidden.
+    final service = _Service()..identity.supportsServiceMode = true;
     addTearDown(service.dispose);
     await tester.pumpWidget(_screen(service));
     await tester.pumpAndSettle();
@@ -313,6 +324,71 @@ void main() {
     await tester.pumpAndSettle();
     expect(service.actions.serviceModeWrites, [true]);
     expect(tester.widget<Switch>(toggle).value, isTrue);
+  });
+
+  testWidgets('service mode is hidden when the firmware does not offer it', (tester) async {
+    final service = _Service()..identity.supportsServiceMode = false;
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    expect(find.text('Service mode'), findsNothing);
+  });
+
+  testWidgets('rows backed by unavailable firmware groups are hidden', (tester) async {
+    const labels = [
+      'Service mode',
+      'Update mode',
+      'Auto-standby',
+      'Auto-hibernation',
+      'Keep main battery awake',
+      'Set scooter clock from phone',
+    ];
+
+    // Walk the list to the end and keep every label that appeared, so absence
+    // cannot be an artifact of the lazy list simply not having built the row.
+    Future<Set<String>> traverse() async {
+      final seen = <String>{};
+      void collect() {
+        for (final text in tester.widgetList<Text>(find.byType(Text))) {
+          if (text.data != null) seen.add(text.data!);
+        }
+      }
+
+      collect();
+      for (var i = 0; i < 10; i++) {
+        await tester.drag(find.byType(ListView), const Offset(0, -400));
+        await tester.pumpAndSettle();
+        collect();
+      }
+      return seen;
+    }
+
+    final offered = _Service();
+    addTearDown(offered.dispose);
+    await tester.pumpWidget(_screen(offered));
+    await tester.pumpAndSettle();
+    final offeredRows = await traverse();
+    for (final label in labels) {
+      expect(offeredRows, contains(label), reason: 'offered: $label');
+    }
+
+    // A scooter that answers none of the extended commands: the probe clears
+    // every capability, so none of these dead controls is offered.
+    final unavailable = _Service()
+      ..identity.supportsServiceMode = false
+      ..identity.supportsClockSync = false
+      ..identity.supportsUsbMode = false
+      ..identity.supportsApnConfig = false
+      ..identity.supportsScheduledHibernation = false
+      ..identity.supportsBatteryKeepActive = false
+      ..identity.supportsAlarmControl = false;
+    addTearDown(unavailable.dispose);
+    await tester.pumpWidget(_screen(unavailable));
+    await tester.pumpAndSettle();
+    final unavailableRows = await traverse();
+    for (final label in labels) {
+      expect(unavailableRows, isNot(contains(label)), reason: 'unavailable: $label');
+    }
   });
 
   testWidgets('failed extended reads settle as unavailable instead of spinning forever', (tester) async {

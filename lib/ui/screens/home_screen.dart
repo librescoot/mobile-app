@@ -663,9 +663,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _navigationCue() {
     return Selector<ScooterService, bool>(
-      selector: (context, service) => service.identity.isLibrescoot == true || kDebugMode,
-      builder: (context, isLibrescoot, child) {
-        if (!isLibrescoot) return const SizedBox.shrink();
+      // `nav` is a capability the firmware already reports, so the cue follows
+      // the services rather than the nRF build string: a librescoot nRF on a
+      // stock dashboard answers nothing and must not offer navigation.
+      selector: (context, service) => service.identity.supportsNavigation == true || kDebugMode,
+      builder: (context, navigationAvailable, child) {
+        if (!navigationAvailable) return const SizedBox.shrink();
         return Semantics(
           button: true,
           label: FlutterI18n.translate(context, 'nav_title'),

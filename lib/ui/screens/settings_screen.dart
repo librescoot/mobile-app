@@ -613,54 +613,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<Widget> _librescootPowerSettingsItems({
     required bool supportsScheduledHibernation,
     required bool supportsBatteryKeepActive,
+    required bool supportsConfigSettings,
+    required bool connected,
   }) =>
       [
-        SettingsDropdownTile<int>(
-          leading: const Icon(Icons.hourglass_bottom_rounded),
-          title: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_title")),
-          subtitle: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_subtitle")),
-          value: _autoLockDuration,
-          unlistedValueLabel: Text(formatSettingsDuration(context, _autoLockDuration ?? 0)),
-          hint: _timerDurationsLoaded
-              ? Text(FlutterI18n.translate(context, "ls_settings_duration_hint"))
-              : _timerLoadingIndicator(),
-          items: [
-            DropdownMenuItem(value: 0, child: Text(FlutterI18n.translate(context, "ls_settings_duration_never"))),
-            DropdownMenuItem(value: 180, child: Text(FlutterI18n.translate(context, "ls_settings_duration_3_min"))),
-            DropdownMenuItem(value: 300, child: Text(FlutterI18n.translate(context, "ls_settings_duration_5_min"))),
-            DropdownMenuItem(value: 600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_10_min"))),
-            DropdownMenuItem(value: 900, child: Text(FlutterI18n.translate(context, "ls_settings_duration_15_min"))),
-          ],
-          onChanged: !_timerDurationsLoaded || _isSendingAutoLock
-              ? null
-              : (value) async {
-                  if (value == null) return;
-                  setState(() => _isSendingAutoLock = true);
-                  try {
-                    await context.read<ScooterService>().actions.setAutoStandbyTime(
-                          Duration(seconds: value),
-                        );
-                    if (!mounted) return;
-                    setState(() => _autoLockDuration = value);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_success"))),
-                    );
-                  } catch (e) {
-                    if (mounted) {
+        // Auto-standby and the APN both come from the firmware's `config`
+        // group, so one capability covers them.
+        if (!connected || supportsConfigSettings)
+          SettingsDropdownTile<int>(
+            leading: const Icon(Icons.hourglass_bottom_rounded),
+            title: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_title")),
+            subtitle: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_subtitle")),
+            value: _autoLockDuration,
+            unlistedValueLabel: Text(formatSettingsDuration(context, _autoLockDuration ?? 0)),
+            hint: _timerDurationsLoaded
+                ? Text(FlutterI18n.translate(context, "ls_settings_duration_hint"))
+                : _timerLoadingIndicator(),
+            items: [
+              DropdownMenuItem(value: 0, child: Text(FlutterI18n.translate(context, "ls_settings_duration_never"))),
+              DropdownMenuItem(value: 180, child: Text(FlutterI18n.translate(context, "ls_settings_duration_3_min"))),
+              DropdownMenuItem(value: 300, child: Text(FlutterI18n.translate(context, "ls_settings_duration_5_min"))),
+              DropdownMenuItem(value: 600, child: Text(FlutterI18n.translate(context, "ls_settings_duration_10_min"))),
+              DropdownMenuItem(value: 900, child: Text(FlutterI18n.translate(context, "ls_settings_duration_15_min"))),
+            ],
+            onChanged: !_timerDurationsLoaded || _isSendingAutoLock
+                ? null
+                : (value) async {
+                    if (value == null) return;
+                    setState(() => _isSendingAutoLock = true);
+                    try {
+                      await context.read<ScooterService>().actions.setAutoStandbyTime(
+                            Duration(seconds: value),
+                          );
+                      if (!mounted) return;
+                      setState(() => _autoLockDuration = value);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text(FlutterI18n.translate(
-                          context,
-                          "ls_settings_auto_lock_error",
-                          translationParams: {"error": e.toString()},
-                        ))),
+                        SnackBar(content: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_success"))),
                       );
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text(FlutterI18n.translate(
+                            context,
+                            "ls_settings_auto_lock_error",
+                            translationParams: {"error": e.toString()},
+                          ))),
+                        );
+                      }
+                    } finally {
+                      if (mounted) setState(() => _isSendingAutoLock = false);
                     }
-                  } finally {
-                    if (mounted) setState(() => _isSendingAutoLock = false);
-                  }
-                },
-        ),
+                  },
+          ),
         SettingsDropdownTile<int>(
           leading: const Icon(Icons.bedtime_outlined),
           title: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_title")),
@@ -785,17 +790,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required UsbMode? usbMode,
     required bool connected,
     required bool otaAvailable,
+    required bool? supportsServiceMode,
+    required bool? supportsClockSync,
+    required bool? supportsUsbMode,
   }) =>
       [
-        ListTile(
-          leading: const Icon(Icons.access_time_outlined),
-          title: Text(FlutterI18n.translate(context, "ls_settings_clock_title")),
-          subtitle: Text(FlutterI18n.translate(context, "ls_settings_clock_subtitle")),
-          trailing: _isSendingTime
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.sync_rounded),
-          onTap: connected && !_isSendingTime ? _syncScooterClock : null,
-        ),
+        if (!connected || supportsClockSync == true)
+          ListTile(
+            leading: const Icon(Icons.access_time_outlined),
+            title: Text(FlutterI18n.translate(context, "ls_settings_clock_title")),
+            subtitle: Text(FlutterI18n.translate(context, "ls_settings_clock_subtitle")),
+            trailing: _isSendingTime
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.sync_rounded),
+            onTap: connected && !_isSendingTime ? _syncScooterClock : null,
+          ),
         if (!connected || otaAvailable)
           ListTile(
             leading: const Icon(Icons.system_update_alt_outlined),
@@ -804,79 +813,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LsOtaScreen())),
           ),
-        ListTile(
-          leading: const Icon(Icons.usb_outlined),
-          title: Text(FlutterI18n.translate(context, "ls_settings_update_mode_title")),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                usbMode == UsbMode.massStorage
-                    ? FlutterI18n.translate(context, "ls_settings_update_mode_on_subtitle")
-                    : FlutterI18n.translate(context, "ls_settings_update_mode_off_subtitle"),
-              ),
-              const SizedBox(height: 4),
-              TextButton(
-                style: TextButton.styleFrom(
-                  alignment: Alignment.centerLeft,
-                  minimumSize: Size.zero,
-                  padding: EdgeInsets.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        if (!connected || supportsUsbMode == true)
+          ListTile(
+            leading: const Icon(Icons.usb_outlined),
+            title: Text(FlutterI18n.translate(context, "ls_settings_update_mode_title")),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  usbMode == UsbMode.massStorage
+                      ? FlutterI18n.translate(context, "ls_settings_update_mode_on_subtitle")
+                      : FlutterI18n.translate(context, "ls_settings_update_mode_off_subtitle"),
                 ),
-                onPressed: () => launchUrl(Uri.parse("https://librescoot.org/docs/ums.html")),
-                child: Text(FlutterI18n.translate(context, "ls_settings_update_mode_learn_more")),
-              ),
-            ],
-          ),
-          trailing: Switch(
-            value: usbMode == UsbMode.massStorage,
-            onChanged: _isUpdatingUsbMode
-                ? null
-                : (value) async {
-                    setState(() => _isUpdatingUsbMode = true);
-                    try {
-                      final service = context.read<ScooterService>();
-                      if (value) {
-                        await service.actions.enterUMSMode();
-                      } else {
-                        await service.actions.enterNormalUsbMode();
-                      }
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text(FlutterI18n.translate(
-                          context,
-                          value ? "ls_settings_update_mode_enter_success" : "ls_settings_update_mode_exit_success",
-                        ))),
-                      );
-                    } catch (e) {
-                      if (mounted) {
+                const SizedBox(height: 4),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    alignment: Alignment.centerLeft,
+                    minimumSize: Size.zero,
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () => launchUrl(Uri.parse("https://librescoot.org/docs/ums.html")),
+                  child: Text(FlutterI18n.translate(context, "ls_settings_update_mode_learn_more")),
+                ),
+              ],
+            ),
+            trailing: Switch(
+              value: usbMode == UsbMode.massStorage,
+              onChanged: _isUpdatingUsbMode
+                  ? null
+                  : (value) async {
+                      setState(() => _isUpdatingUsbMode = true);
+                      try {
+                        final service = context.read<ScooterService>();
+                        if (value) {
+                          await service.actions.enterUMSMode();
+                        } else {
+                          await service.actions.enterNormalUsbMode();
+                        }
+                        if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                               content: Text(FlutterI18n.translate(
                             context,
-                            "ls_settings_update_mode_error",
-                            translationParams: {"error": e.toString()},
+                            value ? "ls_settings_update_mode_enter_success" : "ls_settings_update_mode_exit_success",
                           ))),
                         );
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text(FlutterI18n.translate(
+                              context,
+                              "ls_settings_update_mode_error",
+                              translationParams: {"error": e.toString()},
+                            ))),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => _isUpdatingUsbMode = false);
                       }
-                    } finally {
-                      if (mounted) setState(() => _isUpdatingUsbMode = false);
-                    }
-                  },
+                    },
+            ),
           ),
-        ),
-        ListTile(
-          leading: const Icon(Icons.build_circle_outlined),
-          title: Text(FlutterI18n.translate(context, 'ls_settings_service_mode_title')),
-          subtitle: Text(FlutterI18n.translate(context, 'ls_settings_service_mode_subtitle')),
-          trailing: !_serviceModeLoaded
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : Switch(
-                  value: _serviceMode ?? false,
-                  onChanged: _serviceMode == null || _isSendingServiceMode ? null : _setServiceMode,
-                ),
-        ),
+        // The firmware answers this in cap:ext, so a scooter without the
+        // command (an older nRF behind a stock dashboard, say) hides the switch
+        // instead of offering one that cannot work.
+        if (!connected || supportsServiceMode == true)
+          ListTile(
+            leading: const Icon(Icons.build_circle_outlined),
+            title: Text(FlutterI18n.translate(context, 'ls_settings_service_mode_title')),
+            subtitle: Text(FlutterI18n.translate(context, 'ls_settings_service_mode_subtitle')),
+            trailing: !_serviceModeLoaded
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : Switch(
+                    value: _serviceMode ?? false,
+                    onChanged: _serviceMode == null || _isSendingServiceMode ? null : _setServiceMode,
+                  ),
+          ),
       ];
 
   List<Widget> settingsItems({
@@ -892,6 +906,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool openSeatOnUnlock,
     required bool hazardLocking,
     required bool showTripSettings,
+    required bool? supportsServiceMode,
+    required bool? supportsClockSync,
+    required bool? supportsUsbMode,
   }) =>
       [
         Header(
@@ -1035,6 +1052,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ..._connectionRequiredItems(_librescootPowerSettingsItems(
             supportsScheduledHibernation: supportsScheduledHibernation,
             supportsBatteryKeepActive: supportsBatteryKeepActive,
+            supportsConfigSettings: supportsApnConfig,
+            connected: connected,
           )),
         ],
         if (isLibrescoot && (!connected || supportsAlarmControl != false)) ...[
@@ -1106,6 +1125,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             usbMode: usbMode,
             connected: connected,
             otaAvailable: otaAvailable,
+            supportsServiceMode: supportsServiceMode,
+            supportsClockSync: supportsClockSync,
+            supportsUsbMode: supportsUsbMode,
           )),
           ListTile(
             leading: const Icon(Icons.info_outline),
@@ -1350,7 +1372,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           bool autoUnlock,
           bool openSeatOnUnlock,
           bool hazardLocking,
-          bool showTripSettings
+          bool showTripSettings,
+          bool? supportsServiceMode,
+          bool? supportsClockSync,
+          bool? supportsUsbMode
         })>(
       (service) => (
         isLibrescoot: service.identity.isLibrescoot == true,
@@ -1365,6 +1390,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         openSeatOnUnlock: service.openSeatOnUnlock,
         hazardLocking: service.hazardLocking,
         showTripSettings: service.connected && service.tripCounterSupported == true,
+        supportsServiceMode: service.identity.supportsServiceMode,
+        supportsClockSync: service.identity.supportsClockSync,
+        supportsUsbMode: service.identity.supportsUsbMode,
       ),
     );
     _ensureLsDataLoaded(ls.isLibrescoot);
@@ -1381,6 +1409,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       openSeatOnUnlock: ls.openSeatOnUnlock,
       hazardLocking: ls.hazardLocking,
       showTripSettings: ls.showTripSettings,
+      supportsServiceMode: ls.supportsServiceMode,
+      supportsClockSync: ls.supportsClockSync,
+      supportsUsbMode: ls.supportsUsbMode,
     );
 
     return Scaffold(
