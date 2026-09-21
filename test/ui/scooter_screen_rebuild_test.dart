@@ -128,10 +128,10 @@ void main() {
     final alphaBefore = alpha.nameReads;
     final betaBefore = beta.nameReads;
     final betaCard = find.ancestor(of: find.text('Beta'), matching: find.byType(SavedScooterCard));
-    final betaSwitch = find.descendant(of: betaCard, matching: find.byType(Switch));
-    await tester.ensureVisible(betaSwitch);
+    final betaToggle = find.descendant(of: betaCard, matching: find.byIcon(Icons.sync));
+    await tester.ensureVisible(betaToggle);
     await tester.pumpAndSettle();
-    await tester.tap(betaSwitch);
+    await tester.tap(betaToggle);
     await tester.pumpAndSettle();
 
     expect(beta.nameReads, greaterThan(betaBefore));
