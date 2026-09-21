@@ -128,7 +128,7 @@ Future<void> clearRoutePlanCommand(
   }
 }
 
-Future<List<NavigationDestination>> listRouteStopsCommand(
+Future<NavigationRoutePlan> listRoutePlanCommand(
         BluetoothDevice? scooter, CharacteristicRepository repo,
         {bool Function()? isCurrent}) =>
     withExtendedChannel(() async {
@@ -149,7 +149,7 @@ Future<List<NavigationDestination>> listRouteStopsCommand(
         await sendCommand(scooter, repo, listNavPlanCommand,
             characteristic: cmd, isCurrent: isCurrent);
         final stream = listener.responses.timeout(extendedResponseTimeout);
-        return await readExtendedList(stream, parseNavPlanStop);
+        return await readNavigationRoutePlan(stream);
       } finally {
         await listener.cancel();
       }

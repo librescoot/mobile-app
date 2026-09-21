@@ -298,6 +298,27 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   void setActiveNavigation(NavDestination? destination) => navigation.setActive(destination);
   Future<void> setPendingNavigation(NavDestination? destination) => navigation.setPending(destination);
 
+  // Multi-hop route plan. The runtime owns the state; the app presents it.
+  List<NavDestination> get routePlanStops {
+    final stops = navigation.plan?.stops;
+    if (stops == null) return const [];
+    return stops.map(NavDestination.fromDestination).toList();
+  }
+  int get routePlanStep => navigation.plan?.currentStep ?? 0;
+  bool get hasRoutePlan => navigation.plan?.isNotEmpty ?? false;
+
+  Future<void> refreshRoutePlan() => navigation.refreshPlan();
+  Future<List<NavDestination>> routePlanFavorites() async =>
+      (await navigation.listFavorites())
+          .map(NavDestination.fromDestination)
+          .toList();
+  Future<void> addRouteStop(NavDestination stop) => navigation.addStop(stop);
+  Future<void> removeRouteStop(int index) => navigation.removeStopAt(index);
+  Future<void> skipRouteStop() => navigation.skipStop();
+  Future<void> clearRoutePlan() => navigation.clearPlan();
+  Future<void> reorderRoutePlan(List<NavDestination> ordered) =>
+      navigation.reorderPlan(ordered);
+
   // STATUS STREAMS
   bool get connected => _session.connected;
   set connected(bool connected) => _session.connected = connected;

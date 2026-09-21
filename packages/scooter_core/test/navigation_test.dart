@@ -1,4 +1,5 @@
 import 'package:latlong2/latlong.dart';
+import 'package:scooter_core/extended_response.dart';
 import 'package:scooter_core/navigation.dart';
 import 'package:test/test.dart';
 
@@ -103,6 +104,9 @@ void main() {
   });
 
   test('route plan responses parse', () {
+    expect(parseNavPlanCount('nav:route:count:3:1')!.count, 3);
+    expect(parseNavPlanCount('nav:route:count:3:1')!.step, 1);
+    expect(parseNavPlanCount('nav:route:0:1,2,Home'), isNull);
     expect(parseNavPlanStep('nav:route:count:3:1'), 1);
     expect(parseNavPlanStep('nav:route:count:0:0'), 0);
     expect(parseNavPlanStep('nav:route:0:1,2,Home'), isNull);
@@ -123,5 +127,58 @@ void main() {
     ]) {
       expect(parseNavPlanStop(message), isNull);
     }
+  });
+
+  test('route plan model exposes the current stop and copies deeply', () {
+    final plan = NavigationRoutePlan(
+      stops: [
+        NavigationDestination(
+            location: const LatLng(1, 2), name: 'A', id: '0'),
+        NavigationDestination(
+            location: const LatLng(3, 4), name: 'B', id: '1'),
+      ],
+      currentStep: 1,
+    );
+    expect(plan.isEmpty, isFalse);
+    expect(plan.currentStop!.id, '1');
+    expect(NavigationRoutePlan(stops: const [], currentStep: 0).currentStop,
+        isNull);
+    expect(
+        NavigationRoutePlan(stops: plan.stops, currentStep: 5).currentStop,
+        isNull);
+
+    final copy = plan.copy();
+    copy.stops.first.name = 'changed';
+    expect(plan.stops.first.name, 'A');
+  });
+
+  test('route plan list reader consumes the header and every stop', () async {
+    final plan = await readNavigationRoutePlan(
+      Stream.fromIterable([
+        'nav:route:count:3:1',
+        'nav:route:0:52.51,13.41,Home',
+        'nav:route:1:52.52,13.42',
+        'nav:route:2:52.53,13.43,Work',
+        'nav:route:99:0,0,ignored',
+      ]),
+    );
+    expect(plan.currentStep, 1);
+    expect(plan.stops.map((stop) => stop.id), ['0', '1', '2']);
+    expect(plan.stops[1].name, isNull);
+    expect(plan.stops[2].name, 'Work');
+  });
+
+  test('route plan list reader handles an empty plan', () async {
+    final plan = await readNavigationRoutePlan(
+        Stream.fromIterable(['nav:route:count:0:0']));
+    expect(plan.isEmpty, isTrue);
+    expect(plan.currentStep, 0);
+  });
+
+  test('route plan list reader rejects a malformed header', () async {
+    expect(
+      () => readNavigationRoutePlan(Stream.fromIterable(['nav:route:0:1,2'])),
+      throwsA(isA<ExtendedResponseFormatException>()),
+    );
   });
 }

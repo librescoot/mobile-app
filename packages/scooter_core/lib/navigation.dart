@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:latlong2/latlong.dart';
 import 'actions.dart' show extendedCommandMaxBytes;
+import 'extended_response.dart' show ExtendedResponseFormatException;
 
 enum SpecialDestinationType {
   home,
@@ -43,6 +46,25 @@ class NavigationDestination {
   NavigationDestination copy() => NavigationDestination.fromJson(toJson());
 }
 
+/// An ordered multi-hop route plan and the index of the stop currently being
+/// guided to. Wire shape only; presentation and editing belong to the app.
+class NavigationRoutePlan {
+  const NavigationRoutePlan({required this.stops, required this.currentStep});
+
+  final List<NavigationDestination> stops;
+  final int currentStep;
+
+  bool get isEmpty => stops.isEmpty;
+  bool get isNotEmpty => stops.isNotEmpty;
+
+  NavigationDestination? get currentStop =>
+      currentStep >= 0 && currentStep < stops.length ? stops[currentStep] : null;
+
+  NavigationRoutePlan copy() => NavigationRoutePlan(
+      stops: stops.map((stop) => stop.copy()).toList(),
+      currentStep: currentStep);
+}
+
 // Preserve legacy Dart string-length truncation (not UTF-8 byte counting).
 String? _truncateNavName(String prefix, String? name) {
   if (name == null || name.isEmpty) return null;
@@ -73,8 +95,16 @@ const String skipNavStopCommand = 'nav:route:skip';
 const String listNavPlanCommand = 'nav:route:list';
 const String clearNavPlanCommand = 'nav:route:clear';
 
-/// Reads the current step out of a `nav:route:count:<n>:<step>` response.
-int? parseNavPlanStep(String message) {
+/// The stop count and current step carried by a `nav:route:count:<n>:<step>`
+/// response.
+class NavPlanCount {
+  const NavPlanCount(this.count, this.step);
+
+  final int count;
+  final int step;
+}
+
+NavPlanCount? parseNavPlanCount(String message) {
   final parts = message.split(':');
   if (parts.length < 5 ||
       parts[0] != 'nav' ||
@@ -82,7 +112,39 @@ int? parseNavPlanStep(String message) {
       parts[2] != 'count') {
     return null;
   }
-  return int.tryParse(parts[4]);
+  final count = int.tryParse(parts[3]);
+  final step = int.tryParse(parts[4]);
+  if (count == null || step == null) return null;
+  return NavPlanCount(count, step);
+}
+
+/// Reads the current step out of a `nav:route:count:<n>:<step>` response.
+int? parseNavPlanStep(String message) => parseNavPlanCount(message)?.step;
+
+/// Reads a full plan from a `nav:route:list` reply: a
+/// `nav:route:count:<n>:<step>` header followed by n
+/// `nav:route:<index>:<lat>,<lon>,<name>` entries.
+Future<NavigationRoutePlan> readNavigationRoutePlan(Stream<String> stream) async {
+  final stops = <NavigationDestination>[];
+  int? expected;
+  var step = 0;
+  await for (final message in stream) {
+    if (expected == null) {
+      final header = parseNavPlanCount(message);
+      if (header == null) {
+        throw ExtendedResponseFormatException(
+            "expected a route plan header, got '$message'");
+      }
+      expected = header.count;
+      step = header.step;
+      if (expected == 0) break;
+      continue;
+    }
+    final stop = parseNavPlanStop(message);
+    if (stop != null) stops.add(stop);
+    if (stops.length >= expected) break;
+  }
+  return NavigationRoutePlan(stops: stops, currentStep: step);
 }
 
 /// Parses a `nav:route:<index>:<lat>,<lon>,<name>` plan list entry.
