@@ -334,7 +334,7 @@ class _Harness {
 }
 
 Future<void> _flush() => Future<void>.delayed(Duration.zero);
-void _firmware(_Repository repo, [String version = '1.2-ls']) =>
+void _firmware(_Repository repo, [String version = 'v2.13.0-ls']) =>
     repo['nrfVersion'].reads.single.complete(utf8.encode(version));
 void _wireExtended(_Repository repo) {
   final channel = _Characteristic();
