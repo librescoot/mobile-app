@@ -9,6 +9,8 @@ import 'package:scooter_flutter/scooter_flutter.dart';
 import 'telemetry_stale_reproduction_test.dart' show LateStream;
 
 class _Characteristic extends Fake implements BluetoothCharacteristic {
+  _Characteristic({List<int>? answer}) : _answer = answer;
+  final List<int>? _answer;
   final values = LateStream();
   final reads = <Completer<List<int>>>[];
   @override
@@ -21,6 +23,9 @@ class _Characteristic extends Fake implements BluetoothCharacteristic {
       true;
   @override
   Future<List<int>> read({int timeout = 15}) {
+    // Some characteristics answer straight away; the rest are completed by the
+    // test through [reads] so it can control the ordering.
+    if (_answer != null) return Future.value(_answer);
     final gate = Completer<List<int>>();
     reads.add(gate);
     return gate.future;
@@ -116,7 +121,8 @@ class _Bluetooth extends Fake implements FlutterBluePlusMockable {
 }
 
 class _Repository extends CharacteristicRepository {
-  _Repository(super.scooter, {bool optional = true}) {
+  _Repository(super.scooter,
+      {bool optional = true, String? imxVersion = 'v1.15.0'}) {
     primarySOCCharacteristic = chars['primarySOC'] = _Characteristic();
     primaryCyclesCharacteristic = chars['primaryCycles'] = _Characteristic();
     secondarySOCCharacteristic = chars['secondarySOC'] = _Characteristic();
@@ -133,6 +139,10 @@ class _Repository extends CharacteristicRepository {
     seatCharacteristic = chars['seat'] = _Characteristic();
     handlebarCharacteristic = chars['handlebar'] = _Characteristic();
     nrfVersionCharacteristic = chars['nrfVersion'] = _Characteristic();
+    imxVersionCharacteristic = imxVersion == null
+        ? null
+        : (chars['imxVersion'] =
+            _Characteristic(answer: utf8.encode(imxVersion)));
     odometerCharacteristic = chars['odometer'] = _Characteristic();
     powerStateCharacteristic =
         optional ? (chars['powerState'] = _Characteristic()) : null;
@@ -236,6 +246,7 @@ class _Harness {
   _Harness(
       {bool optional = true,
       bool defaultQueries = false,
+      String? imxVersion = 'v1.15.0',
       Set<String> groups = const {'pm', 'config', 'ble', 'alarm'},
       Future<Set<String>> Function(String)? caps,
       Future<String?> Function(String)? setting,
@@ -292,7 +303,8 @@ class _Harness {
           return device;
         },
         repositoryFactory: (device) {
-          final repo = _Repository(device, optional: optional);
+          final repo =
+              _Repository(device, optional: optional, imxVersion: imxVersion);
           repositories.add(repo);
           return repo;
         });
@@ -328,7 +340,9 @@ List<bool?> _caps(FirmwareIdentity identity) => [
       identity.supportsApnConfig,
       identity.supportsBondForget,
       identity.supportsBatteryKeepActive,
-      identity.supportsAlarmControl
+      identity.supportsAlarmControl,
+      identity.supportsServiceMode,
+      identity.supportsNavigation,
     ];
 const _queryOrder = [
   'cap:ext',
@@ -589,7 +603,8 @@ void main() {
     expect(h.telemetry.vehicle.alarmWakeSources, isNull);
     expect(h.telemetry.identity.nrfVersion, isNull);
     expect(h.telemetry.identity.isLibrescoot, true);
-    expect(_caps(h.telemetry.identity), [true, null, false, null, null, null]);
+    expect(_caps(h.telemetry.identity),
+        [true, null, false, null, null, null, null, null]);
   });
 
   test(
@@ -601,8 +616,12 @@ void main() {
     _firmware(r);
     await _flush();
     expect(h.queries, _queryOrder);
-    expect(_caps(h.telemetry.identity), List.filled(6, true));
-    expect(h.effects.trace.take(3), ['cache:A', 'firmware:A:true', 'notify']);
+    expect(_caps(h.telemetry.identity),
+        [true, true, true, true, true, true, false, false]);
+    // The identity verdict is dispatchable before anything probes for it, and
+    // the UI is notified once the first probe step publishes.
+    expect(h.effects.trace.take(2), ['cache:A', 'firmware:A:true']);
+    expect(h.effects.trace, contains('notify'));
     expect(h.effects.patches.length, 7);
     expect(h.effects.patches[0].$2.isLibrescoot, true);
     expect(h.effects.patches[1].$2.supportsHibernateFor, true);
@@ -723,8 +742,84 @@ void main() {
     _firmware(r, 'stock');
     await _flush();
     expect(h.queries, isEmpty);
-    expect(_caps(h.telemetry.identity), List.filled(6, false));
-    expect(h.effects.patches.single.$2.isLibrescoot, false);
+    expect(_caps(h.telemetry.identity), List.filled(8, false));
+    // The nRF verdict, then the stale capabilities this scooter may have
+    // cached from a librescoot session of its own.
+    expect(h.effects.patches.first.$2.isLibrescoot, false);
+    expect(h.effects.patches.last.$2.supportsAlarmControl, false);
+  });
+
+  test('a stock system behind a librescoot nRF clears the capabilities',
+      () async {
+    // The nRF is a librescoot build, and stays one after a stock image is
+    // flashed; stock firmware never answers the version query.
+    final h = _Harness(imxVersion: '');
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    h.telemetry.identity
+      ..supportsAlarmControl = true
+      ..supportsApnConfig = true
+      ..supportsTripCounter = true;
+    _firmware(r);
+    await _flush();
+
+    expect(_caps(h.telemetry.identity), List.filled(8, false));
+    expect(h.queries, isEmpty,
+        reason: 'a stock system is not probed for librescoot services');
+    expect(h.telemetry.identity.isLibrescoot, false);
+  });
+
+  test('a librescoot system behind the nRF is probed as usual', () async {
+    // MDB versions are tags or nightly/build stamps, never suffixed with -ls;
+    // only the nRF build carries that suffix.
+    final h = _Harness(imxVersion: 'v1.15.0+20240809183558');
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _firmware(r);
+    await _flush();
+
+    expect(h.queries, _queryOrder);
+    expect(h.telemetry.identity.supportsHibernateFor, true);
+    expect(h.telemetry.identity.isLibrescoot, true);
+  });
+
+  test('a system that answers without a version is stock', () async {
+    final h = _Harness(imxVersion: '');
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _firmware(r);
+    await _flush();
+
+    expect(h.queries, isEmpty);
+    expect(h.telemetry.identity.isLibrescoot, false);
+  });
+
+  test('a channel that stops answering clears the cached capabilities',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    // Everything the last nightly session cached, as if the scooter still ran
+    // librescoot: the probe must not leave these standing when nothing answers.
+    h.telemetry.identity
+      ..supportsHibernateFor = true
+      ..supportsScheduledHibernation = true
+      ..supportsApnConfig = true
+      ..supportsAlarmControl = true
+      ..supportsTripCounter = true
+      ..supportsBatteryKeepActive = true;
+    r.noteSilentExtendedCommand();
+    r.noteSilentExtendedCommand();
+
+    _firmware(r);
+    await _flush();
+
+    expect(_caps(h.telemetry.identity), List.filled(8, false));
+    expect(h.queries, isEmpty, reason: 'a dead channel is not probed');
+    final patch = h.effects.patches.last.$2;
+    expect(patch.supportsAlarmControl, false);
+    expect(patch.supportsApnConfig, false);
+    expect(patch.supportsTripCounter, false);
   });
 
   test('queued capability probe cannot write after Service Changed rebuild',
@@ -760,7 +855,7 @@ void main() {
     final r = await h.connect('A');
     _firmware(r);
     await _flush();
-    expect(_caps(h.telemetry.identity), List.filled(6, false));
+    expect(_caps(h.telemetry.identity), List.filled(8, false));
     expect(h.effects.patches.length, 7);
   });
 
@@ -777,7 +872,7 @@ void main() {
     _firmware(r);
     await _flush();
     expect(h.queries, _queryOrder);
-    expect(_caps(h.telemetry.identity), List.filled(6, false));
+    expect(_caps(h.telemetry.identity), List.filled(8, false));
     expect(h.effects.patches.map((p) => p.$2.supportsHibernateFor).nonNulls,
         [false]);
     expect(
@@ -816,7 +911,7 @@ void main() {
       expect(calls, position + 1);
       expect(h.effects.trace, isEmpty);
       expect(h.effects.patches.length, patches);
-      expect(_caps(h.telemetry.identity), List.filled(6, null));
+      expect(_caps(h.telemetry.identity), List.filled(8, null));
     });
   }
 
@@ -889,7 +984,8 @@ void main() {
       'get:pm.scheduled-hibernate-enabled',
       'get:scooter.battery-keep-active-on-seatbox-open'
     ]);
-    expect(_caps(h.telemetry.identity), List.filled(6, true));
+    expect(_caps(h.telemetry.identity),
+        [true, true, true, true, true, true, false, false]);
     expect(extended.responses.hasListener, false);
   });
 

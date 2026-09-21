@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:logging/logging.dart';
 import 'package:scooter_core/scooter_core.dart';
 import 'package:scooter_core/telemetry.dart';
 import '../ble/trip_commands.dart' as trip;
@@ -51,6 +52,8 @@ class ScooterTelemetry {
         _capabilityGroups =
             capabilityGroups ?? queries.discoverLsCapabilityGroupsCommand,
         _settingWrite = settingWrite ?? queries.setLsSettingCommand;
+
+  final _log = Logger('ScooterTelemetry');
 
   final ScooterTelemetryEffects effects;
   final BatteryState battery = BatteryState();
@@ -365,25 +368,82 @@ class ScooterTelemetry {
     identity.wireOdometer(repository,
         isCurrent: current, onUpdate: () => _notify(connection));
     identity.wireNrfVersion(repository, isCurrent: current, onUpdate: () {
-      cache(TelemetryCachePatch(isLibrescoot: identity.isLibrescoot));
       if (!current()) return;
-      effects.firmwareIdentified(connection, identity.snapshot);
-      if (!current()) return;
-      if (identity.isLibrescoot == true) {
-        unawaited(_probeLsCapabilities(connection, repository));
-      } else {
-        identity.supportsHibernateFor = false;
-        identity.supportsScheduledHibernation = false;
-        identity.supportsApnConfig = false;
-        identity.supportsBondForget = false;
-        identity.supportsBatteryKeepActive = false;
-        identity.supportsAlarmControl = false;
-        identity.supportsTripCounter = false;
-        identity.supportsTripExpunge = false;
-      }
-      identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repository);
-      _notify(connection);
+      // Nothing that depends on the librescoot verdict may start until the
+      // system behind the nRF has had its say, or a stock system gets probed
+      // for services it does not have.
+      unawaited(_identifySystem(connection, repository));
     });
+  }
+
+  /// Settles what this scooter is, then probes accordingly.
+  ///
+  /// The nRF reports its own build, and flashing a stock image does not
+  /// downgrade the nRF: a librescoot nRF over a stock system still says
+  /// `-ls` while nothing behind it answers. The system's own version, which
+  /// the nRF only fills in from the iMX over usock, is one characteristic
+  /// read, so ask for it before believing the nRF build string.
+  Future<void> _identifySystem(
+      SessionConnection connection, CharacteristicRepository repository) async {
+    bool current() =>
+        _current(connection) && identical(_repository, repository);
+    if (identity.isLibrescoot == true) {
+      await identity.refreshImxVersion(repository, isCurrent: current);
+      if (!current()) return;
+      final imxVersion = identity.imxVersion;
+      if (imxVersion != null) {
+        // Only a librescoot system answers with a version over usock.
+        _log.info('nRF ${identity.nrfVersion} runs a $imxVersion system');
+      } else if (repository.imxVersionCharacteristic != null) {
+        _log.info(
+            'nRF ${identity.nrfVersion} reported no system version, so this is not a librescoot scooter');
+        // Everything gated on librescoot follows the system, not the nRF.
+        identity.isLibrescoot = false;
+      }
+      // A firmware without the characteristic is expected to stay silent, so
+      // the nRF verdict stands.
+    }
+    effects.cachePatch(connection.id,
+        TelemetryCachePatch(isLibrescoot: identity.isLibrescoot));
+    if (!current()) return;
+    effects.firmwareIdentified(connection, identity.snapshot);
+    if (!current()) return;
+    if (identity.isLibrescoot != true) {
+      _clearLsCapabilities(connection);
+    } else {
+      await _probeLsCapabilities(connection, repository);
+      if (!current()) return;
+    }
+    identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repository);
+    _notify(connection);
+  }
+
+  /// Nothing on this scooter answered, so nothing is supported. Without this
+  /// the flags keep whatever the last successful probe cached and the settings
+  /// screen goes on offering controls the scooter cannot honour.
+  void _clearLsCapabilities(SessionConnection connection) {
+    identity.supportsHibernateFor = false;
+    identity.supportsScheduledHibernation = false;
+    identity.supportsApnConfig = false;
+    identity.supportsBondForget = false;
+    identity.supportsBatteryKeepActive = false;
+    identity.supportsAlarmControl = false;
+    identity.supportsTripCounter = false;
+    identity.supportsTripExpunge = false;
+    identity.supportsServiceMode = false;
+    identity.supportsNavigation = false;
+    identity.supportsClockSync = false;
+    identity.supportsUsbMode = false;
+    effects.cachePatch(
+        connection.id,
+        const TelemetryCachePatch(
+            supportsHibernateFor: false,
+            supportsScheduledHibernation: false,
+            supportsApnConfig: false,
+            supportsAlarmControl: false,
+            supportsTripCounter: false,
+            supportsTripExpunge: false,
+            supportsBatteryKeepActive: false));
   }
 
   Future<void> _probeLsCapabilities(
@@ -391,6 +451,11 @@ class ScooterTelemetry {
     final scooter = connection.device;
     bool current() =>
         _current(connection) && identical(_repository, repository);
+    if (repository.gattTableMismatch ||
+        repository.extendedChannelUnresponsive) {
+      _clearLsCapabilities(connection);
+      return;
+    }
     queries.LsCapabilityGroups groups;
     try {
       groups = await _capabilityGroups(scooter, repository, isCurrent: current);
@@ -484,6 +549,13 @@ class ScooterTelemetry {
     final supportsAlarmControl = groups.contains('alarm');
     if (!current()) return;
     identity.supportsAlarmControl = supportsAlarmControl;
+    // Both are advertised by the firmware in cap:ext, so the app can gate the
+    // controls on the answer instead of assuming every librescoot scooter
+    // still has the services behind them.
+    identity.supportsServiceMode = groups.contains('service-mode');
+    identity.supportsNavigation = groups.contains('nav');
+    identity.supportsClockSync = groups.contains('time');
+    identity.supportsUsbMode = groups.contains('usb');
     final supportsTripCounter = groups.contains('trip');
     identity.supportsTripCounter = supportsTripCounter;
     effects.cachePatch(
@@ -536,10 +608,15 @@ class ScooterTelemetry {
       SessionConnection connection, CharacteristicRepository repo) {
     if (!_current(connection) || !identical(_repository, repo)) return false;
     identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repo);
+    // Mid-probe silence means the answers still to come will never arrive, so
+    // drop the capabilities rather than leaving the cached ones standing.
+    final usable =
+        !(repo.gattTableMismatch || repo.extendedChannelUnresponsive);
+    if (!usable) _clearLsCapabilities(connection);
     _notify(connection);
     // A listener can invalidate the connection while being notified.
     if (!_current(connection) || !identical(_repository, repo)) return false;
-    return !(repo.gattTableMismatch || repo.extendedChannelSilent);
+    return usable;
   }
 
   /// Whether this connection shows a GATT table that cannot be the scooter's

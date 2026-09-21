@@ -26,6 +26,11 @@ class FirmwareIdentity {
   bool? isLibrescoot;
   int? odometerMeters;
 
+  /// Software version the system behind the link reports, if it reports one.
+  /// Not cached: it belongs to the connection, and a stale value would be worse
+  /// than none.
+  String? imxVersion;
+
   // librescoot capability flags, probed after each connection.
   // null = unknown / not yet probed.
   bool? supportsHibernateFor;
@@ -36,6 +41,14 @@ class FirmwareIdentity {
   bool? supportsAlarmControl;
   bool? supportsTripCounter;
   bool? supportsTripExpunge;
+
+  /// Session-only, like [supportsBondForget]: both answer a question the
+  /// firmware reports in `cap:ext` either way, so caching them would go stale
+  /// the moment the scooter's other components change.
+  bool? supportsServiceMode;
+  bool? supportsNavigation;
+  bool? supportsClockSync;
+  bool? supportsUsbMode;
 
   /// True when this connection shows a GATT table that cannot be the scooter's
   /// current one, i.e. the phone's cached table predates its firmware.
@@ -50,6 +63,10 @@ class FirmwareIdentity {
     supportsAlarmControl = null;
     supportsTripCounter = null;
     supportsTripExpunge = null;
+    supportsServiceMode = null;
+    supportsNavigation = null;
+    supportsClockSync = null;
+    supportsUsbMode = null;
     bluetoothTableOutOfDate = null;
   }
 
@@ -76,6 +93,20 @@ class FirmwareIdentity {
       if (isCurrent?.call() == false) return;
       odometerMeters = meters;
       onUpdate();
+    });
+  }
+
+  /// One characteristic read. Failure or an empty value leaves [imxVersion]
+  /// null, which the caller reads as "no answer" rather than "stock".
+  Future<void> refreshImxVersion(
+    CharacteristicRepository chars, {
+    bool Function()? isCurrent,
+  }) async {
+    final characteristic = chars.imxVersionCharacteristic;
+    if (characteristic == null) return;
+    await readAnonImxVersion(characteristic, (version) {
+      if (isCurrent?.call() == false) return;
+      imxVersion = version;
     });
   }
 
