@@ -602,7 +602,7 @@
     "librescoot_notice_feature_lock": "Lenkerschloss ohne Zeitdruck",
     "librescoot_notice_feature_clock": "Eine funktionierende Uhr",
     "librescoot_notice_feature_hopon": "Hop-on / Hop-off für kurze Zwischenstopps",
-    "librescoot_notice_feature_trip": "Anzeige von Tripzähler, Motorleistung, Reichweite, Temperaturanzeige und Frostwarnung",
+    "librescoot_notice_feature_trip": "Anzeige von Tripzähler, Motorleistung, Reichweite, Temperatur und Frostwarnung",
     "librescoot_notice_feature_extras": "Warnblinker, Dual-Akku-Betrieb, WireGuard-VPN und eine lsc-CLI",
     "librescoot_notice_learn_more": "Mehr erfahren",
     "librescoot_notice_got_it": "Verstanden",
