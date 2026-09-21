@@ -61,6 +61,11 @@ class CharacteristicRepository {
   int silentExtendedCommands = 0;
   bool extendedResponseSeen = false;
 
+  /// Silent extended commands since the last answer, if any. Unlike
+  /// [extendedChannelSilent] this is not a verdict about the phone's table, so
+  /// it is safe to use it to stop waiting on a channel mid-session.
+  int consecutiveSilentCommands = 0;
+
   CharacteristicRepository(this.scooter);
 
   Future<void> findAll({bool additionalLibrescootFeatures = false}) async {
@@ -217,6 +222,10 @@ class CharacteristicRepository {
   bool get extendedChannelSilent =>
       silentExtendedCommands >= 2 && !extendedResponseSeen;
 
+  /// Whether recent extended commands went unanswered, whether or not the
+  /// channel answered at some earlier point.
+  bool get extendedChannelUnresponsive => consecutiveSilentCommands >= 2;
+
   bool anyAreNull() {
     return stateCharacteristic == null ||
         powerStateCharacteristic == null ||
@@ -278,7 +287,8 @@ class CharacteristicRepository {
       throw StateError('the state characteristic is missing, cannot pair');
     }
     if (isCurrent != null && !isCurrent()) return;
-    log.info('Waiting for the system pairing prompt on the state characteristic');
+    log.info(
+        'Waiting for the system pairing prompt on the state characteristic');
     await characteristic.read(timeout: timeout.inSeconds);
     if (isCurrent != null && !isCurrent()) return;
     log.info('Pairing confirmed');
@@ -301,9 +311,15 @@ class CharacteristicRepository {
     gattTableMismatch = true;
   }
 
-  void noteSilentExtendedCommand() => silentExtendedCommands++;
+  void noteSilentExtendedCommand() {
+    silentExtendedCommands++;
+    consecutiveSilentCommands++;
+  }
 
-  void noteExtendedResponse() => extendedResponseSeen = true;
+  void noteExtendedResponse() {
+    extendedResponseSeen = true;
+    consecutiveSilentCommands = 0;
+  }
 
   BluetoothCharacteristic? _expect(
       String label, String serviceUuid, String characteristicUuid) {

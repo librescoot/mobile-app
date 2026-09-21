@@ -64,6 +64,10 @@ class _Repository extends Fake implements CharacteristicRepository {
   @override
   bool gattTableMismatch = false;
   @override
+  bool extendedChannelUnresponsive = false;
+  @override
+  bool extendedChannelSilent = false;
+  @override
   void noteStaleGattTable(String detail) {}
 }
 

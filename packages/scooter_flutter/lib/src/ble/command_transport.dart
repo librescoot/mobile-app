@@ -161,6 +161,13 @@ Future<String?> _sendLsExtendedCommandUnguarded(
   if (repo.gattTableMismatch) {
     throw "Bluetooth services on this phone are out of date, forget the scooter and pair again";
   }
+  // Nothing is answering on this channel, so report the verdict a timeout would
+  // have produced without the wait. Every screen that reads settings otherwise
+  // waits out five seconds per field, one after another.
+  if (repo.extendedChannelUnresponsive) {
+    _log.info('Extended command skipped, channel has not answered');
+    return null;
+  }
 
   _log.info(
       'Extended command acquired channel; notifications=${resp.isNotifying}');
