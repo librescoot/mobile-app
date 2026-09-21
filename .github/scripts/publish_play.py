@@ -38,6 +38,12 @@ def main():
     parser.add_argument("--name", required=True)
     parser.add_argument("--version-code", required=True, type=int)
     parser.add_argument(
+        "--status",
+        choices=("completed", "draft"),
+        default="completed",
+        help="release status; draft only makes sense on production",
+    )
+    parser.add_argument(
         "--notes-file",
         help="single-language release notes for every locale",
     )
@@ -55,6 +61,8 @@ def main():
         help="version name selecting <locale>/changelogs/<version>.txt under --notes-dir",
     )
     args = parser.parse_args()
+    if args.status == "draft" and args.track != "production":
+        parser.error("--status draft is only valid on the production track")
 
     if bool(args.notes_file) == bool(args.notes_dir):
         parser.error("pass either --notes-file or --notes-dir/--notes-version")
@@ -98,7 +106,7 @@ def main():
         "releases": [
             {
                 "name": args.name,
-                "status": "completed",
+                "status": args.status,
                 "versionCodes": [str(args.version_code)],
                 "releaseNotes": release_notes,
             }

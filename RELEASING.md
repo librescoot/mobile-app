@@ -32,10 +32,12 @@ stops before building. That check exists because a mislabelled build in
 TestFlight cannot be withdrawn, only superseded.
 
 A hyphen in the tag marks it as a GitHub prerelease. The workflow resolves an
-intended Play track (`alpha` for prereleases, `beta` otherwise), which can be
-overridden for a manual dispatch. Alpha is the closed-testing track holding
-the external testers; every push to main still reaches internal through
-nightly. It verifies the uploaded AAB's version code
+intended Play track (`alpha` for prereleases, a `production` draft otherwise),
+which can be overridden for a manual dispatch. Alpha is the closed-testing
+track holding the external testers; every push to main still reaches internal
+through nightly. Production uploads always land as drafts: start the rollout
+from the Play console when the release should reach users. It verifies the
+uploaded AAB's version code
 and SHA-256 before committing the Play edit, then checks the committed track and
 bundle again. Every configured iOS build goes to TestFlight, since TestFlight
 has no track split.

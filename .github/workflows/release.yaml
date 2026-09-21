@@ -6,8 +6,9 @@ name: Release
 # service-account key is stored or consumed.
 #
 # A tag carrying a hyphen is marked as a GitHub prerelease. Prereleases go to
-# the alpha track (external closed testing); releases without a suffix go to
-# beta unless manually set.
+# the alpha track (external closed testing); releases without a suffix stage
+# a production draft whose rollout starts from the Play console. Any
+# production upload, dispatch included, lands as a draft.
 
 permissions:
   contents: write
@@ -33,6 +34,7 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       prerelease: ${{ steps.v.outputs.prerelease }}
       play_track: ${{ steps.v.outputs.play_track }}
+      play_status: ${{ steps.v.outputs.play_status }}
       has_ios: ${{ steps.ios.outputs.has_ios }}
     steps:
       - uses: actions/checkout@v5
@@ -57,13 +59,16 @@ jobs:
 
           TRACK="${{ inputs.play_track }}"
           if [ -z "$TRACK" ]; then
-            [ "$PRE" = "true" ] && TRACK=alpha || TRACK=beta
+            [ "$PRE" = "true" ] && TRACK=alpha || TRACK=production
           fi
+          # Production never goes live from CI; a human starts the rollout.
+          [ "$TRACK" = "production" ] && STATUS=draft || STATUS=completed
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRE" >> "$GITHUB_OUTPUT"
           echo "play_track=$TRACK" >> "$GITHUB_OUTPUT"
-          echo "Releasing $VERSION (prerelease=$PRE) to Play track $TRACK"
+          echo "play_status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "Releasing $VERSION (prerelease=$PRE) to Play track $TRACK ($STATUS)"
 
       - name: Refuse to release a version pubspec disagrees with
         if: github.event_name == 'push'
@@ -166,7 +171,8 @@ jobs:
             --name "${{ needs.meta.outputs.version }}" \
             --version-code "${{ needs.android.outputs.version_code }}" \
             --notes-dir distribution/play/metadata/android \
-            --notes-version "${{ needs.meta.outputs.version }}"
+            --notes-version "${{ needs.meta.outputs.version }}" \
+            --status "${{ needs.meta.outputs.play_status }}"
 
   ios:
     name: iOS
