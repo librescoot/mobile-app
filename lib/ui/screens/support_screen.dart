@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
@@ -15,6 +16,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:unustasis/domain/log_helper.dart';
 import 'package:unustasis/domain/nav_destination.dart';
 import 'package:unustasis/ui/widgets/header.dart';
+import 'package:unustasis/ui/dialogs/librescoot_notice.dart';
 import 'package:unustasis/ui/screens/navigation_screen.dart';
 
 const _handbookUrl = 'https://librescoot.org/handbook/';
@@ -155,6 +157,41 @@ class _SupportScreenState extends State<SupportScreen> {
               subtitle: FlutterI18n.translate(context, 'support_about_description'),
             ),
             _tileGroup([
+              ListTile(
+                leading: const Icon(Icons.rocket_launch_outlined),
+                title: Text(
+                  FlutterI18n.translate(context, 'librescoot_notice_menu_title'),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18),
+                ),
+                subtitle: Text(
+                  FlutterI18n.translate(context, 'librescoot_notice_menu_subtitle'),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                onTap: () => showLibrescootNotice(context),
+              ),
+              if (kDebugMode || kProfileMode)
+                ListTile(
+                  leading: const Icon(Icons.bug_report_outlined),
+                  title: Text(
+                    FlutterI18n.translate(context, 'librescoot_notice_debug_title'),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18),
+                  ),
+                  subtitle: Text(
+                    FlutterI18n.translate(context, 'librescoot_notice_debug_subtitle'),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                  onTap: () async {
+                    await LibrescootNotice.reset();
+                    if (!context.mounted) return;
+                    await showLibrescootNotice(context);
+                  },
+                ),
               _linkTile(
                 icon: Icons.public_rounded,
                 title: FlutterI18n.translate(context, 'support_website'),

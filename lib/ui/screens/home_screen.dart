@@ -44,6 +44,7 @@ import 'package:unustasis/ui/widgets/clouds.dart';
 import 'package:unustasis/ui/widgets/grassscape.dart';
 import 'package:unustasis/ui/screens/navigation_screen.dart';
 import 'package:unustasis/ui/screens/trip_counter_screen.dart';
+import 'package:unustasis/ui/dialogs/librescoot_notice.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool? forceOpen;
@@ -60,11 +61,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _lockGuidanceBackgrounded = false;
   ScooterService? _warningService;
   StreamSubscription<actions.HandlebarWarning>? _warningSubscription;
+  ScooterService? _librescootService;
+  bool _librescootNoticeHandled = false;
+  bool _librescootNoticeRunning = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final service = context.read<ScooterService>();
+    if (!identical(service, _librescootService)) {
+      _librescootService?.removeListener(_onScooterChanged);
+      _librescootService = service;
+      service.addListener(_onScooterChanged);
+    }
     if (identical(service, _warningService)) return;
     _warningSubscription?.cancel();
     _dismissLockGuidance();
@@ -122,6 +131,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _dismissLockGuidance();
     _warningSubscription?.cancel();
+    _librescootService?.removeListener(_onScooterChanged);
     // The tree going away is the last chance to persist coalesced telemetry.
     unawaited(SavedScooter.flushPendingWrites());
     super.dispose();
@@ -178,6 +188,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     //   await prefs.setBool("widgetOnboarded", true);
     // }
     if (mounted) await showServerNotifications(context);
+  }
+
+  void _onScooterChanged() {
+    unawaited(_maybeShowLibrescootNotice());
+  }
+
+  Future<void> _maybeShowLibrescootNotice() async {
+    if (_librescootNoticeHandled || _librescootNoticeRunning || !mounted) return;
+    _librescootNoticeRunning = true;
+    try {
+      final service = context.read<ScooterService>();
+      final verdict = service.identity.isLibrescoot;
+      if (verdict == null) return;
+      if (verdict == true) {
+        // The rider already runs Librescoot; never pitch it at them.
+        _librescootNoticeHandled = true;
+        await LibrescootNotice.markSeen();
+        return;
+      }
+      if (await LibrescootNotice.alreadySeen()) {
+        _librescootNoticeHandled = true;
+        return;
+      }
+      if (!LibrescootNotice.shouldShow(
+        connected: service.connected,
+        isLibrescoot: verdict,
+        systemCanAnswer: service.vehicle.systemCanAnswer,
+        alreadySeen: false,
+      )) {
+        return;
+      }
+      if (!mounted) return;
+      _librescootNoticeHandled = true;
+      await LibrescootNotice.markSeen();
+      if (!mounted) return;
+      await showLibrescootNotice(context);
+    } finally {
+      _librescootNoticeRunning = false;
+    }
   }
 
   void _flashHazards(int times) async {

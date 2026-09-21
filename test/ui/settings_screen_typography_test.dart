@@ -21,6 +21,7 @@ import 'package:unustasis/ui/widgets/header.dart';
 import 'package:unustasis/ui/widgets/settings_dropdown_tile.dart';
 
 import 'settings_help_row_theme_test.dart' show renderedStyle, rowTestTheme;
+import '../support/inline_asset_bundle.dart';
 
 final class _Preferences extends SharedPreferencesAsyncPlatform {
   final values = <String, bool>{};
@@ -209,7 +210,8 @@ Widget _screen(_Service service, {String locale = 'en', double scale = 1, Bright
               basePath: 'assets/i18n',
               fallbackFile: 'en',
               forcedLocale: Locale(locale),
-            ))
+            )
+                  ..assetBundle = InlineStringBundle())
           ],
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),

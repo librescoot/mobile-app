@@ -9,6 +9,7 @@ import 'package:scooter_core/update_planner.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
 import '../../packages/scooter_flutter/test/update_controller_test.dart' as shared;
+import '../support/inline_asset_bundle.dart';
 
 class ScreenService extends ChangeNotifier implements ScooterService {
   ScreenService(this.updateController);
@@ -27,7 +28,8 @@ Widget screen(ScreenService service, {String locale = 'en'}) => ChangeNotifierPr
       child: MaterialApp(localizationsDelegates: [
         FlutterI18nDelegate(
             translationLoader:
-                FileTranslationLoader(fallbackFile: 'en', basePath: 'assets/i18n', forcedLocale: Locale(locale)))
+                FileTranslationLoader(fallbackFile: 'en', basePath: 'assets/i18n', forcedLocale: Locale(locale))
+                  ..assetBundle = InlineStringBundle())
       ], home: const LsOtaScreen()),
     );
 void main() {
