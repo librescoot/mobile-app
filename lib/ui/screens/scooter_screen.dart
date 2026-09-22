@@ -849,67 +849,66 @@ class _SavedScooterCardBody extends StatelessWidget {
               secondarySOC: savedScooter.lastSecondarySOC,
               dataIsOld: savedScooter.dataIsOld,
             ),
-            ...[
-              const SizedBox(height: 24),
-              Divider(
-                indent: 16,
-                endIndent: 16,
-                height: 0,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (savedScooter.lastLocation != null) ...[
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            MapsLauncher.launchCoordinates(
-                              savedScooter.lastLocation!.latitude,
-                              savedScooter.lastLocation!.longitude,
-                            );
-                          },
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.place_outlined, size: 16, color: Theme.of(context).colorScheme.primary),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: FutureBuilder<String?>(
-                                  future: address(),
-                                  builder: (context, snapshot) => Text(
-                                    snapshot.hasData
-                                        ? snapshot.data!
-                                        : FlutterI18n.translate(context, "stats_no_location"),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Theme.of(context).colorScheme.primary,
-                                        ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                    ],
-                    Icon(Icons.schedule_outlined,
-                        size: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
-                    const SizedBox(width: 4),
-                    Text(
-                      _lastSeenText(context, savedScooter),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-                          ),
-                    ),
-                  ],
+            const SizedBox(height: 24),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: colors.onSurface.withValues(alpha: 0.1)),
                 ),
               ),
-            ],
+              child: Row(
+                children: [
+                  if (savedScooter.lastLocation != null)
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          MapsLauncher.launchCoordinates(
+                            savedScooter.lastLocation!.latitude,
+                            savedScooter.lastLocation!.longitude,
+                          );
+                        },
+                        child: Row(
+                          children: [
+                            Icon(Icons.place_outlined, size: 16, color: colors.primary),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: FutureBuilder<String?>(
+                                future: address(),
+                                builder: (context, snapshot) => Text(
+                                  snapshot.hasData
+                                      ? snapshot.data!
+                                      : FlutterI18n.translate(context, "stats_no_location"),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.primary),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    const Spacer(),
+                  if (savedScooter.lastLocation != null) const SizedBox(width: 16),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.schedule_outlined, size: 16, color: colors.onSurface.withValues(alpha: 0.5)),
+                      const SizedBox(width: 5),
+                      Text(
+                        _lastSeenText(context, savedScooter),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colors.onSurface.withValues(alpha: 0.5),
+                            ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -1076,9 +1075,8 @@ class _SavedScooterListItemBody extends StatelessWidget {
           color: selected ? colors.surfaceContainerHigh : colors.surfaceContainer,
           border: selected ? Border.all(color: colors.primary.withValues(alpha: 0.3)) : null,
         ),
-        child: Column(
+        child: Stack(
           children: [
-            // First row: Scooter image and name
             Row(
               children: [
                 // Scooter image - half the current size with connection indicator
@@ -1087,10 +1085,10 @@ class _SavedScooterListItemBody extends StatelessWidget {
                   child: GestureDetector(
                     onLongPress: () => _changeColor(context),
                     child: SizedBox(
-                      width: MediaQuery.of(context).size.width * 0.25,
+                      width: MediaQuery.of(context).size.width * 0.22,
                       child: ScooterSideVisual(
                         imagePath: "images/scooter/side_${savedScooter.color}.webp",
-                        height: MediaQuery.of(context).size.width * 0.16,
+                        height: MediaQuery.of(context).size.width * 0.145,
                         backdropColor: savedScooter.isLibrescoot == true ? _librescootBackdropColor : null,
                       ),
                     ),
@@ -1106,17 +1104,11 @@ class _SavedScooterListItemBody extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                _ScooterStatusIndicator(status, compact: true),
-                                const SizedBox(width: 2),
-                                Flexible(
-                                  child: Text(
-                                    savedScooter.name,
-                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(height: 1.1),
-                                  ),
-                                ),
-                              ],
+                            Text(
+                              savedScooter.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(height: 1.1),
                             ),
                             if (connecting)
                               Padding(
@@ -1212,6 +1204,14 @@ class _SavedScooterListItemBody extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              child: SizedBox.square(
+                dimension: 44,
+                child: Center(child: _ScooterStatusIndicator(status, compact: true)),
+              ),
             ),
           ],
         ),
