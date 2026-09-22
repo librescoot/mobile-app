@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:unustasis/ui/screens/home_screen.dart';
 import 'package:unustasis/ui/presentation/relative_time.dart';
+import 'package:unustasis/ui/theme/librescoot_theme.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/domain/scooter_state.dart';
@@ -26,10 +27,9 @@ const _librescootBackdropColor = Color(0xFF33474B);
 enum ScooterTileStatus { disconnected, outOfRange, nearbyManual, nearbyAuto, waiting, connecting, connected }
 
 class _ScooterStatusIndicator extends StatelessWidget {
-  const _ScooterStatusIndicator(this.status, {this.compact = false});
+  const _ScooterStatusIndicator(this.status);
 
   final ScooterTileStatus status;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -38,8 +38,8 @@ class _ScooterStatusIndicator extends StatelessWidget {
       ScooterTileStatus.connected => (
           FlutterI18n.translate(context, "state_name_unknown"),
           Container(
-            width: compact ? 10 : 14,
-            height: compact ? 10 : 14,
+            width: 14,
+            height: 14,
             decoration: BoxDecoration(
               color: Colors.green,
               shape: BoxShape.circle,
@@ -50,38 +50,36 @@ class _ScooterStatusIndicator extends StatelessWidget {
       ScooterTileStatus.connecting => (
           FlutterI18n.translate(context, "state_name_linking"),
           SizedBox.square(
-            dimension: compact ? 14 : 18,
-            child: CircularProgressIndicator(strokeWidth: compact ? 1.5 : 2, color: colors.tertiary),
+            dimension: 18,
+            child: CircularProgressIndicator(strokeWidth: 2, color: colors.tertiary),
           ),
         ),
       ScooterTileStatus.waiting => (
           FlutterI18n.translate(context, "stats_status_waiting"),
-          Icon(Icons.low_priority_outlined, size: compact ? 16 : 20, color: colors.tertiary),
+          Icon(Icons.low_priority_outlined, size: 20, color: colors.tertiary),
         ),
       ScooterTileStatus.nearbyManual => (
           FlutterI18n.translate(context, "stats_status_nearby_manual"),
-          Icon(Icons.radar_outlined, size: compact ? 16 : 20, color: colors.primary),
+          Icon(Icons.radar_outlined, size: 20, color: colors.primary),
         ),
       ScooterTileStatus.nearbyAuto => (
           FlutterI18n.translate(context, "stats_status_nearby_auto"),
-          Icon(Icons.sync, size: compact ? 16 : 20, color: colors.primary),
+          Icon(Icons.sync, size: 20, color: colors.primary),
         ),
       ScooterTileStatus.outOfRange => (
           FlutterI18n.translate(context, "stats_status_out_of_range"),
-          Icon(Icons.sensors_off_outlined,
-              size: compact ? 16 : 20, color: colors.onSurfaceVariant.withValues(alpha: 0.65)),
+          Icon(Icons.sensors_off_outlined, size: 20, color: colors.onSurfaceVariant.withValues(alpha: 0.65)),
         ),
       ScooterTileStatus.disconnected => (
           FlutterI18n.translate(context, "state_name_disconnected"),
-          Icon(Icons.radio_button_unchecked,
-              size: compact ? 13 : 16, color: colors.onSurfaceVariant.withValues(alpha: 0.65)),
+          Icon(Icons.radio_button_unchecked, size: 16, color: colors.onSurfaceVariant.withValues(alpha: 0.65)),
         ),
     };
     return Tooltip(
       message: label,
       child: Semantics(
         label: label,
-        child: SizedBox.square(dimension: compact ? 20 : 24, child: Center(child: indicator)),
+        child: SizedBox.square(dimension: 24, child: Center(child: indicator)),
       ),
     );
   }
@@ -102,7 +100,6 @@ class _ScooterActionsButton extends StatelessWidget {
     required this.onListChanged,
     required this.onRename,
     required this.onChangeColor,
-    this.compact = false,
   });
 
   final SavedScooter savedScooter;
@@ -112,7 +109,6 @@ class _ScooterActionsButton extends StatelessWidget {
   final void Function() onListChanged;
   final Future<void> Function() onRename;
   final Future<void> Function() onChangeColor;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -121,15 +117,15 @@ class _ScooterActionsButton extends StatelessWidget {
       dimension: 44,
       child: Center(
         child: SizedBox.square(
-          dimension: compact ? 36 : 44,
+          dimension: 44,
           child: IconButton.filledTonal(
             style: IconButton.styleFrom(
               backgroundColor: colors.surfaceContainerHighest,
               foregroundColor: colors.onSurfaceVariant,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(compact ? 10 : 12)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             tooltip: FlutterI18n.translate(context, "stats_scooter_actions"),
-            icon: Icon(Icons.more_horiz, size: compact ? 18 : 22),
+            icon: const Icon(Icons.more_horiz, size: 22),
             onPressed: () => showScooterActionsSheet(
               context,
               savedScooter,
@@ -721,6 +717,9 @@ class _SavedScooterCardBody extends StatelessWidget {
     final connecting = status == ScooterTileStatus.connecting;
     final liveOdometer = connected ? context.select<ScooterService, int?>((service) => service.odometerMeters) : null;
     final odometerMeters = liveOdometer ?? savedScooter.cachedOdometerMeters;
+    final liveIsLibrescoot =
+        connected && context.select<ScooterService, bool>((service) => service.identity.isLibrescoot == true);
+    final isLibrescoot = savedScooter.isLibrescoot == true || liveIsLibrescoot;
     final staleBluetooth = connected &&
         context.select<ScooterService, bool>((service) => service.identity.bluetoothTableOutOfDate == true);
     final colors = Theme.of(context).colorScheme;
@@ -764,7 +763,8 @@ class _SavedScooterCardBody extends StatelessWidget {
                             imagePath: "images/scooter/side_${forceHover ? 9 : savedScooter.color}.webp",
                             height: 160,
                             backdropDiameter: 264,
-                            backdropColor: savedScooter.isLibrescoot == true ? _librescootBackdropColor : null,
+                            backdropColor: isLibrescoot ? _librescootBackdropColor : null,
+                            backdropBorderColor: isLibrescoot ? LibrescootColors.accentBright : null,
                           ),
                         ),
                       ),
@@ -1027,6 +1027,9 @@ class _SavedScooterListItemBody extends StatelessWidget {
     final connecting = status == ScooterTileStatus.connecting;
     final liveOdometer = connected ? context.select<ScooterService, int?>((service) => service.odometerMeters) : null;
     final odometerMeters = liveOdometer ?? savedScooter.cachedOdometerMeters;
+    final liveIsLibrescoot =
+        connected && context.select<ScooterService, bool>((service) => service.identity.isLibrescoot == true);
+    final isLibrescoot = savedScooter.isLibrescoot == true || liveIsLibrescoot;
     final staleBluetooth = connected &&
         context.select<ScooterService, bool>((service) => service.identity.bluetoothTableOutOfDate == true);
     final colors = Theme.of(context).colorScheme;
@@ -1077,23 +1080,22 @@ class _SavedScooterListItemBody extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    // Scooter image - half the current size with connection indicator
                     Padding(
                       padding: const EdgeInsets.all(8),
                       child: GestureDetector(
                         onLongPress: () => _changeColor(context),
                         child: SizedBox(
-                          width: MediaQuery.of(context).size.width * 0.22,
+                          width: MediaQuery.of(context).size.width * 0.25,
                           child: ScooterSideVisual(
                             imagePath: "images/scooter/side_${savedScooter.color}.webp",
-                            height: MediaQuery.of(context).size.width * 0.145,
-                            backdropColor: savedScooter.isLibrescoot == true ? _librescootBackdropColor : null,
+                            height: MediaQuery.of(context).size.width * 0.16,
+                            backdropColor: isLibrescoot ? _librescootBackdropColor : null,
+                            backdropBorderColor: isLibrescoot ? LibrescootColors.accentBright : null,
                           ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Name, telemetry, and actions
                     Expanded(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1203,7 +1205,6 @@ class _SavedScooterListItemBody extends StatelessWidget {
                             onListChanged: onListChanged,
                             onRename: () => _rename(context),
                             onChangeColor: () => _changeColor(context),
-                            compact: true,
                           ),
                         ],
                       ),
@@ -1221,7 +1222,7 @@ class _SavedScooterListItemBody extends StatelessWidget {
               left: 0,
               child: SizedBox.square(
                 dimension: 44,
-                child: Center(child: _ScooterStatusIndicator(status, compact: true)),
+                child: Center(child: _ScooterStatusIndicator(status)),
               ),
             ),
           ],

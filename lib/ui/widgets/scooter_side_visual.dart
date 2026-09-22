@@ -15,22 +15,28 @@ class ScooterSideVisual extends StatelessWidget {
     required this.height,
     this.backdropDiameter,
     this.backdropColor,
+    this.backdropBorderColor,
+    this.backdropBorderWidth = 1.5,
   });
 
   final String imagePath;
   final double height;
   final double? backdropDiameter;
   final Color? backdropColor;
+  final Color? backdropBorderColor;
+  final double backdropBorderWidth;
 
   @override
   Widget build(BuildContext context) {
+    final showBackdrop =
+        Theme.of(context).brightness == Brightness.dark || backdropColor != null || backdropBorderColor != null;
     return SizedBox(
       height: height,
       child: Stack(
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
-          if (Theme.of(context).brightness == Brightness.dark)
+          if (showBackdrop)
             Container(
               key: const ValueKey('scooter-side-dark-backdrop'),
               width: backdropDiameter ?? height * 1.65,
@@ -38,6 +44,9 @@ class ScooterSideVisual extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: backdropColor ?? const Color(0xFF303437),
+                border: backdropBorderColor == null
+                    ? null
+                    : Border.all(color: backdropBorderColor!, width: backdropBorderWidth),
               ),
             ),
           Image.asset(

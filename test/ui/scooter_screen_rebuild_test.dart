@@ -10,13 +10,19 @@ import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/state/scooter_identity.dart';
 import 'package:unustasis/ui/screens/scooter_screen.dart';
+import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
 
 import '../support/persistence_fakes.dart';
 
 /// Counts how often the card reads a field, which is a proxy for how often the
 /// card rebuilt. Used to show that telemetry notifications no longer reach it.
 class _CountingScooter extends SavedScooter {
-  _CountingScooter({required super.id, required super.name});
+  _CountingScooter({
+    required super.id,
+    required super.name,
+    super.color,
+    super.isLibrescoot,
+  });
 
   int nameReads = 0;
 
@@ -170,6 +176,34 @@ void main() {
     expect(alpha.nameReads, alphaAfterSheet);
     expect(betaAfterSheet, greaterThanOrEqualTo(betaBefore));
     expect(alphaAfterSheet, greaterThanOrEqualTo(alphaBefore));
+  });
+
+  testWidgets('list keeps full-size artwork and marks cached or live Librescoot identity', (tester) async {
+    final live = _CountingScooter(id: 'A', name: 'Live', color: 1);
+    final cached = _CountingScooter(id: 'B', name: 'Cached', color: 2, isLibrescoot: true);
+    final stock = _CountingScooter(id: 'C', name: 'Stock', color: 3, isLibrescoot: false);
+    final service = _Service([live, cached, stock]);
+    await _mount(tester, service);
+
+    await tester.tap(find.byIcon(Icons.list));
+    await tester.pumpAndSettle();
+
+    final visuals = tester.widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual)).toList();
+    expect(visuals, hasLength(3));
+    final liveVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
+    final cachedVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_2.webp'));
+    final stockVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_3.webp'));
+    expect(liveVisual.height, closeTo(412 * 0.16, 0.01));
+    expect(liveVisual.backdropBorderColor, isNotNull);
+    expect(cachedVisual.backdropBorderColor, isNotNull);
+    expect(stockVisual.backdropBorderColor, isNull);
+
+    for (final icon in tester.widgetList<Icon>(find.byIcon(Icons.more_horiz))) {
+      expect(icon.size, 22);
+    }
+    for (final icon in tester.widgetList<Icon>(find.byIcon(Icons.radio_button_unchecked))) {
+      expect(icon.size, 16);
+    }
   });
 
   testWidgets('stale Bluetooth warning stays compact and opens guidance', (tester) async {

@@ -3,7 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
 
 void main() {
-  Widget buildVisual(Brightness brightness, {Color? backdropColor}) => MaterialApp(
+  Widget buildVisual(
+    Brightness brightness, {
+    Color? backdropColor,
+    Color? backdropBorderColor,
+  }) =>
+      MaterialApp(
         theme: ThemeData(brightness: brightness),
         home: Scaffold(
           body: ScooterSideVisual(
@@ -11,6 +16,7 @@ void main() {
             height: 160,
             backdropDiameter: 264,
             backdropColor: backdropColor,
+            backdropBorderColor: backdropBorderColor,
           ),
         ),
       );
@@ -32,6 +38,21 @@ void main() {
     final backdrop = tester.widget<Container>(find.byKey(const ValueKey('scooter-side-dark-backdrop')));
     final decoration = backdrop.decoration! as BoxDecoration;
     expect(decoration.color, customColor);
+  });
+
+  testWidgets('shows the supplied thin outline in either theme', (tester) async {
+    const cyan = Color(0xFF22D3EE);
+    await tester.pumpWidget(
+      buildVisual(
+        Brightness.light,
+        backdropColor: const Color(0xFF33474B),
+        backdropBorderColor: cyan,
+      ),
+    );
+
+    final backdrop = tester.widget<Container>(find.byKey(const ValueKey('scooter-side-dark-backdrop')));
+    final decoration = backdrop.decoration! as BoxDecoration;
+    expect(decoration.border, Border.all(color: cyan, width: 1.5));
   });
 
   testWidgets('does not add the dark backdrop in light mode', (tester) async {
