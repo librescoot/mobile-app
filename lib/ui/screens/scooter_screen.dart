@@ -850,14 +850,8 @@ class _SavedScooterCardBody extends StatelessWidget {
               dataIsOld: savedScooter.dataIsOld,
             ),
             const SizedBox(height: 24),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: colors.onSurface.withValues(alpha: 0.1)),
-                ),
-              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Row(
                 children: [
                   if (savedScooter.lastLocation != null)
@@ -1104,11 +1098,17 @@ class _SavedScooterListItemBody extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              savedScooter.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(height: 1.1),
+                            SizedBox(
+                              height: 44,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  savedScooter.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(height: 1.1),
+                                ),
+                              ),
                             ),
                             if (connecting)
                               Padding(
