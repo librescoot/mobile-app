@@ -22,7 +22,7 @@ import 'package:unustasis/ui/widgets/color_picker_dialog.dart';
 /// Shared by the list screen and its cards.
 final _log = Logger("ScooterSection");
 
-enum ScooterTileStatus { disconnected, outOfRange, nearby, waiting, connecting, connected }
+enum ScooterTileStatus { disconnected, outOfRange, nearbyManual, nearbyAuto, waiting, connecting, connected }
 
 class _ScooterStatusIndicator extends StatelessWidget {
   const _ScooterStatusIndicator(this.status);
@@ -54,15 +54,19 @@ class _ScooterStatusIndicator extends StatelessWidget {
         ),
       ScooterTileStatus.waiting => (
           FlutterI18n.translate(context, "stats_status_waiting"),
-          Icon(Icons.pause_circle_outline, size: 20, color: colors.tertiary),
+          Icon(Icons.low_priority_outlined, size: 20, color: colors.tertiary),
         ),
-      ScooterTileStatus.nearby => (
-          FlutterI18n.translate(context, "stats_status_nearby"),
-          Icon(Icons.bluetooth_searching, size: 20, color: colors.primary),
+      ScooterTileStatus.nearbyManual => (
+          FlutterI18n.translate(context, "stats_status_nearby_manual"),
+          Icon(Icons.radar_outlined, size: 20, color: colors.primary),
+        ),
+      ScooterTileStatus.nearbyAuto => (
+          FlutterI18n.translate(context, "stats_status_nearby_auto"),
+          Icon(Icons.sync, size: 20, color: colors.primary),
         ),
       ScooterTileStatus.outOfRange => (
           FlutterI18n.translate(context, "stats_status_out_of_range"),
-          Icon(Icons.bluetooth_disabled, size: 20, color: colors.onSurfaceVariant.withValues(alpha: 0.65)),
+          Icon(Icons.sensors_off_outlined, size: 20, color: colors.onSurfaceVariant.withValues(alpha: 0.65)),
         ),
       ScooterTileStatus.disconnected => (
           FlutterI18n.translate(context, "state_name_disconnected"),
@@ -147,11 +151,18 @@ Future<void> showScooterActionsSheet(
       builder: (sheetContext, setSheetState) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(savedScooter.name, style: Theme.of(context).textTheme.headlineSmall),
+            ),
+          ),
           ListTile(
-            leading: const Icon(Icons.electric_scooter_outlined),
-            title: Text(savedScooter.name),
+            leading: const Icon(Icons.badge_outlined),
+            title: Text(FlutterI18n.translate(context, "stats_scooter_id")),
             subtitle: Text(
-              "${FlutterI18n.translate(context, "stats_scooter_id")} ${savedScooter.id}",
+              savedScooter.id,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()]),
@@ -411,10 +422,11 @@ class _ScooterScreenState extends State<ScooterScreen> {
       return ScooterTileStatus.connecting;
     }
     if (service.scootersInRange.contains(scooter.id)) {
-      if (scooter.autoConnect && service.autoConnectPriorityId != null && service.autoConnectPriorityId != scooter.id) {
+      if (!scooter.autoConnect) return ScooterTileStatus.nearbyManual;
+      if (service.autoConnectPriorityId != null && service.autoConnectPriorityId != scooter.id) {
         return ScooterTileStatus.waiting;
       }
-      return ScooterTileStatus.nearby;
+      return ScooterTileStatus.nearbyAuto;
     }
     return service.scooterPresenceKnown ? ScooterTileStatus.outOfRange : ScooterTileStatus.disconnected;
   }
@@ -453,7 +465,7 @@ class _ScooterScreenState extends State<ScooterScreen> {
       // card and re-decoding its art.
       body: ListView.builder(
         padding: EdgeInsets.only(
-          top: _isListView ? 8 : 0,
+          top: 8,
           bottom: MediaQuery.of(context).viewPadding.bottom,
         ),
         itemCount: scooters.length + 1,
@@ -724,10 +736,30 @@ class _SavedScooterCardBody extends StatelessWidget {
                     child: GestureDetector(
                       onLongPress: () => _changeColor(context),
                       child: Center(
-                        child: ScooterSideVisual(
-                          imagePath: "images/scooter/side_${forceHover ? 9 : savedScooter.color}.webp",
+                        child: SizedBox(
+                          width: 264,
                           height: 160,
-                          backdropDiameter: 264,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              ScooterSideVisual(
+                                imagePath: "images/scooter/side_${forceHover ? 9 : savedScooter.color}.webp",
+                                height: 160,
+                                backdropDiameter: 264,
+                              ),
+                              if (savedScooter.isLibrescoot == true)
+                                Positioned(
+                                  top: 4,
+                                  right: 4,
+                                  child: Image.asset(
+                                    "assets/icons/librescoot-flame.png",
+                                    width: 26,
+                                    height: 36,
+                                    cacheWidth: (26 * MediaQuery.devicePixelRatioOf(context)).ceil(),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -775,10 +807,6 @@ class _SavedScooterCardBody extends StatelessWidget {
                     textAlign: TextAlign.center,
                   ),
                 ),
-                if (savedScooter.isLibrescoot == true) ...[
-                  const SizedBox(width: 6),
-                  const Icon(Icons.local_fire_department_outlined, size: 20),
-                ],
               ],
             ),
             const SizedBox(height: 2),
