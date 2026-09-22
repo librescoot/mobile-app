@@ -36,6 +36,14 @@ String _scooterTileStatusLabel(BuildContext context, ScooterTileStatus status) =
       ScooterTileStatus.disconnected => FlutterI18n.translate(context, "state_name_disconnected"),
     };
 
+void _openMainPage(BuildContext context, VoidCallback? onNavigateBack) {
+  if (onNavigateBack != null) {
+    onNavigateBack();
+  } else {
+    unawaited(Navigator.of(context).maybePop());
+  }
+}
+
 class _ScooterStatusIndicator extends StatelessWidget {
   const _ScooterStatusIndicator(this.status);
 
@@ -302,12 +310,26 @@ class _ScooterScreenState extends State<ScooterScreen> {
   TextEditingController nameController = TextEditingController();
   FocusNode nameFocusNode = FocusNode();
   Timer? _odometerRefreshTimer;
+  final GlobalKey<AnimatedListState> _scooterListKey = GlobalKey<AnimatedListState>();
+  List<SavedScooter> _animatedScooters = [];
+  List<SavedScooter> _pendingScooterOrder = [];
+  bool _animatedScootersInitialized = false;
+  bool _scooterOrderSyncScheduled = false;
 
   void setupInitialColor() async {
     int initialColor = await SharedPreferencesAsync().getInt("color") ?? 1;
     setState(() {
       color = initialColor;
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_animatedScootersInitialized) {
+      _animatedScooters = sortedScooters(context.read<ScooterService>());
+      _animatedScootersInitialized = true;
+    }
   }
 
   @override
@@ -385,18 +407,117 @@ class _ScooterScreenState extends State<ScooterScreen> {
   List<SavedScooter> sortedScooters(ScooterService service) {
     List<SavedScooter> scooters = service.savedScooters.values.toList();
     scooters.sort((a, b) {
-      // Check if either scooter is the connected one
-      if (a.id == service.currentScooterId) {
-        return -1;
-      }
-      if (b.id == service.currentScooterId) {
-        return 1;
-      }
-
-      // If neither is the connected scooter, sort by lastPing
+      if (a.id == service.currentScooterId) return -1;
+      if (b.id == service.currentScooterId) return 1;
       return b.lastPing.compareTo(a.lastPing);
     });
     return scooters;
+  }
+
+  bool _sameScooterOrder(List<SavedScooter> left, List<SavedScooter> right) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (left[index].id != right[index].id) return false;
+    }
+    return true;
+  }
+
+  void _scheduleScooterOrderSync(List<SavedScooter> desired) {
+    if (!_scooterOrderSyncScheduled && _sameScooterOrder(_animatedScooters, desired)) return;
+    _pendingScooterOrder = List.of(desired);
+    if (_scooterOrderSyncScheduled) return;
+    _scooterOrderSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scooterOrderSyncScheduled = false;
+      if (!mounted) return;
+      _syncScooterOrder(_pendingScooterOrder);
+    });
+  }
+
+  void _syncScooterOrder(List<SavedScooter> desired) {
+    final listState = _scooterListKey.currentState;
+    if (listState == null) {
+      setState(() => _animatedScooters = List.of(desired));
+      return;
+    }
+
+    final desiredIds = desired.map((scooter) => scooter.id).toSet();
+    for (var index = _animatedScooters.length - 1; index >= 0; index--) {
+      if (desiredIds.contains(_animatedScooters[index].id)) continue;
+      final removed = _animatedScooters.removeAt(index);
+      listState.removeItem(
+        index,
+        (context, animation) => _animatedScooterEntry(context, removed, animation, keyed: false),
+        duration: const Duration(milliseconds: 280),
+      );
+    }
+
+    for (var desiredIndex = 0; desiredIndex < desired.length; desiredIndex++) {
+      final scooter = desired[desiredIndex];
+      final currentIndex = _animatedScooters.indexWhere((candidate) => candidate.id == scooter.id);
+      if (currentIndex == desiredIndex) {
+        _animatedScooters[desiredIndex] = scooter;
+        continue;
+      }
+      if (currentIndex >= 0) {
+        final moved = _animatedScooters.removeAt(currentIndex);
+        listState.removeItem(
+          currentIndex,
+          (context, animation) => _animatedScooterEntry(context, moved, animation, keyed: false),
+          duration: const Duration(milliseconds: 280),
+        );
+      }
+      _animatedScooters.insert(desiredIndex, scooter);
+      listState.insertItem(desiredIndex, duration: const Duration(milliseconds: 280));
+    }
+  }
+
+  Widget _scooterEntry(BuildContext context, SavedScooter scooter, {required bool keyed}) {
+    final service = context.read<ScooterService>();
+    final liveScooter = service.savedScooters[scooter.id] ?? scooter;
+    final status = _statusFor(service, liveScooter);
+    final selected = service.selectedScooterId == liveScooter.id;
+    final child = Padding(
+      padding: _isListView
+          ? const EdgeInsets.symmetric(vertical: 4, horizontal: 8)
+          : const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      child: _isListView
+          ? SavedScooterListItem(
+              savedScooter: liveScooter,
+              single: service.savedScooters.length == 1,
+              status: status,
+              selected: selected,
+              onListChanged: () => setState(() {}),
+              onNavigateBack: widget.onNavigateBack,
+            )
+          : SavedScooterCard(
+              savedScooter: liveScooter,
+              single: service.savedScooters.length == 1,
+              status: status,
+              selected: selected,
+              forceHover: _aprilFools,
+              onListChanged: () => setState(() {}),
+              onNavigateBack: widget.onNavigateBack,
+            ),
+    );
+    return keyed ? KeyedSubtree(key: ValueKey(liveScooter.id), child: child) : child;
+  }
+
+  Widget _animatedScooterEntry(
+    BuildContext context,
+    SavedScooter scooter,
+    Animation<double> animation, {
+    bool keyed = true,
+  }) {
+    final curved = CurvedAnimation(parent: animation, curve: Curves.easeInOutCubic);
+    return SizeTransition(
+      sizeFactor: curved,
+      alignment: Alignment.topCenter,
+      child: FadeTransition(
+        opacity: curved,
+        child: _scooterEntry(context, scooter, keyed: keyed),
+      ),
+    );
   }
 
   /// What the screen itself depends on: which scooters exist, which one the
@@ -439,7 +560,7 @@ class _ScooterScreenState extends State<ScooterScreen> {
     context.select<ScooterService, String>(_listSignature);
     final scooterService = context.read<ScooterService>();
     final scooters = sortedScooters(scooterService);
-    final bool single = scooters.length == 1;
+    _scheduleScooterOrderSync(scooters);
 
     return Scaffold(
       appBar: AppBar(
@@ -463,10 +584,8 @@ class _ScooterScreenState extends State<ScooterScreen> {
           ),
         ],
       ),
-      // Built lazily and keyed per scooter, so reordering (the connected
-      // scooter is pinned first) reuses elements instead of remounting every
-      // card and re-decoding its art.
-      body: ListView.builder(
+      body: AnimatedList(
+        key: _scooterListKey,
         padding: wideContentPadding(
           context,
           base: EdgeInsets.only(
@@ -474,38 +593,10 @@ class _ScooterScreenState extends State<ScooterScreen> {
             bottom: MediaQuery.of(context).viewPadding.bottom,
           ),
         ),
-        itemCount: scooters.length + 1,
-        itemBuilder: (context, index) {
-          if (index == scooters.length) return _addScooterButton(context);
-          final scooter = scooters[index];
-          final status = _statusFor(scooterService, scooter);
-          final selected = scooterService.selectedScooterId == scooter.id;
-          return KeyedSubtree(
-            key: ValueKey(scooter.id),
-            child: Padding(
-              padding: _isListView
-                  ? const EdgeInsets.symmetric(vertical: 4, horizontal: 8)
-                  : const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-              child: _isListView
-                  ? SavedScooterListItem(
-                      savedScooter: scooter,
-                      single: single,
-                      status: status,
-                      selected: selected,
-                      onListChanged: () => setState(() {}),
-                      onNavigateBack: widget.onNavigateBack,
-                    )
-                  : SavedScooterCard(
-                      savedScooter: scooter,
-                      single: single,
-                      status: status,
-                      selected: selected,
-                      forceHover: _aprilFools,
-                      onListChanged: () => setState(() {}),
-                      onNavigateBack: widget.onNavigateBack,
-                    ),
-            ),
-          );
+        initialItemCount: _animatedScooters.length + 1,
+        itemBuilder: (context, index, animation) {
+          if (index == _animatedScooters.length) return _addScooterButton(context);
+          return _animatedScooterEntry(context, _animatedScooters[index], animation);
         },
       ),
     );
@@ -703,12 +794,7 @@ class _SavedScooterCardBody extends StatelessWidget {
       onTap: connecting
           ? null
           : connected
-              ? () {
-                  final service = context.read<ScooterService>();
-                  service.stopAutoRestart();
-                  service.disconnectAndClearDevice();
-                  onListChanged();
-                }
+              ? () => _openMainPage(context, onNavigateBack)
               : () => _connect(context),
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -1000,12 +1086,7 @@ class _SavedScooterListItemBody extends StatelessWidget {
       onTap: connecting
           ? null
           : connected
-              ? () {
-                  final service = context.read<ScooterService>();
-                  service.stopAutoRestart();
-                  service.disconnectAndClearDevice();
-                  onListChanged();
-                }
+              ? () => _openMainPage(context, onNavigateBack)
               : () async {
                   try {
                     _log.info("Trying to connect to ${savedScooter.id}");

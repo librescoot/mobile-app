@@ -75,7 +75,7 @@ class _Service extends ChangeNotifier implements ScooterService {
   dynamic noSuchMethod(Invocation invocation) => throw StateError('Unexpected service call: ${invocation.memberName}');
 }
 
-Future<void> _mount(WidgetTester tester, _Service service) async {
+Future<void> _mount(WidgetTester tester, _Service service, {VoidCallback? onNavigateBack}) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(412, 1600);
   addTearDown(() {
@@ -95,7 +95,7 @@ Future<void> _mount(WidgetTester tester, _Service service) async {
             ),
           ),
         ],
-        home: const ScooterScreen(),
+        home: ScooterScreen(onNavigateBack: onNavigateBack),
       ),
     ),
   );
@@ -177,6 +177,51 @@ void main() {
 
     expect(find.text('Disconnected'), findsOneWidget);
     expect(tester.getSize(card).height, connectedHeight);
+  });
+
+  testWidgets('tapping the connected scooter returns to the main page without disconnecting', (tester) async {
+    final scooter = _CountingScooter(id: 'A', name: 'Alpha');
+    final service = _Service([scooter]);
+    var navigations = 0;
+    await _mount(tester, service, onNavigateBack: () => navigations++);
+
+    await tester.tap(find.byType(SavedScooterCard));
+    await tester.pump();
+
+    expect(navigations, 1);
+    expect(service.connected, isTrue);
+    expect(service.currentScooterId, 'A');
+
+    final second = _CountingScooter(id: 'B', name: 'Beta');
+    service.savedScooters[second.id] = second;
+    service.notifyListeners();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.list));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(SavedScooterListItem).first);
+    await tester.pump();
+
+    expect(navigations, 2);
+    expect(service.connected, isTrue);
+    expect(service.currentScooterId, 'A');
+  });
+
+  testWidgets('animates a newly connected scooter to the top', (tester) async {
+    final alpha = _CountingScooter(id: 'A', name: 'Alpha');
+    final beta = _CountingScooter(id: 'B', name: 'Beta');
+    final service = _Service([alpha, beta]);
+    await _mount(tester, service);
+
+    expect(tester.getTopLeft(find.text('Alpha')).dy, lessThan(tester.getTopLeft(find.text('Beta')).dy));
+
+    service.currentScooterId = 'B';
+    service.notifyListeners();
+    await tester.pump();
+
+    expect(tester.binding.transientCallbackCount, greaterThan(0));
+
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('Beta')).dy, lessThan(tester.getTopLeft(find.text('Alpha')).dy));
   });
 
   testWidgets('a card-local edit rebuilds only that card', (tester) async {
