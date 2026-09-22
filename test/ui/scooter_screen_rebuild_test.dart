@@ -194,8 +194,13 @@ void main() {
     final service = _Service([live, cached, stock]);
     await _mount(tester, service);
 
+    expect(find.text('Your scooter is in drive mode! Vroom vroom!'), findsOneWidget);
+
     await tester.tap(find.byIcon(Icons.list));
     await tester.pumpAndSettle();
+
+    expect(find.text('Ready'), findsOneWidget);
+    expect(find.text('Your scooter is in drive mode! Vroom vroom!'), findsNothing);
 
     final listItems = find.byType(SavedScooterListItem);
     expect(
@@ -223,8 +228,8 @@ void main() {
     final cachedVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_2.webp'));
     final stockVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_3.webp'));
     expect(liveVisual.height, closeTo(412 * 0.18, 0.01));
-    expect(liveVisual.backdropColor, const Color(0xFF33474B));
-    expect(cachedVisual.backdropColor, const Color(0xFF33474B));
+    expect(liveVisual.backdropColor, const Color(0xFF225661));
+    expect(cachedVisual.backdropColor, const Color(0xFF225661));
     expect(stockVisual.backdropColor, isNull);
 
     live.isLibrescoot = true;

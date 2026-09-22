@@ -22,7 +22,7 @@ import '../wide_layout.dart';
 
 /// Shared by the list screen and its cards.
 final _log = Logger("ScooterSection");
-const _librescootBackdropColor = Color(0xFF33474B);
+const _librescootBackdropColor = Color(0xFF225661);
 
 enum ScooterTileStatus { disconnected, outOfRange, nearbyManual, nearbyAuto, waiting, connecting, connected }
 
@@ -1147,7 +1147,7 @@ class _SavedScooterListItemBody extends StatelessWidget {
                                     child: Text(
                                       context
                                               .select<ScooterService, ScooterState?>((service) => service.state)
-                                              ?.description(context) ??
+                                              ?.name(context) ??
                                           FlutterI18n.translate(context, "stats_unknown"),
                                       style: Theme.of(context).textTheme.bodyMedium,
                                     ),

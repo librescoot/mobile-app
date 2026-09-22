@@ -39,7 +39,7 @@ void main() {
   });
 
   testWidgets('shows a supplied Librescoot backdrop without an outline in either theme', (tester) async {
-    const librescootColor = Color(0xFF33474B);
+    const librescootColor = Color(0xFF225661);
     await tester.pumpWidget(buildVisual(Brightness.light, backdropColor: librescootColor));
 
     final backdrop = tester.widget<Container>(find.byKey(const ValueKey('scooter-side-dark-backdrop')));
