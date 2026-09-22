@@ -26,6 +26,16 @@ const _librescootBackdropColor = Color(0xFF225661);
 
 enum ScooterTileStatus { disconnected, outOfRange, nearbyManual, nearbyAuto, waiting, connecting, connected }
 
+String _scooterTileStatusLabel(BuildContext context, ScooterTileStatus status) => switch (status) {
+      ScooterTileStatus.connected => FlutterI18n.translate(context, "state_name_unknown"),
+      ScooterTileStatus.connecting => FlutterI18n.translate(context, "state_name_linking"),
+      ScooterTileStatus.waiting => FlutterI18n.translate(context, "stats_status_waiting"),
+      ScooterTileStatus.nearbyManual => FlutterI18n.translate(context, "stats_status_nearby_manual"),
+      ScooterTileStatus.nearbyAuto => FlutterI18n.translate(context, "stats_status_nearby_auto"),
+      ScooterTileStatus.outOfRange => FlutterI18n.translate(context, "stats_status_out_of_range"),
+      ScooterTileStatus.disconnected => FlutterI18n.translate(context, "state_name_disconnected"),
+    };
+
 class _ScooterStatusIndicator extends StatelessWidget {
   const _ScooterStatusIndicator(this.status);
 
@@ -34,47 +44,29 @@ class _ScooterStatusIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final (String label, Widget indicator) = switch (status) {
-      ScooterTileStatus.connected => (
-          FlutterI18n.translate(context, "state_name_unknown"),
-          Container(
-            width: 14,
-            height: 14,
-            decoration: BoxDecoration(
-              color: Colors.green,
-              shape: BoxShape.circle,
-              border: Border.all(color: colors.surface, width: 2),
-            ),
+    final indicator = switch (status) {
+      ScooterTileStatus.connected => Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: Colors.green,
+            shape: BoxShape.circle,
+            border: Border.all(color: colors.surface, width: 2),
           ),
         ),
-      ScooterTileStatus.connecting => (
-          FlutterI18n.translate(context, "state_name_linking"),
-          SizedBox.square(
-            dimension: 18,
-            child: CircularProgressIndicator(strokeWidth: 2, color: colors.tertiary),
-          ),
+      ScooterTileStatus.connecting => SizedBox.square(
+          dimension: 18,
+          child: CircularProgressIndicator(strokeWidth: 2, color: colors.tertiary),
         ),
-      ScooterTileStatus.waiting => (
-          FlutterI18n.translate(context, "stats_status_waiting"),
-          Icon(Icons.low_priority_outlined, size: 20, color: colors.tertiary),
-        ),
-      ScooterTileStatus.nearbyManual => (
-          FlutterI18n.translate(context, "stats_status_nearby_manual"),
-          Icon(Icons.radar_outlined, size: 20, color: colors.primary),
-        ),
-      ScooterTileStatus.nearbyAuto => (
-          FlutterI18n.translate(context, "stats_status_nearby_auto"),
-          Icon(Icons.sync, size: 20, color: colors.primary),
-        ),
-      ScooterTileStatus.outOfRange => (
-          FlutterI18n.translate(context, "stats_status_out_of_range"),
-          Icon(Icons.sensors_off_outlined, size: 20, color: colors.onSurfaceVariant.withValues(alpha: 0.65)),
-        ),
-      ScooterTileStatus.disconnected => (
-          FlutterI18n.translate(context, "state_name_disconnected"),
-          Icon(Icons.radio_button_unchecked, size: 16, color: colors.onSurfaceVariant.withValues(alpha: 0.65)),
-        ),
+      ScooterTileStatus.waiting => Icon(Icons.low_priority_outlined, size: 20, color: colors.tertiary),
+      ScooterTileStatus.nearbyManual => Icon(Icons.radar_outlined, size: 20, color: colors.primary),
+      ScooterTileStatus.nearbyAuto => Icon(Icons.sync, size: 20, color: colors.primary),
+      ScooterTileStatus.outOfRange =>
+        Icon(Icons.sensors_off_outlined, size: 20, color: colors.onSurfaceVariant.withValues(alpha: 0.65)),
+      ScooterTileStatus.disconnected =>
+        Icon(Icons.radio_button_unchecked, size: 16, color: colors.onSurfaceVariant.withValues(alpha: 0.65)),
     };
+    final label = _scooterTileStatusLabel(context, status);
     return Tooltip(
       message: label,
       child: Semantics(
@@ -304,9 +296,6 @@ class ScooterScreen extends StatefulWidget {
 class _ScooterScreenState extends State<ScooterScreen> {
   bool _isListView = false;
 
-  /// Read once instead of per card build: the cards used to sit inside a
-  /// FutureBuilder that wrapped their whole body.
-  bool _showColorOnboarding = false;
   bool _aprilFools = false;
   int color = 1;
   String? nameCache;
@@ -326,7 +315,7 @@ class _ScooterScreenState extends State<ScooterScreen> {
     super.initState();
     setupInitialColor();
     _loadViewMode();
-    _loadCardFlags();
+    _loadSeasonalFlag();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshOdometer();
       _refreshPresence();
@@ -351,11 +340,10 @@ class _ScooterScreenState extends State<ScooterScreen> {
     unawaited(context.read<ScooterService>().refreshScooterPresence());
   }
 
-  Future<void> _loadCardFlags() async {
+  Future<void> _loadSeasonalFlag() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      _showColorOnboarding = prefs.getBool("color_onboarded") != true;
       _aprilFools = prefs.getBool("seasonal") == true && DateTime.now().month == 4 && DateTime.now().day == 1;
     });
   }
@@ -455,7 +443,7 @@ class _ScooterScreenState extends State<ScooterScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(FlutterI18n.translate(context, 'stats_title_scooter')),
+        title: Text(FlutterI18n.translate(context, 'stats_title_scooters')),
         actions: [
           Selector<ScooterService, int>(
             selector: (context, service) => service.savedScooters.length,
@@ -512,7 +500,6 @@ class _ScooterScreenState extends State<ScooterScreen> {
                       single: single,
                       status: status,
                       selected: selected,
-                      showOnboarding: _showColorOnboarding,
                       forceHover: _aprilFools,
                       onListChanged: () => setState(() {}),
                       onNavigateBack: widget.onNavigateBack,
@@ -565,7 +552,6 @@ class SavedScooterCard extends StatefulWidget {
     required this.status,
     required this.selected,
     required this.single,
-    required this.showOnboarding,
     required this.forceHover,
     required this.onListChanged,
     this.onNavigateBack,
@@ -575,7 +561,6 @@ class SavedScooterCard extends StatefulWidget {
   final ScooterTileStatus status;
   final bool selected;
   final bool single;
-  final bool showOnboarding;
   final bool forceHover;
 
   /// Rebuilds the list, for the actions that change which rows exist or which
@@ -588,8 +573,6 @@ class SavedScooterCard extends StatefulWidget {
 }
 
 class _SavedScooterCardState extends State<SavedScooterCard> {
-  late bool _showOnboarding = widget.showOnboarding;
-  bool _dismissedOnboarding = false;
   Future<String?>? _addressFuture;
 
   /// Resolved once per stored location: a rebuild must not start a second
@@ -599,11 +582,6 @@ class _SavedScooterCardState extends State<SavedScooterCard> {
   @override
   void didUpdateWidget(covariant SavedScooterCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // The screen reads the pref asynchronously, so the flag can arrive after
-    // the first build. A hint the user dismissed stays dismissed.
-    if (!_dismissedOnboarding && widget.showOnboarding != oldWidget.showOnboarding) {
-      _showOnboarding = widget.showOnboarding;
-    }
     final before = oldWidget.savedScooter;
     final now = widget.savedScooter;
     if (before.lastAddress != now.lastAddress ||
@@ -613,22 +591,14 @@ class _SavedScooterCardState extends State<SavedScooterCard> {
     }
   }
 
-  void _hideOnboardingHint() {
-    _dismissedOnboarding = true;
-    SharedPreferences.getInstance().then((prefs) => prefs.setBool("color_onboarded", true));
-    setState(() => _showOnboarding = false);
-  }
-
   @override
   Widget build(BuildContext context) => _SavedScooterCardBody(
         savedScooter: widget.savedScooter,
         status: widget.status,
         selected: widget.selected,
         single: widget.single,
-        showOnboarding: _showOnboarding,
         forceHover: widget.forceHover,
         address: () => _address,
-        hideOnboardingHint: _hideOnboardingHint,
         rebuild: () => setState(() {}),
         onListChanged: widget.onListChanged,
         onNavigateBack: widget.onNavigateBack,
@@ -640,10 +610,8 @@ class _SavedScooterCardBody extends StatelessWidget {
   final ScooterTileStatus status;
   final bool selected;
   final bool single;
-  final bool showOnboarding;
   final bool forceHover;
   final Future<String?> Function() address;
-  final void Function() hideOnboardingHint;
   final void Function() rebuild;
   final void Function() onListChanged;
   final VoidCallback? onNavigateBack;
@@ -653,10 +621,8 @@ class _SavedScooterCardBody extends StatelessWidget {
     required this.status,
     required this.selected,
     required this.single,
-    required this.showOnboarding,
     required this.forceHover,
     required this.address,
-    required this.hideOnboardingHint,
     required this.rebuild,
     required this.onListChanged,
     this.onNavigateBack,
@@ -676,7 +642,6 @@ class _SavedScooterCardBody extends StatelessWidget {
       setColor(newColor, context);
       rebuild();
     }
-    if (showOnboarding) hideOnboardingHint();
   }
 
   Future<void> _rename(BuildContext context) async {
@@ -755,7 +720,7 @@ class _SavedScooterCardBody extends StatelessWidget {
         child: Column(
           children: [
             SizedBox(
-              height: 208,
+              height: 184,
               width: double.infinity,
               child: Stack(
                 clipBehavior: Clip.none,
@@ -763,19 +728,16 @@ class _SavedScooterCardBody extends StatelessWidget {
                   Positioned(
                     left: 0,
                     right: 0,
-                    bottom: 0,
-                    child: GestureDetector(
-                      onLongPress: () => _changeColor(context),
-                      child: Center(
-                        child: SizedBox(
-                          width: 264,
+                    top: 16,
+                    child: Center(
+                      child: SizedBox(
+                        width: 264,
+                        height: 160,
+                        child: ScooterSideVisual(
+                          imagePath: "images/scooter/side_${forceHover ? 9 : savedScooter.color}.webp",
                           height: 160,
-                          child: ScooterSideVisual(
-                            imagePath: "images/scooter/side_${forceHover ? 9 : savedScooter.color}.webp",
-                            height: 160,
-                            backdropDiameter: 264,
-                            backdropColor: isLibrescoot ? _librescootBackdropColor : null,
-                          ),
+                          backdropDiameter: 264,
+                          backdropColor: isLibrescoot ? _librescootBackdropColor : null,
                         ),
                       ),
                     ),
@@ -804,14 +766,7 @@ class _SavedScooterCardBody extends StatelessWidget {
                 ],
               ),
             ),
-            if (showOnboarding)
-              Text(
-                FlutterI18n.translate(context, "settings_color_onboarding"),
-                style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-                    ),
-              ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
@@ -825,35 +780,25 @@ class _SavedScooterCardBody extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 8),
             SizedBox(
               height: 28,
-              child: connecting
-                  ? Text(
-                      FlutterI18n.translate(context, "state_name_linking"),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                      textAlign: TextAlign.center,
-                    )
-                  : connected
-                      ? Text(
-                          context
-                                  .select<ScooterService, ScooterState?>((service) => service.state)
-                                  ?.description(context) ??
-                              FlutterI18n.translate(context, "stats_unknown"),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium,
-                          textAlign: TextAlign.center,
-                        )
-                      : null,
+              child: Text(
+                connected
+                    ? context.select<ScooterService, ScooterState?>((service) => service.state)?.description(context) ??
+                        FlutterI18n.translate(context, "stats_unknown")
+                    : _scooterTileStatusLabel(context, status),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
             ),
             if (staleBluetooth) ...[
               const SizedBox(height: 8),
               _StaleBluetoothProfileNotice(onForget: () => _forget(context)),
             ],
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             BatteryBars(
               primarySOC: savedScooter.lastPrimarySOC,
               secondarySOC: savedScooter.lastSecondarySOC,
@@ -1100,15 +1045,12 @@ class _SavedScooterListItemBody extends StatelessWidget {
                   children: [
                     Padding(
                       padding: const EdgeInsets.all(8),
-                      child: GestureDetector(
-                        onLongPress: () => _changeColor(context),
-                        child: SizedBox(
-                          width: MediaQuery.of(context).size.width * 0.28,
-                          child: ScooterSideVisual(
-                            imagePath: "images/scooter/side_${savedScooter.color}.webp",
-                            height: MediaQuery.of(context).size.width * 0.18,
-                            backdropColor: isLibrescoot ? _librescootBackdropColor : null,
-                          ),
+                      child: SizedBox(
+                        width: MediaQuery.of(context).size.width * 0.28,
+                        child: ScooterSideVisual(
+                          imagePath: "images/scooter/side_${savedScooter.color}.webp",
+                          height: MediaQuery.of(context).size.width * 0.18,
+                          backdropColor: isLibrescoot ? _librescootBackdropColor : null,
                         ),
                       ),
                     ),
@@ -1122,20 +1064,23 @@ class _SavedScooterListItemBody extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 SizedBox(
-                                  height: 44,
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      savedScooter.name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context).textTheme.titleLarge?.copyWith(height: 1.1),
+                                  height: 40,
+                                  child: Transform.translate(
+                                    offset: const Offset(0, 2),
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        savedScooter.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context).textTheme.titleLarge?.copyWith(height: 1.1),
+                                      ),
                                     ),
                                   ),
                                 ),
                                 if (connecting)
                                   Padding(
-                                    padding: const EdgeInsets.only(top: 2, bottom: 2),
+                                    padding: const EdgeInsets.only(bottom: 2),
                                     child: Text(
                                       FlutterI18n.translate(context, "state_name_linking"),
                                       style: Theme.of(context).textTheme.bodyMedium,
@@ -1143,7 +1088,7 @@ class _SavedScooterListItemBody extends StatelessWidget {
                                   )
                                 else if (connected)
                                   Padding(
-                                    padding: const EdgeInsets.only(top: 2, bottom: 2),
+                                    padding: const EdgeInsets.only(bottom: 2),
                                     child: Text(
                                       context
                                               .select<ScooterService, ScooterState?>((service) => service.state)

@@ -141,10 +141,32 @@ void main() {
     expect(scooter.nameReads, readsAfterFirstBuild);
   });
 
-  testWidgets('card height stays stable across connection state changes', (tester) async {
+  testWidgets('card hierarchy stays stable and labels disconnected scooters', (tester) async {
     final scooter = _CountingScooter(id: 'A', name: 'Alpha');
     final service = _Service([scooter]);
     await _mount(tester, service);
+
+    expect(find.text('Scooters'), findsOneWidget);
+    expect(find.text('Your scooter is in drive mode! Vroom vroom!'), findsOneWidget);
+    final visual = find.byType(ScooterSideVisual);
+    expect(
+      find.ancestor(
+        of: visual,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Positioned && widget.top == 16 && widget.left == 0 && widget.right == 0,
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(
+        of: visual,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is GestureDetector && widget.onLongPress != null,
+        ),
+      ),
+      findsNothing,
+    );
 
     final card = find.byType(SavedScooterCard);
     final connectedHeight = tester.getSize(card).height;
@@ -153,6 +175,7 @@ void main() {
     service.notifyListeners();
     await tester.pumpAndSettle();
 
+    expect(find.text('Disconnected'), findsOneWidget);
     expect(tester.getSize(card).height, connectedHeight);
   });
 
@@ -203,6 +226,22 @@ void main() {
     expect(find.text('Your scooter is in drive mode! Vroom vroom!'), findsNothing);
 
     final listItems = find.byType(SavedScooterListItem);
+    expect(
+      find.ancestor(
+        of: find.text('Live'),
+        matching: find.byWidgetPredicate((widget) => widget is SizedBox && widget.height == 40),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(
+        of: find.byType(ScooterSideVisual),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is GestureDetector && widget.onLongPress != null,
+        ),
+      ),
+      findsNothing,
+    );
     expect(
       find.ancestor(
         of: listItems.first,
