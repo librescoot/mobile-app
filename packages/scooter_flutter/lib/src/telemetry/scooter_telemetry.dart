@@ -151,6 +151,7 @@ class ScooterTelemetry {
     vehicle.vehicleState = null;
     vehicle.powerState = null;
     identity.nrfVersion = null;
+    identity.imxVersion = null;
     identity.isLibrescoot = cache.isLibrescoot;
     _seedCapabilities(cache);
   }

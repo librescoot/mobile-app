@@ -102,6 +102,8 @@ class FirmwareIdentity {
     CharacteristicRepository chars, {
     bool Function()? isCurrent,
   }) async {
+    if (isCurrent?.call() == false) return;
+    imxVersion = null;
     final characteristic = chars.imxVersionCharacteristic;
     if (characteristic == null) return;
     await readAnonImxVersion(characteristic, (version) {

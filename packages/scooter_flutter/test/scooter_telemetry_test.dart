@@ -757,6 +757,32 @@ void main() {
     expect(h.effects.patches.last.$2.supportsAlarmControl, false);
   });
 
+  test('iMX version does not leak between scooter connections', () async {
+    final h = _Harness(imxVersion: 'v1.15.0');
+    addTearDown(h.dispose);
+
+    final librescoot = await h.connect('A');
+    librescoot['state'].text('parked');
+    _firmware(librescoot);
+    await _flush();
+    expect(h.telemetry.identity.imxVersion, 'v1.15.0');
+    expect(h.telemetry.identity.isLibrescoot, true);
+
+    final stock = await h.connect('B');
+    stock.imxVersionCharacteristic =
+        stock.chars['imxVersion'] = _Characteristic(answer: const []);
+    stock['state'].text('parked');
+    _firmware(stock);
+    await _flush();
+
+    expect(h.telemetry.identity.imxVersion, isNull);
+    expect(h.telemetry.identity.isLibrescoot, false);
+    final verdictPatch = h.effects.patches.lastWhere(
+      (patch) => patch.$1 == 'B' && patch.$2.isLibrescoot != null,
+    );
+    expect(verdictPatch.$2.isLibrescoot, false);
+  });
+
   test('a stock system behind a librescoot nRF clears the capabilities',
       () async {
     // The nRF is a librescoot build, and stays one after a stock image is
