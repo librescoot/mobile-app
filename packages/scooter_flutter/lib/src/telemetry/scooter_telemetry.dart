@@ -637,10 +637,6 @@ class ScooterTelemetry {
     // The original unu firmware has no extended channel, so its absence only
     // means something on librescoot firmware.
     if (identity.isLibrescoot != true) return false;
-    if (repo.extendedChannelMissing) return true;
-    // No system version means the system never answered, so silence is not a
-    // stale table.
-    if (identity.imxVersion == null) return false;
-    return repo.extendedChannelSilent;
+    return repo.extendedChannelMissing;
   }
 }

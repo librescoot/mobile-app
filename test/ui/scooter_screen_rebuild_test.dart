@@ -56,6 +56,8 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   int? odometerMeters = 4200;
   @override
+  bool? handlebarsLocked = true;
+  @override
   final identity = ScooterIdentity()..isLibrescoot = true;
   @override
   void refreshOdometer() {}
@@ -168,6 +170,28 @@ void main() {
     expect(alpha.nameReads, alphaAfterSheet);
     expect(betaAfterSheet, greaterThanOrEqualTo(betaBefore));
     expect(alphaAfterSheet, greaterThanOrEqualTo(alphaBefore));
+  });
+
+  testWidgets('stale Bluetooth warning stays compact and opens guidance', (tester) async {
+    final alpha = _CountingScooter(id: 'A', name: 'Alpha');
+    final beta = _CountingScooter(id: 'B', name: 'Beta');
+    final service = _Service([alpha, beta]);
+    service.identity.bluetoothTableOutOfDate = true;
+    await _mount(tester, service);
+
+    expect(find.text('Refresh Bluetooth pairing'), findsOneWidget);
+    expect(find.textContaining('Unlock the scooter before forgetting it'), findsNothing);
+
+    await tester.tap(find.text('Refresh Bluetooth pairing'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Unlock the scooter before forgetting it'), findsOneWidget);
+    expect(find.text('Unlock scooter'), findsOneWidget);
+
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.list));
+    await tester.pumpAndSettle();
+    expect(find.text('Refresh Bluetooth pairing'), findsOneWidget);
   });
 
   testWidgets('list changes still rebuild the cards', (tester) async {

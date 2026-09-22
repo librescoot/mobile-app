@@ -342,6 +342,7 @@ void _wireExtended(_Repository repo) {
   repo.extendedResponseCharacteristic =
       repo.chars['extendedResponse'] = channel;
 }
+
 List<bool?> _caps(FirmwareIdentity identity) => [
       identity.supportsHibernateFor,
       identity.supportsScheduledHibernation,
@@ -707,8 +708,7 @@ void main() {
     expect(h.telemetry.identity.bluetoothTableOutOfDate, isFalse);
   });
 
-  test('a silent extended channel is reported even when nothing is missing',
-      () async {
+  test('a present but silent extended channel is not a stale table', () async {
     final h = _Harness();
     addTearDown(h.dispose);
     final r = await h.connect('A');
@@ -720,7 +720,7 @@ void main() {
     r.noteSilentExtendedCommand();
     _firmware(r);
     await _flush();
-    expect(h.telemetry.identity.bluetoothTableOutOfDate, isTrue);
+    expect(h.telemetry.identity.bluetoothTableOutOfDate, isFalse);
   });
 
   test('stock firmware is never reported for its missing extended channel',
