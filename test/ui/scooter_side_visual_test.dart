@@ -6,7 +6,6 @@ void main() {
   Widget buildVisual(
     Brightness brightness, {
     Color? backdropColor,
-    Color? backdropBorderColor,
   }) =>
       MaterialApp(
         theme: ThemeData(brightness: brightness),
@@ -16,7 +15,6 @@ void main() {
             height: 160,
             backdropDiameter: 264,
             backdropColor: backdropColor,
-            backdropBorderColor: backdropBorderColor,
           ),
         ),
       );
@@ -28,7 +26,7 @@ void main() {
     expect(backdrop.constraints!.maxWidth, 264);
     final decoration = backdrop.decoration! as BoxDecoration;
     expect(decoration.shape, BoxShape.circle);
-    expect(decoration.color, const Color(0xFF303437));
+    expect(decoration.color, const Color(0xFF3E4549));
   });
 
   testWidgets('uses a supplied dark backdrop colour', (tester) async {
@@ -40,19 +38,14 @@ void main() {
     expect(decoration.color, customColor);
   });
 
-  testWidgets('shows the supplied thin outline in either theme', (tester) async {
-    const cyan = Color(0xFF22D3EE);
-    await tester.pumpWidget(
-      buildVisual(
-        Brightness.light,
-        backdropColor: const Color(0xFF33474B),
-        backdropBorderColor: cyan,
-      ),
-    );
+  testWidgets('shows a supplied Librescoot backdrop without an outline in either theme', (tester) async {
+    const librescootColor = Color(0xFF33474B);
+    await tester.pumpWidget(buildVisual(Brightness.light, backdropColor: librescootColor));
 
     final backdrop = tester.widget<Container>(find.byKey(const ValueKey('scooter-side-dark-backdrop')));
     final decoration = backdrop.decoration! as BoxDecoration;
-    expect(decoration.border, Border.all(color: cyan, width: 1.5));
+    expect(decoration.color, librescootColor);
+    expect(decoration.border, isNull);
   });
 
   testWidgets('does not add the dark backdrop in light mode', (tester) async {

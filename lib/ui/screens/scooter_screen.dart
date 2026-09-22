@@ -11,7 +11,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:unustasis/ui/screens/home_screen.dart';
 import 'package:unustasis/ui/presentation/relative_time.dart';
-import 'package:unustasis/ui/theme/librescoot_theme.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/domain/scooter_state.dart';
@@ -497,7 +496,7 @@ class _ScooterScreenState extends State<ScooterScreen> {
             key: ValueKey(scooter.id),
             child: Padding(
               padding: _isListView
-                  ? const EdgeInsets.symmetric(vertical: 4, horizontal: 16)
+                  ? const EdgeInsets.symmetric(vertical: 4, horizontal: 8)
                   : const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
               child: _isListView
                   ? SavedScooterListItem(
@@ -776,8 +775,6 @@ class _SavedScooterCardBody extends StatelessWidget {
                             height: 160,
                             backdropDiameter: 264,
                             backdropColor: isLibrescoot ? _librescootBackdropColor : null,
-                            backdropBorderColor:
-                                isLibrescoot ? LibrescootColors.accentBright.withValues(alpha: 0.5) : null,
                           ),
                         ),
                       ),
@@ -1089,7 +1086,7 @@ class _SavedScooterListItemBody extends StatelessWidget {
                   }
                 },
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           borderRadius: const BorderRadius.all(Radius.circular(12)),
           color: selected ? colors.surfaceContainerHigh : colors.surfaceContainer,
@@ -1106,13 +1103,11 @@ class _SavedScooterListItemBody extends StatelessWidget {
                       child: GestureDetector(
                         onLongPress: () => _changeColor(context),
                         child: SizedBox(
-                          width: MediaQuery.of(context).size.width * 0.25,
+                          width: MediaQuery.of(context).size.width * 0.28,
                           child: ScooterSideVisual(
                             imagePath: "images/scooter/side_${savedScooter.color}.webp",
-                            height: MediaQuery.of(context).size.width * 0.16,
+                            height: MediaQuery.of(context).size.width * 0.18,
                             backdropColor: isLibrescoot ? _librescootBackdropColor : null,
-                            backdropBorderColor:
-                                isLibrescoot ? LibrescootColors.accentBright.withValues(alpha: 0.5) : null,
                           ),
                         ),
                       ),

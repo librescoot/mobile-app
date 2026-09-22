@@ -181,7 +181,7 @@ void main() {
     expect(alphaAfterSheet, greaterThanOrEqualTo(alphaBefore));
   });
 
-  testWidgets('list keeps full-size artwork and marks cached or live Librescoot identity', (tester) async {
+  testWidgets('list enlarges artwork and marks confirmed Librescoot identity with its backdrop', (tester) async {
     final live = _CountingScooter(id: 'A', name: 'Live', color: 1);
     final cached = _CountingScooter(
       id: 'B',
@@ -197,15 +197,35 @@ void main() {
     await tester.tap(find.byIcon(Icons.list));
     await tester.pumpAndSettle();
 
+    final listItems = find.byType(SavedScooterListItem);
+    expect(
+      find.ancestor(
+        of: listItems.first,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Padding && widget.padding == const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: listItems.first,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Container && widget.padding == const EdgeInsets.all(8),
+        ),
+      ),
+      findsOneWidget,
+    );
+
     final visuals = tester.widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual)).toList();
     expect(visuals, hasLength(3));
     final liveVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
     final cachedVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_2.webp'));
     final stockVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_3.webp'));
-    expect(liveVisual.height, closeTo(412 * 0.16, 0.01));
-    expect(liveVisual.backdropBorderColor?.a, closeTo(0.5, 0.01));
-    expect(cachedVisual.backdropBorderColor?.a, closeTo(0.5, 0.01));
-    expect(stockVisual.backdropBorderColor, isNull);
+    expect(liveVisual.height, closeTo(412 * 0.18, 0.01));
+    expect(liveVisual.backdropColor, const Color(0xFF33474B));
+    expect(cachedVisual.backdropColor, const Color(0xFF33474B));
+    expect(stockVisual.backdropColor, isNull);
 
     live.isLibrescoot = true;
     service.identity
@@ -216,7 +236,7 @@ void main() {
     final unconfirmedLiveVisual = tester
         .widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual))
         .singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
-    expect(unconfirmedLiveVisual.backdropBorderColor, isNull);
+    expect(unconfirmedLiveVisual.backdropColor, isNull);
 
     service.identity
       ..isLibrescoot = false
@@ -226,7 +246,7 @@ void main() {
     final stockLiveVisual = tester
         .widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual))
         .singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
-    expect(stockLiveVisual.backdropBorderColor, isNull);
+    expect(stockLiveVisual.backdropColor, isNull);
 
     for (final icon in tester.widgetList<Icon>(find.byIcon(Icons.more_horiz))) {
       expect(icon.size, 22);
