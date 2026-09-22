@@ -142,7 +142,7 @@ object TaskerActionRunner {
             context.sendBroadcast(
                 Intent(context, HomeWidgetBackgroundReceiver::class.java).apply {
                     this.action = HOME_WIDGET_BACKGROUND_ACTION
-                    data = Uri.parse("unustasis://${action.key}?requestId=$requestId")
+                    data = Uri.parse("librescoot-mobile://${action.key}?requestId=$requestId")
                 }
             )
             true
