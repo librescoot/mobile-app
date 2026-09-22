@@ -3,15 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
 
 void main() {
-  Widget buildVisual(Brightness brightness, {String? backdropImagePath}) => MaterialApp(
+  Widget buildVisual(Brightness brightness, {Color? backdropColor}) => MaterialApp(
         theme: ThemeData(brightness: brightness),
         home: Scaffold(
           body: ScooterSideVisual(
             imagePath: 'images/scooter/side_1.webp',
             height: 160,
             backdropDiameter: 264,
-            backdropImagePath: backdropImagePath,
-            backdropImageHeight: 220,
+            backdropColor: backdropColor,
           ),
         ),
       );
@@ -26,13 +25,13 @@ void main() {
     expect(decoration.color, const Color(0xFF303437));
   });
 
-  testWidgets('uses an image instead of the circle when supplied', (tester) async {
-    await tester.pumpWidget(
-      buildVisual(Brightness.dark, backdropImagePath: 'assets/icons/librescoot-flame.png'),
-    );
+  testWidgets('uses a supplied dark backdrop colour', (tester) async {
+    const customColor = Color(0xFF33474B);
+    await tester.pumpWidget(buildVisual(Brightness.dark, backdropColor: customColor));
 
-    expect(find.byKey(const ValueKey('scooter-side-dark-image-backdrop')), findsOneWidget);
-    expect(find.byKey(const ValueKey('scooter-side-dark-backdrop')), findsNothing);
+    final backdrop = tester.widget<Container>(find.byKey(const ValueKey('scooter-side-dark-backdrop')));
+    final decoration = backdrop.decoration! as BoxDecoration;
+    expect(decoration.color, customColor);
   });
 
   testWidgets('does not add the dark backdrop in light mode', (tester) async {

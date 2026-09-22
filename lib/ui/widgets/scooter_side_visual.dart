@@ -14,17 +14,13 @@ class ScooterSideVisual extends StatelessWidget {
     required this.imagePath,
     required this.height,
     this.backdropDiameter,
-    this.backdropImagePath,
-    this.backdropImageHeight,
-    this.backdropImageOpacity = 1,
+    this.backdropColor,
   });
 
   final String imagePath;
   final double height;
   final double? backdropDiameter;
-  final String? backdropImagePath;
-  final double? backdropImageHeight;
-  final double backdropImageOpacity;
+  final Color? backdropColor;
 
   @override
   Widget build(BuildContext context) {
@@ -35,28 +31,15 @@ class ScooterSideVisual extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           if (Theme.of(context).brightness == Brightness.dark)
-            if (backdropImagePath != null)
-              Opacity(
-                opacity: backdropImageOpacity,
-                child: Image.asset(
-                  backdropImagePath!,
-                  key: const ValueKey('scooter-side-dark-image-backdrop'),
-                  height: backdropImageHeight ?? backdropDiameter ?? height * 1.65,
-                  cacheHeight: ((backdropImageHeight ?? backdropDiameter ?? height * 1.65) *
-                          MediaQuery.devicePixelRatioOf(context))
-                      .ceil(),
-                ),
-              )
-            else
-              Container(
-                key: const ValueKey('scooter-side-dark-backdrop'),
-                width: backdropDiameter ?? height * 1.65,
-                height: backdropDiameter ?? height * 1.65,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFF303437),
-                ),
+            Container(
+              key: const ValueKey('scooter-side-dark-backdrop'),
+              width: backdropDiameter ?? height * 1.65,
+              height: backdropDiameter ?? height * 1.65,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: backdropColor ?? const Color(0xFF303437),
               ),
+            ),
           Image.asset(
             imagePath,
             height: height,

@@ -21,6 +21,7 @@ import 'package:unustasis/ui/widgets/color_picker_dialog.dart';
 
 /// Shared by the list screen and its cards.
 final _log = Logger("ScooterSection");
+const _librescootBackdropColor = Color(0xFF33474B);
 
 enum ScooterTileStatus { disconnected, outOfRange, nearbyManual, nearbyAuto, waiting, connecting, connected }
 
@@ -761,10 +762,7 @@ class _SavedScooterCardBody extends StatelessWidget {
                             imagePath: "images/scooter/side_${forceHover ? 9 : savedScooter.color}.webp",
                             height: 160,
                             backdropDiameter: 264,
-                            backdropImagePath:
-                                savedScooter.isLibrescoot == true ? "assets/icons/librescoot-flame.png" : null,
-                            backdropImageHeight: 190,
-                            backdropImageOpacity: 0.72,
+                            backdropColor: savedScooter.isLibrescoot == true ? _librescootBackdropColor : null,
                           ),
                         ),
                       ),
@@ -860,7 +858,7 @@ class _SavedScooterCardBody extends StatelessWidget {
                 color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -1090,24 +1088,10 @@ class _SavedScooterListItemBody extends StatelessWidget {
                     onLongPress: () => _changeColor(context),
                     child: SizedBox(
                       width: MediaQuery.of(context).size.width * 0.25,
-                      child: Stack(
-                        children: [
-                          ScooterSideVisual(
-                            imagePath: "images/scooter/side_${savedScooter.color}.webp",
-                            height: MediaQuery.of(context).size.width * 0.16,
-                          ),
-                          if (savedScooter.isLibrescoot == true)
-                            Positioned(
-                              top: 4,
-                              right: 4,
-                              child: Image.asset(
-                                "assets/icons/librescoot-flame.png",
-                                width: 12,
-                                height: 17,
-                                cacheWidth: (12 * MediaQuery.devicePixelRatioOf(context)).ceil(),
-                              ),
-                            ),
-                        ],
+                      child: ScooterSideVisual(
+                        imagePath: "images/scooter/side_${savedScooter.color}.webp",
+                        height: MediaQuery.of(context).size.width * 0.16,
+                        backdropColor: savedScooter.isLibrescoot == true ? _librescootBackdropColor : null,
                       ),
                     ),
                   ),
