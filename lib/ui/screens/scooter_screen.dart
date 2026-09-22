@@ -717,9 +717,17 @@ class _SavedScooterCardBody extends StatelessWidget {
     final connecting = status == ScooterTileStatus.connecting;
     final liveOdometer = connected ? context.select<ScooterService, int?>((service) => service.odometerMeters) : null;
     final odometerMeters = liveOdometer ?? savedScooter.cachedOdometerMeters;
-    final liveIsLibrescoot =
-        connected && context.select<ScooterService, bool>((service) => service.identity.isLibrescoot == true);
-    final isLibrescoot = savedScooter.isLibrescoot == true || liveIsLibrescoot;
+    final liveIdentity = connected
+        ? context.select<ScooterService, ({bool? isLibrescoot, bool? capabilityReply})>(
+            (service) => (
+              isLibrescoot: service.identity.isLibrescoot,
+              capabilityReply: service.identity.supportsHibernateFor,
+            ),
+          )
+        : null;
+    final isLibrescoot = liveIdentity == null
+        ? savedScooter.isLibrescoot == true && savedScooter.supportsHibernateFor != null
+        : liveIdentity.isLibrescoot == true && liveIdentity.capabilityReply != null;
     final staleBluetooth = connected &&
         context.select<ScooterService, bool>((service) => service.identity.bluetoothTableOutOfDate == true);
     final colors = Theme.of(context).colorScheme;
@@ -764,7 +772,8 @@ class _SavedScooterCardBody extends StatelessWidget {
                             height: 160,
                             backdropDiameter: 264,
                             backdropColor: isLibrescoot ? _librescootBackdropColor : null,
-                            backdropBorderColor: isLibrescoot ? LibrescootColors.accentBright : null,
+                            backdropBorderColor:
+                                isLibrescoot ? LibrescootColors.accentBright.withValues(alpha: 0.5) : null,
                           ),
                         ),
                       ),
@@ -1027,9 +1036,17 @@ class _SavedScooterListItemBody extends StatelessWidget {
     final connecting = status == ScooterTileStatus.connecting;
     final liveOdometer = connected ? context.select<ScooterService, int?>((service) => service.odometerMeters) : null;
     final odometerMeters = liveOdometer ?? savedScooter.cachedOdometerMeters;
-    final liveIsLibrescoot =
-        connected && context.select<ScooterService, bool>((service) => service.identity.isLibrescoot == true);
-    final isLibrescoot = savedScooter.isLibrescoot == true || liveIsLibrescoot;
+    final liveIdentity = connected
+        ? context.select<ScooterService, ({bool? isLibrescoot, bool? capabilityReply})>(
+            (service) => (
+              isLibrescoot: service.identity.isLibrescoot,
+              capabilityReply: service.identity.supportsHibernateFor,
+            ),
+          )
+        : null;
+    final isLibrescoot = liveIdentity == null
+        ? savedScooter.isLibrescoot == true && savedScooter.supportsHibernateFor != null
+        : liveIdentity.isLibrescoot == true && liveIdentity.capabilityReply != null;
     final staleBluetooth = connected &&
         context.select<ScooterService, bool>((service) => service.identity.bluetoothTableOutOfDate == true);
     final colors = Theme.of(context).colorScheme;
@@ -1090,7 +1107,8 @@ class _SavedScooterListItemBody extends StatelessWidget {
                             imagePath: "images/scooter/side_${savedScooter.color}.webp",
                             height: MediaQuery.of(context).size.width * 0.16,
                             backdropColor: isLibrescoot ? _librescootBackdropColor : null,
-                            backdropBorderColor: isLibrescoot ? LibrescootColors.accentBright : null,
+                            backdropBorderColor:
+                                isLibrescoot ? LibrescootColors.accentBright.withValues(alpha: 0.5) : null,
                           ),
                         ),
                       ),

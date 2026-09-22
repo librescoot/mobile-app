@@ -22,6 +22,7 @@ class _CountingScooter extends SavedScooter {
     required super.name,
     super.color,
     super.isLibrescoot,
+    super.supportsHibernateFor,
   });
 
   int nameReads = 0;
@@ -64,7 +65,9 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   bool? handlebarsLocked = true;
   @override
-  final identity = ScooterIdentity()..isLibrescoot = true;
+  final identity = ScooterIdentity()
+    ..isLibrescoot = true
+    ..supportsHibernateFor = true;
   @override
   void refreshOdometer() {}
 
@@ -180,7 +183,13 @@ void main() {
 
   testWidgets('list keeps full-size artwork and marks cached or live Librescoot identity', (tester) async {
     final live = _CountingScooter(id: 'A', name: 'Live', color: 1);
-    final cached = _CountingScooter(id: 'B', name: 'Cached', color: 2, isLibrescoot: true);
+    final cached = _CountingScooter(
+      id: 'B',
+      name: 'Cached',
+      color: 2,
+      isLibrescoot: true,
+      supportsHibernateFor: false,
+    );
     final stock = _CountingScooter(id: 'C', name: 'Stock', color: 3, isLibrescoot: false);
     final service = _Service([live, cached, stock]);
     await _mount(tester, service);
@@ -194,9 +203,30 @@ void main() {
     final cachedVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_2.webp'));
     final stockVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_3.webp'));
     expect(liveVisual.height, closeTo(412 * 0.16, 0.01));
-    expect(liveVisual.backdropBorderColor, isNotNull);
-    expect(cachedVisual.backdropBorderColor, isNotNull);
+    expect(liveVisual.backdropBorderColor?.a, closeTo(0.5, 0.01));
+    expect(cachedVisual.backdropBorderColor?.a, closeTo(0.5, 0.01));
     expect(stockVisual.backdropBorderColor, isNull);
+
+    live.isLibrescoot = true;
+    service.identity
+      ..isLibrescoot = true
+      ..supportsHibernateFor = null;
+    service.notifyListeners();
+    await tester.pump();
+    final unconfirmedLiveVisual = tester
+        .widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual))
+        .singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
+    expect(unconfirmedLiveVisual.backdropBorderColor, isNull);
+
+    service.identity
+      ..isLibrescoot = false
+      ..supportsHibernateFor = false;
+    service.notifyListeners();
+    await tester.pump();
+    final stockLiveVisual = tester
+        .widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual))
+        .singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
+    expect(stockLiveVisual.backdropBorderColor, isNull);
 
     for (final icon in tester.widgetList<Icon>(find.byIcon(Icons.more_horiz))) {
       expect(icon.size, 22);
