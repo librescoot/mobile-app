@@ -207,8 +207,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         await LibrescootNotice.markSeen();
         return;
       }
-      final hasLibrescootScooter =
-          service.savedScooters.values.any((s) => s.isLibrescoot == true);
+      final hasLibrescootScooter = service.savedScooters.values.any((s) => s.isLibrescoot == true);
       if (await LibrescootNotice.alreadySeen()) {
         _librescootNoticeHandled = true;
         return;
@@ -1247,7 +1246,7 @@ class BatteryBars extends StatelessWidget {
             style: compact ? Theme.of(context).textTheme.bodySmall : null,
           ),
         ],
-        if (primarySOC != null && secondarySOC != null && secondarySOC! > 0) const VerticalDivider(),
+        if (primarySOC != null && secondarySOC != null && secondarySOC! > 0) SizedBox(width: compact ? 16 : 28),
         if (secondarySOC != null && secondarySOC! > 0) ...[
           SizedBox(
             width: compact ? 40 : MediaQuery.of(context).size.width / 6,
