@@ -251,6 +251,8 @@
     "notification_channel_connection": "Connexion au scooter",
     "notification_channel_connection_description": "Affiche l'état du scooter et les actions rapides.",
     "notification_service_content": "Pour masquer cette notification, appuyez longuement dessus et désactivez ce canal de notification.",
+    "settings_battery_optimization": "Ignorer l'optimisation de la batterie",
+    "settings_battery_optimization_description": "Améliore les fonctions en arrière-plan et les intégrations lorsque l'application est fermée",
     "settings_biometrics": "Verrouillage de l'application",
     "settings_biometrics_description": "Exiger une empreinte digitale ou la reconnaissance faciale pour ouvrir l'application.",
     "biometrics_message": "Authentifiez-vous pour accéder à l'application",

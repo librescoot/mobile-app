@@ -28,6 +28,7 @@ import 'package:unustasis/ui/widgets/settings_help_row_theme.dart';
 import 'package:unustasis/ui/widgets/settings_dropdown_tile.dart';
 import 'package:unustasis/ui/presentation/settings_duration.dart';
 import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/service/battery_optimization.dart';
 import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
 import 'package:unustasis/ui/screens/system_information_screen.dart';
@@ -43,9 +44,10 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
   final log = Logger('SettingsScreen');
   bool backgroundScan = false;
+  bool batteryOptimizationOff = false;
   bool biometrics = false;
   bool seasonal = true;
   ScooterKeylessDistance autoUnlockDistance = ScooterKeylessDistance.regular;
@@ -97,10 +99,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     getInitialSettings();
+    WidgetsBinding.instance.addObserver(this);
+    refreshBatteryOptimization();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Granting and revoking both happen in system screens that report nothing back.
+    if (state == AppLifecycleState.resumed) refreshBatteryOptimization();
+  }
+
+  Future<void> refreshBatteryOptimization() async {
+    if (!BatteryOptimization.isSupported) return;
+    final ignored = await BatteryOptimization.isIgnored();
+    if (!mounted) return;
+    setState(() => batteryOptimizationOff = ignored);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _apnController.dispose();
     super.dispose();
   }
@@ -1118,6 +1136,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   backgroundScan = value;
                 });
               }
+            },
+          ),
+        if (Platform.isAndroid)
+          SwitchListTile(
+            secondary: const Icon(Icons.battery_saver_outlined),
+            title: Text(FlutterI18n.translate(context, "settings_battery_optimization")),
+            subtitle: Text(
+              FlutterI18n.translate(context, "settings_battery_optimization_description"),
+            ),
+            value: batteryOptimizationOff,
+            onChanged: (value) async {
+              // Android grants the exemption through its own dialog but exposes no
+              // way to drop it, so revoking goes through the settings screen.
+              if (value) {
+                await BatteryOptimization.request();
+              } else {
+                await BatteryOptimization.openSettings();
+              }
+              await refreshBatteryOptimization();
             },
           ),
         if (isLibrescoot) ...[

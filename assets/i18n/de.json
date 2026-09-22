@@ -251,6 +251,8 @@
     "notification_channel_connection": "Roller-Verbindung",
     "notification_channel_connection_description": "Zeigt Roller-Status und Schnellaktionen.",
     "notification_service_content": "Um diese Benachrichtigung auszublenden, halte sie gedrückt und deaktiviere diesen Benachrichtigungskanal.",
+    "settings_battery_optimization": "Akku-Optimierung ignorieren",
+    "settings_battery_optimization_description": "Verbessert Hintergrundfunktionen und Integrationen, während die App geschlossen ist.",
     "settings_biometrics": "App-Sperre",
     "settings_biometrics_description": "Zum Öffnen der App Fingerabdruck oder Gesichtserkennung verlangen.",
     "biometrics_message": "Authentifizieren, um fortzufahren",

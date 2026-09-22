@@ -231,6 +231,8 @@
     "notification_channel_connection": "Ship Connection",
     "notification_channel_connection_description": "Shows yer vessel's status an' quick commands.",
     "notification_service_content": "To hide this here notice, hold it down an' disable this channel, savvy?",
+    "settings_battery_optimization": "Ignore th' battery optimisation",
+    "settings_battery_optimization_description": "Keeps yer background deeds an' alliances sailin' while th' app be shut!",
     "settings_biometrics": "App lock",
     "settings_biometrics_description": "Require yer fingerprint or face to open the app.",
     "biometrics_message": "Authenticate to access the app, ye scurvy dog.",

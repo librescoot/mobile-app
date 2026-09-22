@@ -251,6 +251,8 @@
     "notification_channel_connection": "Scooter Connection",
     "notification_channel_connection_description": "Shows scooter status and quick actions.",
     "notification_service_content": "To hide this notification, long-press it and disable this notification channel.",
+    "settings_battery_optimization": "Ignore battery optimization",
+    "settings_battery_optimization_description": "Improves background features and integrations while the app is closed",
     "settings_biometrics": "App lock",
     "settings_biometrics_description": "Require fingerprint or face authentication to open the app.",
     "biometrics_message": "Authenticate to access app",
