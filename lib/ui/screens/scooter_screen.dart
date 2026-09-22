@@ -19,6 +19,7 @@ import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
 import 'package:unustasis/geo_helper.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/widgets/color_picker_dialog.dart';
+import '../wide_layout.dart';
 
 /// Shared by the list screen and its cards.
 final _log = Logger("ScooterSection");
@@ -479,9 +480,12 @@ class _ScooterScreenState extends State<ScooterScreen> {
       // scooter is pinned first) reuses elements instead of remounting every
       // card and re-decoding its art.
       body: ListView.builder(
-        padding: EdgeInsets.only(
-          top: 8,
-          bottom: MediaQuery.of(context).viewPadding.bottom,
+        padding: wideContentPadding(
+          context,
+          base: EdgeInsets.only(
+            top: 8,
+            bottom: MediaQuery.of(context).viewPadding.bottom,
+          ),
         ),
         itemCount: scooters.length + 1,
         itemBuilder: (context, index) {

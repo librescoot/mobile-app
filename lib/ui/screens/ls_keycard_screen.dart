@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:unustasis/ui/dialogs/keycard_add_dialog.dart';
 import 'package:unustasis/scooter_service.dart';
+import '../wide_layout.dart';
 
 class LsKeycardScreen extends StatefulWidget {
   const LsKeycardScreen({super.key});
@@ -52,7 +53,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
         child: ListView.builder(
           physics: const AlwaysScrollableScrollPhysics(),
           itemCount: keycards.length,
-          padding: const EdgeInsets.only(top: 16, bottom: 32),
+          padding: wideContentPadding(context, base: const EdgeInsets.only(top: 16, bottom: 32)),
           itemBuilder: (context, index) {
             final keycard = keycards[index];
             return Padding(

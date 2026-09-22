@@ -18,6 +18,7 @@ import 'package:unustasis/domain/nav_destination.dart';
 import 'package:unustasis/ui/widgets/header.dart';
 import 'package:unustasis/ui/dialogs/librescoot_notice.dart';
 import 'package:unustasis/ui/screens/navigation_screen.dart';
+import '../wide_layout.dart';
 
 const _handbookUrl = 'https://librescoot.org/handbook/';
 const _troubleshootingUrl = 'https://librescoot.org/handbook/troubleshooting.html';
@@ -86,7 +87,10 @@ class _SupportScreenState extends State<SupportScreen> {
       body: SafeArea(
         top: false,
         child: ListView(
-          padding: EdgeInsets.only(bottom: 24 + MediaQuery.viewPaddingOf(context).bottom),
+          padding: wideContentPadding(
+            context,
+            base: EdgeInsets.only(bottom: 24 + MediaQuery.viewPaddingOf(context).bottom),
+          ),
           children: [
             Header(
               FlutterI18n.translate(context, 'support_guides'),
@@ -697,7 +701,10 @@ class _GarageListScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(FlutterI18n.translate(context, 'support_garages'))),
       body: ListView.separated(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + MediaQuery.viewPaddingOf(context).bottom),
+        padding: wideContentPadding(
+          context,
+          base: EdgeInsets.fromLTRB(16, 16, 16, 24 + MediaQuery.viewPaddingOf(context).bottom),
+        ),
         itemCount: garages.length,
         separatorBuilder: (context, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) => _GarageTile(garage: garages[index]),

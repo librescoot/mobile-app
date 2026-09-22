@@ -34,6 +34,7 @@ import 'package:unustasis/ui/screens/system_information_screen.dart';
 import 'package:unustasis/ui/screens/ls_scheduled_hibernation_screen.dart';
 import 'package:unustasis/state/vehicle_status.dart';
 import 'package:unustasis/ui/screens/log_screen.dart';
+import '../wide_layout.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -1421,7 +1422,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: SettingsHelpRowTheme(
         child: SafeArea(
           child: ListView.separated(
-            padding: const EdgeInsets.only(bottom: 24),
+            padding: wideContentPadding(context, base: const EdgeInsets.only(bottom: 24)),
             shrinkWrap: true,
             itemCount: items.length,
             separatorBuilder: (context, index) => items[index] is Header || items[index + 1] is Header

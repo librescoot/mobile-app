@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 import 'package:unustasis/domain/scooter_battery.dart';
 import 'package:unustasis/ui/widgets/header.dart';
 import 'package:unustasis/scooter_service.dart';
+import '../wide_layout.dart';
 
 typedef _BatteryScreenViewData = ({
   int? primarySOC,
@@ -66,7 +67,10 @@ class _BatteryScreenState extends State<BatteryScreen> {
               title: Text(FlutterI18n.translate(context, 'stats_title_battery')),
             ),
             body: ListView(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(context).viewPadding.bottom),
+              padding: wideContentPadding(
+                context,
+                base: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(context).viewPadding.bottom),
+              ),
               shrinkWrap: true,
               children: [
                 const SizedBox(height: 16),

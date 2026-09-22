@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../wide_layout.dart';
+
 abstract final class LibrescootColors {
   static const accentLight = Color(0xFF087889);
   static const accentDark = Color(0xFF3DD8E8);
@@ -181,11 +183,13 @@ ThemeData buildLibrescootTheme(Brightness brightness) {
       backgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: radius),
+      constraints: wideDialogConstraints,
     ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
+      constraints: wideDialogConstraints,
     ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: LibrescootColors.charcoal,
