@@ -172,6 +172,7 @@
     "stats_name": "Ship name",
     "stats_rename_cancel": "Abort",
     "stats_rename_save": "Christen",
+    "stats_rename_scooter": "Rename ship",
     "stats_no_name": "No ship",
     "stats_state": "State",
     "stats_state_description": "State description",

@@ -130,6 +130,21 @@ void main() {
     expect(scooter.nameReads, readsAfterFirstBuild);
   });
 
+  testWidgets('card height stays stable across connection state changes', (tester) async {
+    final scooter = _CountingScooter(id: 'A', name: 'Alpha');
+    final service = _Service([scooter]);
+    await _mount(tester, service);
+
+    final card = find.byType(SavedScooterCard);
+    final connectedHeight = tester.getSize(card).height;
+    service.connected = false;
+    service.state = ScooterState.disconnected;
+    service.notifyListeners();
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(card).height, connectedHeight);
+  });
+
   testWidgets('a card-local edit rebuilds only that card', (tester) async {
     final alpha = _CountingScooter(id: 'A', name: 'Alpha');
     final beta = _CountingScooter(id: 'B', name: 'Beta');

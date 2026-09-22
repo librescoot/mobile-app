@@ -192,6 +192,7 @@
     "stats_name": "Scooter name",
     "stats_rename_cancel": "Cancel",
     "stats_rename_save": "Save",
+    "stats_rename_scooter": "Rename scooter",
     "stats_no_name": "No scooter",
     "stats_state": "State",
     "stats_state_description": "State description",
