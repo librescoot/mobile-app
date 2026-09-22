@@ -99,6 +99,7 @@ class _TileActions extends StatelessWidget {
         ),
         PopupMenuButton<String>(
           padding: EdgeInsets.zero,
+          constraints: const BoxConstraints.tightFor(width: 28, height: 28),
           icon: Icon(Icons.more_vert, size: 20, color: colors.onSurfaceVariant),
           onSelected: (value) {
             if (value == "forget") {
