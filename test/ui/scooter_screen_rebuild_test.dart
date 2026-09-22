@@ -38,9 +38,21 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   String? currentScooterId;
   @override
+  bool connected = true;
+  @override
+  String? get selectedScooterId => currentScooterId;
+  @override
   ScooterState? state = ScooterState.ready;
   @override
   String? connectingScooterId;
+  @override
+  Set<String> scootersInRange = {};
+  @override
+  bool scooterPresenceKnown = false;
+  @override
+  String? autoConnectPriorityId;
+  @override
+  Future<void> refreshScooterPresence() async {}
   @override
   int? odometerMeters = 4200;
   @override
@@ -128,14 +140,19 @@ void main() {
     final alphaBefore = alpha.nameReads;
     final betaBefore = beta.nameReads;
     final betaCard = find.ancestor(of: find.text('Beta'), matching: find.byType(SavedScooterCard));
-    final betaToggle = find.descendant(of: betaCard, matching: find.byIcon(Icons.sync));
-    await tester.ensureVisible(betaToggle);
+    final betaActions = find.descendant(of: betaCard, matching: find.byIcon(Icons.more_horiz));
+    await tester.ensureVisible(betaActions);
+    await tester.tap(betaActions);
     await tester.pumpAndSettle();
-    await tester.tap(betaToggle);
+    final alphaAfterSheet = alpha.nameReads;
+    final betaAfterSheet = beta.nameReads;
+    await tester.tap(find.byType(Switch));
     await tester.pumpAndSettle();
 
-    expect(beta.nameReads, greaterThan(betaBefore));
-    expect(alpha.nameReads, alphaBefore);
+    expect(beta.nameReads, greaterThan(betaAfterSheet));
+    expect(alpha.nameReads, alphaAfterSheet);
+    expect(betaAfterSheet, greaterThanOrEqualTo(betaBefore));
+    expect(alphaAfterSheet, greaterThanOrEqualTo(alphaBefore));
   });
 
   testWidgets('list changes still rebuild the cards', (tester) async {
@@ -145,10 +162,12 @@ void main() {
 
     final before = scooter.nameReads;
     // A connection attempt changes what the row shows, so it must get through.
+    service.connected = false;
     service.state = ScooterState.linking;
     service.connectingScooterId = scooter.id;
     service.notifyListeners();
     await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(scooter.nameReads, greaterThan(before));
   });
 }

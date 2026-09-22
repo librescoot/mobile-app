@@ -9,6 +9,7 @@ import 'package:scooter_flutter/scooter_telemetry.dart';
 import 'dart:async';
 import 'package:scooter_flutter/navigation_runtime.dart';
 
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -71,6 +72,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   @visibleForTesting
   set myScooter(BluetoothDevice? value) => _session.device = value;
   String? get currentScooterId => _session.device?.remoteId.toString();
+  String? get selectedScooterId => _session.manualTargetId ?? currentScooterId ?? mostRecentSavedScooterId;
   void disconnectAndClearDevice() => _session.disconnectAndClearDevice();
   bool get alarmAvailable => _telemetry.alarmAvailable;
   bool get otaAvailable => _telemetry.otaAvailable;
@@ -86,6 +88,13 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   /// In-range scooters with auto-unlock enabled, the connected one included.
   /// Refreshed from a throttled scan on the keyless poll cycle.
   int _autoUnlockScootersInRange = 0;
+  Set<String> _scootersInRange = const {};
+  bool _scooterPresenceKnown = false;
+  String? _autoConnectPriorityId;
+  bool _presenceScanRunning = false;
+  Set<String> get scootersInRange => _scootersInRange;
+  bool get scooterPresenceKnown => _scooterPresenceKnown;
+  String? get autoConnectPriorityId => _autoConnectPriorityId;
   DateTime? _autoUnlockAmbiguityCheckedAt;
   bool _ambiguityScanRunning = false;
   static const int _autoUnlockAmbiguityTtlSeconds = 60;
@@ -105,6 +114,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   set optionalAuth(bool value) => settings.optionalAuth = value;
 
   void _telemetryChanged() => notifyListeners();
+  void _sessionTargetChanged() => notifyListeners();
 
   void ping() => _pingScooter(myScooter?.remoteId.toString());
 
@@ -304,20 +314,18 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     if (stops == null) return const [];
     return stops.map(NavDestination.fromDestination).toList();
   }
+
   int get routePlanStep => navigation.plan?.currentStep ?? 0;
   bool get hasRoutePlan => navigation.plan?.isNotEmpty ?? false;
 
   Future<void> refreshRoutePlan() => navigation.refreshPlan();
   Future<List<NavDestination>> routePlanFavorites() async =>
-      (await navigation.listFavorites())
-          .map(NavDestination.fromDestination)
-          .toList();
+      (await navigation.listFavorites()).map(NavDestination.fromDestination).toList();
   Future<void> addRouteStop(NavDestination stop) => navigation.addStop(stop);
   Future<void> removeRouteStop(int index) => navigation.removeStopAt(index);
   Future<void> skipRouteStop() => navigation.skipStop();
   Future<void> clearRoutePlan() => navigation.clearPlan();
-  Future<void> reorderRoutePlan(List<NavDestination> ordered) =>
-      navigation.reorderPlan(ordered);
+  Future<void> reorderRoutePlan(List<NavDestination> ordered) => navigation.reorderPlan(ordered);
 
   // STATUS STREAMS
   bool get connected => _session.connected;
@@ -424,6 +432,43 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   // MAIN FUNCTIONS
 
+  void _publishScooterPresence(Set<String> ids, {String? priorityId}) {
+    final next = Set<String>.unmodifiable(ids);
+    final changed =
+        !setEquals(_scootersInRange, next) || !_scooterPresenceKnown || _autoConnectPriorityId != priorityId;
+    _scootersInRange = next;
+    _scooterPresenceKnown = true;
+    _autoConnectPriorityId = priorityId;
+    if (changed) notifyListeners();
+  }
+
+  void _recordScooterInRange(String id) {
+    if (_scootersInRange.contains(id)) return;
+    _publishScooterPresence({..._scootersInRange, id}, priorityId: _autoConnectPriorityId);
+  }
+
+  /// Best-effort presence snapshot for the scooter picker. Existing connection
+  /// scans also update this state, so opening the screen does not need to own a
+  /// continuous BLE scan.
+  Future<void> refreshScooterPresence() async {
+    if (_presenceScanRunning || scanning || connectingScooterId != null) return;
+    _presenceScanRunning = true;
+    try {
+      final ids = savedScooters.keys.toList();
+      final inRange = await scanner.idsInRange(ids, settle: const Duration(seconds: 2));
+      final current = currentScooterId;
+      if (current != null) inRange.add(current);
+      _publishScooterPresence(
+        inRange,
+        priorityId: inRange.contains(_autoConnectPriorityId) ? _autoConnectPriorityId : null,
+      );
+    } catch (e, stack) {
+      log.warning("Couldn't refresh scooter presence", e, stack);
+    } finally {
+      _presenceScanRunning = false;
+    }
+  }
+
   Future<BluetoothDevice?> findEligibleScooter({
     List<String> excludedScooterIds = const [],
     bool includeSystemScooters = true,
@@ -435,7 +480,10 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       excludedScooterIds: excludedScooterIds,
       includeSystemScooters: includeSystemScooters,
     );
-    if (found.isEmpty) return null;
+    if (found.isEmpty) {
+      _publishScooterPresence(const {});
+      return null;
+    }
     // Everything in range is known before anything is chosen, so the scooter
     // used most recently wins instead of whichever answered the scan first.
     DateTime lastPingOf(BluetoothDevice device) =>
@@ -444,7 +492,12 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         found.where((device) => savedScooters[device.remoteId.toString()]?.autoConnect == true).toList();
     final pool = autoConnect.isEmpty ? found : autoConnect;
     pool.sort((a, b) => lastPingOf(b).compareTo(lastPingOf(a)));
-    return pool.first;
+    final chosen = pool.first;
+    _publishScooterPresence(
+      found.map((device) => device.remoteId.toString()).toSet(),
+      priorityId: chosen.remoteId.toString(),
+    );
+    return chosen;
   }
 
   /// Live list of scooters the user could pick from, growing while the scan
@@ -774,6 +827,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   void manualTargetChanged(String? id, {bool includeMetadata = false}) {
+    service._sessionTargetChanged();
     service.updateBackgroundService({
       "manualConnectionTarget": id ?? "",
       if (includeMetadata) "scooterName": service.savedScooters[id]?.name,
@@ -798,6 +852,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
 
   @override
   void transportConnected(SessionConnection connection) {
+    service._recordScooterInRange(connection.id);
     service._telemetry.prepare(_cachedTelemetry(service.savedScooters[connection.id]));
     service.addSavedScooter(connection.id);
   }
