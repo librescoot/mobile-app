@@ -21,6 +21,24 @@ class LsKeycardScreen extends StatefulWidget {
 
 class _LsKeycardScreenState extends State<LsKeycardScreen> {
   List<String> keycards = [];
+  String? _phoneFingerprint;
+  String? _phoneKeyError;
+  bool _creatingPhoneKey = false;
+  static const _phoneKeyChannel = MethodChannel('org.librescoot.mobile/phone_key');
+
+  Future<void> _setUpPhoneKey() async {
+    setState(() { _creatingPhoneKey = true; _phoneKeyError = null; });
+    try {
+      final id = await _phoneKeyChannel.invokeMethod<String>('fingerprint');
+      if (!mounted) return;
+      setState(() => _phoneFingerprint = id);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _phoneKeyError = e.toString());
+    } finally {
+      if (mounted) setState(() => _creatingPhoneKey = false);
+    }
+  }
   Map<String, String> _aliases = {};
   bool _isLoadingKeycards = false;
   bool _isBackgroundScanning = false;
@@ -49,26 +67,47 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
       body: RefreshIndicator(
         key: _refreshIndicatorKey,
         onRefresh: _loadKeycards,
-        child: ListView.builder(
+        child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          itemCount: keycards.length,
           padding: const EdgeInsets.only(top: 16, bottom: 32),
-          itemBuilder: (context, index) {
-            final keycard = keycards[index];
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: KeycardCard(
-                key: ValueKey(keycard),
-                index: index,
-                uid: keycard,
-                alias: _aliases[keycard],
-                onlyCard: keycards.length == 1,
-                highlighted: _highlightedUid == keycard,
-                onDelete: _deleteKeycard,
-                onRename: _renameKeycard,
+          children: [
+            if (Platform.isAndroid)
+              Card(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Use this Android phone as a key', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    const Text('Set up a device-bound key, then tap your master card to enter learn mode. '
+                        'Hold the unlocked phone against the scooter reader, and tap the master card again to save it. '
+                        'The phone screen and NFC must be on for future taps.'),
+                    const SizedBox(height: 8),
+                    if (_phoneFingerprint != null)
+                      SelectableText('Phone key: $_phoneFingerprint'),
+                    if (_phoneKeyError != null) Text(_phoneKeyError!, style: const TextStyle(color: Colors.red)),
+                    TextButton(
+                      onPressed: _creatingPhoneKey ? null : _setUpPhoneKey,
+                      child: Text(_creatingPhoneKey ? 'Setting up…' : 'Set up / show phone key'),
+                    ),
+                  ]),
+                ),
               ),
-            );
-          },
+            for (final (index, keycard) in keycards.indexed)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: KeycardCard(
+                  key: ValueKey(keycard),
+                  index: index,
+                  uid: keycard,
+                  alias: _aliases[keycard],
+                  onlyCard: keycards.length == 1,
+                  highlighted: _highlightedUid == keycard,
+                  onDelete: _deleteKeycard,
+                  onRename: _renameKeycard,
+                ),
+              ),
+          ],
         ),
       ),
     );

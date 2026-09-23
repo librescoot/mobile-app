@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Librescoot App for unu</string>
+    <string name="phone_key_description">LibreScoot scooter key</string>
 </resources>
