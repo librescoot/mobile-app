@@ -1,49 +1,51 @@
 # Librescoot App for unu
 
-The Librescoot-branded build of the community app for the unu Scooter Pro.
+Part of the [Librescoot](https://librescoot.org/) open-source platform.
 
-This is a rebrand of [reunu/unustasis](https://github.com/reunu/unustasis) ("stasis for unu"),
-tracking it closely. All app development happens upstream; this repository carries
-only the Librescoot branding on top, plus the release pipeline that publishes to
-Google Play and TestFlight.
+A Flutter app for the unu Scooter Pro. It connects to the scooter over Bluetooth Low Energy (BLE) to show vehicle status and provide controls. The app builds on the [Unustasis project](https://github.com/reunu/unustasis).
 
-The Android app and the main iOS bundle ship as `org.librescoot.mobile.unu`, so
-they install alongside the upstream build rather than replacing it.
+## Capabilities
 
-## Keeping in sync
+The app works over BLE with the unu Scooter Pro; it does not require a cloud account for vehicle controls.
 
-The branding lives in a single commit on top of upstream `main`. To take new
-upstream work:
+- **Vehicle and access:** Pair and manage multiple scooters; view vehicle and lock state, main and auxiliary battery details, estimated range and odometer; lock, unlock and open the seatbox. Control turn signals, wake and hibernate the scooter, and access supported reboot controls.
+- **Keyless use:** Automatically unlock when in range, choose a proximity threshold, optionally open the seatbox on unlock and flash the hazard lights when locking. Android can scan in the background and show scooter notifications; Android and iOS have home-screen widgets.
+- **Riding and navigation:** View a driving display and scooter location, search or save destinations and send navigation to the scooter. On compatible Librescoot firmware, edit a multi-stop route (add, reorder, skip and remove stops) and view the ride counter with distance, riding time and average speed.
+- **Librescoot administration:** Add, rename and remove keycards; manage alarm and honk settings, auto-standby and auto-hibernation timers, scheduled hibernation, battery keep-active and cellular APN. Check installed system versions, synchronize the clock, select USB update mode or service mode, and check for and install supported firmware updates over BLE.
+- **App settings and integrations:** Choose light, dark or system theme and app language; use biometric protection where available. Android supports Tasker actions. A temporary demo mode lets you explore the interface without connecting to a scooter.
 
-```bash
-git fetch upstream                      # git@github.com:reunu/unustasis.git
-git rebase --onto upstream/main <previous-upstream-main> main
-```
+Features that change vehicle settings, route plans or firmware require a connected scooter with the corresponding Librescoot software and advertised capabilities. Platform-specific integrations require a supported Android or iOS device.
 
-Resolve conflicts in favour of upstream for anything that is not a brand string
-or an identifier. Never merge upstream into this branch: the history is meant to
-stay a thin, rebasable layer.
+### What this app adds
 
-## Getting Started
+- **Over [Unustasis](https://github.com/reunu/unustasis):** Capability-gated multi-stop route planning, a ride counter with reset and retention settings, Android Tasker actions and a redesigned multi-scooter interface.
+- **Over [unu-app](https://github.com/reunu/unu-app):** All of the above, plus Librescoot-specific controls for keycards, alarms, power timers, APN and firmware updates, and navigation. Both apps provide basic BLE controls and keyless unlocking.
 
-### Using this app
+## Installation
 
-If you just want to use this app, go into the "Releases" section on this page and download the latest APK file. The app is also available as proe-release through Google Play and Apple TestFlight, but that will change shortly.
+Android APKs are available from this repository's [releases](https://github.com/librescoot/mobile-app/releases). Android testing builds are also distributed through Google Play, and iOS testing builds through TestFlight.
 
-### Building this app yourself
+The Android package and main iOS bundle use `org.librescoot.mobile.unu`, allowing installation alongside Unustasis.
 
-This app is made in Flutter for cross-platform functionality, UI performance, and rapid development. To build it on your system, [follow this getting-started guide](https://docs.flutter.dev/get-started/install) to install the Flutter SDK and required Android or iOS SDKs.
+## Build and test
 
-Run the following command in the root of this project to install and start the development version on your device:
+Install the [Flutter SDK](https://docs.flutter.dev/get-started/install) and the platform tools for Android or iOS. From the repository root:
 
-```
+```sh
+flutter pub get
 flutter run
+flutter analyze
+flutter test
 ```
 
-### Contributing
+For release automation and distribution details, see [RELEASING.md](RELEASING.md).
 
-Interested in contributing? Join the [Librescoot Discord](https://discord.gg/BmY2P2T9j3) or create an issue right here on GitHub!
-Pull requests are also very welcome, as my test devices are pretty limited and therefore I depend on any help I can get.
+## Contributing
 
+Issues and contributions are welcome in the [mobile-app repository](https://github.com/librescoot/mobile-app). Join the [Librescoot community on Discord](https://discord.gg/BmY2P2T9j3), or [learn more about Librescoot](https://librescoot.org/).
 
+## License
 
+This project is licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License](LICENSE).
+
+Made with ❤️ by the Librescoot community
