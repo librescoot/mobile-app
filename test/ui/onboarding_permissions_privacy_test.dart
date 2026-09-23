@@ -10,6 +10,7 @@ import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/service/onboarding_permissions.dart';
 import 'package:unustasis/service/onboarding_preferences.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
+import 'package:unustasis/ui/widgets/scooter_visual.dart';
 
 class _Service extends ChangeNotifier implements ScooterService {
   @override
@@ -88,6 +89,7 @@ Future<void> _mount(
   _Preferences preferences, {
   Size size = const Size(800, 1200),
   double textScale = 1,
+  int initialStep = 0,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -115,6 +117,7 @@ Future<void> _mount(
           home: OnboardingScreen(
             permissionController: permissions,
             onboardingPreferences: OnboardingPreferences(preferences: preferences),
+            initialStep: initialStep,
           ),
         ),
       ),
@@ -288,6 +291,39 @@ void main() {
     expect(find.text('Find scooter'), findsOneWidget);
     expect(permissions.requests, 0);
     expect(preferences.writes, isEmpty);
+  });
+
+  testWidgets('personalization stays centered and makes the default name easy to replace on iPad', (tester) async {
+    final service = _Service();
+    final permissions = _PermissionController(_summary());
+    final preferences = _Preferences();
+    addTearDown(service.dispose);
+    await _mount(tester, service, permissions, preferences,
+        size: const Size(744, 1133), initialStep: 6);
+
+    expect(tester.widget<ScooterVisual>(find.byType(ScooterVisual)).color, 0);
+    final palette = find.byWidgetPredicate(
+      (widget) => widget is SingleChildScrollView && widget.scrollDirection == Axis.horizontal,
+    );
+    final paletteRow = find.descendant(of: palette, matching: find.byType(Row));
+    expect(tester.getCenter(paletteRow).dx, closeTo(tester.getCenter(palette).dx, 0.1));
+
+    final nameField = find.byType(TextField);
+    expect(tester.getSize(nameField).width, 420);
+    await tester.tap(nameField);
+    await tester.pump();
+    final controller = tester.widget<TextField>(nameField).controller!;
+    expect(controller.selection, TextSelection(baseOffset: 0, extentOffset: controller.text.length));
+  });
+
+  testWidgets('onboarding scooter artwork starts black', (tester) async {
+    final service = _Service();
+    final permissions = _PermissionController(_summary());
+    final preferences = _Preferences();
+    addTearDown(service.dispose);
+    await _mount(tester, service, permissions, preferences);
+
+    expect(tester.widget<ScooterVisual>(find.byType(ScooterVisual)).color, 0);
   });
 
   test('completion marker is never written before the consent choice', () async {

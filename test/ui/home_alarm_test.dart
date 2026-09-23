@@ -258,6 +258,25 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('large screens inset translucent corner actions', (tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final service = _Service();
+    addTearDown(service.dispose);
+    await _mountHome(tester, service);
+
+    final help = find.widgetWithIcon(IconButton, Icons.help_outline);
+    final settings = find.widgetWithIcon(IconButton, Icons.settings_outlined);
+    expect(tester.getTopLeft(help).dx, 24);
+    expect(tester.getTopRight(settings).dx, 800 - 24);
+    final button = tester.widget<IconButton>(help);
+    final background = button.style!.backgroundColor!.resolve(<WidgetState>{})!;
+    expect(background.a, greaterThan(0));
+    expect(background.a, lessThan(1));
+  });
+
   testWidgets('a failed stop reports itself and leaves the control usable', (tester) async {
     const channel = MethodChannel('PonnamKarthik/fluttertoast');
     final toasts = <MethodCall>[];

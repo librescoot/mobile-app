@@ -253,6 +253,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final navigationAvailable = context.select<ScooterService, bool>(
       (service) => service.identity.supportsNavigation == true,
     );
+    final largeScreen = MediaQuery.sizeOf(context).shortestSide >= 600;
+    final cornerInset = largeScreen ? 24.0 : 8.0;
+    final cornerTop = largeScreen ? 16.0 : 0.0;
     // Resolved once per build: provider forbids select() from nested builders.
     final ({AlarmStatus? status, bool unsupported}) alarm =
         context.select<ScooterService, ({AlarmStatus? status, bool unsupported})>((service) => (
@@ -688,11 +691,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ),
                       ),
                       Positioned(
-                        top: 0,
-                        left: 8,
-                        child: IconButton(
+                        top: cornerTop,
+                        left: cornerInset,
+                        child: _cornerAction(
+                          icon: Icons.help_outline,
                           tooltip: FlutterI18n.translate(context, "stats_title_support"),
-                          icon: const Icon(Icons.help_outline),
                           onPressed: () => Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -702,11 +705,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ),
                       ),
                       Positioned(
-                        top: 0,
-                        right: 8,
-                        child: IconButton(
+                        top: cornerTop,
+                        right: cornerInset,
+                        child: _cornerAction(
+                          icon: Icons.settings_outlined,
                           tooltip: FlutterI18n.translate(context, "stats_title_settings"),
-                          icon: const Icon(Icons.settings_outlined),
                           onPressed: () => Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -723,6 +726,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _cornerAction({required IconData icon, required String tooltip, required VoidCallback onPressed}) {
+    final colors = Theme.of(context).colorScheme;
+    return IconButton.filledTonal(
+      style: IconButton.styleFrom(
+        backgroundColor: colors.surfaceContainerHighest.withValues(alpha: 0.78),
+        foregroundColor: colors.onSurface,
+      ),
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon),
     );
   }
 
