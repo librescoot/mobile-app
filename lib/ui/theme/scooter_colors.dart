@@ -22,10 +22,19 @@ int canonicalScooterColor(int value) => value == 1 ? 3 : value;
 
 bool usesLayeredScooterArtwork(int value) => standardScooterColorValues.contains(canonicalScooterColor(value));
 
-String layeredScooterColor(int value) {
-  final color = scooterColors[canonicalScooterColor(value)]!.displayColor.toARGB32() & 0xFFFFFF;
-  return '#${color.toRadixString(16).padLeft(6, '0').toUpperCase()}';
-}
+String layeredScooterColor(int value) => _layeredArtworkColors[canonicalScooterColor(value)]!;
+
+const Map<int, String> _layeredArtworkColors = {
+  0: '#0F0F0F',
+  2: '#255242',
+  3: '#D5D5D5',
+  4: '#B86057',
+  5: '#D4220F',
+  6: '#0F214F',
+  7: '#494949',
+  8: '#80CBC4',
+  9: '#03A9F4',
+};
 
 bool layeredScooterColorIsMatte(int value) =>
     scooterColors[canonicalScooterColor(value)]!.finish == ScooterColorFinish.matte;

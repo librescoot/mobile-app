@@ -28,54 +28,59 @@ class RenderedScooterArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageFit = fit ?? BoxFit.contain;
-    return RepaintBoundary(
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          _image('images/scooter/${_prefix}_base.png', imageFit),
+    final artwork = Stack(
+      alignment: Alignment.center,
+      children: [
+        _image('images/scooter/${_prefix}_base.png'),
+        Positioned.fill(
+          child: ColorFiltered(
+            colorFilter: ColorFilter.mode(_paintColor, BlendMode.modulate),
+            child: _image('images/scooter/${_prefix}_panels.png'),
+          ),
+        ),
+        if (matte)
           Positioned.fill(
-            child: ColorFiltered(
-              colorFilter: ColorFilter.mode(_paintColor, BlendMode.modulate),
-              child: _image('images/scooter/${_prefix}_panels.png', imageFit),
+            key: const ValueKey('custom-paint-matte-layer'),
+            child: _image('images/scooter/${_prefix}_matte.png'),
+          )
+        else
+          Positioned.fill(
+            key: const ValueKey('custom-paint-gloss-layer'),
+            child: ShaderMask(
+              blendMode: BlendMode.srcIn,
+              shaderCallback: (bounds) => RadialGradient(
+                center:
+                    view == ScooterArtworkView.front ? const Alignment(-0.72, -0.62) : const Alignment(-0.78, -0.48),
+                radius: view == ScooterArtworkView.front ? 0.82 : 0.95,
+                colors: const [
+                  Color(0x52FFFFFF),
+                  Color(0x26FFFFFF),
+                  Color(0x08FFFFFF),
+                  Colors.transparent,
+                ],
+                stops: const [0, 0.28, 0.58, 1],
+              ).createShader(bounds),
+              child: _image('images/scooter/${_prefix}_panels.png'),
             ),
           ),
-          if (matte)
-            Positioned.fill(
-              key: const ValueKey('custom-paint-matte-layer'),
-              child: _image('images/scooter/${_prefix}_matte.png', imageFit),
-            )
-          else
-            Positioned.fill(
-              key: const ValueKey('custom-paint-gloss-layer'),
-              child: ShaderMask(
-                blendMode: BlendMode.srcIn,
-                shaderCallback: (bounds) => RadialGradient(
-                  center:
-                      view == ScooterArtworkView.front ? const Alignment(-0.72, -0.62) : const Alignment(-0.78, -0.48),
-                  radius: view == ScooterArtworkView.front ? 0.82 : 0.95,
-                  colors: const [
-                    Color(0x52FFFFFF),
-                    Color(0x26FFFFFF),
-                    Color(0x08FFFFFF),
-                    Colors.transparent,
-                  ],
-                  stops: const [0, 0.28, 0.58, 1],
-                ).createShader(bounds),
-                child: _image('images/scooter/${_prefix}_panels.png', imageFit),
-              ),
-            ),
-        ],
-      ),
+      ],
     );
+    final sizedArtwork = height != null && width == null
+        ? SizedBox(
+            width: height! * (view == ScooterArtworkView.front ? 866 / 1800 : 2110 / 1738),
+            height: height,
+            child: artwork,
+          )
+        : artwork;
+    return RepaintBoundary(child: sizedArtwork);
   }
 
-  Widget _image(String asset, BoxFit imageFit) {
+  Widget _image(String asset) {
     return Image.asset(
       asset,
       height: height,
       width: width,
-      fit: imageFit,
+      fit: fit,
       cacheWidth: cacheWidth,
       gaplessPlayback: true,
     );

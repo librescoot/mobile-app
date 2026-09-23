@@ -80,7 +80,10 @@ void main() {
       ),
     );
 
-    final artwork = tester.widget<RenderedScooterArtwork>(find.byType(RenderedScooterArtwork));
+    final artworkFinder = find.byType(RenderedScooterArtwork);
+    final artwork = tester.widget<RenderedScooterArtwork>(artworkFinder);
+    expect(tester.getSize(artworkFinder).height, 160);
+    expect(tester.getSize(artworkFinder).width, closeTo(160 * 2110 / 1738, 0.1));
     expect(artwork.color, '#123456');
     expect(artwork.matte, isFalse);
     expect(find.byKey(const ValueKey('custom-paint-gloss-layer')), findsOneWidget);
