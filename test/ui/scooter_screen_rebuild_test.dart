@@ -58,6 +58,8 @@ class _Service extends ChangeNotifier implements ScooterService {
   bool scooterPresenceKnown = false;
   @override
   String? autoConnectPriorityId;
+  int stopAutoRestartCalls = 0;
+  int disconnectCalls = 0;
   @override
   Future<void> refreshScooterPresence() async {}
   @override
@@ -70,6 +72,10 @@ class _Service extends ChangeNotifier implements ScooterService {
     ..supportsHibernateFor = true;
   @override
   void refreshOdometer() {}
+  @override
+  void stopAutoRestart({bool clearManualTarget = true}) => stopAutoRestartCalls++;
+  @override
+  void disconnectAndClearDevice() => disconnectCalls++;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw StateError('Unexpected service call: ${invocation.memberName}');
@@ -171,7 +177,7 @@ void main() {
           (widget) => widget is GestureDetector && widget.onLongPress != null,
         ),
       ),
-      findsNothing,
+      findsOneWidget,
     );
 
     final card = find.byType(SavedScooterCard);
@@ -210,6 +216,25 @@ void main() {
     expect(navigations, 2);
     expect(service.connected, isTrue);
     expect(service.currentScooterId, 'A');
+  });
+
+  testWidgets('connected scooter disconnects from long press and the actions sheet', (tester) async {
+    final scooter = _CountingScooter(id: 'A', name: 'Alpha');
+    final service = _Service([scooter]);
+    await _mount(tester, service);
+
+    await tester.longPress(find.byType(SavedScooterCard));
+    await tester.pump();
+    expect(service.stopAutoRestartCalls, 1);
+    expect(service.disconnectCalls, 1);
+
+    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.pumpAndSettle();
+    expect(find.text('Disconnect'), findsOneWidget);
+    await tester.tap(find.text('Disconnect'));
+    await tester.pumpAndSettle();
+    expect(service.stopAutoRestartCalls, 2);
+    expect(service.disconnectCalls, 2);
   });
 
   testWidgets('animates a newly connected scooter to the top', (tester) async {
@@ -291,7 +316,7 @@ void main() {
           (widget) => widget is GestureDetector && widget.onLongPress != null,
         ),
       ),
-      findsNothing,
+      findsOneWidget,
     );
     expect(
       find.ancestor(

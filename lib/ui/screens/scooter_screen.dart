@@ -101,19 +101,23 @@ class _ScooterActionsButton extends StatelessWidget {
     required this.savedScooter,
     required this.odometerMeters,
     required this.showAutoConnect,
+    required this.showDisconnect,
     required this.rebuild,
     required this.onListChanged,
     required this.onRename,
     required this.onChangeColor,
+    required this.onDisconnect,
   });
 
   final SavedScooter savedScooter;
   final int? odometerMeters;
   final bool showAutoConnect;
+  final bool showDisconnect;
   final void Function() rebuild;
   final void Function() onListChanged;
   final Future<void> Function() onRename;
   final Future<void> Function() onChangeColor;
+  final VoidCallback onDisconnect;
 
   @override
   Widget build(BuildContext context) {
@@ -136,10 +140,12 @@ class _ScooterActionsButton extends StatelessWidget {
               savedScooter,
               odometerMeters,
               showAutoConnect: showAutoConnect,
+              showDisconnect: showDisconnect,
               rebuild: rebuild,
               onListChanged: onListChanged,
               onRename: onRename,
               onChangeColor: onChangeColor,
+              onDisconnect: onDisconnect,
             ),
           ),
         ),
@@ -153,10 +159,12 @@ Future<void> showScooterActionsSheet(
   SavedScooter savedScooter,
   int? odometerMeters, {
   required bool showAutoConnect,
+  required bool showDisconnect,
   required void Function() rebuild,
   required void Function() onListChanged,
   required Future<void> Function() onRename,
   required Future<void> Function() onChangeColor,
+  required VoidCallback onDisconnect,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -214,6 +222,15 @@ Future<void> showScooterActionsSheet(
                 },
               ),
             const Divider(height: 1),
+            if (showDisconnect)
+              ListTile(
+                leading: const Icon(Icons.link_off_outlined),
+                title: Text(FlutterI18n.translate(context, "settings_disconnect")),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  onDisconnect();
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
               title: Text(FlutterI18n.translate(context, "stats_rename_scooter")),
@@ -252,6 +269,14 @@ Future<void> showScooterActionsSheet(
       ),
     ),
   );
+}
+
+void disconnectScooter(BuildContext context, {required void Function() onListChanged}) {
+  HapticFeedback.mediumImpact();
+  final service = context.read<ScooterService>();
+  service.stopAutoRestart();
+  service.disconnectAndClearDevice();
+  onListChanged();
 }
 
 /// The forget dialog and removal, shared by both tile layouts.
@@ -801,6 +826,7 @@ class _SavedScooterCardBody extends StatelessWidget {
           : connected
               ? () => _openMainPage(context, onNavigateBack)
               : () => _connect(context),
+      onLongPress: connected ? () => disconnectScooter(context, onListChanged: onListChanged) : null,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -848,10 +874,12 @@ class _SavedScooterCardBody extends StatelessWidget {
                       savedScooter: savedScooter,
                       odometerMeters: odometerMeters,
                       showAutoConnect: !single,
+                      showDisconnect: connected,
                       rebuild: rebuild,
                       onListChanged: onListChanged,
                       onRename: () => _rename(context),
                       onChangeColor: () => _changeColor(context),
+                      onDisconnect: () => disconnectScooter(context, onListChanged: onListChanged),
                     ),
                   ),
                 ],
@@ -1116,6 +1144,7 @@ class _SavedScooterListItemBody extends StatelessWidget {
                     }
                   }
                 },
+      onLongPress: connected ? () => disconnectScooter(context, onListChanged: onListChanged) : null,
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
@@ -1249,10 +1278,12 @@ class _SavedScooterListItemBody extends StatelessWidget {
                             savedScooter: savedScooter,
                             odometerMeters: odometerMeters,
                             showAutoConnect: !single,
+                            showDisconnect: connected,
                             rebuild: rebuild,
                             onListChanged: onListChanged,
                             onRename: () => _rename(context),
                             onChangeColor: () => _changeColor(context),
+                            onDisconnect: () => disconnectScooter(context, onListChanged: onListChanged),
                           ),
                         ],
                       ),
