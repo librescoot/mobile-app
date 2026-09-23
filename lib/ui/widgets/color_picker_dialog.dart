@@ -277,24 +277,16 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
     final renderedColor =
         _customColor ?? (usesLayeredScooterArtwork(selectedValue) ? layeredScooterColor(selectedValue) : null);
     final matte = _customColor == null ? layeredScooterColorIsMatte(selectedValue) : _customColorMatte;
-    if (renderedColor != null) {
-      return SizedBox(
-        key: ValueKey('scooter-color-front-$renderedColor-$matte'),
-        width: 132,
-        height: 246,
-        child: RenderedScooterArtwork(
-          view: ScooterArtworkView.front,
-          color: renderedColor,
-          matte: matte,
-        ),
-      );
-    }
     return SizedBox(
-      key: ValueKey('scooter-color-front-$selectedValue'),
+      key: ValueKey(
+        renderedColor == null ? 'scooter-color-front-$selectedValue' : 'scooter-color-front-$renderedColor-$matte',
+      ),
       width: 132,
       height: 246,
       child: ScooterVisual(
         color: selectedValue,
+        customColor: _customColor,
+        customColorMatte: _customColorMatte,
         state: ScooterState.parked,
         scanning: false,
         blinkerLeft: false,
@@ -308,20 +300,15 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
     final renderedColor =
         _customColor ?? (usesLayeredScooterArtwork(selectedValue) ? layeredScooterColor(selectedValue) : null);
     final matte = _customColor == null ? layeredScooterColorIsMatte(selectedValue) : _customColorMatte;
-    if (renderedColor != null) {
-      return RenderedScooterArtwork(
-        key: ValueKey('scooter-color-side-$renderedColor-$matte'),
-        view: ScooterArtworkView.side,
-        color: renderedColor,
-        matte: matte,
-        height: 160,
-      );
-    }
     return ScooterSideVisual(
-      key: ValueKey('scooter-color-side-$selectedValue'),
+      key: ValueKey(
+        renderedColor == null ? 'scooter-color-side-$selectedValue' : 'scooter-color-side-$renderedColor-$matte',
+      ),
       imagePath: 'images/scooter/side_$selectedValue.webp',
       height: 160,
       showBackdrop: false,
+      renderedColor: renderedColor,
+      renderedColorMatte: matte,
     );
   }
 
