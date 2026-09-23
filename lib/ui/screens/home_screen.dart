@@ -250,6 +250,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final bool showRideMetrics = context.select<ScooterService, bool>(_showsRideMetrics);
+    final navigationAvailable = context.select<ScooterService, bool>(
+      (service) => service.identity.supportsNavigation == true,
+    );
     // Resolved once per build: provider forbids select() from nested builders.
     final ({AlarmStatus? status, bool unsupported}) alarm =
         context.select<ScooterService, ({AlarmStatus? status, bool unsupported})>((service) => (
@@ -318,18 +321,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onVerticalDragStart: (_) => _navigationDragDistance = 0,
-                onVerticalDragUpdate: (details) {
-                  _navigationDragDistance = (_navigationDragDistance - details.delta.dy).clamp(0, double.infinity);
-                },
-                onVerticalDragEnd: (details) {
-                  final velocity = details.primaryVelocity ?? 0;
-                  if (_navigationDragDistance >= 96 || (_navigationDragDistance >= 48 && velocity < -500)) {
-                    _openNavigationSheet();
-                  }
-                  _navigationDragDistance = 0;
-                },
-                onVerticalDragCancel: () => _navigationDragDistance = 0,
+                onVerticalDragStart: navigationAvailable ? (_) => _navigationDragDistance = 0 : null,
+                onVerticalDragUpdate: navigationAvailable
+                    ? (details) {
+                        _navigationDragDistance =
+                            (_navigationDragDistance - details.delta.dy).clamp(0, double.infinity);
+                      }
+                    : null,
+                onVerticalDragEnd: navigationAvailable
+                    ? (details) {
+                        final velocity = details.primaryVelocity ?? 0;
+                        if (_navigationDragDistance >= 96 || (_navigationDragDistance >= 48 && velocity < -500)) {
+                          _openNavigationSheet();
+                        }
+                        _navigationDragDistance = 0;
+                      }
+                    : null,
+                onVerticalDragCancel: navigationAvailable ? () => _navigationDragDistance = 0 : null,
                 child: SafeArea(
                   child: Stack(
                     children: [
@@ -675,7 +683,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 },
                               ),
                             ),
-                            _navigationCue(),
+                            _navigationCue(navigationAvailable),
                           ],
                         ),
                       ),
@@ -731,51 +739,49 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return service.cachedTripCounter != null;
   }
 
-  Widget _navigationCue() {
-    return Selector<ScooterService, bool>(
-      // `nav` is a capability the firmware already reports, so the cue follows
-      // the services rather than the nRF build string: a librescoot nRF on a
-      // stock dashboard answers nothing and must not offer navigation.
-      selector: (context, service) => service.identity.supportsNavigation == true || kDebugMode,
-      builder: (context, navigationAvailable, child) {
-        if (!navigationAvailable) return const SizedBox.shrink();
-        return Semantics(
-          button: true,
-          label: FlutterI18n.translate(context, 'nav_title'),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _openNavigationSheet,
-            child: SizedBox(
-              width: double.infinity,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.keyboard_arrow_up_rounded,
-                      size: 22,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    Text(
-                      FlutterI18n.translate(context, 'home_navigation_hint'),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ),
+  Widget _navigationCue(bool navigationAvailable) {
+    return Visibility(
+      key: const ValueKey('home-navigation-cue'),
+      visible: navigationAvailable,
+      maintainAnimation: true,
+      maintainSize: true,
+      maintainState: true,
+      child: Semantics(
+        button: true,
+        label: FlutterI18n.translate(context, 'nav_title'),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _openNavigationSheet,
+          child: SizedBox(
+            width: double.infinity,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.keyboard_arrow_up_rounded,
+                    size: 22,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  Text(
+                    FlutterI18n.translate(context, 'home_navigation_hint'),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
   void _openNavigationSheet() {
-    if (context.read<ScooterService>().identity.isLibrescoot != true && !kDebugMode) return;
+    if (context.read<ScooterService>().identity.supportsNavigation != true) return;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
