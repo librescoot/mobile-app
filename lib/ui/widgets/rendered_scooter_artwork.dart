@@ -38,13 +38,16 @@ class RenderedScooterArtwork extends StatelessWidget {
             key: const ValueKey('scooter-ground-shadow'),
             child: _image('images/scooter/${_prefix}_shadow.png'),
           ),
-        _image('images/scooter/${_prefix}_base.png'),
         Positioned.fill(
           key: ValueKey(matte ? 'custom-paint-matte-layer' : 'custom-paint-gloss-layer'),
           child: ColorFiltered(
             colorFilter: ColorFilter.mode(_paintColor, BlendMode.modulate),
             child: _image('images/scooter/${_prefix}_${matte ? 'matte' : 'gloss'}.png'),
           ),
+        ),
+        KeyedSubtree(
+          key: const ValueKey('scooter-artwork-details'),
+          child: _image('images/scooter/${_prefix}_base.png'),
         ),
       ],
     );

@@ -90,6 +90,34 @@ void main() {
     expect(find.byKey(const ValueKey('custom-paint-matte-layer')), findsNothing);
   });
 
+  testWidgets('keeps lights and details above the matte finish', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: RenderedScooterArtwork(
+          view: ScooterArtworkView.front,
+          color: '#202020',
+          matte: true,
+          height: 160,
+        ),
+      ),
+    );
+
+    final stack = tester.widget<Stack>(
+      find.descendant(
+        of: find.byType(RenderedScooterArtwork),
+        matching: find.byType(Stack),
+      ),
+    );
+    final matteIndex = stack.children.indexWhere(
+      (child) => child.key == const ValueKey('custom-paint-matte-layer'),
+    );
+    final detailsIndex = stack.children.indexWhere(
+      (child) => child.key == const ValueKey('scooter-artwork-details'),
+    );
+    expect(matteIndex, greaterThanOrEqualTo(0));
+    expect(detailsIndex, greaterThan(matteIndex));
+  });
+
   testWidgets('can omit the independently rendered ground shadow', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(

@@ -15,13 +15,61 @@ from PIL import Image
 
 SIZES = {"front": (866, 1800), "side": (2110, 1738)}
 SOURCE_COLORS = {"matte": "#A4A4A4", "gloss": "#F9F9F9"}
+FRONT_MASTER_SIZE = (866, 1668)
+FRONT_MASTER_TOP = 86
 
 
 def rgba(path: Path) -> np.ndarray:
     return np.asarray(Image.open(path).convert("RGBA"), dtype=np.float32)
 
 
+def pad_front_master(image: np.ndarray) -> np.ndarray:
+    padded = np.zeros((SIZES["front"][1], SIZES["front"][0], 4), dtype=image.dtype)
+    padded[FRONT_MASTER_TOP : FRONT_MASTER_TOP + FRONT_MASTER_SIZE[1]] = image
+    return padded
+
+
+def render_svg_elements(
+    tree: ET.ElementTree,
+    elements: list[ET.Element],
+    size: tuple[int, int],
+) -> np.ndarray:
+    root = copy.deepcopy(tree.getroot())
+    definitions = next(child for child in root if child.tag.rsplit("}", 1)[-1] == "defs")
+    for child in list(root):
+        root.remove(child)
+    for element in elements:
+        root.append(copy.deepcopy(element))
+    root.append(definitions)
+
+    with tempfile.TemporaryDirectory() as temporary:
+        svg = Path(temporary) / "selection.svg"
+        png = Path(temporary) / "selection.png"
+        ET.ElementTree(root).write(svg, encoding="utf-8", xml_declaration=True)
+        subprocess.run(
+            ["rsvg-convert", "-w", str(size[0]), "-h", str(size[1]), "-o", str(png), str(svg)],
+            check=True,
+        )
+        return rgba(png)
+
+
+def front_master_masks(source: Path) -> tuple[np.ndarray, np.ndarray]:
+    tree = ET.parse(source / "front_master.svg")
+    children = list(tree.getroot())
+    body = copy.deepcopy(children[26])
+    body.set("fill", "white")
+    body.attrib.pop("style", None)
+    fender = copy.deepcopy(list(children[39])[0])
+    fender.set("fill", "white")
+    paint = render_svg_elements(tree, [body, fender], FRONT_MASTER_SIZE)
+    foreground = render_svg_elements(tree, children[42:52], FRONT_MASTER_SIZE)
+    return pad_front_master(paint)[:, :, 3] / 255, pad_front_master(foreground)[:, :, 3] / 255
+
+
 def paint_alpha(source: Path, view: str) -> np.ndarray:
+    if view == "front" and (source / "front_master.svg").exists():
+        return front_master_masks(source)[0]
+
     tree = ET.parse(source / f"{view}_6.svg")
     root = tree.getroot()
     definitions = next(child for child in root if child.tag.rsplit("}", 1)[-1] == "defs")
@@ -63,14 +111,15 @@ def paint_alpha(source: Path, view: str) -> np.ndarray:
 
 
 def shadow_layer(source: Path, view: str, destination: Path) -> np.ndarray:
-    tree = ET.parse(source / f"{view}_6.svg")
+    use_master = view == "front" and (source / "front_master.svg").exists()
+    tree = ET.parse(source / ("front_master.svg" if use_master else f"{view}_6.svg"))
     root = tree.getroot()
     children = list(root)
     for child in children:
         if child is not children[0] and child.tag.rsplit("}", 1)[-1] != "defs":
             root.remove(child)
 
-    width, height = SIZES[view]
+    width, height = FRONT_MASTER_SIZE if use_master else SIZES[view]
     with tempfile.TemporaryDirectory() as temporary:
         shadow_svg = Path(temporary) / "shadow.svg"
         tree.write(shadow_svg, encoding="utf-8", xml_declaration=True)
@@ -90,7 +139,11 @@ def shadow_layer(source: Path, view: str, destination: Path) -> np.ndarray:
         )
         rendered = rgba(rendered_shadow)
 
-    reference = rgba(source / f"{view}_6.png")
+    if use_master:
+        rendered = pad_front_master(rendered)
+        reference = pad_front_master(rgba(source / "front_master@2x.png"))
+    else:
+        reference = rgba(source / f"{view}_6.png")
     visible = (reference[:, :, 3] <= rendered[:, :, 3] + 5) & (rendered[:, :, 3] > 0)
     shadow = np.zeros_like(reference)
     shadow[visible] = reference[visible]
@@ -99,9 +152,14 @@ def shadow_layer(source: Path, view: str, destination: Path) -> np.ndarray:
 
 
 def tone_layer(source: Path, view: str, finish: str, alpha: np.ndarray) -> np.ndarray:
-    source_id = 3 if finish == "matte" else 1
-    image = rgba(source / f"{view}_{source_id}.png")
-    color = SOURCE_COLORS[finish]
+    use_master = view == "front" and finish == "matte" and (source / "front_master@2x.png").exists()
+    if use_master:
+        image = pad_front_master(rgba(source / "front_master@2x.png"))
+        color = "#2F2F2F"
+    else:
+        source_id = 3 if finish == "matte" else 1
+        image = rgba(source / f"{view}_{source_id}.png")
+        color = SOURCE_COLORS[finish]
     rgb = np.array([int(color[index : index + 2], 16) for index in (1, 3, 5)], dtype=np.float32)
     reference_luminance = np.dot(rgb, [0.2126, 0.7152, 0.0722])
     luminance = np.dot(image[:, :, :3], [0.2126, 0.7152, 0.0722])
@@ -118,8 +176,14 @@ def build_view(source: Path, output: Path, view: str) -> None:
     shadow_path = output / f"custom_{view}_shadow.png"
     shadow = shadow_layer(source, view, shadow_path)
 
-    base = rgba(source / f"{view}_1.png")
-    base[:, :, 3] *= 1 - alpha
+    use_master = view == "front" and (source / "front_master@2x.png").exists()
+    if use_master:
+        base = pad_front_master(rgba(source / "front_master@2x.png"))
+        foreground_alpha = front_master_masks(source)[1]
+        base[:, :, 3] *= 1 - alpha * (1 - foreground_alpha)
+    else:
+        base = rgba(source / f"{view}_1.png")
+        base[:, :, 3] *= 1 - alpha
     visible_shadow = (base[:, :, 3] <= shadow[:, :, 3] + 5) & (shadow[:, :, 3] > 0)
     base[visible_shadow] = 0
     Image.fromarray(np.rint(base).astype(np.uint8), "RGBA").save(
