@@ -38,6 +38,21 @@ class _Repository implements CharacteristicRepository {
     (identity.nrfVersion, identity.isLibrescoot, identity.odometerMeters);
 
 void main() {
+  test('route plans require navigation capability version 2', () {
+    final identity = ScooterIdentity()..supportsNavigation = true;
+    expect(identity.supportsRoutePlans, isFalse);
+
+    identity.navigationCapabilityVersion = 1;
+    expect(identity.supportsRoutePlans, isFalse);
+
+    identity.navigationCapabilityVersion = 2;
+    expect(identity.supportsRoutePlans, isTrue);
+
+    identity.resetLsCapabilities();
+    expect(identity.navigationCapabilityVersion, isNull);
+    expect(identity.supportsRoutePlans, isFalse);
+  });
+
   for (final nrf in [true, false]) {
     group(nrf ? 'wireNrfVersion' : 'refreshOdometer', () {
       late ScooterIdentity identity;
@@ -186,8 +201,7 @@ void main() {
       });
 
       if (nrf) {
-        test('malformed UTF-8 publishes the permissively decoded version',
-            () async {
+        test('malformed UTF-8 publishes the permissively decoded version', () async {
           start(isCurrent: () => true);
           characteristic.reads.single.complete([0xff, 45, 108, 115]);
           await pumpEventQueue(times: 2);

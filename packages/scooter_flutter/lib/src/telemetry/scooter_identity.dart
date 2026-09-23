@@ -47,6 +47,7 @@ class FirmwareIdentity {
   /// the moment the scooter's other components change.
   bool? supportsServiceMode;
   bool? supportsNavigation;
+  int? navigationCapabilityVersion;
   bool? supportsClockSync;
   bool? supportsUsbMode;
 
@@ -65,10 +66,14 @@ class FirmwareIdentity {
     supportsTripExpunge = null;
     supportsServiceMode = null;
     supportsNavigation = null;
+    navigationCapabilityVersion = null;
     supportsClockSync = null;
     supportsUsbMode = null;
     bluetoothTableOutOfDate = null;
   }
+
+  bool get supportsRoutePlans =>
+      supportsNavigation == true && (navigationCapabilityVersion ?? 0) >= 2;
 
   void wireOdometer(
     CharacteristicRepository chars, {

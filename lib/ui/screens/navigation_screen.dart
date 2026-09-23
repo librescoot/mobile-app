@@ -513,6 +513,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
   @override
   Widget build(BuildContext context) {
     final connected = context.select<ScooterService, bool>((s) => s.connected);
+    final routePlansAvailable = context.select<ScooterService, bool>(
+      (service) => service.identity.supportsRoutePlans,
+    );
     final content = Stack(
       children: [
         Column(
@@ -578,12 +581,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                     ),
-                    IconButton(
-                      tooltip: FlutterI18n.translate(
-                          context, 'nav_route_entry_tooltip'),
-                      onPressed: _openRoutePlan,
-                      icon: const Icon(Icons.route_outlined),
-                    ),
+                    if (routePlansAvailable)
+                      IconButton(
+                        tooltip: FlutterI18n.translate(context, 'nav_route_entry_tooltip'),
+                        onPressed: _openRoutePlan,
+                        icon: const Icon(Icons.route_outlined),
+                      ),
                     IconButton(
                       tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                       onPressed: () => Navigator.of(context).pop(),
@@ -606,11 +609,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
         foregroundColor: Theme.of(context).colorScheme.onSurface,
         scrolledUnderElevation: 0,
         actions: [
-          IconButton(
-            tooltip: FlutterI18n.translate(context, 'nav_route_entry_tooltip'),
-            onPressed: _openRoutePlan,
-            icon: const Icon(Icons.route_outlined),
-          ),
+          if (routePlansAvailable)
+            IconButton(
+              tooltip: FlutterI18n.translate(context, 'nav_route_entry_tooltip'),
+              onPressed: _openRoutePlan,
+              icon: const Icon(Icons.route_outlined),
+            ),
         ],
       ),
       floatingActionButton: _osmConsent &&
@@ -630,6 +634,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   void _openRoutePlan() {
+    if (!context.read<ScooterService>().identity.supportsRoutePlans) return;
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const RoutePlanScreen()),
     );
@@ -968,4 +973,3 @@ class _NoDestinationsEmpty extends StatelessWidget {
     );
   }
 }
-
