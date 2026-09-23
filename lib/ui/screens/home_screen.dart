@@ -730,12 +730,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _cornerAction({required IconData icon, required String tooltip, required VoidCallback onPressed}) {
-    final colors = Theme.of(context).colorScheme;
-    return IconButton.filledTonal(
-      style: IconButton.styleFrom(
-        backgroundColor: colors.surfaceContainerHighest.withValues(alpha: 0.78),
-        foregroundColor: colors.onSurface,
-      ),
+    return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
       icon: Icon(icon),
