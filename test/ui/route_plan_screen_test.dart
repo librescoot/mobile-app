@@ -69,12 +69,10 @@ class _PlanService extends ChangeNotifier implements ScooterService {
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      throw StateError('Unexpected service call: ${invocation.memberName}');
+  dynamic noSuchMethod(Invocation invocation) => throw StateError('Unexpected service call: ${invocation.memberName}');
 }
 
-NavDestination _stop(String name, double lat) =>
-    NavDestination(location: LatLng(lat, 13.4), name: name);
+NavDestination _stop(String name, double lat) => NavDestination(location: LatLng(lat, 13.4), name: name);
 
 Future<void> _mount(WidgetTester tester, _PlanService service) async {
   tester.view.devicePixelRatio = 1;
@@ -121,11 +119,13 @@ void main() {
     expect(find.text('Gym'), findsOneWidget);
     expect(find.text('Current'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
+    expect(find.byKey(const ValueKey('route-stop-line-after-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('route-stop-line-before-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('route-destination-marker')), findsOneWidget);
   });
 
   testWidgets('removing a stop sends its 1-based index', (tester) async {
-    final service = _PlanService()
-      ..stops = [_stop('Home', 52.51), _stop('Work', 52.52)];
+    final service = _PlanService()..stops = [_stop('Home', 52.51), _stop('Work', 52.52)];
     await _mount(tester, service);
 
     await tester.tap(find.byTooltip('Remove stop').first);
@@ -140,8 +140,7 @@ void main() {
     final service = _PlanService()..stops = [_stop('Home', 52.51)];
     await _mount(tester, service);
 
-    final button = tester.widget<OutlinedButton>(
-        find.widgetWithText(OutlinedButton, 'Skip this stop'));
+    final button = tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Skip this stop'));
     expect(button.onPressed, isNull);
 
     service
@@ -150,8 +149,7 @@ void main() {
       ..notifyListeners();
     await tester.pumpAndSettle();
 
-    final enabled = tester.widget<OutlinedButton>(
-        find.widgetWithText(OutlinedButton, 'Skip this stop'));
+    final enabled = tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Skip this stop'));
     expect(enabled.onPressed, isNotNull);
     await tester.tap(find.widgetWithText(OutlinedButton, 'Skip this stop'));
     await tester.pumpAndSettle();

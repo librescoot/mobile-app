@@ -56,8 +56,7 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = FlutterI18n.translate(context, 'nav_route_error',
-            translationParams: {'error': error.toString()});
+        _error = FlutterI18n.translate(context, 'nav_route_error', translationParams: {'error': error.toString()});
       });
     }
   }
@@ -69,8 +68,7 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(FlutterI18n.translate(context, 'nav_error',
-              translationParams: {'error': error.toString()})),
+          content: Text(FlutterI18n.translate(context, 'nav_error', translationParams: {'error': error.toString()})),
         ));
       }
     } finally {
@@ -89,8 +87,7 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
   }
 
   Future<void> _removeStop(int oneBasedIndex) async {
-    await _run(() =>
-        context.read<ScooterService>().removeRouteStop(oneBasedIndex));
+    await _run(() => context.read<ScooterService>().removeRouteStop(oneBasedIndex));
   }
 
   Future<void> _skipStop() async {
@@ -123,8 +120,7 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
     await _run(() => context.read<ScooterService>().clearRoutePlan());
   }
 
-  Future<void> _reorder(
-      List<NavDestination> stops, int oldIndex, int newIndex) async {
+  Future<void> _reorder(List<NavDestination> stops, int oldIndex, int newIndex) async {
     if (newIndex == oldIndex) return;
     final ordered = List<NavDestination>.from(stops);
     ordered.insert(newIndex, ordered.removeAt(oldIndex));
@@ -258,11 +254,10 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
     return Column(
       children: [
         Header(
-          FlutterI18n.translate(context, 'nav_route_stop_of',
-              translationParams: {
-                'current': '${step + 1}',
-                'total': '${stops.length}',
-              }),
+          FlutterI18n.translate(context, 'nav_route_stop_of', translationParams: {
+            'current': '${step + 1}',
+            'total': '${stops.length}',
+          }),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
         ),
         Expanded(
@@ -270,30 +265,22 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
             padding: wideContentPadding(context, base: const EdgeInsets.fromLTRB(8, 8, 8, 8)),
             buildDefaultDragHandles: false,
             itemCount: stops.length,
-            onReorderItem: (oldIndex, newIndex) =>
-                _reorder(stops, oldIndex, newIndex),
+            onReorderItem: (oldIndex, newIndex) => _reorder(stops, oldIndex, newIndex),
             itemBuilder: (context, index) {
               final stop = stops[index];
-              final label = stop.name?.isNotEmpty == true
-                  ? stop.name!
-                  : _formatCoordinates(stop);
+              final label = stop.name?.isNotEmpty == true ? stop.name! : _formatCoordinates(stop);
               return Card(
                 key: ValueKey('route-stop-$index-$label'),
                 margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: index == step
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.surfaceContainerHighest,
-                    foregroundColor: index == step
-                        ? Theme.of(context).colorScheme.onPrimary
-                        : null,
-                    child: Text('${index + 1}'),
+                  leading: _RouteStopMarker(
+                    index: index,
+                    count: stops.length,
+                    currentStep: step,
                   ),
                   title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
                   subtitle: stop.name?.isNotEmpty == true
-                      ? Text(_formatCoordinates(stop),
-                          maxLines: 1, overflow: TextOverflow.ellipsis)
+                      ? Text(_formatCoordinates(stop), maxLines: 1, overflow: TextOverflow.ellipsis)
                       : null,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -310,10 +297,8 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
                           ),
                         ),
                       IconButton(
-                        tooltip:
-                            FlutterI18n.translate(context, 'nav_route_remove'),
-                        onPressed:
-                            _busy ? null : () => _removeStop(index + 1),
+                        tooltip: FlutterI18n.translate(context, 'nav_route_remove'),
+                        onPressed: _busy ? null : () => _removeStop(index + 1),
                         icon: const Icon(Icons.close),
                       ),
                       ReorderableDragStartListener(
@@ -340,18 +325,15 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
                   child: FilledButton.icon(
                     onPressed: _busy ? null : _addStop,
                     icon: const Icon(Icons.add),
-                    label: Text(
-                        FlutterI18n.translate(context, 'nav_route_add_stop')),
+                    label: Text(FlutterI18n.translate(context, 'nav_route_add_stop')),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed:
-                        _busy || step + 1 >= stops.length ? null : _skipStop,
+                    onPressed: _busy || step + 1 >= stops.length ? null : _skipStop,
                     icon: const Icon(Icons.skip_next),
-                    label: Text(
-                        FlutterI18n.translate(context, 'nav_route_skip')),
+                    label: Text(FlutterI18n.translate(context, 'nav_route_skip')),
                   ),
                 ),
               ],
@@ -362,9 +344,72 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
     );
   }
 
-  String _formatCoordinates(NavDestination destination) =>
-      '${destination.location.latitude.toStringAsFixed(5)}, '
+  String _formatCoordinates(NavDestination destination) => '${destination.location.latitude.toStringAsFixed(5)}, '
       '${destination.location.longitude.toStringAsFixed(5)}';
+}
+
+class _RouteStopMarker extends StatelessWidget {
+  const _RouteStopMarker({
+    required this.index,
+    required this.count,
+    required this.currentStep,
+  });
+
+  final int index;
+  final int count;
+  final int currentStep;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final current = index == currentStep;
+    final completed = index < currentStep;
+    final lineColor = scheme.outlineVariant;
+    final completedColor = scheme.primary;
+    return SizedBox(
+      key: ValueKey('route-stop-marker-$index'),
+      width: 40,
+      height: 56,
+      child: Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          if (index > 0)
+            Positioned(
+              key: ValueKey('route-stop-line-before-$index'),
+              top: -16,
+              bottom: 28,
+              child: Container(
+                width: 3,
+                color: index <= currentStep ? completedColor : lineColor,
+              ),
+            ),
+          if (index + 1 < count)
+            Positioned(
+              key: ValueKey('route-stop-line-after-$index'),
+              top: 28,
+              bottom: -16,
+              child: Container(
+                width: 3,
+                color: completed ? completedColor : lineColor,
+              ),
+            ),
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: current ? scheme.primary : scheme.surfaceContainerHighest,
+            foregroundColor: current ? scheme.onPrimary : scheme.onSurfaceVariant,
+            child: index + 1 == count
+                ? const Icon(
+                    Icons.flag_outlined,
+                    key: ValueKey('route-destination-marker'),
+                    size: 19,
+                  )
+                : Text('${index + 1}'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Picks one stop: Photon search plus saved destinations.
@@ -392,9 +437,7 @@ class _StopPickerSheet extends StatelessWidget {
               formatFeature: GeoHelper.fullNameFromFeature,
               onSelected: (feature) {
                 Navigator.of(context).pop(NavDestination(
-                  location: LatLng(
-                      feature.coordinates.latitude.toDouble(),
-                      feature.coordinates.longitude.toDouble()),
+                  location: LatLng(feature.coordinates.latitude.toDouble(), feature.coordinates.longitude.toDouble()),
                   name: GeoHelper.nameFromFeature(feature),
                 ));
               },
@@ -416,8 +459,7 @@ class _StopPickerSheet extends StatelessWidget {
                       dense: true,
                       leading: const Icon(Icons.place_outlined),
                       title: Text(
-                        destination.name ??
-                            '${destination.location.latitude}, ${destination.location.longitude}',
+                        destination.name ?? '${destination.location.latitude}, ${destination.location.longitude}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
