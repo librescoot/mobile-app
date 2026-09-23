@@ -185,8 +185,18 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
   }
 
   Widget _colorDissolve({required bool side}) {
-    return _IncomingFadeSwitcher(
+    return AnimatedSwitcher(
       duration: const Duration(milliseconds: 320),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        alignment: Alignment.center,
+        children: [...previousChildren, if (currentChild != null) currentChild],
+      ),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: child,
+      ),
       child: side
           ? ScooterSideVisual(
               key: ValueKey('scooter-color-side-$selectedValue'),
@@ -259,80 +269,6 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
         return char;
       }
     }).join('');
-  }
-}
-
-class _IncomingFadeSwitcher extends StatefulWidget {
-  const _IncomingFadeSwitcher({
-    required this.child,
-    required this.duration,
-  });
-
-  final Widget child;
-  final Duration duration;
-
-  @override
-  State<_IncomingFadeSwitcher> createState() => _IncomingFadeSwitcherState();
-}
-
-class _IncomingFadeSwitcherState extends State<_IncomingFadeSwitcher> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late Widget _current;
-  Widget? _underlay;
-
-  @override
-  void initState() {
-    super.initState();
-    _current = widget.child;
-    _controller = AnimationController(
-      vsync: this,
-      duration: widget.duration,
-      value: 1,
-    )..addStatusListener((status) {
-        if (status == AnimationStatus.completed && mounted && _underlay != null) {
-          setState(() => _underlay = null);
-        }
-      });
-  }
-
-  @override
-  void didUpdateWidget(covariant _IncomingFadeSwitcher oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _controller.duration = widget.duration;
-    if (Widget.canUpdate(_current, widget.child)) {
-      _current = widget.child;
-      return;
-    }
-    _underlay = _current;
-    _current = widget.child;
-    _controller.forward(from: 0);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        if (_underlay != null)
-          KeyedSubtree(
-            key: const ValueKey('scooter-color-fade-underlay'),
-            child: _underlay!,
-          ),
-        FadeTransition(
-          opacity: CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-          child: KeyedSubtree(
-            key: const ValueKey('scooter-color-fade-incoming'),
-            child: _current,
-          ),
-        ),
-      ],
-    );
   }
 }
 

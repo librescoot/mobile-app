@@ -73,19 +73,15 @@ void main() {
     expect(find.byKey(const ValueKey('scooter-color-side-2')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('scooter-color-option-6')));
-    await tester.pump();
-    expect(find.byKey(const ValueKey('scooter-color-fade-underlay')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 160));
     expect(find.byKey(const ValueKey('scooter-color-side-2')), findsOneWidget);
     expect(find.byKey(const ValueKey('scooter-color-side-6')), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 160));
-    expect(find.byKey(const ValueKey('scooter-color-fade-underlay')), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 200));
-    expect(find.byKey(const ValueKey('scooter-color-fade-underlay')), findsNothing);
     expect(find.byKey(const ValueKey('scooter-color-side-6')), findsOneWidget);
   });
 
-  testWidgets('maps legacy white to Sunshine Matte Stone', (tester) async {
-    expect(scooterColors[3]!.displayColor, const Color(0xFFA4A4A4));
+  testWidgets('maps legacy white to the Matte Stone swatch', (tester) async {
+    expect(scooterColors[3]!.displayColor, const Color(0xFFD5D5D5));
     await mount(tester, initialValue: 1);
 
     final stone = find.byKey(const ValueKey('scooter-color-option-3'));
