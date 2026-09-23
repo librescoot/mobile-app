@@ -358,6 +358,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                       ),
                                     ),
                                   ScooterVisual(
+                                    key: ValueKey(
+                                      context.select<ScooterService, String?>((service) => service.currentScooterId),
+                                    ),
                                     color: context.select<ScooterService, int?>(
                                           (service) => service.identity.color,
                                         ) ??
