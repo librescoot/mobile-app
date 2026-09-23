@@ -58,8 +58,7 @@ class _Service extends ChangeNotifier implements ScooterService {
   bool scooterPresenceKnown = false;
   @override
   String? autoConnectPriorityId;
-  int stopAutoRestartCalls = 0;
-  int disconnectCalls = 0;
+  int pauseConnectionCalls = 0;
   @override
   Future<void> refreshScooterPresence() async {}
   @override
@@ -73,9 +72,7 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   void refreshOdometer() {}
   @override
-  void stopAutoRestart({bool clearManualTarget = true}) => stopAutoRestartCalls++;
-  @override
-  void disconnectAndClearDevice() => disconnectCalls++;
+  Future<void> pauseConnections() async => pauseConnectionCalls++;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw StateError('Unexpected service call: ${invocation.memberName}');
@@ -225,16 +222,14 @@ void main() {
 
     await tester.longPress(find.byType(SavedScooterCard));
     await tester.pump();
-    expect(service.stopAutoRestartCalls, 1);
-    expect(service.disconnectCalls, 1);
+    expect(service.pauseConnectionCalls, 1);
 
     await tester.tap(find.byIcon(Icons.more_horiz));
     await tester.pumpAndSettle();
     expect(find.text('Disconnect'), findsOneWidget);
     await tester.tap(find.text('Disconnect'));
     await tester.pumpAndSettle();
-    expect(service.stopAutoRestartCalls, 2);
-    expect(service.disconnectCalls, 2);
+    expect(service.pauseConnectionCalls, 2);
   });
 
   testWidgets('animates a newly connected scooter to the top', (tester) async {

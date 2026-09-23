@@ -41,6 +41,8 @@ export 'package:scooter_flutter/scooter_actions.dart'
 
 typedef WidgetActionDispatch = ExplicitActionDispatch;
 
+const connectionPausedPreferenceKey = 'connectionPaused';
+
 class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final log = Logger('ScooterService');
 
@@ -114,6 +116,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   late bool isInBackgroundService;
   final FlutterBluePlusMockable flutterBluePlus;
   bool _automaticActionsAllowed;
+  bool _connectionsPaused;
+  bool get connectionsPaused => _connectionsPaused;
 
   /// Set while the proximity countdown runs. The button fills for that window.
   DateTime? _keylessPendingSince;
@@ -150,11 +154,13 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     Future<LatLng?> Function()? pollLocation,
     bool initializeRuntime = true,
     bool allowAutomaticActions = true,
+    bool connectionsPaused = false,
   })  : store = storage ?? ScooterStorage(),
         _deviceFromId = deviceFromId ?? BluetoothDevice.fromId,
         _readLocation = pollLocation ?? location.pollLocation,
         _runtimeInitialized = initializeRuntime,
-        _automaticActionsAllowed = allowAutomaticActions {
+        _automaticActionsAllowed = allowAutomaticActions,
+        _connectionsPaused = connectionsPaused {
     settings = UserSettings(isInBackgroundService: isInBackgroundService);
     scanner = BleScanner(flutterBluePlus);
     _telemetry = ScooterTelemetry(effects: _ServiceTelemetryEffects(this), identity: identity);
@@ -222,6 +228,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         readLocation: _readLocation,
         saveLocation: (id, position) => savedScooters[id]?.lastLocation = position,
         publishDisconnected: () => state = ScooterState.disconnected,
+        automaticConnectionAllowed: () => !_connectionsPaused,
         deviceFromId: _deviceFromId);
     if (!_runtimeInitialized) return;
     runtime.initialize().then((_) => unawaited(migrateKeylessSettings()));
@@ -547,16 +554,43 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     String id, {
     bool automatic = false,
     int? expectedIntentGeneration,
-  }) =>
-      _session.connectToScooterId(
-        id,
-        automatic: automatic,
-        expectedIntentGeneration: expectedIntentGeneration,
-      );
+  }) async {
+    if (!automatic && _connectionsPaused) await setConnectionsPaused(false);
+    return _session.connectToScooterId(
+      id,
+      automatic: automatic,
+      expectedIntentGeneration: expectedIntentGeneration,
+    );
+  }
+
+  Future<void> setConnectionsPaused(bool paused, {bool publish = true}) async {
+    _connectionsPaused = paused;
+    final persistence = SharedPreferencesAsync().setBool(connectionPausedPreferenceKey, paused);
+    if (paused) {
+      stopAutoRestart();
+      disconnectAndClearDevice();
+      _session.setConnected(false, notify: false);
+      _telemetry.invalidate();
+      state = ScooterState.disconnected;
+    }
+    await persistence;
+    if (paused) {
+      try {
+        await clearPendingWidgetAction();
+      } catch (error, stack) {
+        log.warning("Couldn't clear pending widget work while disconnecting", error, stack);
+      }
+    }
+    if (publish) updateBackgroundService({"connectionPaused": paused});
+  }
+
+  Future<void> pauseConnections() => setConnectionsPaused(true);
 
   void start({bool restart = true}) => runtime.start(restart: restart);
 
-  void startAutoRestart({String? targetScooterId}) => _session.startAutoRestart(targetScooterId: targetScooterId);
+  void startAutoRestart({String? targetScooterId}) {
+    if (!_connectionsPaused) _session.startAutoRestart(targetScooterId: targetScooterId);
+  }
 
   void stopAutoRestart({bool clearManualTarget = true}) =>
       _session.stopAutoRestart(clearManualTarget: clearManualTarget);
@@ -836,7 +870,14 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    runtime.didChangeAppLifecycleState(state);
+    if (state != AppLifecycleState.resumed) {
+      runtime.didChangeAppLifecycleState(state);
+      return;
+    }
+    unawaited(() async {
+      _connectionsPaused = await SharedPreferencesAsync().getBool(connectionPausedPreferenceKey) ?? false;
+      runtime.didChangeAppLifecycleState(state);
+    }());
   }
 }
 

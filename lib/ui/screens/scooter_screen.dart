@@ -273,9 +273,7 @@ Future<void> showScooterActionsSheet(
 
 void disconnectScooter(BuildContext context, {required void Function() onListChanged}) {
   HapticFeedback.mediumImpact();
-  final service = context.read<ScooterService>();
-  service.stopAutoRestart();
-  service.disconnectAndClearDevice();
+  unawaited(context.read<ScooterService>().pauseConnections());
   onListChanged();
 }
 

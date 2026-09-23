@@ -26,12 +26,16 @@ const Duration _foregroundTimeout = Duration(minutes: 15);
 late FlutterBluePlusMockable fbp;
 late ScooterService scooterService;
 
-void _initializeScooterService({bool allowAutomaticActions = true}) {
+void _initializeScooterService({
+  bool allowAutomaticActions = true,
+  bool connectionsPaused = false,
+}) {
   fbp = FlutterBluePlusMockable();
   scooterService = ScooterService(
     fbp,
     isInBackgroundService: true,
     allowAutomaticActions: allowAutomaticActions,
+    connectionsPaused: connectionsPaused,
   );
 }
 
@@ -81,7 +85,8 @@ Future<bool> onIosBackground(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
   await BackgroundI18n.instance.init();
   // Set up a scooter service instance.
-  _initializeScooterService();
+  final connectionsPaused = await SharedPreferencesAsync().getBool(connectionPausedPreferenceKey) ?? false;
+  _initializeScooterService(connectionsPaused: connectionsPaused);
   // Make sure scooterService has time to initialize all values
   await Future.delayed(const Duration(seconds: 5));
   // update the widget
@@ -177,6 +182,9 @@ Future<void> executeWidgetAction(String actionName) async {
     if (!matchesRequest()) return;
     requestId = prefs.getString(pendingWidgetActionRequestIdKey);
 
+    if (scooterService.connectionsPaused) {
+      await scooterService.setConnectionsPaused(false, publish: false);
+    }
     if (!scooterService.connected) await setWidgetScanning(true);
 
     // Tasker only. Nothing could ever satisfy this, so answer it now: preparing
@@ -386,6 +394,7 @@ void onStart(ServiceInstance service) async {
   }
 
   backgroundScanEnabled = await SharedPreferencesAsync().getBool("backgroundScan") ?? false;
+  final connectionsPaused = await SharedPreferencesAsync().getBool(connectionPausedPreferenceKey) ?? false;
 
   // Check if we were started by a widget action.
   final prefs = await SharedPreferences.getInstance();
@@ -409,7 +418,10 @@ void onStart(ServiceInstance service) async {
     }
   }
 
-  _initializeScooterService(allowAutomaticActions: backgroundScanEnabled);
+  _initializeScooterService(
+    allowAutomaticActions: backgroundScanEnabled,
+    connectionsPaused: connectionsPaused,
+  );
 
   // Seed widget caches and clear stale spinner BEFORE any code path
   // that might stop the service (e.g. _disableScanning → stopSelf).
@@ -462,6 +474,9 @@ void onStart(ServiceInstance service) async {
   service.on("update").listen((data) async {
     Logger("bgservice").info("Received update command: $data");
     try {
+      if (data?["connectionPaused"] != null) {
+        await scooterService.setConnectionsPaused(data!["connectionPaused"] == true, publish: false);
+      }
       if (data?["autoUnlock"] != null) {
         scooterService.setAutoUnlock(data!["autoUnlock"]);
       }

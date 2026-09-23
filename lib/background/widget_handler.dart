@@ -66,6 +66,14 @@ void setupWidget() {
 
 String widgetTaskID = "org.librescoot.mobile.unu.widget_refresh";
 
+Future<void> clearPendingWidgetAction() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool("pendingWidgetAction", false);
+  await prefs.remove("pendingWidgetActionName");
+  await prefs.remove(pendingWidgetActionRequestIdKey);
+  await setWidgetScanning(false);
+}
+
 Future<void> setupWidgetTasks() async {
   Workmanager().initialize(workmanagerCallback);
 
