@@ -101,6 +101,22 @@ class _Service extends ChangeNotifier implements ScooterService {
   _Actions get actions => _actions;
   @override
   bool connected = true;
+  @override
+  bool demoMode = false;
+  @override
+  void addDemoData() {
+    demoMode = true;
+    connected = true;
+    notifyListeners();
+  }
+
+  @override
+  void removeDemoData() {
+    demoMode = false;
+    connected = false;
+    notifyListeners();
+  }
+
   void setConnection(bool value) {
     connected = value;
     notifyListeners();
@@ -210,8 +226,7 @@ Widget _screen(_Service service, {String locale = 'en', double scale = 1, Bright
               basePath: 'assets/i18n',
               fallbackFile: 'en',
               forcedLocale: Locale(locale),
-            )
-                  ..assetBundle = InlineStringBundle())
+            )..assetBundle = InlineStringBundle())
           ],
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
@@ -430,6 +445,29 @@ void main() {
     expect(tester.widget<DropdownButton<int>>(_button(_timer(0))).onChanged, isNotNull);
     expect(service.actions.standbyWrites, isEmpty);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('demo mode requires a disconnected scooter and can be exited', (tester) async {
+    final service = _Service()..identity.isLibrescoot = false;
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+
+    final row = find.ancestor(of: find.text('Demo mode'), matching: find.byType(SwitchListTile));
+    await _show(tester, row);
+    expect(tester.widget<SwitchListTile>(row).onChanged, isNull);
+
+    service.setConnection(false);
+    await tester.pumpAndSettle();
+    await _show(tester, row);
+    tester.widget<SwitchListTile>(row).onChanged!(true);
+    await tester.pumpAndSettle();
+    expect(service.demoMode, isTrue);
+
+    await _show(tester, row);
+    tester.widget<SwitchListTile>(row).onChanged!(false);
+    await tester.pumpAndSettle();
+    expect(service.demoMode, isFalse);
   });
 
   testWidgets('actual Settings switch row hierarchy, flat heading spacing and callbacks', (tester) async {

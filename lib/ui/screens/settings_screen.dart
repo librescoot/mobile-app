@@ -928,6 +928,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     required bool? supportsServiceMode,
     required bool? supportsClockSync,
     required bool? supportsUsbMode,
+    required bool demoMode,
   }) =>
       [
         Header(
@@ -1181,6 +1182,25 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           const RideStatsSettingsSection(),
         ],
         Header(FlutterI18n.translate(context, "stats_settings_section_app")),
+        SwitchListTile(
+          secondary: const Icon(Icons.science_outlined),
+          title: Text(FlutterI18n.translate(context, 'settings_demo_mode')),
+          subtitle: Text(FlutterI18n.translate(
+            context,
+            connected && !demoMode ? 'settings_demo_mode_disconnect' : 'settings_demo_mode_description',
+          )),
+          value: demoMode,
+          onChanged: connected && !demoMode
+              ? null
+              : (enabled) {
+                  final service = context.read<ScooterService>();
+                  if (enabled) {
+                    service.addDemoData();
+                  } else {
+                    service.removeDemoData();
+                  }
+                },
+        ),
         FutureBuilder<List<BiometricType>>(
           future: LocalAuthentication().getAvailableBiometrics(),
           builder: (context, biometricsOptionsSnap) {
@@ -1413,24 +1433,26 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           bool showTripSettings,
           bool? supportsServiceMode,
           bool? supportsClockSync,
-          bool? supportsUsbMode
+          bool? supportsUsbMode,
+          bool demoMode
         })>(
       (service) => (
-        isLibrescoot: service.identity.isLibrescoot == true,
+        isLibrescoot: service.identity.isLibrescoot == true && !service.demoMode,
         supportsScheduled: service.identity.supportsScheduledHibernation == true,
         supportsBatteryKeepActive: service.identity.supportsBatteryKeepActive == true,
         supportsAlarmControl: service.identity.supportsAlarmControl,
         supportsApn: service.identity.supportsApnConfig == true,
         usbMode: service.vehicle.usbMode,
-        connected: service.connected,
-        otaAvailable: service.connected && service.otaAvailable,
+        connected: service.connected && !service.demoMode,
+        otaAvailable: service.connected && !service.demoMode && service.otaAvailable,
         autoUnlock: service.autoUnlock,
         openSeatOnUnlock: service.openSeatOnUnlock,
         hazardLocking: service.hazardLocking,
-        showTripSettings: service.connected && service.tripCounterSupported == true,
+        showTripSettings: service.connected && !service.demoMode && service.tripCounterSupported == true,
         supportsServiceMode: service.identity.supportsServiceMode,
         supportsClockSync: service.identity.supportsClockSync,
         supportsUsbMode: service.identity.supportsUsbMode,
+        demoMode: service.demoMode,
       ),
     );
     _ensureLsDataLoaded(ls.isLibrescoot);
@@ -1450,6 +1472,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
       supportsServiceMode: ls.supportsServiceMode,
       supportsClockSync: ls.supportsClockSync,
       supportsUsbMode: ls.supportsUsbMode,
+      demoMode: ls.demoMode,
     );
 
     return Scaffold(
