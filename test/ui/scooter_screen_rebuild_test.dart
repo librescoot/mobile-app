@@ -276,7 +276,7 @@ void main() {
   });
 
   testWidgets('list enlarges artwork and marks confirmed Librescoot identity with its backdrop', (tester) async {
-    final live = _CountingScooter(id: 'A', name: 'Live', color: 1);
+    final live = _CountingScooter(id: 'A', name: 'Live', color: 0);
     final cached = _CountingScooter(
       id: 'B',
       name: 'Cached',
@@ -334,7 +334,7 @@ void main() {
 
     final visuals = tester.widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual)).toList();
     expect(visuals, hasLength(3));
-    final liveVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
+    final liveVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_0.webp'));
     final cachedVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_2.webp'));
     final stockVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_3.webp'));
     expect(liveVisual.height, closeTo(412 * 0.18, 0.01));
@@ -350,7 +350,7 @@ void main() {
     await tester.pump();
     final unconfirmedLiveVisual = tester
         .widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual))
-        .singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
+        .singleWhere((visual) => visual.imagePath.endsWith('side_0.webp'));
     expect(unconfirmedLiveVisual.backdropColor, isNull);
 
     service.identity
@@ -360,7 +360,7 @@ void main() {
     await tester.pump();
     final stockLiveVisual = tester
         .widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual))
-        .singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
+        .singleWhere((visual) => visual.imagePath.endsWith('side_0.webp'));
     expect(stockLiveVisual.backdropColor, isNull);
 
     for (final icon in tester.widgetList<Icon>(find.byIcon(Icons.more_horiz))) {
@@ -391,8 +391,7 @@ void main() {
     final service = _Service([scooter]);
     await _mount(tester, service, brightness: Brightness.dark);
 
-    expect(tester.widget<ScooterSideVisual>(find.byType(ScooterSideVisual)).backdropColor,
-        const Color(0xFF225661));
+    expect(tester.widget<ScooterSideVisual>(find.byType(ScooterSideVisual)).backdropColor, const Color(0xFF225661));
   });
 
   testWidgets('stale Bluetooth warning stays compact and opens guidance', (tester) async {

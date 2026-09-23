@@ -233,6 +233,8 @@
     "color_eclipse": "Silver Eclipse",
     "color_idioteque": "Idioteque",
     "color_hover": "Hover",
+    "color_custom": "Eigene Farbe",
+    "color_custom_matte": "Mattes Finish",
     "color_preview_show_front": "Frontansicht anzeigen",
     "color_preview_show_side": "Seitenansicht anzeigen",
     "settings_theme": "Design",

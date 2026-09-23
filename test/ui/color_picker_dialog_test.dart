@@ -85,8 +85,30 @@ void main() {
     await mount(tester, initialValue: 1);
 
     final stone = find.byKey(const ValueKey('scooter-color-option-3'));
-    expect(find.byKey(const ValueKey('scooter-color-front-3')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-color-front-#D5D5D5-true')), findsOneWidget);
     expect(find.descendant(of: stone, matching: find.byIcon(Icons.check)), findsOneWidget);
+  });
+
+  testWidgets('edits a custom color and finish with a live rendered preview', (tester) async {
+    await mount(tester);
+
+    await tester.tap(find.byKey(const ValueKey('scooter-color-option-custom')));
+    await tester.pumpAndSettle();
+    expect(find.byType(Slider), findsNWidgets(3));
+    expect(find.byKey(const ValueKey('custom-color-preview')), findsOneWidget);
+
+    await tester.tap(find.byType(Switch));
+    await tester.tap(find.widgetWithText(TextButton, 'Save').last);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('scooter-color-front-#7D5FFF-false')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('scooter-color-option-custom')),
+        matching: find.byIcon(Icons.check),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('keeps limited editions behind their alternate access paths', (tester) async {

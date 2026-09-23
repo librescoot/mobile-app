@@ -233,6 +233,8 @@
     "color_eclipse": "Silver Eclipse",
     "color_idioteque": "Idioteque",
     "color_hover": "Hover",
+    "color_custom": "Aangepast",
+    "color_custom_matte": "Matte afwerking",
     "color_preview_show_front": "Vooraanzicht tonen",
     "color_preview_show_side": "Zijaanzicht tonen",
     "settings_theme": "Thema",

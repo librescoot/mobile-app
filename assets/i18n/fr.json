@@ -233,6 +233,8 @@
     "color_eclipse": "Éclipse argentée",
     "color_idioteque": "Idioteque",
     "color_hover": "Hover",
+    "color_custom": "Personnalisée",
+    "color_custom_matte": "Finition mate",
     "color_preview_show_front": "Afficher la vue de face",
     "color_preview_show_side": "Afficher la vue de côté",
     "settings_theme": "Thème",

@@ -4,18 +4,38 @@ import 'package:flutter_i18n/flutter_i18n.dart';
 
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/theme/scooter_colors.dart';
+import 'package:unustasis/service/scooter_artwork_cache.dart';
 import 'package:unustasis/ui/widgets/eclipse_backdrop.dart';
+import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 import 'package:unustasis/ui/widgets/scooter_color_swatch.dart';
 import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
 import 'package:unustasis/ui/widgets/scooter_visual.dart';
 
+class ScooterColorSelection {
+  const ScooterColorSelection.builtIn(this.color)
+      : customColor = null,
+        matte = true;
+
+  const ScooterColorSelection.custom(this.customColor, {required this.matte}) : color = 3;
+
+  final int color;
+  final String? customColor;
+  final bool matte;
+
+  bool get isCustom => customColor != null;
+}
+
 class ColorPickerDialog extends StatefulWidget {
   final int initialValue;
+  final String? initialCustomColor;
+  final bool initialCustomColorMatte;
   final String scooterName;
 
   const ColorPickerDialog({
     super.key,
     required this.initialValue,
+    this.initialCustomColor,
+    this.initialCustomColorMatte = true,
     required this.scooterName,
   });
 
@@ -25,6 +45,8 @@ class ColorPickerDialog extends StatefulWidget {
 
 class _ColorPickerDialogState extends State<ColorPickerDialog> {
   late int selectedValue;
+  String? _customColor;
+  late bool _customColorMatte;
   bool _showSide = false;
   bool _limitedColorsUnlocked = false;
   int _previewTapCount = 0;
@@ -33,6 +55,8 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
   void initState() {
     super.initState();
     selectedValue = canonicalScooterColor(widget.initialValue);
+    _customColor = widget.initialCustomColor;
+    _customColorMatte = widget.initialCustomColorMatte;
   }
 
   List<int> get _availableColors {
@@ -69,6 +93,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
               runSpacing: 16,
               children: [
                 for (final value in _availableColors) _colorOption(value),
+                _customColorOption(),
               ],
             ),
           ],
@@ -81,7 +106,11 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
         ),
         TextButton(
           child: Text(FlutterI18n.translate(context, "stats_rename_save")),
-          onPressed: () => Navigator.of(context).pop(selectedValue),
+          onPressed: () => Navigator.of(context).pop(
+            _customColor == null
+                ? ScooterColorSelection.builtIn(selectedValue)
+                : ScooterColorSelection.custom(_customColor!, matte: _customColorMatte),
+          ),
         ),
       ],
     );
@@ -104,7 +133,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                if (selectedValue == 7)
+                if (_customColor == null && selectedValue == 7)
                   const EclipseBackdrop(diameter: 228)
                 else
                   Container(
@@ -197,26 +226,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
         opacity: animation,
         child: child,
       ),
-      child: side
-          ? ScooterSideVisual(
-              key: ValueKey('scooter-color-side-$selectedValue'),
-              imagePath: 'images/scooter/side_$selectedValue.webp',
-              height: 160,
-              showBackdrop: false,
-            )
-          : SizedBox(
-              key: ValueKey('scooter-color-front-$selectedValue'),
-              width: 132,
-              height: 246,
-              child: ScooterVisual(
-                color: selectedValue,
-                state: ScooterState.parked,
-                scanning: false,
-                blinkerLeft: false,
-                blinkerRight: false,
-                showEclipseBackdrop: false,
-              ),
-            ),
+      child: side ? _sideArtwork() : _frontArtwork(),
     );
   }
 
@@ -231,7 +241,10 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
       child: InkWell(
         key: ValueKey('scooter-color-option-$value'),
         borderRadius: BorderRadius.circular(12),
-        onTap: () => setState(() => selectedValue = value),
+        onTap: () => setState(() {
+          selectedValue = value;
+          _customColor = null;
+        }),
         child: SizedBox(
           width: 82,
           child: Padding(
@@ -259,6 +272,130 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
     );
   }
 
+  Widget _frontArtwork() {
+    final renderedColor = _customColor ?? (selectedValue == 3 ? '#D5D5D5' : null);
+    if (renderedColor != null) {
+      return SizedBox(
+        key: ValueKey('scooter-color-front-$renderedColor-${_customColorMatte || selectedValue == 3}'),
+        width: 132,
+        height: 246,
+        child: RenderedScooterArtwork(
+          view: ScooterArtworkView.front,
+          color: renderedColor,
+          matte: _customColor == null || _customColorMatte,
+          fallbackAsset: 'images/scooter/base_3.webp',
+        ),
+      );
+    }
+    return SizedBox(
+      key: ValueKey('scooter-color-front-$selectedValue'),
+      width: 132,
+      height: 246,
+      child: ScooterVisual(
+        color: selectedValue,
+        state: ScooterState.parked,
+        scanning: false,
+        blinkerLeft: false,
+        blinkerRight: false,
+        showEclipseBackdrop: false,
+      ),
+    );
+  }
+
+  Widget _sideArtwork() {
+    final renderedColor = _customColor ?? (selectedValue == 3 ? '#D5D5D5' : null);
+    if (renderedColor != null) {
+      return RenderedScooterArtwork(
+        key: ValueKey('scooter-color-side-$renderedColor-${_customColorMatte || selectedValue == 3}'),
+        view: ScooterArtworkView.side,
+        color: renderedColor,
+        matte: _customColor == null || _customColorMatte,
+        fallbackAsset: 'images/scooter/side_3.webp',
+        height: 160,
+      );
+    }
+    return ScooterSideVisual(
+      key: ValueKey('scooter-color-side-$selectedValue'),
+      imagePath: 'images/scooter/side_$selectedValue.webp',
+      height: 160,
+      showBackdrop: false,
+    );
+  }
+
+  Widget _customColorOption() {
+    final selected = _customColor != null;
+    final color = _customColor == null
+        ? const Color(0xFF7D5FFF)
+        : Color(0xFF000000 | int.parse(_customColor!.substring(1), radix: 16));
+    final scooterColor = ScooterColor(
+      value: -1,
+      displayColor: color,
+      simpleName: 'custom',
+      finish: _customColorMatte ? ScooterColorFinish.matte : ScooterColorFinish.glossy,
+    );
+    final label = FlutterI18n.translate(context, 'color_custom');
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: InkWell(
+        key: const ValueKey('scooter-color-option-custom'),
+        borderRadius: BorderRadius.circular(12),
+        onTap: _editCustomColor,
+        child: SizedBox(
+          width: 82,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    ScooterColorSwatch(
+                      scooterColor: scooterColor,
+                      selected: selected,
+                    ),
+                    if (!selected)
+                      Icon(
+                        Icons.add,
+                        color: ThemeData.estimateBrightnessForColor(color) == Brightness.dark
+                            ? Colors.white
+                            : Colors.black,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editCustomColor() async {
+    final selection = await showDialog<_CustomColorSelection>(
+      context: context,
+      builder: (context) => _CustomColorDialog(
+        initialColor: _customColor ?? '#7D5FFF',
+        initialMatte: _customColorMatte,
+      ),
+    );
+    if (selection == null || !mounted) return;
+    setState(() {
+      _customColor = selection.color;
+      _customColorMatte = selection.matte;
+    });
+  }
+
   String magic(String input) {
     return input.split('').map((char) {
       if (RegExp(r'[a-z]').hasMatch(char)) {
@@ -272,12 +409,134 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
   }
 }
 
-Future<int?> showColorDialog(int initialValue, String scooterName, BuildContext context) {
-  return showDialog<int>(
+class _CustomColorSelection {
+  const _CustomColorSelection(this.color, this.matte);
+
+  final String color;
+  final bool matte;
+}
+
+class _CustomColorDialog extends StatefulWidget {
+  const _CustomColorDialog({
+    required this.initialColor,
+    required this.initialMatte,
+  });
+
+  final String initialColor;
+  final bool initialMatte;
+
+  @override
+  State<_CustomColorDialog> createState() => _CustomColorDialogState();
+}
+
+class _CustomColorDialogState extends State<_CustomColorDialog> {
+  late int _red;
+  late int _green;
+  late int _blue;
+  late bool _matte;
+
+  @override
+  void initState() {
+    super.initState();
+    final value = int.parse(widget.initialColor.substring(1), radix: 16);
+    _red = (value >> 16) & 0xFF;
+    _green = (value >> 8) & 0xFF;
+    _blue = value & 0xFF;
+    _matte = widget.initialMatte;
+  }
+
+  String get _hex =>
+      '#${_red.toRadixString(16).padLeft(2, '0')}${_green.toRadixString(16).padLeft(2, '0')}${_blue.toRadixString(16).padLeft(2, '0')}'
+          .toUpperCase();
+
+  Color get _color => Color(0xFF000000 | (_red << 16) | (_green << 8) | _blue);
+
+  @override
+  Widget build(BuildContext context) {
+    final previewColor = ScooterColor(
+      value: -2,
+      displayColor: _color,
+      simpleName: 'custom',
+      finish: _matte ? ScooterColorFinish.matte : ScooterColorFinish.glossy,
+    );
+    return AlertDialog(
+      title: Text(
+        FlutterI18n.translate(context, 'color_custom'),
+        textAlign: TextAlign.center,
+      ),
+      content: SizedBox(
+        width: 340,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ScooterColorSwatch(
+              key: const ValueKey('custom-color-preview'),
+              scooterColor: previewColor,
+              selected: false,
+              size: 96,
+            ),
+            const SizedBox(height: 8),
+            Text(_hex, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            _channelSlider('R', _red, (value) => _red = value),
+            _channelSlider('G', _green, (value) => _green = value),
+            _channelSlider('B', _blue, (value) => _blue = value),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(FlutterI18n.translate(context, 'color_custom_matte')),
+              value: _matte,
+              onChanged: (value) => setState(() => _matte = value),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(FlutterI18n.translate(context, 'stats_rename_cancel')),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_CustomColorSelection(_hex, _matte)),
+          child: Text(FlutterI18n.translate(context, 'stats_rename_save')),
+        ),
+      ],
+    );
+  }
+
+  Widget _channelSlider(String label, int value, ValueChanged<int> update) {
+    return Row(
+      children: [
+        SizedBox(width: 20, child: Text(label)),
+        Expanded(
+          child: Slider(
+            value: value.toDouble(),
+            min: 0,
+            max: 255,
+            divisions: 255,
+            label: '$value',
+            onChanged: (next) => setState(() => update(next.round())),
+          ),
+        ),
+        SizedBox(width: 32, child: Text('$value', textAlign: TextAlign.end)),
+      ],
+    );
+  }
+}
+
+Future<ScooterColorSelection?> showColorDialog(
+  int initialValue,
+  String scooterName,
+  BuildContext context, {
+  String? initialCustomColor,
+  bool initialCustomColorMatte = true,
+}) {
+  return showDialog<ScooterColorSelection>(
     context: context,
     builder: (BuildContext context) {
       return ColorPickerDialog(
         initialValue: initialValue,
+        initialCustomColor: initialCustomColor,
+        initialCustomColorMatte: initialCustomColorMatte,
         scooterName: scooterName,
       );
     },
