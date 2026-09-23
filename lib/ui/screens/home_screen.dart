@@ -389,9 +389,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     aprilFools: _forceHover,
                                     halloween: _fall && context.isDarkMode,
                                     showEclipseBackdrop: false,
-                                    onSurpriseChanged: (active) {
+                                    onSurpriseChanged: (color) {
                                       if (!mounted) return;
-                                      setState(() => _surpriseScooterId = active ? currentScooterId : null);
+                                      setState(() => _surpriseScooterId = color == 7 ? currentScooterId : null);
                                     },
                                   ),
                                 ],

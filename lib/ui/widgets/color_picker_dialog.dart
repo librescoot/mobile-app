@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 
+import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/theme/scooter_colors.dart';
+import 'package:unustasis/ui/widgets/eclipse_backdrop.dart';
+import 'package:unustasis/ui/widgets/scooter_color_swatch.dart';
+import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
+import 'package:unustasis/ui/widgets/scooter_visual.dart';
 
 class ColorPickerDialog extends StatefulWidget {
   final int initialValue;
@@ -19,132 +24,199 @@ class ColorPickerDialog extends StatefulWidget {
 
 class _ColorPickerDialogState extends State<ColorPickerDialog> {
   late int selectedValue;
+  bool _showSide = false;
 
   @override
   void initState() {
     super.initState();
-    selectedValue = widget.initialValue;
+    selectedValue = canonicalScooterColor(widget.initialValue);
+  }
+
+  List<int> get _availableColors {
+    final values = [...standardScooterColorValues];
+    if (widget.scooterName == magic("Rpyvcfr")) values.add(7);
+    if (widget.scooterName == magic("Xbev")) values.add(8);
+    if (widget.scooterName == magic("Ubire")) values.add(9);
+    if (selectedValue >= 7 && !values.contains(selectedValue)) values.add(selectedValue);
+    return values;
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(FlutterI18n.translate(context, "settings_color")),
+      title: widget.scooterName.trim().isEmpty ? null : Text(widget.scooterName),
       scrollable: true,
-      content: RadioGroup<int?>(
-        groupValue: selectedValue,
-        onChanged: (value) {
-          setState(() {
-            selectedValue = value!;
-          });
-        },
+      content: SizedBox(
+        width: 420,
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _colorRadioTile(
-              colorName: scooterColors[0]!.simpleName,
-              colorValue: 0,
-              color: scooterColors[0]!.displayColor,
-              context: context,
+            _preview(),
+            const SizedBox(height: 20),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 16,
+              children: [
+                for (final value in _availableColors) _colorOption(value),
+              ],
             ),
-            _colorRadioTile(
-              colorName: scooterColors[1]!.simpleName,
-              colorValue: 1,
-              color: scooterColors[1]!.displayColor,
-              context: context,
-            ),
-            _colorRadioTile(
-              colorName: scooterColors[2]!.simpleName,
-              colorValue: 2,
-              color: scooterColors[2]!.displayColor,
-              context: context,
-            ),
-            _colorRadioTile(
-              colorName: scooterColors[3]!.simpleName,
-              colorValue: 3,
-              color: scooterColors[3]!.displayColor,
-              context: context,
-            ),
-            _colorRadioTile(
-              colorName: scooterColors[4]!.simpleName,
-              colorValue: 4,
-              color: scooterColors[4]!.displayColor,
-              context: context,
-            ),
-            _colorRadioTile(
-              colorName: scooterColors[5]!.simpleName,
-              colorValue: 5,
-              color: scooterColors[5]!.displayColor,
-              context: context,
-            ),
-            _colorRadioTile(
-              colorName: scooterColors[6]!.simpleName,
-              colorValue: 6,
-              color: scooterColors[6]!.displayColor,
-              context: context,
-            ),
-            if (widget.scooterName == magic("Rpyvcfr"))
-              _colorRadioTile(
-                colorName: scooterColors[7]!.simpleName,
-                colorValue: 7,
-                color: scooterColors[7]!.displayColor,
-                context: context,
-              ),
-            if (widget.scooterName == magic("Xbev"))
-              _colorRadioTile(
-                colorName: scooterColors[8]!.simpleName,
-                colorValue: 8,
-                color: scooterColors[8]!.displayColor,
-                context: context,
-              ),
-            if (widget.scooterName == magic("Ubire"))
-              _colorRadioTile(
-                colorName: scooterColors[9]!.simpleName,
-                colorValue: 9,
-                color: scooterColors[9]!.displayColor,
-                context: context,
-              )
           ],
         ),
       ),
       actions: [
         TextButton(
           child: Text(FlutterI18n.translate(context, "stats_rename_cancel")),
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
+          onPressed: () => Navigator.of(context).pop(),
         ),
         TextButton(
           child: Text(FlutterI18n.translate(context, "stats_rename_save")),
-          onPressed: () {
-            Navigator.of(context).pop(selectedValue);
-          },
+          onPressed: () => Navigator.of(context).pop(selectedValue),
         ),
       ],
     );
   }
 
-  Widget _colorRadioTile({
-    required String colorName,
-    required Color color,
-    required int colorValue,
-    required BuildContext context,
-  }) =>
-      RadioListTile<int?>(
-        contentPadding: EdgeInsets.zero,
-        value: colorValue,
-        title: Text(FlutterI18n.translate(context, "color_$colorName")),
-        secondary: Container(
-          width: 16,
-          height: 16,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.fromBorderSide(
-              BorderSide(color: Colors.grey.shade500, width: 1, strokeAlign: BorderSide.strokeAlignOutside),
+  Widget _preview() {
+    final switchLabel = FlutterI18n.translate(
+      context,
+      _showSide ? "color_preview_show_front" : "color_preview_show_side",
+    );
+    return Semantics(
+      button: true,
+      label: switchLabel,
+      child: Tooltip(
+        message: switchLabel,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(120),
+          child: SizedBox(
+            height: 260,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (selectedValue == 7)
+                  const EclipseBackdrop(diameter: 228)
+                else
+                  Container(
+                    key: const ValueKey('scooter-color-preview-backdrop'),
+                    width: 228,
+                    height: 228,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    ),
+                  ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 450),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  layoutBuilder: (currentChild, previousChildren) => Stack(
+                    alignment: Alignment.center,
+                    children: [...previousChildren, if (currentChild != null) currentChild],
+                  ),
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.82, end: 1).animate(animation),
+                      child: RotationTransition(
+                        turns: Tween<double>(begin: _showSide ? -0.025 : 0.025, end: 0).animate(animation),
+                        child: child,
+                      ),
+                    ),
+                  ),
+                  child: _showSide
+                      ? ScooterSideVisual(
+                          key: ValueKey('scooter-color-side-$selectedValue'),
+                          imagePath: 'images/scooter/side_$selectedValue.webp',
+                          height: 160,
+                          showBackdrop: false,
+                        )
+                      : SizedBox(
+                          key: ValueKey('scooter-color-front-$selectedValue'),
+                          width: 132,
+                          height: 246,
+                          child: ScooterVisual(
+                            color: selectedValue,
+                            state: ScooterState.parked,
+                            scanning: false,
+                            blinkerLeft: false,
+                            blinkerRight: false,
+                            showEclipseBackdrop: false,
+                          ),
+                        ),
+                ),
+                Positioned.fill(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      key: const ValueKey('scooter-color-preview'),
+                      borderRadius: BorderRadius.circular(120),
+                      onTap: () => setState(() => _showSide = !_showSide),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 26,
+                  bottom: 25,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.88),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Padding(
+                        padding: EdgeInsets.all(7),
+                        child: Icon(Icons.threesixty, size: 20),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-      );
+      ),
+    );
+  }
+
+  Widget _colorOption(int value) {
+    final scooterColor = scooterColors[value]!;
+    final label = FlutterI18n.translate(context, "color_${scooterColor.simpleName}");
+    final selected = selectedValue == value;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: InkWell(
+        key: ValueKey('scooter-color-option-$value'),
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => setState(() => selectedValue = value),
+        child: SizedBox(
+          width: 82,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ScooterColorSwatch(
+                  scooterColor: scooterColor,
+                  selected: selected,
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   String magic(String input) {
     return input.split('').map((char) {
@@ -159,7 +231,6 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
   }
 }
 
-/// Helper function to show the color picker dialog
 Future<int?> showColorDialog(int initialValue, String scooterName, BuildContext context) {
   return showDialog<int>(
     context: context,

@@ -149,7 +149,7 @@ void main() {
     final after = DateTime.now();
     expect(scooter.id, 'key');
     expect(scooter.name, 'Scooter Pro');
-    expect(scooter.color, 1);
+    expect(scooter.color, 3);
     expect(scooter.autoConnect, isTrue);
     expect(scooter.lastPing.microsecondsSinceEpoch,
         inInclusiveRange(before.microsecondsSinceEpoch, after.microsecondsSinceEpoch));
@@ -226,9 +226,14 @@ void main() {
       'autoConnect': null,
     });
     expect(scooter.name, 'Scooter Pro');
-    expect(scooter.color, 1);
+    expect(scooter.color, 3);
     expect(scooter.autoConnect, isTrue);
     expect(() => SavedScooter.fromJson('id', {'lastPing': null}), throwsA(isA<TypeError>()));
+  });
+
+  test('legacy white color maps to Matte Stone', () {
+    expect(SavedScooter.fromJson('id', {'color': 1}).color, 3);
+    expect(SavedScooter(id: 'id', color: 1).toJson()['color'], 3);
   });
 
   test('malformed cached trip data is ignored without losing other cached ride data', () {

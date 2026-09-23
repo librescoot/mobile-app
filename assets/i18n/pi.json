@@ -213,6 +213,8 @@
     "color_eclipse": "Moonlight on the ocean",
     "color_idioteque": "Idioteque",
     "color_hover": "Flying Dutchman",
+    "color_preview_show_front": "Show the bow",
+    "color_preview_show_side": "Show the broadside",
     "settings_theme": "Theme",
     "theme_light": "On deck",
     "theme_dark": "Under deck",

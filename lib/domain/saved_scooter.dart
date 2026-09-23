@@ -104,7 +104,7 @@ class SavedScooter implements SavedScooterRecord {
     List<NavDestination>? cachedDestinations,
   })  : _name = name ?? "Scooter Pro",
         _id = id,
-        _color = color ?? 1,
+        _color = color == null || color == 1 ? 3 : color,
         _lastPing = lastPing ?? DateTime.now(),
         _autoConnect = autoConnect ?? true,
         _autoUnlock = autoUnlock ?? false,
@@ -140,7 +140,7 @@ class SavedScooter implements SavedScooterRecord {
 
   @override
   set color(int color) {
-    _color = color;
+    _color = color == 1 ? 3 : color;
     updateSharedPreferences();
   }
 

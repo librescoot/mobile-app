@@ -6,13 +6,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/widgets/scooter_visual.dart';
 
+class _NonEclipseRandom implements Random {
+  @override
+  bool nextBool() => false;
+
+  @override
+  double nextDouble() => 0.5;
+
+  @override
+  int nextInt(int max) => max == 3 ? 1 : 0;
+}
+
 void main() {
   Future<void> mount(
     WidgetTester tester, {
     ScooterState state = ScooterState.parked,
     List<int> thresholds = const [42],
     int color = 1,
-    ValueChanged<bool>? onSurpriseChanged,
+    ValueChanged<int?>? onSurpriseChanged,
+    Random? random,
   }) async {
     tester.view.physicalSize = const Size(412, 900);
     tester.view.devicePixelRatio = 1;
@@ -31,7 +43,7 @@ void main() {
                 blinkerLeft: false,
                 blinkerRight: false,
                 color: color,
-                random: Random(7),
+                random: random ?? Random(7),
                 surpriseThresholds: thresholds,
                 surpriseDuration: const Duration(seconds: 2),
                 onSurpriseChanged: onSurpriseChanged,
@@ -64,8 +76,12 @@ void main() {
   });
 
   testWidgets('keeps early taps quiet, then shakes and temporarily swaps the skin', (tester) async {
-    final surpriseChanges = <bool>[];
-    await mount(tester, onSurpriseChanged: surpriseChanges.add);
+    final surpriseChanges = <int?>[];
+    await mount(
+      tester,
+      onSurpriseChanged: surpriseChanges.add,
+      random: _NonEclipseRandom(),
+    );
     final artwork = find.descendant(
       of: find.byType(ScooterVisual),
       matching: find.byType(GestureDetector),
@@ -90,19 +106,16 @@ void main() {
     }
     await tester.pumpAndSettle();
 
-    expect(
-      [7, 8, 9].where((color) => find.byKey(ValueKey('scooter-skin-$color')).evaluate().isNotEmpty),
-      hasLength(1),
-    );
+    expect(find.byKey(const ValueKey('scooter-skin-8')), findsOneWidget);
     expect(find.byKey(const ValueKey('scooter-skin-1')), findsNothing);
-    expect(find.byKey(const ValueKey('eclipse-backdrop')), findsOneWidget);
-    expect(surpriseChanges, [true]);
+    expect(find.byKey(const ValueKey('eclipse-backdrop')), findsNothing);
+    expect(surpriseChanges, [8]);
 
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('scooter-skin-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('eclipse-backdrop')), findsNothing);
-    expect(surpriseChanges, [true, false]);
+    expect(surpriseChanges, [8, null]);
   });
 
   testWidgets('ignores hidden taps while disconnected', (tester) async {

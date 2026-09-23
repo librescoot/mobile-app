@@ -22,7 +22,7 @@ class ScooterVisual extends StatefulWidget {
   final List<int> surpriseThresholds;
   final Duration? surpriseDuration;
   final bool showEclipseBackdrop;
-  final ValueChanged<bool>? onSurpriseChanged;
+  final ValueChanged<int?>? onSurpriseChanged;
 
   const ScooterVisual({
     required this.state,
@@ -94,7 +94,7 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
         (widget.state == ScooterState.disconnected && oldWidget.state != ScooterState.disconnected)) {
       _surpriseTimer?.cancel();
       if (_surpriseColor != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => widget.onSurpriseChanged?.call(false));
+        WidgetsBinding.instance.addPostFrameCallback((_) => widget.onSurpriseChanged?.call(null));
       }
       _surpriseColor = null;
       _tapCount = 0;
@@ -166,7 +166,7 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
       _surpriseColor = choices[_rand.nextInt(choices.length)];
       _shakeIntensity = 8;
     });
-    widget.onSurpriseChanged?.call(true);
+    widget.onSurpriseChanged?.call(_surpriseColor);
     HapticFeedback.mediumImpact();
     _tapAnimation.forward(from: 0);
     final duration = widget.surpriseDuration ?? Duration(seconds: 10 + _rand.nextInt(21));
@@ -178,7 +178,7 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
         _tapThreshold = _nextTapThreshold();
         _shakeIntensity = 0;
       });
-      widget.onSurpriseChanged?.call(false);
+      widget.onSurpriseChanged?.call(null);
     });
   }
 
@@ -250,12 +250,11 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final displayColor = _surpriseColor ?? _regularColor;
-    final showEclipse = widget.showEclipseBackdrop && (displayColor == 7 || _surpriseColor != null);
+    final showEclipse = widget.showEclipseBackdrop && displayColor == 7;
     return Stack(
       alignment: Alignment.center,
       children: [
-        if (showEclipse)
-          EclipseBackdrop(diameter: MediaQuery.sizeOf(context).width * 0.85),
+        if (showEclipse) EclipseBackdrop(diameter: MediaQuery.sizeOf(context).width * 0.85),
         if (widget.halloween)
           AnimatedOpacity(
             opacity: widget.state == ScooterState.disconnected ? 0 : 1,
