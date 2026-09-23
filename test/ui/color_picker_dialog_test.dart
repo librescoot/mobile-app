@@ -49,8 +49,12 @@ void main() {
     expect(find.text('Matte Pine'), findsOneWidget);
     expect(find.byKey(const ValueKey('scooter-color-noise-2')), findsOneWidget);
     expect(find.byKey(const ValueKey('scooter-color-noise-6')), findsNothing);
-    expect(find.text('Scooter Pro'), findsOneWidget);
-    expect(find.byKey(const ValueKey('scooter-color-preview-backdrop')), findsOneWidget);
+    final title = find.text('Scooter Pro');
+    expect(title, findsOneWidget);
+    expect(find.ancestor(of: title, matching: find.byType(Center)), findsWidgets);
+    final backdrop = find.byKey(const ValueKey('scooter-color-preview-backdrop'));
+    expect(backdrop, findsOneWidget);
+    final backdropSize = tester.getSize(backdrop);
     expect(find.byKey(const ValueKey('scooter-color-front-2')), findsOneWidget);
     expect(find.byKey(const ValueKey('scooter-color-side-2')), findsNothing);
 
@@ -58,10 +62,13 @@ void main() {
     final glossyGradient = (glossyFill.decoration as BoxDecoration).gradient! as LinearGradient;
     expect(glossyGradient.stops, [0, 0.48, 1]);
     final gloss = tester.widget<DecoratedBox>(find.byKey(const ValueKey('scooter-color-gloss-6')));
-    expect((gloss.decoration as BoxDecoration).gradient, isA<RadialGradient>());
+    final glossGradient = (gloss.decoration as BoxDecoration).gradient! as RadialGradient;
+    expect(glossGradient.colors.first.a, closeTo(0.28, 0.001));
 
     await tester.tap(find.byKey(const ValueKey('scooter-color-preview')));
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 260));
+    expect(tester.getSize(backdrop), backdropSize);
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(const ValueKey('scooter-color-side-2')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('scooter-color-option-6')));

@@ -44,7 +44,14 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: widget.scooterName.trim().isEmpty ? null : Text(widget.scooterName),
+      title: widget.scooterName.trim().isEmpty
+          ? null
+          : Center(
+              child: Text(
+                widget.scooterName,
+                textAlign: TextAlign.center,
+              ),
+            ),
       scrollable: true,
       content: SizedBox(
         width: 420,
@@ -106,45 +113,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                       color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     ),
                   ),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 450),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  layoutBuilder: (currentChild, previousChildren) => Stack(
-                    alignment: Alignment.center,
-                    children: [...previousChildren, if (currentChild != null) currentChild],
-                  ),
-                  transitionBuilder: (child, animation) => FadeTransition(
-                    opacity: animation,
-                    child: ScaleTransition(
-                      scale: Tween<double>(begin: 0.82, end: 1).animate(animation),
-                      child: RotationTransition(
-                        turns: Tween<double>(begin: _showSide ? -0.025 : 0.025, end: 0).animate(animation),
-                        child: child,
-                      ),
-                    ),
-                  ),
-                  child: _showSide
-                      ? ScooterSideVisual(
-                          key: ValueKey('scooter-color-side-$selectedValue'),
-                          imagePath: 'images/scooter/side_$selectedValue.webp',
-                          height: 160,
-                          showBackdrop: false,
-                        )
-                      : SizedBox(
-                          key: ValueKey('scooter-color-front-$selectedValue'),
-                          width: 132,
-                          height: 246,
-                          child: ScooterVisual(
-                            color: selectedValue,
-                            state: ScooterState.parked,
-                            scanning: false,
-                            blinkerLeft: false,
-                            blinkerRight: false,
-                            showEclipseBackdrop: false,
-                          ),
-                        ),
-                ),
+                Positioned.fill(child: _anglePreview()),
                 Positioned.fill(
                   child: Material(
                     color: Colors.transparent,
@@ -176,6 +145,73 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _anglePreview() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 520),
+      switchInCurve: Curves.easeInOutCubic,
+      switchOutCurve: Curves.easeInOutCubic,
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        alignment: Alignment.center,
+        children: [...previousChildren, if (currentChild != null) currentChild],
+      ),
+      transitionBuilder: (child, animation) => AnimatedBuilder(
+        animation: animation,
+        child: child,
+        builder: (context, child) {
+          final amount = Curves.easeInOutCubic.transform(animation.value);
+          return Opacity(
+            opacity: amount,
+            child: Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.diagonal3Values(0.04 + amount * 0.96, 1, 1),
+              child: child,
+            ),
+          );
+        },
+      ),
+      child: KeyedSubtree(
+        key: ValueKey(_showSide ? 'side-angle' : 'front-angle'),
+        child: _colorDissolve(side: _showSide),
+      ),
+    );
+  }
+
+  Widget _colorDissolve({required bool side}) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        alignment: Alignment.center,
+        children: [...previousChildren, if (currentChild != null) currentChild],
+      ),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: child,
+      ),
+      child: side
+          ? ScooterSideVisual(
+              key: ValueKey('scooter-color-side-$selectedValue'),
+              imagePath: 'images/scooter/side_$selectedValue.webp',
+              height: 160,
+              showBackdrop: false,
+            )
+          : SizedBox(
+              key: ValueKey('scooter-color-front-$selectedValue'),
+              width: 132,
+              height: 246,
+              child: ScooterVisual(
+                color: selectedValue,
+                state: ScooterState.parked,
+                scanning: false,
+                blinkerLeft: false,
+                blinkerRight: false,
+                showEclipseBackdrop: false,
+              ),
+            ),
     );
   }
 

@@ -42,14 +42,14 @@ class ScooterColorSwatch extends StatelessWidget {
                 key: ValueKey('scooter-color-gloss-${scooterColor.value}'),
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
-                    center: const Alignment(-0.55, -0.7),
-                    radius: 0.95,
-                    stops: const [0, 0.3, 0.68, 1],
+                    center: const Alignment(-0.65, -0.75),
+                    radius: 0.62,
+                    stops: const [0, 0.28, 0.62, 1],
                     colors: [
-                      Colors.white.withValues(alpha: 0.5),
-                      Colors.white.withValues(alpha: 0.16),
+                      Colors.white.withValues(alpha: 0.28),
+                      Colors.white.withValues(alpha: 0.08),
                       Colors.transparent,
-                      Colors.black.withValues(alpha: 0.14),
+                      Colors.transparent,
                     ],
                   ),
                 ),
@@ -96,9 +96,9 @@ class ScooterColorSwatch extends StatelessWidget {
           end: Alignment.bottomRight,
           stops: const [0, 0.48, 1],
           colors: [
-            Color.lerp(color, Colors.white, 0.14)!,
+            Color.lerp(color, Colors.white, 0.05)!,
             color,
-            Color.lerp(color, Colors.black, 0.28)!,
+            Color.lerp(color, Colors.black, 0.2)!,
           ],
         );
       case ScooterColorFinish.special:

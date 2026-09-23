@@ -29,7 +29,7 @@ const Map<int, ScooterColor> scooterColors = {
   ),
   1: ScooterColor(
     value: 1,
-    displayColor: Color(0xFFC9CCCB),
+    displayColor: Color(0xFFE1E1E1),
     simpleName: "gray",
     finish: ScooterColorFinish.matte,
   ),
@@ -41,7 +41,7 @@ const Map<int, ScooterColor> scooterColors = {
   ),
   3: ScooterColor(
     value: 3,
-    displayColor: Color(0xFFC9CCCB),
+    displayColor: Color(0xFFE1E1E1),
     simpleName: "gray",
     finish: ScooterColorFinish.matte,
   ),
@@ -59,7 +59,7 @@ const Map<int, ScooterColor> scooterColors = {
   ),
   6: ScooterColor(
     value: 6,
-    displayColor: Color(0xFF244865),
+    displayColor: Color(0xFF0F214F),
     simpleName: "blue",
     finish: ScooterColorFinish.glossy,
   ),
