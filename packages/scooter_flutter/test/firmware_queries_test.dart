@@ -97,10 +97,10 @@ void main() {
     expect(channel.writes, ['cap:ext']);
   });
 
-  test('versioned key names are parsed in cap:ext', () async {
-    channel.replies = ['cap:ext:keycard:phone-key:key-alias=1'];
+  test('keycard v2 is parsed in cap:ext', () async {
+    channel.replies = ['cap:ext:keycard=2'];
     final groups = await discoverLsCapabilityGroupsCommand(device, repo);
-    expect(groups.versions['key-alias'], 1);
+    expect(groups.versions['keycard'], 2);
     expect(groups.usedFallback, isFalse);
   });
 

@@ -880,53 +880,58 @@ void main() {
     expect(h.telemetry.identity.bluetoothTableOutOfDate, isFalse);
   });
 
-  test('phone-key capability gates scooter enrollment management', () async {
-    final h = _Harness(groups: const {'pm', 'phone-key'});
+  test('keycard v2 gates phones and names together and resets per session',
+      () async {
+    final h = _Harness(
+        capabilityGroups: () async =>
+            const LsCapabilityGroups({'keycard': 2}, usedFallback: false));
     addTearDown(h.dispose);
     final r = await h.connect('A');
     _wireExtended(r);
     _firmware(r);
     await _flush();
     expect(h.telemetry.identity.supportsPhoneKeyManagement, isTrue);
-    h.telemetry.identity.resetLsCapabilities();
-    expect(h.telemetry.identity.supportsPhoneKeyManagement, isNull);
-  });
-
-  test('key names require the versioned capability and reset per session',
-      () async {
-    final h = _Harness(
-        capabilityGroups: () async =>
-            const LsCapabilityGroups({'key-alias': 1}, usedFallback: false));
-    addTearDown(h.dispose);
-    final r = await h.connect('A');
-    _wireExtended(r);
-    _firmware(r);
-    await _flush();
     expect(h.telemetry.identity.supportsKeyAliases, isTrue);
     h.telemetry.identity.resetLsCapabilities();
+    expect(h.telemetry.identity.supportsPhoneKeyManagement, isNull);
     expect(h.telemetry.identity.supportsKeyAliases, isNull);
   });
 
-  test('unversioned key names are not accepted from cap:ext', () async {
-    final h = _Harness(groups: const {'key-alias'});
+  test('unversioned keycard and obsolete groups do not imply v2', () async {
+    final h = _Harness(groups: const {'keycard', 'phone-key', 'key-alias'});
     addTearDown(h.dispose);
     final r = await h.connect('A');
     _wireExtended(r);
     _firmware(r);
     await _flush();
+    expect(h.telemetry.identity.supportsPhoneKeyManagement, isFalse);
     expect(h.telemetry.identity.supportsKeyAliases, isFalse);
   });
 
-  test('legacy cap:list can advertise key names without versions', () async {
+  test('keycard v1 does not enable v2 commands', () async {
     final h = _Harness(
         capabilityGroups: () async =>
-            const LsCapabilityGroups({'key-alias': null}, usedFallback: true));
+            const LsCapabilityGroups({'keycard': 1}, usedFallback: false));
     addTearDown(h.dispose);
     final r = await h.connect('A');
     _wireExtended(r);
     _firmware(r);
     await _flush();
-    expect(h.telemetry.identity.supportsKeyAliases, isTrue);
+    expect(h.telemetry.identity.supportsPhoneKeyManagement, isFalse);
+    expect(h.telemetry.identity.supportsKeyAliases, isFalse);
+  });
+
+  test('legacy cap:list cannot establish keycard v2', () async {
+    final h = _Harness(
+        capabilityGroups: () async =>
+            const LsCapabilityGroups({'keycard': null}, usedFallback: true));
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _wireExtended(r);
+    _firmware(r);
+    await _flush();
+    expect(h.telemetry.identity.supportsPhoneKeyManagement, isFalse);
+    expect(h.telemetry.identity.supportsKeyAliases, isFalse);
   });
 
   test('a silent capability answer keeps the cached capabilities', () async {

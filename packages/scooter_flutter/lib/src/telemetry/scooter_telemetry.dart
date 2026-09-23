@@ -570,9 +570,11 @@ class ScooterTelemetry {
     identity.navigationCapabilityVersion = groups.versions['nav'];
     identity.supportsClockSync = groups.contains('time');
     identity.supportsUsbMode = groups.contains('usb');
-    identity.supportsPhoneKeyManagement = groups.contains('phone-key');
-    identity.supportsKeyAliases = groups.contains('key-alias') &&
-        (groups.usedFallback || (groups.versions['key-alias'] ?? 0) >= 1);
+    // The unversioned keycard capability covers physical cards only. Legacy
+    // cap:list has no versions, so it cannot establish phone or name support.
+    final supportsKeycardV2 = (groups.versions['keycard'] ?? 0) >= 2;
+    identity.supportsPhoneKeyManagement = supportsKeycardV2;
+    identity.supportsKeyAliases = supportsKeycardV2;
     final supportsTripCounter = groups.contains('trip');
     identity.supportsTripCounter = supportsTripCounter;
     effects.cachePatch(
