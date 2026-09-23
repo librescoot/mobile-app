@@ -57,6 +57,8 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   bool connected = true;
   @override
+  String? currentScooterId = 'A';
+  @override
   bool autoUnlock = false;
   @override
   bool keylessPaused = false;

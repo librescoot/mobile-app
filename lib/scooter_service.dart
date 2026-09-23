@@ -325,7 +325,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     _demoScooters = null;
     _telemetry.invalidate();
     identity.odometerMeters = null;
-    _showCachedScooter(store.getMostRecent());
+    final recentId = mostRecentSavedScooterId;
+    _showCachedScooter(recentId == null ? null : store.scooters[recentId]);
     _state = ScooterState.disconnected;
     notifyListeners();
     if (store.scooters.isNotEmpty) startAutoRestart();
