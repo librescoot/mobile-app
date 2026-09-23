@@ -167,20 +167,15 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
         alignment: Alignment.center,
         children: [...previousChildren, if (currentChild != null) currentChild],
       ),
-      transitionBuilder: (child, animation) => AnimatedBuilder(
-        animation: animation,
-        child: child,
-        builder: (context, child) {
-          final amount = Curves.easeInOutCubic.transform(animation.value);
-          return Opacity(
-            opacity: amount,
-            child: Transform(
-              alignment: Alignment.center,
-              transform: Matrix4.diagonal3Values(0.04 + amount * 0.96, 1, 1),
-              child: child,
-            ),
-          );
-        },
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.82, end: 1).animate(animation),
+          child: RotationTransition(
+            turns: Tween<double>(begin: _showSide ? -0.025 : 0.025, end: 0).animate(animation),
+            child: child,
+          ),
+        ),
       ),
       child: KeyedSubtree(
         key: ValueKey(_showSide ? 'side-angle' : 'front-angle'),
@@ -190,18 +185,8 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
   }
 
   Widget _colorDissolve({required bool side}) {
-    return AnimatedSwitcher(
+    return _IncomingFadeSwitcher(
       duration: const Duration(milliseconds: 320),
-      switchInCurve: Curves.easeOut,
-      switchOutCurve: Curves.easeIn,
-      layoutBuilder: (currentChild, previousChildren) => Stack(
-        alignment: Alignment.center,
-        children: [...previousChildren, if (currentChild != null) currentChild],
-      ),
-      transitionBuilder: (child, animation) => FadeTransition(
-        opacity: animation,
-        child: child,
-      ),
       child: side
           ? ScooterSideVisual(
               key: ValueKey('scooter-color-side-$selectedValue'),
@@ -274,6 +259,80 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
         return char;
       }
     }).join('');
+  }
+}
+
+class _IncomingFadeSwitcher extends StatefulWidget {
+  const _IncomingFadeSwitcher({
+    required this.child,
+    required this.duration,
+  });
+
+  final Widget child;
+  final Duration duration;
+
+  @override
+  State<_IncomingFadeSwitcher> createState() => _IncomingFadeSwitcherState();
+}
+
+class _IncomingFadeSwitcherState extends State<_IncomingFadeSwitcher> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late Widget _current;
+  Widget? _underlay;
+
+  @override
+  void initState() {
+    super.initState();
+    _current = widget.child;
+    _controller = AnimationController(
+      vsync: this,
+      duration: widget.duration,
+      value: 1,
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.completed && mounted && _underlay != null) {
+          setState(() => _underlay = null);
+        }
+      });
+  }
+
+  @override
+  void didUpdateWidget(covariant _IncomingFadeSwitcher oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _controller.duration = widget.duration;
+    if (Widget.canUpdate(_current, widget.child)) {
+      _current = widget.child;
+      return;
+    }
+    _underlay = _current;
+    _current = widget.child;
+    _controller.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        if (_underlay != null)
+          KeyedSubtree(
+            key: const ValueKey('scooter-color-fade-underlay'),
+            child: _underlay!,
+          ),
+        FadeTransition(
+          opacity: CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+          child: KeyedSubtree(
+            key: const ValueKey('scooter-color-fade-incoming'),
+            child: _current,
+          ),
+        ),
+      ],
+    );
   }
 }
 

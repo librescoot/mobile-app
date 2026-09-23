@@ -2,6 +2,7 @@ import 'package:easy_dynamic_theme/easy_dynamic_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:unustasis/ui/theme/scooter_colors.dart';
 import 'package:unustasis/ui/widgets/color_picker_dialog.dart';
 
 void main() {
@@ -72,11 +73,19 @@ void main() {
     expect(find.byKey(const ValueKey('scooter-color-side-2')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('scooter-color-option-6')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    expect(find.byKey(const ValueKey('scooter-color-fade-underlay')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-color-side-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-color-side-6')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 160));
+    expect(find.byKey(const ValueKey('scooter-color-fade-underlay')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byKey(const ValueKey('scooter-color-fade-underlay')), findsNothing);
     expect(find.byKey(const ValueKey('scooter-color-side-6')), findsOneWidget);
   });
 
-  testWidgets('maps legacy white to Matte Stone', (tester) async {
+  testWidgets('maps legacy white to Sunshine Matte Stone', (tester) async {
+    expect(scooterColors[3]!.displayColor, const Color(0xFFA4A4A4));
     await mount(tester, initialValue: 1);
 
     final stone = find.byKey(const ValueKey('scooter-color-option-3'));
