@@ -29,8 +29,15 @@ object PhoneKey {
         return store.getCertificate(ALIAS).publicKey.encoded
     }
 
-    fun fingerprint(): String {
-        val hash = MessageDigest.getInstance("SHA-256").digest(publicKey())
+    fun fingerprint(): String = fingerprintOf(publicKey())
+
+    fun existingFingerprint(): String? {
+        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        return store.getCertificate(ALIAS)?.publicKey?.encoded?.let(::fingerprintOf)
+    }
+
+    private fun fingerprintOf(publicKey: ByteArray): String {
+        val hash = MessageDigest.getInstance("SHA-256").digest(publicKey)
         return hash.take(16).joinToString("") { "%02X".format(it.toInt() and 0xff) }
     }
 

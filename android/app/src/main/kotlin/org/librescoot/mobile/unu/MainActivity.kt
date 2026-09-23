@@ -12,6 +12,13 @@ class MainActivity: FlutterFragmentActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.librescoot.mobile/phone_key")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "existingFingerprint" -> {
+                        try {
+                            result.success(PhoneKey.existingFingerprint())
+                        } catch (e: Exception) {
+                            result.error("KEY_ERROR", "Could not read phone key: ${e.message}", null)
+                        }
+                    }
                     "fingerprint" -> {
                         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION) ||
                             NfcAdapter.getDefaultAdapter(this)?.isEnabled != true) {

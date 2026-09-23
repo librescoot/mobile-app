@@ -26,7 +26,21 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   bool _creatingPhoneKey = false;
   static const _phoneKeyChannel = MethodChannel('org.librescoot.mobile/phone_key');
 
+  Future<void> _restorePhoneKey() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final id = await _phoneKeyChannel.invokeMethod<String>('existingFingerprint');
+      if (id != null && mounted) {
+        _stopBackgroundNfcScan();
+        setState(() => _phoneFingerprint = id);
+      }
+    } catch (_) {
+      // Physical-card scanning remains available on devices without HCE.
+    }
+  }
+
   Future<void> _setUpPhoneKey() async {
+    _stopBackgroundNfcScan(); // Reader mode competes with HCE on the same phone.
     setState(() { _creatingPhoneKey = true; _phoneKeyError = null; });
     try {
       final id = await _phoneKeyChannel.invokeMethod<String>('fingerprint');
@@ -35,6 +49,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _phoneKeyError = e.toString());
+      _startBackgroundNfcScan();
     } finally {
       if (mounted) setState(() => _creatingPhoneKey = false);
     }
@@ -49,6 +64,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   void initState() {
     super.initState();
     _loadAliases();
+    _restorePhoneKey();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshIndicatorKey.currentState?.show();
     });
@@ -160,10 +176,12 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   }
 
   void _startBackgroundNfcScan() async {
-    if (!Platform.isAndroid) return;
+    // Android reader mode prevents our HostApduService from handling a scooter
+    // tap. Leave NFC card emulation available when a phone key is configured.
+    if (!Platform.isAndroid || _phoneFingerprint != null || _creatingPhoneKey) return;
     if (_isBackgroundScanning) return;
     final availability = await FlutterNfcKit.nfcAvailability;
-    if (availability != NFCAvailability.available || !mounted) return;
+    if (availability != NFCAvailability.available || !mounted || _phoneFingerprint != null) return;
     setState(() => _isBackgroundScanning = true);
     // Poll in a loop so that each tap can be detected while the screen is open.
     while (_isBackgroundScanning && mounted) {
