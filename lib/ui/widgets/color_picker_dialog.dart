@@ -118,13 +118,10 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                   ),
                 Positioned.fill(child: _anglePreview()),
                 Positioned.fill(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      key: const ValueKey('scooter-color-preview'),
-                      borderRadius: BorderRadius.circular(120),
-                      onTap: _handlePreviewTap,
-                    ),
+                  child: GestureDetector(
+                    key: const ValueKey('scooter-color-preview'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _handlePreviewTap,
                   ),
                 ),
                 Positioned(
