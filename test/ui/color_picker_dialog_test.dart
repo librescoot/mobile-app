@@ -84,12 +84,22 @@ void main() {
     expect(find.descendant(of: stone, matching: find.byIcon(Icons.check)), findsOneWidget);
   });
 
-  testWidgets('keeps special editions behind their existing names', (tester) async {
+  testWidgets('keeps limited editions behind their alternate access paths', (tester) async {
     await mount(tester, scooterName: 'Eclipse');
     expect(find.byKey(const ValueKey('scooter-color-option-7')), findsOneWidget);
     expect(find.byKey(const ValueKey('scooter-color-option-8')), findsNothing);
 
     await mount(tester, scooterName: 'Kori');
+    expect(find.byKey(const ValueKey('scooter-color-option-8')), findsOneWidget);
+
+    await mount(tester);
+    expect(find.byKey(const ValueKey('scooter-color-option-7')), findsNothing);
+    expect(find.byKey(const ValueKey('scooter-color-option-8')), findsNothing);
+    for (var tap = 0; tap < 23; tap++) {
+      await tester.tap(find.byKey(const ValueKey('scooter-color-preview')));
+      await tester.pump();
+    }
+    expect(find.byKey(const ValueKey('scooter-color-option-7')), findsOneWidget);
     expect(find.byKey(const ValueKey('scooter-color-option-8')), findsOneWidget);
   });
 }

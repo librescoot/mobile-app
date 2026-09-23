@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 
 import 'package:unustasis/domain/scooter_state.dart';
@@ -25,6 +26,8 @@ class ColorPickerDialog extends StatefulWidget {
 class _ColorPickerDialogState extends State<ColorPickerDialog> {
   late int selectedValue;
   bool _showSide = false;
+  bool _limitedColorsUnlocked = false;
+  int _previewTapCount = 0;
 
   @override
   void initState() {
@@ -34,8 +37,8 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
 
   List<int> get _availableColors {
     final values = [...standardScooterColorValues];
-    if (widget.scooterName == magic("Rpyvcfr")) values.add(7);
-    if (widget.scooterName == magic("Xbev")) values.add(8);
+    if (_limitedColorsUnlocked || widget.scooterName == magic("Rpyvcfr")) values.add(7);
+    if (_limitedColorsUnlocked || widget.scooterName == magic("Xbev")) values.add(8);
     if (widget.scooterName == magic("Ubire")) values.add(9);
     if (selectedValue >= 7 && !values.contains(selectedValue)) values.add(selectedValue);
     return values;
@@ -120,7 +123,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                     child: InkWell(
                       key: const ValueKey('scooter-color-preview'),
                       borderRadius: BorderRadius.circular(120),
-                      onTap: () => setState(() => _showSide = !_showSide),
+                      onTap: _handlePreviewTap,
                     ),
                   ),
                 ),
@@ -146,6 +149,16 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
         ),
       ),
     );
+  }
+
+  void _handlePreviewTap() {
+    _previewTapCount++;
+    final unlock = !_limitedColorsUnlocked && _previewTapCount >= 23;
+    setState(() {
+      _showSide = !_showSide;
+      if (unlock) _limitedColorsUnlocked = true;
+    });
+    if (unlock) HapticFeedback.mediumImpact();
   }
 
   Widget _anglePreview() {
