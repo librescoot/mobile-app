@@ -4,6 +4,7 @@ import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:unustasis/ui/theme/scooter_colors.dart';
 import 'package:unustasis/ui/widgets/color_picker_dialog.dart';
+import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 
 void main() {
   Future<void> mount(
@@ -96,13 +97,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(Slider), findsNWidgets(3));
     expect(find.byType(Scaffold), findsNWidgets(2));
-    expect(find.byKey(const ValueKey('custom-color-preview-#7D5FFF-true')), findsOneWidget);
+    expect(find.byKey(const ValueKey('custom-color-preview')), findsOneWidget);
+    expect(find.byKey(const ValueKey('custom-color-backdrop')), findsOneWidget);
+    expect(
+      tester.widget<RenderedScooterArtwork>(find.byKey(const ValueKey('custom-color-preview'))).color,
+      '#7D5FFF',
+    );
+
+    await tester.drag(find.byType(Slider).first, const Offset(-50, 0));
+    await tester.pump();
+    final updatedColor =
+        tester.widget<RenderedScooterArtwork>(find.byKey(const ValueKey('custom-color-preview'))).color;
+    expect(updatedColor, isNot('#7D5FFF'));
 
     await tester.tap(find.byType(Switch));
     await tester.tap(find.widgetWithText(TextButton, 'Save').last);
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('scooter-color-front-#7D5FFF-false')), findsOneWidget);
+    expect(find.byKey(ValueKey('scooter-color-front-$updatedColor-false')), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('scooter-color-option-custom')),

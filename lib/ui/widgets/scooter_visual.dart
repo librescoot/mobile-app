@@ -7,7 +7,6 @@ import 'package:shimmer/shimmer.dart';
 
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
-import 'package:unustasis/service/scooter_artwork_cache.dart';
 import 'package:unustasis/ui/widgets/eclipse_backdrop.dart';
 import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 
@@ -344,7 +343,6 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
                                   view: ScooterArtworkView.front,
                                   color: customColor,
                                   matte: customMatte,
-                                  fallbackAsset: 'images/scooter/base_3.webp',
                                 ),
                         ),
                         crossFadeState: widget.state == ScooterState.disconnected

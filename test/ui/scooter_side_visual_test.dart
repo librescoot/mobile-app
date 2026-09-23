@@ -83,6 +83,8 @@ void main() {
     final artwork = tester.widget<RenderedScooterArtwork>(find.byType(RenderedScooterArtwork));
     expect(artwork.color, '#123456');
     expect(artwork.matte, isFalse);
+    expect(find.byKey(const ValueKey('custom-paint-gloss-layer')), findsOneWidget);
+    expect(find.byKey(const ValueKey('custom-paint-matte-layer')), findsNothing);
   });
 
   testWidgets('does not add the dark backdrop in light mode', (tester) async {

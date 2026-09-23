@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:unustasis/service/scooter_artwork_cache.dart';
 import 'package:unustasis/ui/widgets/eclipse_backdrop.dart';
 import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 
@@ -65,7 +64,6 @@ class ScooterSideVisual extends StatelessWidget {
               view: ScooterArtworkView.side,
               color: renderedColor!,
               matte: renderedColorMatte,
-              fallbackAsset: imagePath,
               height: height,
               cacheWidth: (height * _sideArtAspectRatio * MediaQuery.devicePixelRatioOf(context)).ceil(),
             ),

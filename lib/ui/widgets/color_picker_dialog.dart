@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -7,7 +6,6 @@ import 'package:flutter_i18n/flutter_i18n.dart';
 
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/theme/scooter_colors.dart';
-import 'package:unustasis/service/scooter_artwork_cache.dart';
 import 'package:unustasis/ui/widgets/eclipse_backdrop.dart';
 import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 import 'package:unustasis/ui/widgets/scooter_color_swatch.dart';
@@ -286,7 +284,6 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
           view: ScooterArtworkView.front,
           color: renderedColor,
           matte: _customColor == null || _customColorMatte,
-          fallbackAsset: 'images/scooter/base_3.webp',
         ),
       );
     }
@@ -313,7 +310,6 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
         view: ScooterArtworkView.side,
         color: renderedColor,
         matte: _customColor == null || _customColorMatte,
-        fallbackAsset: 'images/scooter/side_3.webp',
         height: 160,
       );
     }
@@ -437,8 +433,6 @@ class _CustomColorDialogState extends State<_CustomColorDialog> {
   late int _green;
   late int _blue;
   late bool _matte;
-  late String _renderedColor;
-  Timer? _renderTimer;
 
   @override
   void initState() {
@@ -448,13 +442,6 @@ class _CustomColorDialogState extends State<_CustomColorDialog> {
     _green = (value >> 8) & 0xFF;
     _blue = value & 0xFF;
     _matte = widget.initialMatte;
-    _renderedColor = _hex;
-  }
-
-  @override
-  void dispose() {
-    _renderTimer?.cancel();
-    super.dispose();
   }
 
   String get _hex =>
@@ -496,14 +483,27 @@ class _CustomColorDialogState extends State<_CustomColorDialog> {
                   child: Center(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
-                      child: RenderedScooterArtwork(
-                        key: ValueKey('custom-color-preview-$_renderedColor-$_matte'),
-                        view: ScooterArtworkView.front,
-                        color: _renderedColor,
-                        matte: _matte,
-                        fallbackAsset: 'images/scooter/base_3.webp',
-                        height: min(400, constraints.maxHeight * 0.48),
-                        fit: BoxFit.contain,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            key: const ValueKey('custom-color-backdrop'),
+                            width: min(340, constraints.maxWidth * 0.78),
+                            height: min(340, constraints.maxWidth * 0.78),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            ),
+                          ),
+                          RenderedScooterArtwork(
+                            key: const ValueKey('custom-color-preview'),
+                            view: ScooterArtworkView.front,
+                            color: _hex,
+                            matte: _matte,
+                            height: min(400, constraints.maxHeight * 0.48),
+                            fit: BoxFit.contain,
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -535,10 +535,7 @@ class _CustomColorDialogState extends State<_CustomColorDialog> {
                           contentPadding: EdgeInsets.zero,
                           title: Text(FlutterI18n.translate(context, 'color_custom_matte')),
                           value: _matte,
-                          onChanged: (value) {
-                            setState(() => _matte = value);
-                            _scheduleRenderedColor();
-                          },
+                          onChanged: (value) => setState(() => _matte = value),
                         ),
                       ],
                     ),
@@ -552,13 +549,6 @@ class _CustomColorDialogState extends State<_CustomColorDialog> {
     );
   }
 
-  void _scheduleRenderedColor() {
-    _renderTimer?.cancel();
-    _renderTimer = Timer(const Duration(milliseconds: 350), () {
-      if (mounted) setState(() => _renderedColor = _hex);
-    });
-  }
-
   Widget _channelSlider(String label, int value, ValueChanged<int> update) {
     return Row(
       children: [
@@ -570,10 +560,7 @@ class _CustomColorDialogState extends State<_CustomColorDialog> {
             max: 255,
             divisions: 255,
             label: '$value',
-            onChanged: (next) {
-              setState(() => update(next.round()));
-              _scheduleRenderedColor();
-            },
+            onChanged: (next) => setState(() => update(next.round())),
           ),
         ),
         SizedBox(width: 32, child: Text('$value', textAlign: TextAlign.end)),
