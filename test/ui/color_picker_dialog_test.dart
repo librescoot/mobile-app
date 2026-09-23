@@ -91,7 +91,7 @@ void main() {
   });
 
   testWidgets('edits a custom color and finish with a live rendered preview', (tester) async {
-    await mount(tester);
+    await mount(tester, initialValue: 6);
 
     await tester.tap(find.byKey(const ValueKey('scooter-color-option-custom')));
     await tester.pumpAndSettle();
@@ -101,26 +101,34 @@ void main() {
     expect(find.byKey(const ValueKey('custom-color-backdrop')), findsOneWidget);
     expect(
       tester.widget<RenderedScooterArtwork>(find.byKey(const ValueKey('custom-color-preview'))).color,
-      '#7D5FFF',
+      '#0F214F',
     );
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
 
     await tester.drag(find.byType(Slider).first, const Offset(-50, 0));
     await tester.pump();
     final updatedColor =
         tester.widget<RenderedScooterArtwork>(find.byKey(const ValueKey('custom-color-preview'))).color;
-    expect(updatedColor, isNot('#7D5FFF'));
+    expect(updatedColor, isNot('#0F214F'));
 
     await tester.tap(find.byType(Switch));
     await tester.tap(find.widgetWithText(TextButton, 'Save').last);
     await tester.pumpAndSettle();
 
-    expect(find.byKey(ValueKey('scooter-color-front-$updatedColor-false')), findsOneWidget);
+    expect(find.byKey(ValueKey('scooter-color-front-$updatedColor-true')), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('scooter-color-option-custom')),
         matching: find.byIcon(Icons.check),
       ),
       findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('scooter-color-option-6')),
+        matching: find.byIcon(Icons.check),
+      ),
+      findsNothing,
     );
   });
 

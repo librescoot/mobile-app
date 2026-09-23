@@ -234,7 +234,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
   Widget _colorOption(int value) {
     final scooterColor = scooterColors[value]!;
     final label = FlutterI18n.translate(context, "color_${scooterColor.simpleName}");
-    final selected = selectedValue == value;
+    final selected = _customColor == null && selectedValue == value;
     return Semantics(
       button: true,
       selected: selected,
@@ -388,8 +388,8 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
     final selection = await showDialog<_CustomColorSelection>(
       context: context,
       builder: (context) => _CustomColorDialog(
-        initialColor: _customColor ?? '#7D5FFF',
-        initialMatte: _customColorMatte,
+        initialColor: _customColor ?? layeredScooterColor(selectedValue),
+        initialMatte: _customColor == null ? layeredScooterColorIsMatte(selectedValue) : _customColorMatte,
       ),
     );
     if (selection == null || !mounted) return;
