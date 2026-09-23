@@ -1,0 +1,8 @@
+Neu gegenüber 1.3.0 (53):
+
+• Routen mit mehreren Stopps und Fahrtenstatistik auf kompatiblen Librescoot-Systemen
+• Überarbeitete Rollerübersicht mit klareren Verbindungs- und Nähezuständen
+• Demo-Modus, Alarmstatus und passende Funktionen je Firmware
+• Verbessertes Onboarding und Layout für große Displays
+• Trennen bleibt aktiv, bis du dich erneut verbindest
+• Bessere Bluetooth-Hilfe und neue Eclipse-Darstellung

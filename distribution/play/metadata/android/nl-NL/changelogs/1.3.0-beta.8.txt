@@ -1,0 +1,8 @@
+Nieuw sinds 1.3.0 (53):
+
+• Routes met meerdere stops en ritstatistieken op compatibele Librescoot-systemen
+• Vernieuwde scooterlijst met duidelijkere verbindings- en nabijheidsstatussen
+• Demomodus, alarmstatus en functies afgestemd op de firmware
+• Verbeterde onboarding en indeling voor grote schermen
+• Een verbroken verbinding blijft verbroken tot je zelf opnieuw verbindt
+• Betere Bluetooth-hulp en een nieuwe Eclipse-weergave
