@@ -90,6 +90,35 @@ void main() {
     expect(find.byKey(const ValueKey('custom-paint-matte-layer')), findsNothing);
   });
 
+  testWidgets('can omit the independently rendered ground shadow', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: RenderedScooterArtwork(
+          view: ScooterArtworkView.side,
+          color: '#123456',
+          matte: true,
+          showShadow: false,
+          height: 160,
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('scooter-ground-shadow')), findsNothing);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: RenderedScooterArtwork(
+          view: ScooterArtworkView.side,
+          color: '#123456',
+          matte: true,
+          height: 160,
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('scooter-ground-shadow')), findsOneWidget);
+  });
+
   testWidgets('does not add the dark backdrop in light mode', (tester) async {
     await tester.pumpWidget(buildVisual(Brightness.light));
 

@@ -8,6 +8,7 @@ class RenderedScooterArtwork extends StatelessWidget {
     required this.view,
     required this.color,
     required this.matte,
+    this.showShadow = true,
     this.height,
     this.width,
     this.fit,
@@ -17,6 +18,7 @@ class RenderedScooterArtwork extends StatelessWidget {
   final ScooterArtworkView view;
   final String color;
   final bool matte;
+  final bool showShadow;
   final double? height;
   final double? width;
   final BoxFit? fit;
@@ -31,38 +33,19 @@ class RenderedScooterArtwork extends StatelessWidget {
     final artwork = Stack(
       alignment: Alignment.center,
       children: [
+        if (showShadow)
+          Positioned.fill(
+            key: const ValueKey('scooter-ground-shadow'),
+            child: _image('images/scooter/${_prefix}_shadow.png'),
+          ),
         _image('images/scooter/${_prefix}_base.png'),
         Positioned.fill(
+          key: ValueKey(matte ? 'custom-paint-matte-layer' : 'custom-paint-gloss-layer'),
           child: ColorFiltered(
             colorFilter: ColorFilter.mode(_paintColor, BlendMode.modulate),
-            child: _image('images/scooter/${_prefix}_panels.png'),
+            child: _image('images/scooter/${_prefix}_${matte ? 'matte' : 'gloss'}.png'),
           ),
         ),
-        if (matte)
-          Positioned.fill(
-            key: const ValueKey('custom-paint-matte-layer'),
-            child: _image('images/scooter/${_prefix}_matte.png'),
-          )
-        else
-          Positioned.fill(
-            key: const ValueKey('custom-paint-gloss-layer'),
-            child: ShaderMask(
-              blendMode: BlendMode.srcIn,
-              shaderCallback: (bounds) => RadialGradient(
-                center:
-                    view == ScooterArtworkView.front ? const Alignment(-0.72, -0.62) : const Alignment(-0.78, -0.48),
-                radius: view == ScooterArtworkView.front ? 0.82 : 0.95,
-                colors: const [
-                  Color(0x52FFFFFF),
-                  Color(0x26FFFFFF),
-                  Color(0x08FFFFFF),
-                  Colors.transparent,
-                ],
-                stops: const [0, 0.28, 0.58, 1],
-              ).createShader(bounds),
-              child: _image('images/scooter/${_prefix}_panels.png'),
-            ),
-          ),
       ],
     );
     final sizedArtwork = height != null && width == null
