@@ -370,6 +370,14 @@ class ScooterActions {
       (d, r, c) => commands.countKeycardsCommand(d, r, isCurrent: c));
   Future<List<String>> listKeycards() => _command(_capture(),
       (d, r, c) => commands.listKeycardsCommand(d, r, isCurrent: c));
+  Future<List<String>> listPhoneKeys() => _command(_capture(),
+      (d, r, c) => commands.listPhoneKeysCommand(d, r, isCurrent: c));
+  Future<void> deletePhoneKey(String fingerprint,
+          {bool force = false}) =>
+      _command(
+          _capture(),
+          (d, r, c) => commands.deletePhoneKeyCommand(d, r, fingerprint,
+              force: force, isCurrent: c));
   Future<void> addKeycard(String uid) => _command(_capture(),
       (d, r, c) => commands.addKeycardCommand(d, r, uid, isCurrent: c));
   Future<void> deleteKeycard(String uid) => _command(_capture(),

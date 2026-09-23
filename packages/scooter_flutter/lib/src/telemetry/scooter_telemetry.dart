@@ -439,6 +439,7 @@ class ScooterTelemetry {
     identity.supportsNavigation = false;
     identity.supportsClockSync = false;
     identity.supportsUsbMode = false;
+    identity.supportsPhoneKeyManagement = false;
     effects.cachePatch(
         connection.id,
         const TelemetryCachePatch(
@@ -566,6 +567,7 @@ class ScooterTelemetry {
     identity.supportsNavigation = groups.contains('nav');
     identity.supportsClockSync = groups.contains('time');
     identity.supportsUsbMode = groups.contains('usb');
+    identity.supportsPhoneKeyManagement = groups.contains('phone-key');
     final supportsTripCounter = groups.contains('trip');
     identity.supportsTripCounter = supportsTripCounter;
     effects.cachePatch(

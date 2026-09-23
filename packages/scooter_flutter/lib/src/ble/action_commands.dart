@@ -184,6 +184,62 @@ Future<List<String>> listKeycardsCommand(
       }
     });
 
+final _phoneFingerprintPattern = RegExp(r'^[0-9A-F]{32}$');
+
+/// Lists phone fingerprints enrolled on the connected scooter.
+Future<List<String>> listPhoneKeysCommand(
+        BluetoothDevice? scooter, CharacteristicRepository repo,
+        {bool Function()? isCurrent}) =>
+    withExtendedChannel(() async {
+      if (scooter == null || scooter.isDisconnected) {
+        throw 'Scooter not connected!';
+      }
+      final cmd = repo.extendedCommandCharacteristic;
+      final resp = repo.extendedResponseCharacteristic;
+      if (cmd == null || resp == null) {
+        throw 'Extended command characteristics not available';
+      }
+
+      checkCommandCurrent(isCurrent);
+      await ensureExtendedNotify(repo, resp);
+      checkCommandCurrent(isCurrent);
+      final listener = ExtendedResponseListener(resp.onValueReceived);
+      try {
+        await sendCommand(scooter, repo, phoneKeyListCommand,
+            characteristic: cmd, isCurrent: isCurrent);
+        return await readExtendedList(
+            listener.responses.timeout(extendedResponseTimeout), (msg) {
+          const prefix = 'keycard:phone:';
+          if (!msg.startsWith(prefix)) {
+            throw ExtendedResponseFormatException(
+                'unexpected phone entry: $msg');
+          }
+          final fingerprint = msg.substring(prefix.length);
+          if (!_phoneFingerprintPattern.hasMatch(fingerprint)) {
+            throw ExtendedResponseFormatException('invalid phone fingerprint');
+          }
+          return fingerprint;
+        });
+      } finally {
+        await listener.cancel();
+      }
+    });
+
+Future<void> deletePhoneKeyCommand(
+    BluetoothDevice? scooter, CharacteristicRepository repo, String fingerprint,
+    {bool force = false, bool Function()? isCurrent}) async {
+  final id = fingerprint.toUpperCase();
+  if (!_phoneFingerprintPattern.hasMatch(id)) {
+    throw ArgumentError.value(fingerprint, 'fingerprint');
+  }
+  final response = await sendLsExtendedCommand(
+      scooter, repo, deletePhoneKeyPayload(id, force: force),
+      isCurrent: isCurrent);
+  if (response != keycardAcknowledgement) {
+    throw StateError('Failed to remove phone key: $response');
+  }
+}
+
 Future<void> deleteKeycardCommand(
     BluetoothDevice? scooter, CharacteristicRepository repo, String uid,
     {bool Function()? isCurrent}) async {

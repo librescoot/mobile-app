@@ -49,6 +49,7 @@ class FirmwareIdentity {
   bool? supportsNavigation;
   bool? supportsClockSync;
   bool? supportsUsbMode;
+  bool? supportsPhoneKeyManagement;
 
   /// True when this connection shows a GATT table that cannot be the scooter's
   /// current one, i.e. the phone's cached table predates its firmware.
@@ -67,6 +68,7 @@ class FirmwareIdentity {
     supportsNavigation = null;
     supportsClockSync = null;
     supportsUsbMode = null;
+    supportsPhoneKeyManagement = null;
     bluetoothTableOutOfDate = null;
   }
 

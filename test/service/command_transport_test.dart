@@ -239,6 +239,36 @@ void main() {
     });
   }
 
+  test('phone list reads enrolled fingerprints over the extended channel', () async {
+    const first = '0123456789ABCDEF0123456789ABCDEF';
+    const second = 'F7C6A7D0309ED723119742DE3F197846';
+    final listed = expectLater(listPhoneKeysCommand(device, repo), completion([first, second]));
+    await _flush();
+    expect(extended.writes.single.command, 'keycard:phone:list');
+    response.reply('keycard:count:2');
+    response.reply('keycard:phone:$first');
+    response.reply('keycard:phone:$second');
+    await listed;
+  });
+
+  test('phone removal requires acknowledgement and validates fingerprint', () async {
+    const id = 'F7C6A7D0309ED723119742DE3F197846';
+    await expectLater(deletePhoneKeyCommand(device, repo, 'bad'), throwsA(isA<ArgumentError>()));
+    expect(extended.writes, isEmpty);
+
+    final removed = deletePhoneKeyCommand(device, repo, id, force: true);
+    await _flush();
+    expect(extended.writes.single.command, 'keycard:phone:remove:$id:force');
+    response.reply('keycard:ok');
+    await removed;
+
+    final rejected = expectLater(deletePhoneKeyCommand(device, repo, id), throwsA(isA<StateError>()));
+    await _flush();
+    response.reply('keycard:error:cannot remove last authorized card');
+    await rejected;
+    expect(extended.writes.last.command, 'keycard:phone:remove:$id');
+  });
+
   test('expired queued work fails without issuing a late command', () async {
     final gate = Completer<void>();
     final first = withExtendedChannel(() => gate.future);

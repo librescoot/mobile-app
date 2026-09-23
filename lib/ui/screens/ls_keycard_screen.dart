@@ -21,6 +21,13 @@ class LsKeycardScreen extends StatefulWidget {
 
 class _LsKeycardScreenState extends State<LsKeycardScreen> {
   List<String> keycards = [];
+  List<String> _enrolledPhones = [];
+  bool _loadingPhones = false;
+  String? _phoneListError;
+  String? _removingPhone;
+  String? _phoneListScooterId;
+  bool _phoneListAvailable = false;
+  bool _reloadPhonesAfterCurrent = false;
   String? _phoneFingerprint;
   String? _phoneKeyError;
   bool _creatingPhoneKey = false;
@@ -41,7 +48,10 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
 
   Future<void> _setUpPhoneKey() async {
     _stopBackgroundNfcScan(); // Reader mode competes with HCE on the same phone.
-    setState(() { _creatingPhoneKey = true; _phoneKeyError = null; });
+    setState(() {
+      _creatingPhoneKey = true;
+      _phoneKeyError = null;
+    });
     try {
       final id = await _phoneKeyChannel.invokeMethod<String>('fingerprint');
       if (!mounted) return;
@@ -54,6 +64,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
       if (mounted) setState(() => _creatingPhoneKey = false);
     }
   }
+
   Map<String, String> _aliases = {};
   bool _isLoadingKeycards = false;
   bool _isBackgroundScanning = false;
@@ -72,6 +83,19 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scooter = context.watch<ScooterService>();
+    final phoneListAvailable = scooter.connected && scooter.phoneKeyManagementSupported == true;
+    if (_phoneListScooterId != scooter.currentScooterId || _phoneListAvailable != phoneListAvailable) {
+      _phoneListScooterId = scooter.currentScooterId;
+      _phoneListAvailable = phoneListAvailable;
+      _enrolledPhones = [];
+      _phoneListError = null;
+      if (phoneListAvailable) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _loadEnrolledPhones();
+        });
+      }
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text(FlutterI18n.translate(context, "ls_keycard_title")),
@@ -99,13 +123,50 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
                         'Hold the unlocked phone against the scooter reader, and tap the master card again to save it. '
                         'The phone screen and NFC must be on for future taps.'),
                     const SizedBox(height: 8),
-                    if (_phoneFingerprint != null)
-                      SelectableText('Phone key: $_phoneFingerprint'),
+                    if (_phoneFingerprint != null) SelectableText('Phone key: $_phoneFingerprint'),
                     if (_phoneKeyError != null) Text(_phoneKeyError!, style: const TextStyle(color: Colors.red)),
                     TextButton(
                       onPressed: _creatingPhoneKey ? null : _setUpPhoneKey,
                       child: Text(_creatingPhoneKey ? 'Setting up…' : 'Set up / show phone key'),
                     ),
+                  ]),
+                ),
+              ),
+            if (phoneListAvailable)
+              Card(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(FlutterI18n.translate(context, 'ls_phone_enrolled_title'),
+                        style: Theme.of(context).textTheme.titleMedium),
+                    if (_loadingPhones)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 12),
+                        child: LinearProgressIndicator(),
+                      )
+                    else if (_phoneListError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(FlutterI18n.translate(context, 'ls_phone_enrolled_load_error')),
+                      )
+                    else if (_enrolledPhones.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(FlutterI18n.translate(context, 'ls_phone_enrolled_empty')),
+                      ),
+                    for (final id in _enrolledPhones)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(FlutterI18n.translate(context, 'ls_phone_enrolled_entry',
+                            translationParams: {'suffix': id.substring(id.length - 8)})),
+                        subtitle: Text(id, overflow: TextOverflow.ellipsis),
+                        trailing: IconButton(
+                          tooltip: FlutterI18n.translate(context, 'ls_phone_remove_title'),
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: _removingPhone == null ? () => _confirmRemovePhone(id) : null,
+                        ),
+                      ),
                   ]),
                 ),
               ),
@@ -154,9 +215,89 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
         ),
       );
     } finally {
+      if (mounted) setState(() => _isLoadingKeycards = false);
+    }
+    await _loadEnrolledPhones();
+  }
+
+  Future<void> _loadEnrolledPhones() async {
+    if (!mounted) return;
+    if (_loadingPhones) {
+      _reloadPhonesAfterCurrent = true;
+      return;
+    }
+    final service = context.read<ScooterService>();
+    if (!service.connected || service.phoneKeyManagementSupported != true) {
       setState(() {
-        _isLoadingKeycards = false;
+        _enrolledPhones = [];
+        _phoneListError = null;
       });
+      return;
+    }
+    final scooterId = service.currentScooterId;
+    setState(() {
+      _loadingPhones = true;
+      _enrolledPhones = [];
+      _phoneListError = null;
+    });
+    try {
+      final phones = await service.actions.listPhoneKeys();
+      if (!mounted || service.currentScooterId != scooterId) return;
+      setState(() => _enrolledPhones = phones..sort());
+    } catch (e) {
+      if (!mounted || service.currentScooterId != scooterId) return;
+      setState(() {
+        _enrolledPhones = [];
+        _phoneListError = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _loadingPhones = false);
+        if (_reloadPhonesAfterCurrent) {
+          _reloadPhonesAfterCurrent = false;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _loadEnrolledPhones();
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmRemovePhone(String id) async {
+    final service = context.read<ScooterService>();
+    final scooterId = service.currentScooterId;
+    final lastCredential = keycards.isEmpty && _enrolledPhones.length == 1;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(FlutterI18n.translate(dialogContext, 'ls_phone_remove_title')),
+        content: Text(FlutterI18n.translate(
+            dialogContext, lastCredential ? 'ls_phone_remove_last_confirm' : 'ls_phone_remove_confirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(FlutterI18n.translate(dialogContext, 'cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(FlutterI18n.translate(dialogContext, 'ls_keycard_delete_button')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || service.currentScooterId != scooterId) return;
+    setState(() => _removingPhone = id);
+    try {
+      await service.actions.deletePhoneKey(id, force: lastCredential);
+      await _loadEnrolledPhones();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content:
+            Text(FlutterI18n.translate(context, 'ls_phone_remove_error', translationParams: {'error': e.toString()})),
+      ));
+    } finally {
+      if (mounted) setState(() => _removingPhone = null);
     }
   }
 
@@ -267,8 +408,9 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
 
     // add it to the scooter
     try {
-      await context.read<ScooterService>().actions.addKeycard(uid,
-      );
+      await context.read<ScooterService>().actions.addKeycard(
+            uid,
+          );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(FlutterI18n.translate(context, "ls_keycard_add_success"))),
@@ -312,8 +454,9 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     });
 
     try {
-      await context.read<ScooterService>().actions.deleteKeycard(uid,
-      );
+      await context.read<ScooterService>().actions.deleteKeycard(
+            uid,
+          );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

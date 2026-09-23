@@ -863,6 +863,18 @@ void main() {
     expect(h.telemetry.identity.bluetoothTableOutOfDate, isFalse);
   });
 
+  test('phone-key capability gates scooter enrollment management', () async {
+    final h = _Harness(groups: const {'pm', 'phone-key'});
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _wireExtended(r);
+    _firmware(r);
+    await _flush();
+    expect(h.telemetry.identity.supportsPhoneKeyManagement, isTrue);
+    h.telemetry.identity.resetLsCapabilities();
+    expect(h.telemetry.identity.supportsPhoneKeyManagement, isNull);
+  });
+
   test('a silent capability answer keeps the cached capabilities', () async {
     final h = _Harness(
         capabilityGroups: () async =>

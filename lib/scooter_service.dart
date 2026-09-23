@@ -357,6 +357,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   bool? get tripCounterSupported => identity.supportsTripCounter;
+  bool? get phoneKeyManagementSupported => identity.supportsPhoneKeyManagement;
   TripCounterSnapshot? get tripCounter => _telemetry.tripCounter;
   bool get tripCounterLoading => _telemetry.tripLoading;
   Future<TripCounterSnapshot?> refreshTripCounter() async {

@@ -126,6 +126,7 @@ const serviceModeDisableCommand = 'service-mode:off';
 const serviceModeAcknowledgement = 'service-mode:ok';
 const keycardCountCommand = 'keycard:count';
 const keycardListCommand = 'keycard:list';
+const phoneKeyListCommand = 'keycard:phone:list';
 const keycardAcknowledgement = 'keycard:ok';
 const hibernateCancelPowerCommand = 'pm:hibernate-cancel';
 const pmAcknowledgement = 'pm:ok';
@@ -134,6 +135,8 @@ const bondForgetCommand = 'ble:forget';
 const bondForgetAcknowledgement = 'ble:forget:ok';
 String addKeycardPayload(String uid) => 'keycard:add:$uid';
 String deleteKeycardPayload(String uid) => 'keycard:remove:$uid';
+String deletePhoneKeyPayload(String fingerprint, {bool force = false}) =>
+    'keycard:phone:remove:$fingerprint${force ? ':force' : ''}';
 String clockPayload(DateTime time) =>
     'time:set ${time.millisecondsSinceEpoch ~/ 1000}';
 String hibernateForPayload(Duration wakeAfter) {
