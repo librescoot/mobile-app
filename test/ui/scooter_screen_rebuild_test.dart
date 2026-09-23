@@ -21,6 +21,8 @@ class _CountingScooter extends SavedScooter {
     required super.id,
     required super.name,
     super.color,
+    super.customColor,
+    super.customColorMatte,
     super.isLibrescoot,
     super.supportsHibernateFor,
   });
@@ -148,6 +150,21 @@ void main() {
       await tester.pump();
     }
     expect(scooter.nameReads, readsAfterFirstBuild);
+  });
+
+  testWidgets('cards use rendered artwork for custom finishes', (tester) async {
+    final scooter = _CountingScooter(
+      id: 'A',
+      name: 'Alpha',
+      customColor: '#123456',
+      customColorMatte: false,
+    );
+    final service = _Service([scooter]);
+    await _mount(tester, service);
+
+    final visual = tester.widget<ScooterSideVisual>(find.byType(ScooterSideVisual));
+    expect(visual.renderedColor, '#123456');
+    expect(visual.renderedColorMatte, isFalse);
   });
 
   testWidgets('card hierarchy stays stable and labels disconnected scooters', (tester) async {

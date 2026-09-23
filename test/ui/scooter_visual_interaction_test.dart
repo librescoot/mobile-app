@@ -4,6 +4,7 @@ import 'package:easy_dynamic_theme/easy_dynamic_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:unustasis/domain/scooter_state.dart';
+import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 import 'package:unustasis/ui/widgets/scooter_visual.dart';
 
 class _NonEclipseRandom implements Random {
@@ -23,6 +24,8 @@ void main() {
     ScooterState state = ScooterState.parked,
     List<int> thresholds = const [42],
     int color = 1,
+    String? customColor,
+    bool customColorMatte = true,
     ValueChanged<int?>? onSurpriseChanged,
     Random? random,
   }) async {
@@ -43,6 +46,8 @@ void main() {
                 blinkerLeft: false,
                 blinkerRight: false,
                 color: color,
+                customColor: customColor,
+                customColorMatte: customColorMatte,
                 random: random ?? Random(7),
                 surpriseThresholds: thresholds,
                 surpriseDuration: const Duration(seconds: 2),
@@ -65,6 +70,19 @@ void main() {
     );
 
     expect(visual.surpriseThresholds, [42, 69, 83]);
+  });
+
+  testWidgets('uses rendered artwork for a custom finish', (tester) async {
+    await mount(
+      tester,
+      customColor: '#123456',
+      customColorMatte: false,
+    );
+
+    final artwork = tester.widget<RenderedScooterArtwork>(find.byType(RenderedScooterArtwork));
+    expect(artwork.color, '#123456');
+    expect(artwork.matte, isFalse);
+    expect(find.byKey(const ValueKey('eclipse-backdrop')), findsNothing);
   });
 
   testWidgets('Eclipse colour uses the ring backdrop without hidden taps', (tester) async {

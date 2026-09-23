@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
 
 void main() {
@@ -7,6 +8,8 @@ void main() {
     Brightness brightness, {
     Color? backdropColor,
     bool eclipseBackdrop = false,
+    String? renderedColor,
+    bool renderedColorMatte = true,
   }) =>
       MaterialApp(
         theme: ThemeData(brightness: brightness),
@@ -17,6 +20,8 @@ void main() {
             backdropDiameter: 264,
             backdropColor: backdropColor,
             eclipseBackdrop: eclipseBackdrop,
+            renderedColor: renderedColor,
+            renderedColorMatte: renderedColorMatte,
           ),
         ),
       );
@@ -64,6 +69,20 @@ void main() {
     final decoration = backdrop.decoration! as BoxDecoration;
     expect(decoration.gradient, isA<RadialGradient>());
     expect(decoration.color, isNull);
+  });
+
+  testWidgets('uses cached rendered artwork for a custom finish', (tester) async {
+    await tester.pumpWidget(
+      buildVisual(
+        Brightness.light,
+        renderedColor: '#123456',
+        renderedColorMatte: false,
+      ),
+    );
+
+    final artwork = tester.widget<RenderedScooterArtwork>(find.byType(RenderedScooterArtwork));
+    expect(artwork.color, '#123456');
+    expect(artwork.matte, isFalse);
   });
 
   testWidgets('does not add the dark backdrop in light mode', (tester) async {

@@ -259,6 +259,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final cornerTop = largeScreen ? 16.0 : 0.0;
     final currentScooterId = context.select<ScooterService, String?>((service) => service.currentScooterId);
     final scooterColor = context.select<ScooterService, int?>((service) => service.identity.color) ?? 1;
+    final scooterAppearance = context.select<ScooterService, ({String? customColor, bool customColorMatte})>(
+      (service) {
+        try {
+          final savedScooter = service.savedScooters[service.currentScooterId];
+          return (
+            customColor: savedScooter?.customColor,
+            customColorMatte: savedScooter?.customColorMatte ?? true,
+          );
+        } on NoSuchMethodError {
+          return (customColor: null, customColorMatte: true);
+        }
+      },
+    );
     // Resolved once per build: provider forbids select() from nested builders.
     final ({AlarmStatus? status, bool unsupported}) alarm =
         context.select<ScooterService, ({AlarmStatus? status, bool unsupported})>((service) => (
@@ -267,7 +280,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ));
     final triggeredAlarm = alarm.status != null && alarm.status!.isTriggered ? alarm.status : null;
     final eclipseBackdrop = triggeredAlarm == null &&
-        (scooterColor == 7 || (currentScooterId != null && _surpriseScooterId == currentScooterId));
+        ((scooterAppearance.customColor == null && scooterColor == 7) ||
+            (currentScooterId != null && _surpriseScooterId == currentScooterId));
     // Firmware that reports no alarm command category cannot be commanded, so
     // the button must not pretend. Unknown counts as available: the alarm is
     // sounding now, and a rejected command reports itself on the button.
@@ -377,6 +391,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   ScooterVisual(
                                     key: ValueKey(currentScooterId),
                                     color: scooterColor,
+                                    customColor: scooterAppearance.customColor,
+                                    customColorMatte: scooterAppearance.customColorMatte,
                                     state: context.select(
                                       (ScooterService service) => service.state,
                                     ),

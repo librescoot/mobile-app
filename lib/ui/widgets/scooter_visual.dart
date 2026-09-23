@@ -7,7 +7,9 @@ import 'package:shimmer/shimmer.dart';
 
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
+import 'package:unustasis/service/scooter_artwork_cache.dart';
 import 'package:unustasis/ui/widgets/eclipse_backdrop.dart';
+import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 
 class ScooterVisual extends StatefulWidget {
   final ScooterState? state;
@@ -15,6 +17,8 @@ class ScooterVisual extends StatefulWidget {
   final bool blinkerLeft;
   final bool blinkerRight;
   final int? color;
+  final String? customColor;
+  final bool customColorMatte;
   final bool winter;
   final bool aprilFools;
   final bool halloween;
@@ -33,6 +37,8 @@ class ScooterVisual extends StatefulWidget {
     this.aprilFools = false,
     this.halloween = false,
     this.color,
+    this.customColor,
+    this.customColorMatte = true,
     this.random,
     this.surpriseThresholds = const [42, 69, 83],
     this.surpriseDuration,
@@ -91,6 +97,8 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
     super.didUpdateWidget(oldWidget);
 
     if (widget.color != oldWidget.color ||
+        widget.customColor != oldWidget.customColor ||
+        widget.customColorMatte != oldWidget.customColorMatte ||
         (widget.state == ScooterState.disconnected && oldWidget.state != ScooterState.disconnected)) {
       _surpriseTimer?.cancel();
       if (_surpriseColor != null) {
@@ -250,7 +258,11 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final displayColor = _surpriseColor ?? _regularColor;
-    final showEclipse = widget.showEclipseBackdrop && displayColor == 7;
+    final customColor = _surpriseColor == null && !widget.aprilFools
+        ? widget.customColor ?? (displayColor == 3 ? '#D5D5D5' : null)
+        : null;
+    final customMatte = widget.customColor == null || widget.customColorMatte;
+    final showEclipse = widget.showEclipseBackdrop && customColor == null && displayColor == 7;
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -321,11 +333,19 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
                               child: child,
                             ),
                           ),
-                          child: Image(
-                            key: ValueKey('scooter-skin-$displayColor'),
-                            gaplessPlayback: true,
-                            image: AssetImage("images/scooter/base_$displayColor.webp"),
-                          ),
+                          child: customColor == null
+                              ? Image(
+                                  key: ValueKey('scooter-skin-$displayColor'),
+                                  gaplessPlayback: true,
+                                  image: AssetImage("images/scooter/base_$displayColor.webp"),
+                                )
+                              : RenderedScooterArtwork(
+                                  key: ValueKey('scooter-skin-$customColor-$customMatte'),
+                                  view: ScooterArtworkView.front,
+                                  color: customColor,
+                                  matte: customMatte,
+                                  fallbackAsset: 'images/scooter/base_3.webp',
+                                ),
                         ),
                         crossFadeState: widget.state == ScooterState.disconnected
                             ? CrossFadeState.showFirst

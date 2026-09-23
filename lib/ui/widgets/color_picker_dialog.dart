@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
@@ -434,6 +437,8 @@ class _CustomColorDialogState extends State<_CustomColorDialog> {
   late int _green;
   late int _blue;
   late bool _matte;
+  late String _renderedColor;
+  Timer? _renderTimer;
 
   @override
   void initState() {
@@ -443,6 +448,13 @@ class _CustomColorDialogState extends State<_CustomColorDialog> {
     _green = (value >> 8) & 0xFF;
     _blue = value & 0xFF;
     _matte = widget.initialMatte;
+    _renderedColor = _hex;
+  }
+
+  @override
+  void dispose() {
+    _renderTimer?.cancel();
+    super.dispose();
   }
 
   String get _hex =>
@@ -459,48 +471,92 @@ class _CustomColorDialogState extends State<_CustomColorDialog> {
       simpleName: 'custom',
       finish: _matte ? ScooterColorFinish.matte : ScooterColorFinish.glossy,
     );
-    return AlertDialog(
-      title: Text(
-        FlutterI18n.translate(context, 'color_custom'),
-        textAlign: TextAlign.center,
-      ),
-      content: SizedBox(
-        width: 340,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ScooterColorSwatch(
-              key: const ValueKey('custom-color-preview'),
-              scooterColor: previewColor,
-              selected: false,
-              size: 96,
+    return Dialog.fullscreen(
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          title: Text(FlutterI18n.translate(context, 'color_custom')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(_CustomColorSelection(_hex, _matte)),
+              child: Text(FlutterI18n.translate(context, 'stats_rename_save')),
             ),
-            const SizedBox(height: 8),
-            Text(_hex, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
-            _channelSlider('R', _red, (value) => _red = value),
-            _channelSlider('G', _green, (value) => _green = value),
-            _channelSlider('B', _blue, (value) => _blue = value),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(FlutterI18n.translate(context, 'color_custom_matte')),
-              value: _matte,
-              onChanged: (value) => setState(() => _matte = value),
-            ),
+            const SizedBox(width: 8),
           ],
         ),
+        body: SafeArea(
+          top: false,
+          child: LayoutBuilder(
+            builder: (context, constraints) => Column(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: RenderedScooterArtwork(
+                        key: ValueKey('custom-color-preview-$_renderedColor-$_matte'),
+                        view: ScooterArtworkView.front,
+                        color: _renderedColor,
+                        matte: _matte,
+                        fallbackAsset: 'images/scooter/base_3.webp',
+                        height: min(400, constraints.maxHeight * 0.48),
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ScooterColorSwatch(
+                              scooterColor: previewColor,
+                              selected: false,
+                              size: 52,
+                            ),
+                            const SizedBox(width: 14),
+                            Text(_hex, style: Theme.of(context).textTheme.titleLarge),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _channelSlider('R', _red, (value) => _red = value),
+                        _channelSlider('G', _green, (value) => _green = value),
+                        _channelSlider('B', _blue, (value) => _blue = value),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(FlutterI18n.translate(context, 'color_custom_matte')),
+                          value: _matte,
+                          onChanged: (value) {
+                            setState(() => _matte = value);
+                            _scheduleRenderedColor();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(FlutterI18n.translate(context, 'stats_rename_cancel')),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(_CustomColorSelection(_hex, _matte)),
-          child: Text(FlutterI18n.translate(context, 'stats_rename_save')),
-        ),
-      ],
     );
+  }
+
+  void _scheduleRenderedColor() {
+    _renderTimer?.cancel();
+    _renderTimer = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) setState(() => _renderedColor = _hex);
+    });
   }
 
   Widget _channelSlider(String label, int value, ValueChanged<int> update) {
@@ -514,7 +570,10 @@ class _CustomColorDialogState extends State<_CustomColorDialog> {
             max: 255,
             divisions: 255,
             label: '$value',
-            onChanged: (next) => setState(() => update(next.round())),
+            onChanged: (next) {
+              setState(() => update(next.round()));
+              _scheduleRenderedColor();
+            },
           ),
         ),
         SizedBox(width: 32, child: Text('$value', textAlign: TextAlign.end)),

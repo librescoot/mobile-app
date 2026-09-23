@@ -862,7 +862,11 @@ class _SavedScooterCardBody extends StatelessWidget {
                           height: 160,
                           backdropDiameter: 264,
                           backdropColor: isLibrescoot ? _librescootBackdropColor(context) : null,
-                          eclipseBackdrop: !forceHover && savedScooter.color == 7,
+                          eclipseBackdrop: !forceHover && !savedScooter.hasCustomColor && savedScooter.color == 7,
+                          renderedColor: forceHover
+                              ? null
+                              : savedScooter.customColor ?? (savedScooter.color == 3 ? '#D5D5D5' : null),
+                          renderedColorMatte: !savedScooter.hasCustomColor || savedScooter.customColorMatte,
                         ),
                       ),
                     ),
@@ -1174,7 +1178,9 @@ class _SavedScooterListItemBody extends StatelessWidget {
                           imagePath: "images/scooter/side_${savedScooter.color}.webp",
                           height: MediaQuery.of(context).size.width * 0.18,
                           backdropColor: isLibrescoot ? _librescootBackdropColor(context) : null,
-                          eclipseBackdrop: savedScooter.color == 7,
+                          eclipseBackdrop: !savedScooter.hasCustomColor && savedScooter.color == 7,
+                          renderedColor: savedScooter.customColor ?? (savedScooter.color == 3 ? '#D5D5D5' : null),
+                          renderedColorMatte: !savedScooter.hasCustomColor || savedScooter.customColorMatte,
                         ),
                       ),
                     ),

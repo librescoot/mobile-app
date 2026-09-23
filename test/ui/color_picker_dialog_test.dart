@@ -95,7 +95,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('scooter-color-option-custom')));
     await tester.pumpAndSettle();
     expect(find.byType(Slider), findsNWidgets(3));
-    expect(find.byKey(const ValueKey('custom-color-preview')), findsOneWidget);
+    expect(find.byType(Scaffold), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('custom-color-preview-#7D5FFF-true')), findsOneWidget);
 
     await tester.tap(find.byType(Switch));
     await tester.tap(find.widgetWithText(TextButton, 'Save').last);

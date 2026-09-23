@@ -18,6 +18,8 @@ enum ScooterArtworkView {
 }
 
 class ScooterArtworkCache {
+  static final ScooterArtworkCache shared = ScooterArtworkCache();
+
   ScooterArtworkCache({
     http.Client? client,
     Future<Directory> Function()? directory,
