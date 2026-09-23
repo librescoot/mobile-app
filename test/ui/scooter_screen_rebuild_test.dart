@@ -376,6 +376,21 @@ void main() {
     }
   });
 
+  testWidgets('Eclipse artwork replaces the solid card and list backdrops', (tester) async {
+    final eclipse = _CountingScooter(id: 'A', name: 'Eclipse', color: 7);
+    final other = _CountingScooter(id: 'B', name: 'Other', color: 1);
+    final service = _Service([eclipse, other]);
+    await _mount(tester, service);
+
+    ScooterSideVisual eclipseVisual() => tester
+        .widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual))
+        .singleWhere((visual) => visual.imagePath.endsWith('side_7.webp'));
+    expect(eclipseVisual().eclipseBackdrop, isTrue);
+    await tester.tap(find.byIcon(Icons.list));
+    await tester.pumpAndSettle();
+    expect(eclipseVisual().eclipseBackdrop, isTrue);
+  });
+
   testWidgets('confirmed Librescoot artwork keeps its subdued backdrop in dark mode', (tester) async {
     final scooter = _CountingScooter(id: 'A', name: 'Alpha');
     final service = _Service([scooter]);

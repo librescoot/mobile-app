@@ -150,6 +150,17 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Eclipse colour shows its ring backdrop in light mode', (tester) async {
+    final service = _Service();
+    service.identity.color = 7;
+    addTearDown(service.dispose);
+    await _mountHome(tester, service);
+
+    final circle = find.descendant(of: find.byType(StateCircle), matching: find.byType(Container));
+    final decoration = tester.widget<Container>(circle).decoration! as BoxDecoration;
+    expect(decoration.gradient, isA<RadialGradient>());
+  });
+
   testWidgets('a sounding alarm pulses the circle and names it in the status line', (tester) async {
     final service = _Service()..vehicle.alarmStatus = AlarmStatus.level2Triggered;
     addTearDown(service.dispose);

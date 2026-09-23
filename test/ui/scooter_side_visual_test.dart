@@ -6,6 +6,7 @@ void main() {
   Widget buildVisual(
     Brightness brightness, {
     Color? backdropColor,
+    bool eclipseBackdrop = false,
   }) =>
       MaterialApp(
         theme: ThemeData(brightness: brightness),
@@ -15,6 +16,7 @@ void main() {
             height: 160,
             backdropDiameter: 264,
             backdropColor: backdropColor,
+            eclipseBackdrop: eclipseBackdrop,
           ),
         ),
       );
@@ -46,6 +48,22 @@ void main() {
     final decoration = backdrop.decoration! as BoxDecoration;
     expect(decoration.color, librescootColor);
     expect(decoration.border, isNull);
+  });
+
+  testWidgets('Eclipse replaces the solid disk with a radial ring in either theme', (tester) async {
+    await tester.pumpWidget(
+      buildVisual(
+        Brightness.light,
+        backdropColor: const Color(0xFFB8DCDD),
+        eclipseBackdrop: true,
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('scooter-side-dark-backdrop')), findsNothing);
+    final backdrop = tester.widget<Container>(find.byKey(const ValueKey('eclipse-backdrop')));
+    final decoration = backdrop.decoration! as BoxDecoration;
+    expect(decoration.gradient, isA<RadialGradient>());
+    expect(decoration.color, isNull);
   });
 
   testWidgets('does not add the dark backdrop in light mode', (tester) async {

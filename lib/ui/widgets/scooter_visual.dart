@@ -7,6 +7,7 @@ import 'package:shimmer/shimmer.dart';
 
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
+import 'package:unustasis/ui/widgets/eclipse_backdrop.dart';
 
 class ScooterVisual extends StatefulWidget {
   final ScooterState? state;
@@ -20,6 +21,8 @@ class ScooterVisual extends StatefulWidget {
   final Random? random;
   final List<int> surpriseThresholds;
   final Duration? surpriseDuration;
+  final bool showEclipseBackdrop;
+  final ValueChanged<bool>? onSurpriseChanged;
 
   const ScooterVisual({
     required this.state,
@@ -33,6 +36,8 @@ class ScooterVisual extends StatefulWidget {
     this.random,
     this.surpriseThresholds = const [42, 69, 83],
     this.surpriseDuration,
+    this.showEclipseBackdrop = true,
+    this.onSurpriseChanged,
     super.key,
   });
 
@@ -88,6 +93,9 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
     if (widget.color != oldWidget.color ||
         (widget.state == ScooterState.disconnected && oldWidget.state != ScooterState.disconnected)) {
       _surpriseTimer?.cancel();
+      if (_surpriseColor != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => widget.onSurpriseChanged?.call(false));
+      }
       _surpriseColor = null;
       _tapCount = 0;
       _tapThreshold = _nextTapThreshold();
@@ -158,6 +166,7 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
       _surpriseColor = choices[_rand.nextInt(choices.length)];
       _shakeIntensity = 8;
     });
+    widget.onSurpriseChanged?.call(true);
     HapticFeedback.mediumImpact();
     _tapAnimation.forward(from: 0);
     final duration = widget.surpriseDuration ?? Duration(seconds: 10 + _rand.nextInt(21));
@@ -169,6 +178,7 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
         _tapThreshold = _nextTapThreshold();
         _shakeIntensity = 0;
       });
+      widget.onSurpriseChanged?.call(false);
     });
   }
 
@@ -240,9 +250,12 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final displayColor = _surpriseColor ?? _regularColor;
+    final showEclipse = widget.showEclipseBackdrop && (displayColor == 7 || _surpriseColor != null);
     return Stack(
       alignment: Alignment.center,
       children: [
+        if (showEclipse)
+          EclipseBackdrop(diameter: MediaQuery.sizeOf(context).width * 0.85),
         if (widget.halloween)
           AnimatedOpacity(
             opacity: widget.state == ScooterState.disconnected ? 0 : 1,

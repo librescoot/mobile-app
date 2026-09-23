@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
+import 'package:unustasis/ui/widgets/eclipse_backdrop.dart';
 
 class StateCircle extends StatefulWidget {
   const StateCircle({
@@ -10,12 +11,14 @@ class StateCircle extends StatefulWidget {
     bool halloween = false,
     bool fall = false,
     bool alarm = false,
+    bool eclipse = false,
     required ScooterState? scooterState,
   })  : _scanning = scanning,
         _connected = connected,
         _halloween = halloween,
         _fall = fall,
         _alarm = alarm,
+        _eclipse = eclipse,
         _scooterState = scooterState;
 
   final bool _scanning;
@@ -25,6 +28,7 @@ class StateCircle extends StatefulWidget {
 
   /// The alarm is sounding, so the circle breathes red instead of sitting flat.
   final bool _alarm;
+  final bool _eclipse;
   final ScooterState? _scooterState;
 
   @override
@@ -61,6 +65,7 @@ class _StateCircleState extends State<StateCircle> with SingleTickerProviderStat
   double get _scale {
     if (widget._alarm) return 1.5 + 0.12 * _pulse.value;
     if (!widget._connected) return widget._scanning ? 1.5 : 0;
+    if (widget._eclipse) return 1.5;
     switch (widget._scooterState) {
       case ScooterState.parked:
         return 1.5;
@@ -126,18 +131,20 @@ class _StateCircleState extends State<StateCircle> with SingleTickerProviderStat
         child: Container(
           width: size,
           height: size,
-          decoration: BoxDecoration(
-            boxShadow: _glow(error),
-            image: widget._halloween
-                ? DecorationImage(
-                    image: const AssetImage("images/decoration/moon.webp"),
-                    fit: BoxFit.cover,
-                    opacity: widget._connected ? 0.2 : 0.05,
-                  )
-                : null,
-            shape: BoxShape.circle,
-            color: _fill(context),
-          ),
+          decoration: widget._eclipse
+              ? eclipseBackdropDecoration()
+              : BoxDecoration(
+                  boxShadow: _glow(error),
+                  image: widget._halloween
+                      ? DecorationImage(
+                          image: const AssetImage("images/decoration/moon.webp"),
+                          fit: BoxFit.cover,
+                          opacity: widget._connected ? 0.2 : 0.05,
+                        )
+                      : null,
+                  shape: BoxShape.circle,
+                  color: _fill(context),
+                ),
         ),
       ),
     );

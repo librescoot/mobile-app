@@ -59,4 +59,31 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('Eclipse state circle uses the radial ring instead of a solid fill', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(412, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(),
+        home: const Scaffold(
+          body: StateCircle(
+            connected: true,
+            scanning: false,
+            scooterState: ScooterState.ready,
+            eclipse: true,
+          ),
+        ),
+      ),
+    );
+
+    final circle = find.descendant(of: find.byType(StateCircle), matching: find.byType(Container));
+    final decoration = tester.widget<Container>(circle).decoration! as BoxDecoration;
+    expect(tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale, 1.5);
+    expect(decoration.gradient, isA<RadialGradient>());
+    expect(decoration.color, isNull);
+  });
 }

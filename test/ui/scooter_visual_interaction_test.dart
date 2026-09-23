@@ -11,6 +11,8 @@ void main() {
     WidgetTester tester, {
     ScooterState state = ScooterState.parked,
     List<int> thresholds = const [42],
+    int color = 1,
+    ValueChanged<bool>? onSurpriseChanged,
   }) async {
     tester.view.physicalSize = const Size(412, 900);
     tester.view.devicePixelRatio = 1;
@@ -28,10 +30,11 @@ void main() {
                 scanning: false,
                 blinkerLeft: false,
                 blinkerRight: false,
-                color: 1,
+                color: color,
                 random: Random(7),
                 surpriseThresholds: thresholds,
                 surpriseDuration: const Duration(seconds: 2),
+                onSurpriseChanged: onSurpriseChanged,
               ),
             ),
           ),
@@ -52,8 +55,17 @@ void main() {
     expect(visual.surpriseThresholds, [42, 69, 83]);
   });
 
+  testWidgets('Eclipse colour uses the ring backdrop without hidden taps', (tester) async {
+    await mount(tester, color: 7);
+
+    final backdrop = tester.widget<Container>(find.byKey(const ValueKey('eclipse-backdrop')));
+    final decoration = backdrop.decoration! as BoxDecoration;
+    expect(decoration.gradient, isA<RadialGradient>());
+  });
+
   testWidgets('keeps early taps quiet, then shakes and temporarily swaps the skin', (tester) async {
-    await mount(tester);
+    final surpriseChanges = <bool>[];
+    await mount(tester, onSurpriseChanged: surpriseChanges.add);
     final artwork = find.descendant(
       of: find.byType(ScooterVisual),
       matching: find.byType(GestureDetector),
@@ -83,10 +95,14 @@ void main() {
       hasLength(1),
     );
     expect(find.byKey(const ValueKey('scooter-skin-1')), findsNothing);
+    expect(find.byKey(const ValueKey('eclipse-backdrop')), findsOneWidget);
+    expect(surpriseChanges, [true]);
 
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('scooter-skin-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('eclipse-backdrop')), findsNothing);
+    expect(surpriseChanges, [true, false]);
   });
 
   testWidgets('ignores hidden taps while disconnected', (tester) async {

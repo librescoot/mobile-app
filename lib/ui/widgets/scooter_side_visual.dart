@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:unustasis/ui/widgets/eclipse_backdrop.dart';
 
 /// Side-view scooter art with enough dark contrast for dark scooter colours.
 ///
@@ -15,12 +16,14 @@ class ScooterSideVisual extends StatelessWidget {
     required this.height,
     this.backdropDiameter,
     this.backdropColor,
+    this.eclipseBackdrop = false,
   });
 
   final String imagePath;
   final double height;
   final double? backdropDiameter;
   final Color? backdropColor;
+  final bool eclipseBackdrop;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +34,9 @@ class ScooterSideVisual extends StatelessWidget {
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
-          if (showBackdrop)
+          if (eclipseBackdrop)
+            EclipseBackdrop(diameter: backdropDiameter ?? height * 1.65)
+          else if (showBackdrop)
             Container(
               key: const ValueKey('scooter-side-dark-backdrop'),
               width: backdropDiameter ?? height * 1.65,
