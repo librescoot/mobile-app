@@ -473,7 +473,7 @@ void main() {
       expect(tryActionUri("javascript:alert(1)"), isNull);
       expect(tryActionUri("file:///etc/passwd"), isNull);
       expect(tryActionUri("tel:+49123"), isNull);
-      expect(tryActionUri("unustasis://scooter"), isNull);
+      expect(tryActionUri("librescoot-mobile://scooter"), isNull);
     });
 
     test('rejects malformed URIs', () {

@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import 'package:unustasis/scooter_service.dart';
+import '../wide_layout.dart';
 
 /// Read-only presentation of an explicitly sampled version snapshot. No OTA
 /// refresh is invoked: opening this screen must not start update planning.
@@ -83,6 +84,7 @@ class _SystemInformationScreenState extends State<SystemInformationScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(_text('system_info_title'))),
       body: ListView(
+        padding: wideContentPadding(context),
         children: [
           _heading('system_info_boards'),
           for (final row in rows) _row(row),

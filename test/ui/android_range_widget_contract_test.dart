@@ -35,7 +35,11 @@ void main() {
 
   test('reconnect readiness wait is scoped to reconnect and revalidates its request', () {
     final source = File('lib/background/bg_service.dart').readAsStringSync();
-    expect(RegExp(r'await scooterService\.runtimeReady;').allMatches(source), hasLength(1));
+    // Readiness is awaited only for a reconnect, and for a Tasker request whose
+    // result claims no scooter could satisfy it; an ordinary widget action must
+    // not wait on startup restoration.
+    expect(RegExp(r'await scooterService\.runtimeReady;').allMatches(source), hasLength(2));
+    expect(source, contains('if (requestId != null && await _noSavedScooters())'));
     final connect = source.substring(
       source.indexOf('if (actionName == "connect")'),
       source.indexOf('final dispatch = await scooterService.prepareWidgetAction(actionName)'),

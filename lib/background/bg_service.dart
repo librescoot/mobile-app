@@ -10,6 +10,7 @@ import 'package:pausable_timer/pausable_timer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../background/background_i18n.dart';
+import '../background/tasker_bridge.dart';
 import '../background/widget_handler.dart';
 import '../flutter/blue_plus_mockable.dart';
 import '../scooter_service.dart';
@@ -162,6 +163,8 @@ Future<void> executeWidgetAction(String actionName) async {
   final log = Logger("bgservice");
   log.info("Executing action: $actionName");
 
+  // Id of the request waiting on this slot, set only for Tasker.
+  String? requestId;
   try {
     promoteToForeground();
 
@@ -172,8 +175,17 @@ Future<void> executeWidgetAction(String actionName) async {
     // All producers persist first. A delayed invoke after a successful action
     // must not replay an already consumed slot (or an unrelated action name).
     if (!matchesRequest()) return;
+    requestId = prefs.getString(pendingWidgetActionRequestIdKey);
 
     if (!scooterService.connected) await setWidgetScanning(true);
+
+    // Tasker only. Nothing could ever satisfy this, so answer it now: preparing
+    // would retain the request for a target that can never appear and leave
+    // Tasker to sit out its whole timeout.
+    if (requestId != null && await _noSavedScooters()) {
+      await dropAndReport(requestId, taskerResultNoScooterSaved);
+      return;
+    }
 
     // The disconnected widget's Scan button is a reconnect request, not an
     // implicit unlock command. Connect and consume it without issuing any
@@ -238,12 +250,20 @@ Future<void> executeWidgetAction(String actionName) async {
       // An unclassified dispatch exception is conservatively ambiguous. The
       // shared action boundary returns false only before any native write call.
       mayHaveIssued = true;
-      if (!await dispatch()) mayHaveIssued = false;
+      final issued = await dispatch();
+      if (issued) {
+        if (requestId != null) await publishActionResult(requestId, taskerResultOk);
+      } else {
+        // A definite non-write: the request is restored below and a later pass
+        // runs it, so there is no outcome to report yet.
+        mayHaveIssued = false;
+      }
     } finally {
       if (!mayHaveIssued) await _restoreUnissuedWidgetAction(prefs, actionName);
     }
   } catch (e, stack) {
     log.severe("Action '$actionName' failed", e, stack);
+    if (requestId != null) await publishActionResult(requestId, taskerResultForError(e));
   } finally {
     try {
       await setWidgetScanning(false);
@@ -269,6 +289,13 @@ Future<void> executeWidgetAction(String actionName) async {
       _widgetActionInProgress = false;
     }
   }
+}
+
+/// Whether there is no scooter that could satisfy an action. Tasker only: widget
+/// taps reach this before the saved-scooter store has loaded.
+Future<bool> _noSavedScooters() async {
+  await scooterService.runtimeReady;
+  return (await scooterService.getSavedScooterIds()).isEmpty;
 }
 
 /// One best-effort recovery pass, never an automatic actuation retry. These two

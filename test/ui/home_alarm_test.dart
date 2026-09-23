@@ -12,6 +12,7 @@ import 'package:unustasis/domain/alarm_status.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/state/scooter_identity.dart';
 import 'package:unustasis/ui/screens/home_screen.dart';
+import 'package:unustasis/ui/screens/navigation_screen.dart';
 import 'package:unustasis/ui/widgets/state_circle.dart';
 
 class _Connection extends Fake implements SessionConnection {
@@ -53,6 +54,8 @@ class _Service extends ChangeNotifier implements ScooterService {
   bool? get handlebarsLocked => vehicle.handlebarsLocked;
   @override
   ScooterState? state = ScooterState.standby;
+  @override
+  String? currentScooterId = 'A';
   @override
   bool connected = true;
   @override
@@ -224,6 +227,52 @@ void main() {
     expect(find.text('Stop alarm'), findsNothing);
     expect(find.byType(StateCircle), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('navigation availability does not move the main controls', (tester) async {
+    final service = _Service();
+    addTearDown(service.dispose);
+    await _mountHome(tester, service);
+
+    final cue = find.byKey(const ValueKey('home-navigation-cue'));
+    expect(tester.widget<Visibility>(cue).visible, isFalse);
+    final controlCenter = tester.getCenter(find.byType(ScooterPowerButton));
+
+    service.identity.supportsNavigation = true;
+    service.changed();
+    await tester.pump();
+
+    expect(tester.widget<Visibility>(cue).visible, isTrue);
+    expect(tester.getCenter(find.byType(ScooterPowerButton)), controlCenter);
+  });
+
+  testWidgets('navigation swipe is disabled without the capability', (tester) async {
+    final service = _Service();
+    addTearDown(service.dispose);
+    await _mountHome(tester, service);
+
+    await tester.fling(find.byType(HomeScreen), const Offset(0, -200), 1000);
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byType(NavigationScreen), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('large screens inset plain corner actions', (tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final service = _Service();
+    addTearDown(service.dispose);
+    await _mountHome(tester, service);
+
+    final help = find.widgetWithIcon(IconButton, Icons.help_outline);
+    final settings = find.widgetWithIcon(IconButton, Icons.settings_outlined);
+    expect(tester.getTopLeft(help).dx, 24);
+    expect(tester.getTopRight(settings).dx, 800 - 24);
+    final button = tester.widget<IconButton>(help);
+    expect(button.style?.backgroundColor?.resolve(<WidgetState>{}), isNull);
   });
 
   testWidgets('a failed stop reports itself and leaves the control usable', (tester) async {

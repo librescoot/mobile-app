@@ -11,6 +11,7 @@ import 'package:unustasis/service/ota_transfer_service.dart';
 import 'package:unustasis/ui/screens/system_information_screen.dart';
 
 import 'package:scooter_flutter/update_controller.dart';
+import '../wide_layout.dart';
 
 class LsOtaScreen extends StatefulWidget {
   const LsOtaScreen({super.key});
@@ -417,6 +418,7 @@ class _LsOtaScreenState extends State<LsOtaScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(FlutterI18n.translate(context, "ls_ota_title"))),
       body: ListView(
+        padding: wideContentPadding(context),
         children: [
           if (!connected)
             ListTile(

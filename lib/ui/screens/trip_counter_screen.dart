@@ -9,6 +9,7 @@ import 'package:scooter_flutter/trip_commands.dart';
 import '../../domain/saved_scooter.dart';
 import '../../scooter_service.dart';
 import '../widgets/header.dart';
+import '../wide_layout.dart';
 
 class TripCounterScreen extends StatefulWidget {
   const TripCounterScreen({super.key});
@@ -105,7 +106,10 @@ class _TripCounterScreenState extends State<TripCounterScreen> {
         onRefresh: _refresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewPaddingOf(context).bottom),
+          padding: wideContentPadding(
+            context,
+            base: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewPaddingOf(context).bottom),
+          ),
           children: [
             if (!hasData && !connected)
               _StateMessage(

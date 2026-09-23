@@ -437,6 +437,7 @@ class ScooterTelemetry {
     identity.supportsTripExpunge = false;
     identity.supportsServiceMode = false;
     identity.supportsNavigation = false;
+    identity.navigationCapabilityVersion = null;
     identity.supportsClockSync = false;
     identity.supportsUsbMode = false;
     identity.supportsPhoneKeyManagement = false;
@@ -565,6 +566,7 @@ class ScooterTelemetry {
     // still has the services behind them.
     identity.supportsServiceMode = groups.contains('service-mode');
     identity.supportsNavigation = groups.contains('nav');
+    identity.navigationCapabilityVersion = groups.versions['nav'];
     identity.supportsClockSync = groups.contains('time');
     identity.supportsUsbMode = groups.contains('usb');
     identity.supportsPhoneKeyManagement = groups.contains('phone-key');

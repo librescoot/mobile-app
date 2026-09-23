@@ -13,6 +13,7 @@ import 'package:unustasis/geo_helper.dart';
 import 'package:unustasis/scooter_service.dart';
 import '../widgets/photon_autocomplete.dart';
 import 'route_plan_screen.dart';
+import '../wide_layout.dart';
 
 class NavigationScreen extends StatefulWidget {
   final NavDestination? initialDestination;
@@ -512,6 +513,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
   @override
   Widget build(BuildContext context) {
     final connected = context.select<ScooterService, bool>((s) => s.connected);
+    final routePlansAvailable = context.select<ScooterService, bool>(
+      (service) => service.identity.supportsRoutePlans,
+    );
     final content = Stack(
       children: [
         Column(
@@ -577,12 +581,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                     ),
-                    IconButton(
-                      tooltip: FlutterI18n.translate(
-                          context, 'nav_route_entry_tooltip'),
-                      onPressed: _openRoutePlan,
-                      icon: const Icon(Icons.route_outlined),
-                    ),
+                    if (routePlansAvailable)
+                      IconButton(
+                        tooltip: FlutterI18n.translate(context, 'nav_route_entry_tooltip'),
+                        onPressed: _openRoutePlan,
+                        icon: const Icon(Icons.route_outlined),
+                      ),
                     IconButton(
                       tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
                       onPressed: () => Navigator.of(context).pop(),
@@ -605,11 +609,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
         foregroundColor: Theme.of(context).colorScheme.onSurface,
         scrolledUnderElevation: 0,
         actions: [
-          IconButton(
-            tooltip: FlutterI18n.translate(context, 'nav_route_entry_tooltip'),
-            onPressed: _openRoutePlan,
-            icon: const Icon(Icons.route_outlined),
-          ),
+          if (routePlansAvailable)
+            IconButton(
+              tooltip: FlutterI18n.translate(context, 'nav_route_entry_tooltip'),
+              onPressed: _openRoutePlan,
+              icon: const Icon(Icons.route_outlined),
+            ),
         ],
       ),
       floatingActionButton: _osmConsent &&
@@ -629,6 +634,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   void _openRoutePlan() {
+    if (!context.read<ScooterService>().identity.supportsRoutePlans) return;
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const RoutePlanScreen()),
     );
@@ -670,7 +676,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final regularDests = _destinations.where((d) => d.type == null).toList();
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+      padding: wideContentPadding(context, base: const EdgeInsets.fromLTRB(16, 16, 16, 40)),
       itemCount: regularDests.length + 1,
       itemBuilder: (context, index) {
         if (index == 0) return _destinationQuickLaunch(connected);
@@ -943,6 +949,7 @@ class _NoDestinationsEmpty extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
+      padding: wideContentPadding(context),
       children: [
         const SizedBox(height: 120),
         Center(
@@ -966,4 +973,3 @@ class _NoDestinationsEmpty extends StatelessWidget {
     );
   }
 }
-

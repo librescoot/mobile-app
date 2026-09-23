@@ -7,6 +7,7 @@ import 'package:unustasis/domain/hibernation_schedule.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:scooter_core/actions.dart';
 import 'package:scooter_core/telemetry.dart' show lsKeyScheduledHibernateEnabled;
+import '../wide_layout.dart';
 
 /// Configuration screen for librescoot's scheduled hibernation: a cron-based
 /// schedule that hibernates the scooter at a set time and wakes it again
@@ -397,7 +398,7 @@ class _LsScheduledHibernationScreenState extends State<LsScheduledHibernationScr
 
   Widget _buildSettings(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: wideContentPadding(context, base: const EdgeInsets.symmetric(vertical: 16)),
       children: [
         SwitchListTile(
           secondary: const Icon(Icons.bedtime_outlined),

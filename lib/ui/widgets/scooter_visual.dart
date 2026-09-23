@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shimmer/shimmer.dart';
 
 import 'package:unustasis/domain/scooter_state.dart';
@@ -16,6 +17,9 @@ class ScooterVisual extends StatefulWidget {
   final bool winter;
   final bool aprilFools;
   final bool halloween;
+  final Random? random;
+  final List<int> surpriseThresholds;
+  final Duration? surpriseDuration;
 
   const ScooterVisual({
     required this.state,
@@ -26,6 +30,9 @@ class ScooterVisual extends StatefulWidget {
     this.aprilFools = false,
     this.halloween = false,
     this.color,
+    this.random,
+    this.surpriseThresholds = const [42, 69, 83],
+    this.surpriseDuration,
     super.key,
   });
 
@@ -38,7 +45,7 @@ class ScooterVisual extends StatefulWidget {
 // size from the first frame, instead of growing in as each asset decodes.
 const double _scooterAspectRatio = 866 / 1800;
 
-class _ScooterVisualState extends State<ScooterVisual> {
+class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProviderStateMixin {
   // controls whether the light ring is flickering:
   // when true the ring is considered hidden (flickering), when false it's visible
   bool _ringFlickering = false;
@@ -47,7 +54,13 @@ class _ScooterVisualState extends State<ScooterVisual> {
   // a short duration while flickering to get quick blinks, then restore it.
   Duration _ringOpacityDuration = const Duration(milliseconds: 1000);
 
-  final Random _rand = Random();
+  late final Random _rand;
+  late final AnimationController _tapAnimation;
+  late int _tapThreshold;
+  int _tapCount = 0;
+  int? _surpriseColor;
+  double _shakeIntensity = 0;
+  Timer? _surpriseTimer;
 
   // timers scheduled for flicker sequences and the loop timer
   final List<Timer> _scheduledTimers = [];
@@ -58,6 +71,9 @@ class _ScooterVisualState extends State<ScooterVisual> {
   @override
   void initState() {
     super.initState();
+    _rand = widget.random ?? Random();
+    _tapAnimation = AnimationController(vsync: this, duration: const Duration(milliseconds: 180));
+    _tapThreshold = _nextTapThreshold();
     _ringFlickering = !_baseOn;
     if (widget.halloween && _baseOn) {
       // initial spooky flicker immediately
@@ -68,6 +84,15 @@ class _ScooterVisualState extends State<ScooterVisual> {
   @override
   void didUpdateWidget(covariant ScooterVisual oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    if (widget.color != oldWidget.color ||
+        (widget.state == ScooterState.disconnected && oldWidget.state != ScooterState.disconnected)) {
+      _surpriseTimer?.cancel();
+      _surpriseColor = null;
+      _tapCount = 0;
+      _tapThreshold = _nextTapThreshold();
+      _tapAnimation.reset();
+    }
 
     // If flicker flag changed or power state changed, adjust behavior
     if (widget.halloween != oldWidget.halloween) {
@@ -102,8 +127,49 @@ class _ScooterVisualState extends State<ScooterVisual> {
 
   @override
   void dispose() {
+    _surpriseTimer?.cancel();
+    _tapAnimation.dispose();
     _cancelAllFlickers();
     super.dispose();
+  }
+
+  int _nextTapThreshold() {
+    assert(widget.surpriseThresholds.isNotEmpty);
+    return widget.surpriseThresholds[_rand.nextInt(widget.surpriseThresholds.length)];
+  }
+
+  int get _regularColor => widget.aprilFools ? 9 : widget.color ?? 1;
+
+  void _handleArtworkTap() {
+    if (widget.state == ScooterState.disconnected || _surpriseColor != null) return;
+    _tapCount++;
+    final shakeStartsAt = (_tapThreshold * 0.55).floor();
+    if (_tapCount >= shakeStartsAt) {
+      final progress = ((_tapCount - shakeStartsAt) / (_tapThreshold - shakeStartsAt)).clamp(0.0, 1.0);
+      _shakeIntensity = 0.5 + progress * 7.5;
+      _tapAnimation.forward(from: 0);
+    }
+    if (_tapCount >= _tapThreshold) _showSurpriseSkin();
+  }
+
+  void _showSurpriseSkin() {
+    final choices = [7, 8, 9].where((color) => color != _regularColor).toList();
+    setState(() {
+      _surpriseColor = choices[_rand.nextInt(choices.length)];
+      _shakeIntensity = 8;
+    });
+    HapticFeedback.mediumImpact();
+    _tapAnimation.forward(from: 0);
+    final duration = widget.surpriseDuration ?? Duration(seconds: 10 + _rand.nextInt(21));
+    _surpriseTimer = Timer(duration, () {
+      if (!mounted) return;
+      setState(() {
+        _surpriseColor = null;
+        _tapCount = 0;
+        _tapThreshold = _nextTapThreshold();
+        _shakeIntensity = 0;
+      });
+    });
   }
 
   void _cancelAllFlickers() {
@@ -173,6 +239,7 @@ class _ScooterVisualState extends State<ScooterVisual> {
 
   @override
   Widget build(BuildContext context) {
+    final displayColor = _surpriseColor ?? _regularColor;
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -193,83 +260,114 @@ class _ScooterVisualState extends State<ScooterVisual> {
               ),
             ),
           ),
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ConstrainedBox(
-            // max-width instead of a tight width: when the available height is
-            // the limiting factor, AspectRatio must be free to shrink the width
-            // too, or the box gets squashed and the AnimatedCrossFade layers
-            // (which align topStart, unlike plain Images) drift off-center.
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.55,
-            ),
-            child: AspectRatio(
-              aspectRatio: _scooterAspectRatio,
-              child: Stack(
-                alignment: Alignment.center,
-                fit: StackFit.expand,
-                children: [
-                  AnimatedCrossFade(
-                    duration: const Duration(milliseconds: 500),
-                    firstChild: Shimmer.fromColors(
-                      baseColor: context.isDarkMode ? Colors.black : Colors.black45,
-                      highlightColor: widget.scanning
-                          ? Colors.transparent
-                          : context.isDarkMode
-                              ? Colors.black
-                              : Colors.black45,
-                      enabled: widget.scanning,
-                      direction: ShimmerDirection.ltr,
-                      period: const Duration(seconds: 2),
-                      child: const Image(
-                        image: AssetImage("images/scooter/disconnected.webp"),
+        GestureDetector(
+          excludeFromSemantics: true,
+          behavior: HitTestBehavior.translucent,
+          onTap: _handleArtworkTap,
+          child: AnimatedBuilder(
+            animation: _tapAnimation,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: ConstrainedBox(
+                // max-width instead of a tight width: when the available height is
+                // the limiting factor, AspectRatio must be free to shrink the width
+                // too, or the box gets squashed and the AnimatedCrossFade layers
+                // (which align topStart, unlike plain Images) drift off-center.
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.55,
+                ),
+                child: AspectRatio(
+                  aspectRatio: _scooterAspectRatio,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    fit: StackFit.expand,
+                    children: [
+                      AnimatedCrossFade(
+                        duration: const Duration(milliseconds: 500),
+                        firstChild: Shimmer.fromColors(
+                          baseColor: context.isDarkMode ? Colors.black : Colors.black45,
+                          highlightColor: widget.scanning
+                              ? Colors.transparent
+                              : context.isDarkMode
+                                  ? Colors.black
+                                  : Colors.black45,
+                          enabled: widget.scanning,
+                          direction: ShimmerDirection.ltr,
+                          period: const Duration(seconds: 2),
+                          child: const Image(
+                            image: AssetImage("images/scooter/disconnected.webp"),
+                          ),
+                        ),
+                        secondChild: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 450),
+                          switchInCurve: Curves.easeOutBack,
+                          switchOutCurve: Curves.easeInBack,
+                          transitionBuilder: (child, animation) => FadeTransition(
+                            opacity: animation,
+                            child: ScaleTransition(
+                              scale: Tween<double>(begin: 0.72, end: 1).animate(animation),
+                              child: child,
+                            ),
+                          ),
+                          child: Image(
+                            key: ValueKey('scooter-skin-$displayColor'),
+                            gaplessPlayback: true,
+                            image: AssetImage("images/scooter/base_$displayColor.webp"),
+                          ),
+                        ),
+                        crossFadeState: widget.state == ScooterState.disconnected
+                            ? CrossFadeState.showFirst
+                            : CrossFadeState.showSecond,
                       ),
-                    ),
-                    secondChild: Image(
-                      // keep showing the previous scooter while the new color decodes
-                      gaplessPlayback: true,
-                      image: AssetImage(
-                        "images/scooter/base_${widget.aprilFools ? 9 : widget.color ?? 1}.webp",
-                      ),
-                    ),
-                    crossFadeState: widget.state == ScooterState.disconnected
-                        ? CrossFadeState.showFirst
-                        : CrossFadeState.showSecond,
-                  ),
-                  if (widget.winter && widget.state != ScooterState.disconnected)
-                    AnimatedCrossFade(
-                      duration: const Duration(milliseconds: 500),
-                      firstChild: const Image(
-                        image: AssetImage(
-                          "images/scooter/seasonal/winter_on.webp",
+                      if (widget.winter && widget.state != ScooterState.disconnected)
+                        AnimatedCrossFade(
+                          duration: const Duration(milliseconds: 500),
+                          firstChild: const Image(
+                            image: AssetImage(
+                              "images/scooter/seasonal/winter_on.webp",
+                            ),
+                          ),
+                          secondChild: const Image(
+                            image: AssetImage(
+                              "images/scooter/seasonal/winter_off.webp",
+                            ),
+                          ),
+                          crossFadeState: widget.state != null && widget.state!.isOn
+                              ? CrossFadeState.showFirst
+                              : CrossFadeState.showSecond,
+                        ),
+                      AnimatedOpacity(
+                        opacity: (widget.state != null && widget.state!.isOn) ? (_ringFlickering ? 0.5 : 1.0) : 0.0,
+                        duration: _ringOpacityDuration,
+                        child: const Image(
+                          image: AssetImage("images/scooter/light_ring.webp"),
                         ),
                       ),
-                      secondChild: const Image(
-                        image: AssetImage(
-                          "images/scooter/seasonal/winter_off.webp",
+                      AnimatedOpacity(
+                        opacity: widget.state == ScooterState.ready ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 1000),
+                        child: const Image(
+                          image: AssetImage("images/scooter/light_beam.webp"),
                         ),
                       ),
-                      crossFadeState: widget.state != null && widget.state!.isOn
-                          ? CrossFadeState.showFirst
-                          : CrossFadeState.showSecond,
-                    ),
-                  AnimatedOpacity(
-                    opacity: (widget.state != null && widget.state!.isOn) ? (_ringFlickering ? 0.5 : 1.0) : 0.0,
-                    duration: _ringOpacityDuration,
-                    child: const Image(
-                      image: AssetImage("images/scooter/light_ring.webp"),
-                    ),
+                    ],
                   ),
-                  AnimatedOpacity(
-                    opacity: widget.state == ScooterState.ready ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 1000),
-                    child: const Image(
-                      image: AssetImage("images/scooter/light_beam.webp"),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
+            builder: (context, child) {
+              final decay = 1 - _tapAnimation.value;
+              final wave = sin(_tapAnimation.value * pi * 4);
+              final offset = wave * _shakeIntensity * decay;
+              return Transform.translate(
+                key: const ValueKey('scooter-artwork-shake'),
+                offset: Offset(offset, 0),
+                child: Transform.rotate(
+                  angle: offset * 0.0025,
+                  child: child,
+                ),
+              );
+            },
           ),
         ),
       ],

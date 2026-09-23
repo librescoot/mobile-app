@@ -28,12 +28,14 @@ import 'package:unustasis/ui/widgets/settings_help_row_theme.dart';
 import 'package:unustasis/ui/widgets/settings_dropdown_tile.dart';
 import 'package:unustasis/ui/presentation/settings_duration.dart';
 import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/service/battery_optimization.dart';
 import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
 import 'package:unustasis/ui/screens/system_information_screen.dart';
 import 'package:unustasis/ui/screens/ls_scheduled_hibernation_screen.dart';
 import 'package:unustasis/state/vehicle_status.dart';
 import 'package:unustasis/ui/screens/log_screen.dart';
+import '../wide_layout.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -42,9 +44,10 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
   final log = Logger('SettingsScreen');
   bool backgroundScan = false;
+  bool batteryOptimizationOff = false;
   bool biometrics = false;
   bool seasonal = true;
   ScooterKeylessDistance autoUnlockDistance = ScooterKeylessDistance.regular;
@@ -96,10 +99,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     getInitialSettings();
+    WidgetsBinding.instance.addObserver(this);
+    refreshBatteryOptimization();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Granting and revoking both happen in system screens that report nothing back.
+    if (state == AppLifecycleState.resumed) refreshBatteryOptimization();
+  }
+
+  Future<void> refreshBatteryOptimization() async {
+    if (!BatteryOptimization.isSupported) return;
+    final ignored = await BatteryOptimization.isIgnored();
+    if (!mounted) return;
+    setState(() => batteryOptimizationOff = ignored);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _apnController.dispose();
     super.dispose();
   }
@@ -909,6 +928,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool? supportsServiceMode,
     required bool? supportsClockSync,
     required bool? supportsUsbMode,
+    required bool demoMode,
   }) =>
       [
         Header(
@@ -1119,6 +1139,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
+        if (Platform.isAndroid)
+          SwitchListTile(
+            secondary: const Icon(Icons.battery_saver_outlined),
+            title: Text(FlutterI18n.translate(context, "settings_battery_optimization")),
+            subtitle: Text(
+              FlutterI18n.translate(context, "settings_battery_optimization_description"),
+            ),
+            value: batteryOptimizationOff,
+            onChanged: (value) async {
+              // Android grants the exemption through its own dialog but exposes no
+              // way to drop it, so revoking goes through the settings screen.
+              if (value) {
+                await BatteryOptimization.request();
+              } else {
+                await BatteryOptimization.openSettings();
+              }
+              await refreshBatteryOptimization();
+            },
+          ),
         if (isLibrescoot) ...[
           Header(FlutterI18n.translate(context, "settings_section_updates_service")),
           ..._connectionRequiredItems(_librescootUpdateSettingsItems(
@@ -1143,6 +1182,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const RideStatsSettingsSection(),
         ],
         Header(FlutterI18n.translate(context, "stats_settings_section_app")),
+        SwitchListTile(
+          secondary: const Icon(Icons.science_outlined),
+          title: Text(FlutterI18n.translate(context, 'settings_demo_mode')),
+          subtitle: Text(FlutterI18n.translate(
+            context,
+            connected && !demoMode ? 'settings_demo_mode_disconnect' : 'settings_demo_mode_description',
+          )),
+          value: demoMode,
+          onChanged: connected && !demoMode
+              ? null
+              : (enabled) {
+                  final service = context.read<ScooterService>();
+                  if (enabled) {
+                    service.addDemoData();
+                  } else {
+                    service.removeDemoData();
+                  }
+                },
+        ),
         FutureBuilder<List<BiometricType>>(
           future: LocalAuthentication().getAvailableBiometrics(),
           builder: (context, biometricsOptionsSnap) {
@@ -1375,24 +1433,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
           bool showTripSettings,
           bool? supportsServiceMode,
           bool? supportsClockSync,
-          bool? supportsUsbMode
+          bool? supportsUsbMode,
+          bool demoMode
         })>(
       (service) => (
-        isLibrescoot: service.identity.isLibrescoot == true,
+        isLibrescoot: service.identity.isLibrescoot == true && !service.demoMode,
         supportsScheduled: service.identity.supportsScheduledHibernation == true,
         supportsBatteryKeepActive: service.identity.supportsBatteryKeepActive == true,
         supportsAlarmControl: service.identity.supportsAlarmControl,
         supportsApn: service.identity.supportsApnConfig == true,
         usbMode: service.vehicle.usbMode,
-        connected: service.connected,
-        otaAvailable: service.connected && service.otaAvailable,
+        connected: service.connected && !service.demoMode,
+        otaAvailable: service.connected && !service.demoMode && service.otaAvailable,
         autoUnlock: service.autoUnlock,
         openSeatOnUnlock: service.openSeatOnUnlock,
         hazardLocking: service.hazardLocking,
-        showTripSettings: service.connected && service.tripCounterSupported == true,
+        showTripSettings: service.connected && !service.demoMode && service.tripCounterSupported == true,
         supportsServiceMode: service.identity.supportsServiceMode,
         supportsClockSync: service.identity.supportsClockSync,
         supportsUsbMode: service.identity.supportsUsbMode,
+        demoMode: service.demoMode,
       ),
     );
     _ensureLsDataLoaded(ls.isLibrescoot);
@@ -1412,6 +1472,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       supportsServiceMode: ls.supportsServiceMode,
       supportsClockSync: ls.supportsClockSync,
       supportsUsbMode: ls.supportsUsbMode,
+      demoMode: ls.demoMode,
     );
 
     return Scaffold(
@@ -1421,7 +1482,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: SettingsHelpRowTheme(
         child: SafeArea(
           child: ListView.separated(
-            padding: const EdgeInsets.only(bottom: 24),
+            padding: wideContentPadding(context, base: const EdgeInsets.only(bottom: 24)),
             shrinkWrap: true,
             itemCount: items.length,
             separatorBuilder: (context, index) => items[index] is Header || items[index + 1] is Header

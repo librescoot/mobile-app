@@ -31,20 +31,24 @@ class OnboardingScreen extends StatefulWidget {
     this.skipWelcome = false,
     this.permissionController,
     this.onboardingPreferences,
+    this.initialStep = 0,
     super.key,
   });
   final List<String>? excludedScooterIds;
   final bool skipWelcome;
   final OnboardingPermissionController? permissionController;
   final OnboardingPreferences? onboardingPreferences;
+  final int initialStep;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> with TickerProviderStateMixin {
+  static const _defaultScooterName = "Scooter Pro";
+
   final log = Logger('OnboardingScreen');
-  int _step = 0;
+  late int _step;
   ScooterCandidate? _selectedScooter;
   List<ScooterCandidate> _candidates = [];
   StreamSubscription<List<ScooterCandidate>>? _discoverySub;
@@ -54,6 +58,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
   late AnimationController _pairingController;
   int _pendingColor = 0;
   late TextEditingController _nameController;
+  late FocusNode _nameFocusNode;
   late final OnboardingPermissionController _permissionController;
   late final OnboardingPreferences _onboardingPreferences;
   OnboardingPermissionSummary? _permissionSummary;
@@ -71,7 +76,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
 
   @override
   void initState() {
-    _nameController = TextEditingController(text: "Scooter Pro");
+    _step = widget.initialStep;
+    _nameController = TextEditingController(text: _defaultScooterName);
+    _nameFocusNode = FocusNode()..addListener(_selectDefaultName);
     _permissionController = widget.permissionController ?? PlatformOnboardingPermissionController();
     _onboardingPreferences = widget.onboardingPreferences ?? OnboardingPreferences();
     // for adding second or third scooters
@@ -110,6 +117,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     });
 
     super.initState();
+  }
+
+  void _selectDefaultName() {
+    if (!_nameFocusNode.hasFocus || _nameController.text != _defaultScooterName) {
+      return;
+    }
+    _nameController.selection = TextSelection(baseOffset: 0, extentOffset: _nameController.text.length);
   }
 
   void _warnOfOldApp() async {
@@ -407,21 +421,37 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
   @override
   Widget build(BuildContext context) {
     final usesScrollableIntro = _step < 0 || (_step == 0 && MediaQuery.textScalerOf(context).scale(1) > 1.3);
+    final largeScreen = MediaQuery.sizeOf(context).shortestSide >= 600;
+    final cornerInset = largeScreen ? 24.0 : 8.0;
     return Scaffold(
       appBar: AppBar(
-        // only show back button if this is not initial onboarding
-        automaticallyImplyLeading: widget.skipWelcome ? true : false,
+        automaticallyImplyLeading: false,
+        leadingWidth: widget.skipWelcome ? cornerInset + 48 : null,
+        leading: widget.skipWelcome
+            ? Padding(
+                padding: EdgeInsets.only(left: cornerInset),
+                child: _cornerAction(
+                  icon: Icons.arrow_back,
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                  onPressed: () => Navigator.maybePop(context),
+                ),
+              )
+            : null,
         systemOverlayStyle:
             SystemUiOverlayStyle(statusBarBrightness: context.isDarkMode ? Brightness.dark : Brightness.light),
         actions: [
-          IconButton(
-              onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (context) => const SupportScreen(),
-                ));
-              },
-              icon: const Icon(Icons.help_outline))
+          Padding(
+            padding: EdgeInsets.only(right: cornerInset),
+            child: _cornerAction(
+              icon: Icons.help_outline,
+              tooltip: FlutterI18n.translate(context, "stats_title_support"),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (context) => const SupportScreen(),
+              )),
+            ),
+          ),
         ],
+        toolbarHeight: largeScreen ? 72 : kToolbarHeight,
         backgroundColor: Colors.transparent,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
@@ -707,6 +737,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     switch (step) {
       case 0:
         return const ScooterVisual(
+          color: 0,
           state: ScooterState.disconnected,
           scanning: false,
           blinkerLeft: false,
@@ -722,6 +753,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
         );
       case 5:
         return const ScooterVisual(
+          color: 0,
           state: ScooterState.ready,
           scanning: false,
           blinkerLeft: false,
@@ -740,6 +772,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
         );
       default:
         return const ScooterVisual(
+          color: 0,
           state: ScooterState.disconnected,
           scanning: false,
           blinkerLeft: false,
@@ -794,34 +827,47 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
       ),
       const SizedBox(height: 24),
       SizedBox(
-          height: 48,
-          child: ListView.separated(
-            shrinkWrap: true,
+        height: 48,
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            itemCount: 7,
-            itemBuilder: (context, index) {
-              return _colorButton(
-                color: index,
-                selected: _pendingColor == index,
-                onTap: () {
-                  setState(() {
-                    _pendingColor = index;
-                  });
-                },
-              );
-            },
-            separatorBuilder: (context, index) => const SizedBox(width: 16),
-          )),
-      SizedBox(height: 32),
-      TextField(
-        controller: _nameController,
-        textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.titleMedium,
-        decoration: InputDecoration(
-          border: const OutlineInputBorder(),
-          labelText: FlutterI18n.translate(context, "stats_name"),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var index = 0; index < 7; index++) ...[
+                    if (index > 0) const SizedBox(width: 16),
+                    _colorButton(
+                      color: index,
+                      selected: _pendingColor == index,
+                      onTap: () => setState(() => _pendingColor = index),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
         ),
-        onChanged: (_) => setState(() {}),
+      ),
+      const SizedBox(height: 32),
+      Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: TextField(
+            controller: _nameController,
+            focusNode: _nameFocusNode,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium,
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              labelText: FlutterI18n.translate(context, "stats_name"),
+            ),
+            onTap: _selectDefaultName,
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
       ),
       const SizedBox(height: 40),
       ElevatedButton(
@@ -833,7 +879,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
           final service = context.read<ScooterService>();
           final scooterId = _selectedScooter?.id ?? service.currentScooterId;
           if (scooterId != null) {
-            final name = _nameController.text.trim().isEmpty ? "Scooter Pro" : _nameController.text.trim();
+            final name = _nameController.text.trim().isEmpty ? _defaultScooterName : _nameController.text.trim();
             service.renameSavedScooter(id: scooterId, name: name);
             service.recolorSavedScooter(id: scooterId, color: _pendingColor);
           }
@@ -898,11 +944,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     );
   }
 
+  Widget _cornerAction({required IconData icon, required String tooltip, required VoidCallback onPressed}) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon),
+    );
+  }
+
   @override
   void dispose() {
     _discoverySub?.cancel();
     _scanningController.dispose();
     _pairingController.dispose();
+    _nameFocusNode
+      ..removeListener(_selectDefaultName)
+      ..dispose();
     _nameController.dispose();
     super.dispose();
   }

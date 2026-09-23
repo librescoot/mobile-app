@@ -61,8 +61,17 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   VehicleStatus get vehicle => _telemetry.vehicle;
   final ScooterIdentity identity = ScooterIdentity();
 
-  Map<String, SavedScooter> get savedScooters => store.scooters;
-  set savedScooters(Map<String, SavedScooter> value) => store.scooters = value;
+  Map<String, SavedScooter>? _demoScooters;
+  Map<String, SavedScooter> get savedScooters => _demoScooters ?? store.scooters;
+  set savedScooters(Map<String, SavedScooter> value) {
+    if (_demoScooters != null) {
+      _demoScooters = value;
+    } else {
+      store.scooters = value;
+    }
+  }
+
+  bool get demoMode => _demoScooters != null;
   String? get mostRecentSavedScooterId => store.getMostRecent()?.id;
 
   // Legacy test/demo view only; production consumers use currentScooterId.
@@ -243,10 +252,11 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   void addDemoData() {
+    if (connected || demoMode) return;
     stopAutoRestart(clearManualTarget: false);
     _session.foundScooter = true;
     flutterBluePlus.stopScan();
-    savedScooters = {
+    _demoScooters = {
       "12345": SavedScooter(
         name: "Demo Scooter",
         id: "12345",
@@ -291,13 +301,27 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     vehicle.navigationActive = false;
     identity.lastPing = DateTime.now();
     identity.name = "Demo Scooter";
-
-    store.save();
-    updateBackgroundService({"updateSavedScooters": true});
-    passToWidget(
-      scooterId: "12345",
-    );
+    identity.color = 0;
+    identity.lastLocation = const LatLng(0, 0);
+    identity.nrfVersion = "demo-ls";
+    identity.imxVersion = "demo";
+    identity.isLibrescoot = true;
     notifyListeners();
+  }
+
+  void removeDemoData() {
+    if (!demoMode) return;
+    stopAutoRestart(clearManualTarget: false);
+    _session.foundScooter = false;
+    _session.setConnected(false, notify: false);
+    myScooter = null;
+    _demoScooters = null;
+    _telemetry.invalidate();
+    identity.odometerMeters = null;
+    _showCachedScooter(store.getMostRecent());
+    _state = ScooterState.disconnected;
+    notifyListeners();
+    if (store.scooters.isNotEmpty) startAutoRestart();
   }
 
   // Compatibility presentation views; state and execution belong to shared navigation.

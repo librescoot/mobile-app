@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../background/background_i18n.dart';
+import '../background/tasker_bridge.dart';
 import '../background/translate_static.dart';
 import '../domain/widget_range.dart';
 
@@ -265,6 +266,9 @@ FutureOr<void> backgroundCallback(Uri? data) async {
 
   // Determine the action to perform
   String? action;
+  // Set only for the Tasker plugin, which is blocking on the result. Widget taps
+  // leave it null and nothing is reported back.
+  final String? requestId = data?.queryParameters["requestId"];
   // Read from SharedPreferences since this callback runs in a separate isolate
   // where the module-level backgroundScanEnabled variable is not shared.
   final bgScanEnabled = await SharedPreferencesAsync().getBool("backgroundScan") ?? false;
@@ -280,6 +284,12 @@ FutureOr<void> backgroundCallback(Uri? data) async {
       action = "openseat";
     default:
       print("Unknown command: ${data?.host}");
+  }
+
+  if (action == null && requestId != null) {
+    // Nothing will run, so answer now rather than let Tasker sit out its timeout.
+    await publishActionResult(requestId, taskerResultUnsupportedAction);
+    return;
   }
 
   // Show scanning feedback immediately so the user sees a spinner
@@ -298,6 +308,13 @@ FutureOr<void> backgroundCallback(Uri? data) async {
       // Publish the payload before arming it so another isolate can never
       // observe a newly armed request with the previous action name.
       await prefs.setString("pendingWidgetActionName", action);
+      if (requestId != null) {
+        await prefs.setString(pendingWidgetActionRequestIdKey, requestId);
+      } else {
+        // A widget tap must not inherit a request id left over from an
+        // abandoned Tasker request.
+        await prefs.remove(pendingWidgetActionRequestIdKey);
+      }
       await prefs.setBool("pendingWidgetAction", true);
     }
 
@@ -315,6 +332,14 @@ FutureOr<void> backgroundCallback(Uri? data) async {
     }
   } catch (e) {
     print("Error starting background service: $e");
+    // Nothing is going to run this one, so dropping it beats leaving the slot
+    // armed: the next service start, hours later with the phone nowhere near
+    // the scooter, would replay it long after Tasker stopped waiting. A widget
+    // tap is left alone, since anything else there may still be picked up.
+    if (requestId != null) {
+      final blocked = e.toString().contains("startForegroundService() not allowed");
+      await dropAndReport(requestId, blocked ? taskerResultServiceBlocked : taskerResultForError(e));
+    }
   }
   await _refreshWidgets(
     qualifiedAndroidName: 'org.librescoot.mobile.unu.HomeWidgetReceiver',

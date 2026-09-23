@@ -616,6 +616,23 @@ void main() {
         [true, null, false, null, null, null, null, null]);
   });
 
+  test('navigation capability version enables route plans', () async {
+    final h = _Harness(
+      capabilityGroups: () async => const LsCapabilityGroups(
+        {'nav': 2},
+        usedFallback: false,
+      ),
+    );
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _firmware(r);
+    await _flush();
+
+    expect(h.telemetry.identity.supportsNavigation, isTrue);
+    expect(h.telemetry.identity.navigationCapabilityVersion, 2);
+    expect(h.telemetry.identity.supportsRoutePlans, isTrue);
+  });
+
   test(
       'firmware-ready dispatch precedes sequential probes and every capability is cached',
       () async {

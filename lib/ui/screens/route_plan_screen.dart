@@ -8,6 +8,7 @@ import 'package:unustasis/geo_helper.dart';
 import 'package:unustasis/scooter_service.dart';
 import '../widgets/header.dart';
 import '../widgets/photon_autocomplete.dart';
+import '../wide_layout.dart';
 
 /// Editor for the scooter's multi-hop route plan. Edits go over BLE one stop
 /// per command, capped at 100 bytes.
@@ -266,7 +267,7 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
         ),
         Expanded(
           child: ReorderableListView.builder(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+            padding: wideContentPadding(context, base: const EdgeInsets.fromLTRB(8, 8, 8, 8)),
             buildDefaultDragHandles: false,
             itemCount: stops.length,
             onReorderItem: (oldIndex, newIndex) =>

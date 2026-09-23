@@ -58,6 +58,8 @@ class _Service extends ChangeNotifier implements ScooterService {
   bool scooterPresenceKnown = false;
   @override
   String? autoConnectPriorityId;
+  int stopAutoRestartCalls = 0;
+  int disconnectCalls = 0;
   @override
   Future<void> refreshScooterPresence() async {}
   @override
@@ -70,12 +72,21 @@ class _Service extends ChangeNotifier implements ScooterService {
     ..supportsHibernateFor = true;
   @override
   void refreshOdometer() {}
+  @override
+  void stopAutoRestart({bool clearManualTarget = true}) => stopAutoRestartCalls++;
+  @override
+  void disconnectAndClearDevice() => disconnectCalls++;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw StateError('Unexpected service call: ${invocation.memberName}');
 }
 
-Future<void> _mount(WidgetTester tester, _Service service) async {
+Future<void> _mount(
+  WidgetTester tester,
+  _Service service, {
+  VoidCallback? onNavigateBack,
+  Brightness brightness = Brightness.light,
+}) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(412, 1600);
   addTearDown(() {
@@ -86,6 +97,7 @@ Future<void> _mount(WidgetTester tester, _Service service) async {
     ChangeNotifierProvider<ScooterService>.value(
       value: service,
       child: MaterialApp(
+        theme: ThemeData(brightness: brightness),
         localizationsDelegates: [
           FlutterI18nDelegate(
             translationLoader: FileTranslationLoader(
@@ -95,7 +107,7 @@ Future<void> _mount(WidgetTester tester, _Service service) async {
             ),
           ),
         ],
-        home: const ScooterScreen(),
+        home: ScooterScreen(onNavigateBack: onNavigateBack),
       ),
     ),
   );
@@ -141,10 +153,32 @@ void main() {
     expect(scooter.nameReads, readsAfterFirstBuild);
   });
 
-  testWidgets('card height stays stable across connection state changes', (tester) async {
+  testWidgets('card hierarchy stays stable and labels disconnected scooters', (tester) async {
     final scooter = _CountingScooter(id: 'A', name: 'Alpha');
     final service = _Service([scooter]);
     await _mount(tester, service);
+
+    expect(find.text('Scooters'), findsOneWidget);
+    expect(find.text('Your scooter is in drive mode! Vroom vroom!'), findsOneWidget);
+    final visual = find.byType(ScooterSideVisual);
+    expect(
+      find.ancestor(
+        of: visual,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Positioned && widget.top == 16 && widget.left == 0 && widget.right == 0,
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(
+        of: visual,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is GestureDetector && widget.onLongPress != null,
+        ),
+      ),
+      findsOneWidget,
+    );
 
     final card = find.byType(SavedScooterCard);
     final connectedHeight = tester.getSize(card).height;
@@ -153,7 +187,72 @@ void main() {
     service.notifyListeners();
     await tester.pumpAndSettle();
 
+    expect(find.text('Disconnected'), findsOneWidget);
     expect(tester.getSize(card).height, connectedHeight);
+  });
+
+  testWidgets('tapping the connected scooter returns to the main page without disconnecting', (tester) async {
+    final scooter = _CountingScooter(id: 'A', name: 'Alpha');
+    final service = _Service([scooter]);
+    var navigations = 0;
+    await _mount(tester, service, onNavigateBack: () => navigations++);
+
+    await tester.tap(find.byType(SavedScooterCard));
+    await tester.pump();
+
+    expect(navigations, 1);
+    expect(service.connected, isTrue);
+    expect(service.currentScooterId, 'A');
+
+    final second = _CountingScooter(id: 'B', name: 'Beta');
+    service.savedScooters[second.id] = second;
+    service.notifyListeners();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.list));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(SavedScooterListItem).first);
+    await tester.pump();
+
+    expect(navigations, 2);
+    expect(service.connected, isTrue);
+    expect(service.currentScooterId, 'A');
+  });
+
+  testWidgets('connected scooter disconnects from long press and the actions sheet', (tester) async {
+    final scooter = _CountingScooter(id: 'A', name: 'Alpha');
+    final service = _Service([scooter]);
+    await _mount(tester, service);
+
+    await tester.longPress(find.byType(SavedScooterCard));
+    await tester.pump();
+    expect(service.stopAutoRestartCalls, 1);
+    expect(service.disconnectCalls, 1);
+
+    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.pumpAndSettle();
+    expect(find.text('Disconnect'), findsOneWidget);
+    await tester.tap(find.text('Disconnect'));
+    await tester.pumpAndSettle();
+    expect(service.stopAutoRestartCalls, 2);
+    expect(service.disconnectCalls, 2);
+  });
+
+  testWidgets('animates a newly connected scooter to the top', (tester) async {
+    final alpha = _CountingScooter(id: 'A', name: 'Alpha');
+    final beta = _CountingScooter(id: 'B', name: 'Beta');
+    final service = _Service([alpha, beta]);
+    await _mount(tester, service);
+
+    expect(tester.getTopLeft(find.text('Alpha')).dy, lessThan(tester.getTopLeft(find.text('Beta')).dy));
+
+    service.currentScooterId = 'B';
+    service.notifyListeners();
+    await tester.pump();
+
+    expect(tester.binding.transientCallbackCount, greaterThan(0));
+
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('Beta')).dy, lessThan(tester.getTopLeft(find.text('Alpha')).dy));
   });
 
   testWidgets('a card-local edit rebuilds only that card', (tester) async {
@@ -181,7 +280,7 @@ void main() {
     expect(alphaAfterSheet, greaterThanOrEqualTo(alphaBefore));
   });
 
-  testWidgets('list keeps full-size artwork and marks cached or live Librescoot identity', (tester) async {
+  testWidgets('list enlarges artwork and marks confirmed Librescoot identity with its backdrop', (tester) async {
     final live = _CountingScooter(id: 'A', name: 'Live', color: 1);
     final cached = _CountingScooter(
       id: 'B',
@@ -194,18 +293,59 @@ void main() {
     final service = _Service([live, cached, stock]);
     await _mount(tester, service);
 
+    expect(find.text('Your scooter is in drive mode! Vroom vroom!'), findsOneWidget);
+
     await tester.tap(find.byIcon(Icons.list));
     await tester.pumpAndSettle();
+
+    expect(find.text('Ready'), findsOneWidget);
+    expect(find.text('Your scooter is in drive mode! Vroom vroom!'), findsNothing);
+
+    final listItems = find.byType(SavedScooterListItem);
+    expect(
+      find.ancestor(
+        of: find.text('Live'),
+        matching: find.byWidgetPredicate((widget) => widget is SizedBox && widget.height == 40),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(
+        of: find.byType(ScooterSideVisual),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is GestureDetector && widget.onLongPress != null,
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(
+        of: listItems.first,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Padding && widget.padding == const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: listItems.first,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Container && widget.padding == const EdgeInsets.all(8),
+        ),
+      ),
+      findsOneWidget,
+    );
 
     final visuals = tester.widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual)).toList();
     expect(visuals, hasLength(3));
     final liveVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
     final cachedVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_2.webp'));
     final stockVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_3.webp'));
-    expect(liveVisual.height, closeTo(412 * 0.16, 0.01));
-    expect(liveVisual.backdropBorderColor?.a, closeTo(0.5, 0.01));
-    expect(cachedVisual.backdropBorderColor?.a, closeTo(0.5, 0.01));
-    expect(stockVisual.backdropBorderColor, isNull);
+    expect(liveVisual.height, closeTo(412 * 0.18, 0.01));
+    expect(liveVisual.backdropColor, const Color(0xFFB8DCDD));
+    expect(cachedVisual.backdropColor, const Color(0xFFB8DCDD));
+    expect(stockVisual.backdropColor, isNull);
 
     live.isLibrescoot = true;
     service.identity
@@ -216,7 +356,7 @@ void main() {
     final unconfirmedLiveVisual = tester
         .widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual))
         .singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
-    expect(unconfirmedLiveVisual.backdropBorderColor, isNull);
+    expect(unconfirmedLiveVisual.backdropColor, isNull);
 
     service.identity
       ..isLibrescoot = false
@@ -226,7 +366,7 @@ void main() {
     final stockLiveVisual = tester
         .widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual))
         .singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
-    expect(stockLiveVisual.backdropBorderColor, isNull);
+    expect(stockLiveVisual.backdropColor, isNull);
 
     for (final icon in tester.widgetList<Icon>(find.byIcon(Icons.more_horiz))) {
       expect(icon.size, 22);
@@ -234,6 +374,15 @@ void main() {
     for (final icon in tester.widgetList<Icon>(find.byIcon(Icons.radio_button_unchecked))) {
       expect(icon.size, 16);
     }
+  });
+
+  testWidgets('confirmed Librescoot artwork keeps its subdued backdrop in dark mode', (tester) async {
+    final scooter = _CountingScooter(id: 'A', name: 'Alpha');
+    final service = _Service([scooter]);
+    await _mount(tester, service, brightness: Brightness.dark);
+
+    expect(tester.widget<ScooterSideVisual>(find.byType(ScooterSideVisual)).backdropColor,
+        const Color(0xFF225661));
   });
 
   testWidgets('stale Bluetooth warning stays compact and opens guidance', (tester) async {
