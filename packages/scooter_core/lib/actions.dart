@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// Librescoot settings keys for scheduled hibernation.
 const String lsKeyScheduledHibernateCron = "pm.scheduled-hibernate-cron";
 const String lsKeyScheduledHibernateDuration =
@@ -127,6 +129,23 @@ const serviceModeAcknowledgement = 'service-mode:ok';
 const keycardCountCommand = 'keycard:count';
 const keycardListCommand = 'keycard:list';
 const phoneKeyListCommand = 'keycard:phone:list';
+const masterKeyListCommand = 'keycard:master:list';
+const keyAliasListCommand = 'keycard:alias:list';
+const maxKeyAliasBytes = 32;
+
+enum KeyAliasProblem { empty, invalidCharacters, tooLong }
+
+KeyAliasProblem? checkKeyAlias(String name) {
+  if (name.isEmpty) return KeyAliasProblem.empty;
+  if (RegExp(r'[\x00-\x1F\x7F-\x9F]').hasMatch(name)) {
+    return KeyAliasProblem.invalidCharacters;
+  }
+  if (utf8.encode(name).length > maxKeyAliasBytes) {
+    return KeyAliasProblem.tooLong;
+  }
+  return null;
+}
+
 const keycardAcknowledgement = 'keycard:ok';
 const hibernateCancelPowerCommand = 'pm:hibernate-cancel';
 const pmAcknowledgement = 'pm:ok';
@@ -137,6 +156,10 @@ String addKeycardPayload(String uid) => 'keycard:add:$uid';
 String deleteKeycardPayload(String uid) => 'keycard:remove:$uid';
 String deletePhoneKeyPayload(String fingerprint, {bool force = false}) =>
     'keycard:phone:remove:$fingerprint${force ? ':force' : ''}';
+String setKeyAliasPayload(String kind, String id, String name) =>
+    'keycard:alias:set:$kind:$id:${base64Url.encode(utf8.encode(name)).replaceAll('=', '')}';
+String clearKeyAliasPayload(String kind, String id) =>
+    'keycard:alias:clear:$kind:$id';
 String clockPayload(DateTime time) =>
     'time:set ${time.millisecondsSinceEpoch ~/ 1000}';
 String hibernateForPayload(Duration wakeAfter) {

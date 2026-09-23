@@ -372,6 +372,16 @@ class ScooterActions {
       (d, r, c) => commands.listKeycardsCommand(d, r, isCurrent: c));
   Future<List<String>> listPhoneKeys() => _command(_capture(),
       (d, r, c) => commands.listPhoneKeysCommand(d, r, isCurrent: c));
+  Future<List<String>> listMasterKeys() => _command(_capture(),
+      (d, r, c) => commands.listMasterKeysCommand(d, r, isCurrent: c));
+  Future<Map<String, String>> listKeyAliases() => _command(_capture(),
+      (d, r, c) => commands.listKeyAliasesCommand(d, r, isCurrent: c));
+  Future<void> setKeyAlias(String kind, String id, String name) => _command(
+      _capture(),
+      (d, r, c) =>
+          commands.setKeyAliasCommand(d, r, kind, id, name, isCurrent: c));
+  Future<void> clearKeyAlias(String kind, String id) => _command(_capture(),
+      (d, r, c) => commands.clearKeyAliasCommand(d, r, kind, id, isCurrent: c));
   Future<void> deletePhoneKey(String fingerprint,
           {bool force = false}) =>
       _command(

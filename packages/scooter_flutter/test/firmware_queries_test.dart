@@ -3,7 +3,9 @@ import 'dart:convert';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:scooter_core/extended_response.dart';
 import 'package:scooter_core/trip_expunge.dart';
+import 'package:scooter_flutter/src/ble/action_commands.dart';
 import 'package:scooter_flutter/scooter_flutter.dart';
 
 class _Device extends Fake implements BluetoothDevice {
@@ -93,6 +95,51 @@ void main() {
     expect(groups.usedFallback, isFalse);
     expect(groups.answered, isTrue);
     expect(channel.writes, ['cap:ext']);
+  });
+
+  test('versioned key names are parsed in cap:ext', () async {
+    channel.replies = ['cap:ext:keycard:phone-key:key-alias=1'];
+    final groups = await discoverLsCapabilityGroupsCommand(device, repo);
+    expect(groups.versions['key-alias'], 1);
+    expect(groups.usedFallback, isFalse);
+  });
+
+  test('key name list decodes cards and phones', () async {
+    const fingerprint = '0123456789ABCDEF0123456789ABCDEF';
+    final encoded =
+        base64Url.encode(utf8.encode('Spare: 🛵')).replaceAll('=', '');
+    channel.replies = [
+      'keycard:count:2',
+      'keycard:alias:card:04010203:$encoded',
+      'keycard:alias:phone:$fingerprint:TXkgcGhvbmU',
+    ];
+    expect(await listKeyAliasesCommand(device, repo), {
+      'card:04010203': 'Spare: 🛵',
+      'phone:$fingerprint': 'My phone',
+    });
+    expect(channel.writes, [keyAliasListCommand]);
+  });
+
+  test('key name commands respect the 100-byte BLE limit', () async {
+    const fingerprint = '0123456789ABCDEF0123456789ABCDEF';
+    channel.replies = [keycardAcknowledgement];
+    await setKeyAliasCommand(
+        device, repo, 'phone', fingerprint, 'x' * maxKeyAliasBytes);
+    expect(ascii.encode(channel.writes.single).length, extendedCommandMaxBytes);
+    await expectLater(
+        setKeyAliasCommand(
+            device, repo, 'phone', fingerprint, 'x' * (maxKeyAliasBytes + 1)),
+        throwsArgumentError);
+    expect(channel.writes.length, 1);
+  });
+
+  test('key name list rejects malformed names', () async {
+    channel.replies = [
+      'keycard:count:1',
+      'keycard:alias:card:04010203:not*base64'
+    ];
+    await expectLater(listKeyAliasesCommand(device, repo),
+        throwsA(isA<ExtendedResponseFormatException>()));
   });
 
   test('cap:list is used when cap:ext is unknown', () async {

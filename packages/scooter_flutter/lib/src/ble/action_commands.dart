@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
 import 'package:scooter_core/actions.dart';
@@ -224,6 +225,134 @@ Future<List<String>> listPhoneKeysCommand(
         await listener.cancel();
       }
     });
+
+final _cardUidPattern = RegExp(r'^[0-9A-F]{2,20}$');
+
+bool _validAliasId(String kind, String id) => kind == 'phone'
+    ? _phoneFingerprintPattern.hasMatch(id)
+    : kind == 'card' && _cardUidPattern.hasMatch(id) && id.length.isEven;
+
+Future<List<String>> listMasterKeysCommand(
+        BluetoothDevice? scooter, CharacteristicRepository repo,
+        {bool Function()? isCurrent}) =>
+    withExtendedChannel(() async {
+      if (scooter == null || scooter.isDisconnected) {
+        throw StateError('Scooter not connected');
+      }
+      final cmd = repo.extendedCommandCharacteristic;
+      final resp = repo.extendedResponseCharacteristic;
+      if (cmd == null || resp == null) {
+        throw StateError('Extended command characteristics not available');
+      }
+      checkCommandCurrent(isCurrent);
+      await ensureExtendedNotify(repo, resp);
+      checkCommandCurrent(isCurrent);
+      final listener = ExtendedResponseListener(resp.onValueReceived);
+      try {
+        await sendCommand(scooter, repo, masterKeyListCommand,
+            characteristic: cmd, isCurrent: isCurrent);
+        return await readExtendedList(
+            listener.responses.timeout(extendedResponseTimeout), (msg) {
+          const prefix = 'keycard:master:';
+          if (!msg.startsWith(prefix)) {
+            throw ExtendedResponseFormatException('unexpected master entry');
+          }
+          final uid = msg.substring(prefix.length);
+          if (!_validAliasId('card', uid)) {
+            throw ExtendedResponseFormatException('invalid master UID');
+          }
+          return uid;
+        });
+      } finally {
+        await listener.cancel();
+      }
+    });
+
+Future<Map<String, String>> listKeyAliasesCommand(
+        BluetoothDevice? scooter, CharacteristicRepository repo,
+        {bool Function()? isCurrent}) =>
+    withExtendedChannel(() async {
+      if (scooter == null || scooter.isDisconnected) {
+        throw StateError('Scooter not connected');
+      }
+      final cmd = repo.extendedCommandCharacteristic;
+      final resp = repo.extendedResponseCharacteristic;
+      if (cmd == null || resp == null) {
+        throw StateError('Extended command characteristics not available');
+      }
+      checkCommandCurrent(isCurrent);
+      await ensureExtendedNotify(repo, resp);
+      checkCommandCurrent(isCurrent);
+      final listener = ExtendedResponseListener(resp.onValueReceived);
+      try {
+        await sendCommand(scooter, repo, keyAliasListCommand,
+            characteristic: cmd, isCurrent: isCurrent);
+        final entries = await readExtendedList(
+            listener.responses.timeout(extendedResponseTimeout), (msg) {
+          final parts = msg.split(':');
+          if (parts.length != 5 ||
+              parts[0] != 'keycard' ||
+              parts[1] != 'alias' ||
+              !_validAliasId(parts[2], parts[3])) {
+            throw ExtendedResponseFormatException('invalid key name entry');
+          }
+          try {
+            final name =
+                utf8.decode(base64Url.decode(base64Url.normalize(parts[4])));
+            if (name.trim() != name || checkKeyAlias(name) != null) {
+              throw const FormatException('invalid key name');
+            }
+            return MapEntry('${parts[2]}:${parts[3]}', name);
+          } on FormatException {
+            throw ExtendedResponseFormatException('invalid key name encoding');
+          }
+        });
+        final aliases = <String, String>{};
+        for (final entry in entries) {
+          if (aliases.containsKey(entry.key)) {
+            throw ExtendedResponseFormatException('duplicate key name');
+          }
+          aliases[entry.key] = entry.value;
+        }
+        return aliases;
+      } finally {
+        await listener.cancel();
+      }
+    });
+
+Future<void> setKeyAliasCommand(BluetoothDevice? scooter,
+    CharacteristicRepository repo, String kind, String id, String name,
+    {bool Function()? isCurrent}) async {
+  final canonical = id.toUpperCase();
+  final cleanName = name.trim();
+  if (!_validAliasId(kind, canonical) || checkKeyAlias(cleanName) != null) {
+    throw ArgumentError('Invalid key name or credential ID');
+  }
+  final payload = setKeyAliasPayload(kind, canonical, cleanName);
+  if (utf8.encode(payload).length > extendedCommandMaxBytes) {
+    throw ArgumentError('Key name exceeds BLE command limit');
+  }
+  final response =
+      await sendLsExtendedCommand(scooter, repo, payload, isCurrent: isCurrent);
+  if (response != keycardAcknowledgement) {
+    throw StateError('Failed to save key name: $response');
+  }
+}
+
+Future<void> clearKeyAliasCommand(BluetoothDevice? scooter,
+    CharacteristicRepository repo, String kind, String id,
+    {bool Function()? isCurrent}) async {
+  final canonical = id.toUpperCase();
+  if (!_validAliasId(kind, canonical)) {
+    throw ArgumentError('Invalid credential ID');
+  }
+  final response = await sendLsExtendedCommand(
+      scooter, repo, clearKeyAliasPayload(kind, canonical),
+      isCurrent: isCurrent);
+  if (response != keycardAcknowledgement) {
+    throw StateError('Failed to clear key name: $response');
+  }
+}
 
 Future<void> deletePhoneKeyCommand(
     BluetoothDevice? scooter, CharacteristicRepository repo, String fingerprint,

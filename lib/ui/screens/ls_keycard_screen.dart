@@ -8,8 +8,10 @@ import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:scooter_core/actions.dart';
 
 import 'package:unustasis/ui/dialogs/keycard_add_dialog.dart';
+import 'package:unustasis/ui/key_alias_sync.dart';
 import 'package:unustasis/scooter_service.dart';
 import '../wide_layout.dart';
 
@@ -67,7 +69,16 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   }
 
   Map<String, String> _aliases = {};
+  Map<String, String> _localAliases = {};
+  List<String> _masterCards = [];
+  bool _loadingAliases = false;
+  Future<void> _aliasQueue = Future.value();
+  String? _aliasError;
+  String? _aliasScooterId;
+  bool _aliasAvailable = false;
+  late final Future<void> _localAliasLoad;
   bool _isLoadingKeycards = false;
+  bool _reloadKeycardsAfterCurrent = false;
   bool _isBackgroundScanning = false;
   String? _highlightedUid;
   final GlobalKey<RefreshIndicatorState> _refreshIndicatorKey = GlobalKey<RefreshIndicatorState>();
@@ -75,7 +86,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAliases();
+    _localAliasLoad = _loadAliases();
     _restorePhoneKey();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshIndicatorKey.currentState?.show();
@@ -86,6 +97,25 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   Widget build(BuildContext context) {
     final scooter = context.watch<ScooterService>();
     final phoneListAvailable = scooter.connected && scooter.phoneKeyManagementSupported == true;
+    final aliasAvailable = scooter.connected && scooter.keyAliasesSupported == true;
+    if (_aliasScooterId != scooter.currentScooterId || _aliasAvailable != aliasAvailable) {
+      if (_aliasScooterId != scooter.currentScooterId) {
+        keycards = [];
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && scooter.connected) _loadKeycards();
+        });
+      }
+      _aliasScooterId = scooter.currentScooterId;
+      _aliasAvailable = aliasAvailable;
+      _aliases = {};
+      _masterCards = [];
+      _aliasError = null;
+      if (aliasAvailable) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _loadScooterAliases();
+        });
+      }
+    }
     if (_phoneListScooterId != scooter.currentScooterId || _phoneListAvailable != phoneListAvailable) {
       _phoneListScooterId = scooter.currentScooterId;
       _phoneListAvailable = phoneListAvailable;
@@ -159,17 +189,56 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
                     for (final id in _enrolledPhones)
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: Text(FlutterI18n.translate(context, 'ls_phone_enrolled_entry',
-                            translationParams: {'suffix': id.substring(id.length - 8)})),
+                        title: Text(_aliases['phone:$id'] ??
+                            FlutterI18n.translate(context, 'ls_phone_enrolled_entry',
+                                translationParams: {'suffix': id.substring(id.length - 8)})),
                         subtitle: Text(id, overflow: TextOverflow.ellipsis),
-                        trailing: IconButton(
-                          tooltip: FlutterI18n.translate(context, 'ls_phone_remove_title'),
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: _removingPhone == null ? () => _confirmRemovePhone(id) : null,
-                        ),
+                        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                          if (aliasAvailable)
+                            IconButton(
+                              tooltip: FlutterI18n.translate(context, 'ls_key_alias_rename'),
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: () => _showCredentialRenameDialog('phone', id),
+                            ),
+                          IconButton(
+                            tooltip: FlutterI18n.translate(context, 'ls_phone_remove_title'),
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: _removingPhone == null ? () => _confirmRemovePhone(id) : null,
+                          ),
+                        ]),
                       ),
                   ]),
                 ),
+              ),
+            if (aliasAvailable && _loadingAliases)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: LinearProgressIndicator(),
+              ),
+            if (aliasAvailable && _aliasError != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Text(FlutterI18n.translate(context, 'ls_key_alias_sync_error'),
+                    style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              ),
+            if (aliasAvailable && _masterCards.isNotEmpty)
+              Card(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(children: [
+                  ListTile(title: Text(FlutterI18n.translate(context, 'ls_key_master_title'))),
+                  for (final uid in _masterCards)
+                    ListTile(
+                      title: Text(_aliases['card:$uid'] ??
+                          _localAliases[uid] ??
+                          FlutterI18n.translate(context, 'ls_key_master_default')),
+                      subtitle: Text(uid),
+                      trailing: IconButton(
+                        tooltip: FlutterI18n.translate(context, 'ls_key_alias_rename'),
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: () => _showCredentialRenameDialog('card', uid),
+                      ),
+                    ),
+                ]),
               ),
             for (final (index, keycard) in keycards.indexed)
               Padding(
@@ -178,7 +247,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
                   key: ValueKey(keycard),
                   index: index,
                   uid: keycard,
-                  alias: _aliases[keycard],
+                  alias: _aliases['card:$keycard'] ?? _localAliases[keycard],
                   onlyCard: keycards.length == 1,
                   highlighted: _highlightedUid == keycard,
                   onDelete: _deleteKeycard,
@@ -192,23 +261,28 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   }
 
   Future<void> _loadKeycards() async {
-    if (_isLoadingKeycards) return;
+    if (_isLoadingKeycards) {
+      _reloadKeycardsAfterCurrent = true;
+      return;
+    }
+    final service = context.read<ScooterService>();
+    final scooterId = service.currentScooterId;
 
     setState(() {
       _isLoadingKeycards = true;
     });
 
     try {
-      List<String> loadedKeycards = await context.read<ScooterService>().actions.listKeycards();
+      List<String> loadedKeycards = await service.actions.listKeycards();
       Logger('LsKeycardScreen').info('Loaded keycards: $loadedKeycards');
-      if (!mounted) return;
+      if (!mounted || service.currentScooterId != scooterId) return;
       setState(() {
         keycards = loadedKeycards;
       });
       _startBackgroundNfcScan();
     } catch (e) {
       Logger('LsKeycardScreen').severe('Failed to load keycards: $e');
-      if (!mounted) return;
+      if (!mounted || service.currentScooterId != scooterId) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content:
@@ -216,9 +290,18 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
         ),
       );
     } finally {
-      if (mounted) setState(() => _isLoadingKeycards = false);
+      if (mounted) {
+        setState(() => _isLoadingKeycards = false);
+        if (_reloadKeycardsAfterCurrent) {
+          _reloadKeycardsAfterCurrent = false;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _loadKeycards();
+          });
+        }
+      }
     }
     await _loadEnrolledPhones();
+    await _loadScooterAliases();
   }
 
   Future<void> _loadEnrolledPhones() async {
@@ -291,6 +374,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     try {
       await service.actions.deletePhoneKey(id, force: lastCredential);
       await _loadEnrolledPhones();
+      await _loadScooterAliases();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -433,20 +517,159 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   }
 
   Future<void> _loadAliases() async {
-    final raw = await SharedPreferencesAsync().getString('keycard_aliases');
-    if (raw != null && mounted) {
+    try {
+      final raw = await SharedPreferencesAsync().getString('keycard_aliases');
+      if (raw == null || !mounted) return;
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      setState(() => _aliases = decoded.map((k, v) => MapEntry(k, v as String)));
+      setState(() => _localAliases = decoded.map((k, v) => MapEntry(k, v as String)));
+    } catch (e) {
+      Logger('LsKeycardScreen').warning('Could not load local key names: $e');
     }
   }
 
   Future<void> _saveAliases() async {
-    await SharedPreferencesAsync().setString('keycard_aliases', jsonEncode(_aliases));
+    await SharedPreferencesAsync().setString('keycard_aliases', jsonEncode(_localAliases));
   }
 
-  Future<void> _renameKeycard(String uid, String alias) async {
-    setState(() => _aliases[uid] = alias);
-    await _saveAliases();
+  Future<void> _queueAliasOperation(Future<void> Function() action) {
+    final next = _aliasQueue.then((_) => action());
+    _aliasQueue = next.catchError((Object error, StackTrace stack) {
+      Logger('LsKeycardScreen').warning('Key name operation failed: $error');
+    });
+    return next;
+  }
+
+  Future<void> _loadScooterAliases() => _queueAliasOperation(_fetchScooterAliases);
+
+  Future<void> _fetchScooterAliases() async {
+    if (!mounted) return;
+    final service = context.read<ScooterService>();
+    if (!service.connected || service.keyAliasesSupported != true) return;
+    final scooterId = service.currentScooterId;
+    setState(() => _loadingAliases = true);
+    try {
+      await _localAliasLoad;
+      final masters = await service.actions.listMasterKeys();
+      final names = await service.actions.listKeyAliases();
+      if (!mounted || service.currentScooterId != scooterId || !service.connected) return;
+      final plan = planKeyAliasImport([...keycards, ...masters], names, _localAliases);
+      var importFailed = plan.invalidLocalNames;
+      for (final entry in plan.names.entries) {
+        try {
+          await service.actions.setKeyAlias('card', entry.key, entry.value);
+          if (!mounted || service.currentScooterId != scooterId || !service.connected) return;
+          names['card:${entry.key}'] = entry.value;
+        } catch (e) {
+          importFailed = true;
+          Logger('LsKeycardScreen').warning('Could not import local key name: $e');
+        }
+      }
+      if (!mounted || service.currentScooterId != scooterId || !service.connected) return;
+      setState(() {
+        _aliases = names;
+        _masterCards = masters;
+        _aliasError = importFailed ? 'import' : null;
+      });
+    } catch (e) {
+      if (!mounted || service.currentScooterId != scooterId) return;
+      setState(() => _aliasError = e.toString());
+    } finally {
+      if (mounted) setState(() => _loadingAliases = false);
+    }
+  }
+
+  Future<void> _renameCredential(String kind, String id, String name) {
+    final service = context.read<ScooterService>();
+    final targetId = service.currentScooterId;
+    return _queueAliasOperation(() async {
+      if (!mounted || service.currentScooterId != targetId) return;
+      await _performRenameCredential(kind, id, name);
+    });
+  }
+
+  Future<void> _performRenameCredential(String kind, String id, String name) async {
+    await _localAliasLoad;
+    if (!mounted) return;
+    final cleaned = name.trim();
+    if (cleaned.isNotEmpty && checkKeyAlias(cleaned) != null) {
+      _showAliasError('ls_key_alias_invalid');
+      return;
+    }
+    final service = context.read<ScooterService>();
+    final scooterId = service.currentScooterId;
+    final synced = service.connected && service.keyAliasesSupported == true;
+    if (kind == 'phone' && !synced) return;
+    try {
+      if (synced) {
+        if (cleaned.isEmpty) {
+          await service.actions.clearKeyAlias(kind, id);
+        } else {
+          await service.actions.setKeyAlias(kind, id, cleaned);
+        }
+        if (!mounted || service.currentScooterId != scooterId || !service.connected) return;
+        setState(() {
+          if (cleaned.isEmpty) {
+            _aliases.remove('$kind:$id');
+          } else {
+            _aliases['$kind:$id'] = cleaned;
+          }
+        });
+      }
+      if (kind == 'card') {
+        if (!mounted || (synced && service.currentScooterId != scooterId)) return;
+        setState(() {
+          if (cleaned.isEmpty) {
+            _localAliases.remove(id);
+          } else {
+            _localAliases[id] = cleaned;
+          }
+        });
+        await _saveAliases();
+      }
+    } catch (e) {
+      Logger('LsKeycardScreen').warning('Could not save key name: $e');
+      _showAliasError('ls_key_alias_save_error');
+    }
+  }
+
+  void _showAliasError(String key) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(FlutterI18n.translate(context, key))),
+    );
+  }
+
+  Future<void> _renameKeycard(String uid, String alias) => _renameCredential('card', uid, alias);
+
+  Future<void> _showCredentialRenameDialog(String kind, String id) async {
+    final controller = TextEditingController(
+      text: _aliases['$kind:$id'] ?? (kind == 'card' ? _localAliases[id] : null) ?? '',
+    );
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(FlutterI18n.translate(dialogContext, 'ls_key_alias_rename')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: maxKeyAliasBytes,
+          decoration: InputDecoration(hintText: FlutterI18n.translate(dialogContext, 'ls_keycard_alias_hint')),
+          onSubmitted: (value) => Navigator.pop(dialogContext, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(FlutterI18n.translate(dialogContext, 'cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: Text(FlutterI18n.translate(dialogContext, 'ls_keycard_save')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name != null && mounted) await _renameCredential(kind, id, name);
   }
 
   Future<void> _deleteKeycard(String uid) async {

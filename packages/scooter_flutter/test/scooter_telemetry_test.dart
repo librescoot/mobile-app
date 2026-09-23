@@ -892,6 +892,43 @@ void main() {
     expect(h.telemetry.identity.supportsPhoneKeyManagement, isNull);
   });
 
+  test('key names require the versioned capability and reset per session',
+      () async {
+    final h = _Harness(
+        capabilityGroups: () async =>
+            const LsCapabilityGroups({'key-alias': 1}, usedFallback: false));
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _wireExtended(r);
+    _firmware(r);
+    await _flush();
+    expect(h.telemetry.identity.supportsKeyAliases, isTrue);
+    h.telemetry.identity.resetLsCapabilities();
+    expect(h.telemetry.identity.supportsKeyAliases, isNull);
+  });
+
+  test('unversioned key names are not accepted from cap:ext', () async {
+    final h = _Harness(groups: const {'key-alias'});
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _wireExtended(r);
+    _firmware(r);
+    await _flush();
+    expect(h.telemetry.identity.supportsKeyAliases, isFalse);
+  });
+
+  test('legacy cap:list can advertise key names without versions', () async {
+    final h = _Harness(
+        capabilityGroups: () async =>
+            const LsCapabilityGroups({'key-alias': null}, usedFallback: true));
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _wireExtended(r);
+    _firmware(r);
+    await _flush();
+    expect(h.telemetry.identity.supportsKeyAliases, isTrue);
+  });
+
   test('a silent capability answer keeps the cached capabilities', () async {
     final h = _Harness(
         capabilityGroups: () async =>
