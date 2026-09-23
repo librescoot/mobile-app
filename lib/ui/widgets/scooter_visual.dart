@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:shimmer/shimmer.dart';
 
 import 'package:unustasis/domain/scooter_state.dart';
+import 'package:unustasis/ui/theme/scooter_colors.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
 import 'package:unustasis/ui/widgets/eclipse_backdrop.dart';
 import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
@@ -257,11 +258,12 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final displayColor = _surpriseColor ?? _regularColor;
-    final customColor = _surpriseColor == null && !widget.aprilFools
-        ? widget.customColor ?? (displayColor == 3 ? '#D5D5D5' : null)
+    final layeredColor = _surpriseColor == null && !widget.aprilFools
+        ? widget.customColor ?? (usesLayeredScooterArtwork(displayColor) ? layeredScooterColor(displayColor) : null)
         : null;
-    final customMatte = widget.customColor == null || widget.customColorMatte;
-    final showEclipse = widget.showEclipseBackdrop && customColor == null && displayColor == 7;
+    final layeredMatte =
+        widget.customColor == null ? layeredScooterColorIsMatte(displayColor) : widget.customColorMatte;
+    final showEclipse = widget.showEclipseBackdrop && layeredColor == null && displayColor == 7;
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -332,17 +334,17 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
                               child: child,
                             ),
                           ),
-                          child: customColor == null
+                          child: layeredColor == null
                               ? Image(
                                   key: ValueKey('scooter-skin-$displayColor'),
                                   gaplessPlayback: true,
                                   image: AssetImage("images/scooter/base_$displayColor.webp"),
                                 )
                               : RenderedScooterArtwork(
-                                  key: ValueKey('scooter-skin-$customColor-$customMatte'),
+                                  key: ValueKey('scooter-skin-$layeredColor-$layeredMatte'),
                                   view: ScooterArtworkView.front,
-                                  color: customColor,
-                                  matte: customMatte,
+                                  color: layeredColor,
+                                  matte: layeredMatte,
                                 ),
                         ),
                         crossFadeState: widget.state == ScooterState.disconnected

@@ -20,6 +20,16 @@ const List<int> standardScooterColorValues = [0, 2, 3, 4, 5, 6];
 
 int canonicalScooterColor(int value) => value == 1 ? 3 : value;
 
+bool usesLayeredScooterArtwork(int value) => standardScooterColorValues.contains(canonicalScooterColor(value));
+
+String layeredScooterColor(int value) {
+  final color = scooterColors[canonicalScooterColor(value)]!.displayColor.toARGB32() & 0xFFFFFF;
+  return '#${color.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+}
+
+bool layeredScooterColorIsMatte(int value) =>
+    scooterColors[canonicalScooterColor(value)]!.finish == ScooterColorFinish.matte;
+
 const Map<int, ScooterColor> scooterColors = {
   0: ScooterColor(
     value: 0,

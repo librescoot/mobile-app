@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unustasis/ui/screens/home_screen.dart';
 import 'package:unustasis/ui/presentation/relative_time.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
+import 'package:unustasis/ui/theme/scooter_colors.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
@@ -865,8 +866,13 @@ class _SavedScooterCardBody extends StatelessWidget {
                           eclipseBackdrop: !forceHover && !savedScooter.hasCustomColor && savedScooter.color == 7,
                           renderedColor: forceHover
                               ? null
-                              : savedScooter.customColor ?? (savedScooter.color == 3 ? '#D5D5D5' : null),
-                          renderedColorMatte: !savedScooter.hasCustomColor || savedScooter.customColorMatte,
+                              : savedScooter.customColor ??
+                                  (usesLayeredScooterArtwork(savedScooter.color)
+                                      ? layeredScooterColor(savedScooter.color)
+                                      : null),
+                          renderedColorMatte: savedScooter.hasCustomColor
+                              ? savedScooter.customColorMatte
+                              : layeredScooterColorIsMatte(savedScooter.color),
                         ),
                       ),
                     ),
@@ -1179,8 +1185,13 @@ class _SavedScooterListItemBody extends StatelessWidget {
                           height: MediaQuery.of(context).size.width * 0.18,
                           backdropColor: isLibrescoot ? _librescootBackdropColor(context) : null,
                           eclipseBackdrop: !savedScooter.hasCustomColor && savedScooter.color == 7,
-                          renderedColor: savedScooter.customColor ?? (savedScooter.color == 3 ? '#D5D5D5' : null),
-                          renderedColorMatte: !savedScooter.hasCustomColor || savedScooter.customColorMatte,
+                          renderedColor: savedScooter.customColor ??
+                              (usesLayeredScooterArtwork(savedScooter.color)
+                                  ? layeredScooterColor(savedScooter.color)
+                                  : null),
+                          renderedColorMatte: savedScooter.hasCustomColor
+                              ? savedScooter.customColorMatte
+                              : layeredScooterColorIsMatte(savedScooter.color),
                         ),
                       ),
                     ),

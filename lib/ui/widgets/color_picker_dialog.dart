@@ -274,16 +274,18 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
   }
 
   Widget _frontArtwork() {
-    final renderedColor = _customColor ?? (selectedValue == 3 ? '#D5D5D5' : null);
+    final renderedColor =
+        _customColor ?? (usesLayeredScooterArtwork(selectedValue) ? layeredScooterColor(selectedValue) : null);
+    final matte = _customColor == null ? layeredScooterColorIsMatte(selectedValue) : _customColorMatte;
     if (renderedColor != null) {
       return SizedBox(
-        key: ValueKey('scooter-color-front-$renderedColor-${_customColorMatte || selectedValue == 3}'),
+        key: ValueKey('scooter-color-front-$renderedColor-$matte'),
         width: 132,
         height: 246,
         child: RenderedScooterArtwork(
           view: ScooterArtworkView.front,
           color: renderedColor,
-          matte: _customColor == null || _customColorMatte,
+          matte: matte,
         ),
       );
     }
@@ -303,13 +305,15 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
   }
 
   Widget _sideArtwork() {
-    final renderedColor = _customColor ?? (selectedValue == 3 ? '#D5D5D5' : null);
+    final renderedColor =
+        _customColor ?? (usesLayeredScooterArtwork(selectedValue) ? layeredScooterColor(selectedValue) : null);
+    final matte = _customColor == null ? layeredScooterColorIsMatte(selectedValue) : _customColorMatte;
     if (renderedColor != null) {
       return RenderedScooterArtwork(
-        key: ValueKey('scooter-color-side-$renderedColor-${_customColorMatte || selectedValue == 3}'),
+        key: ValueKey('scooter-color-side-$renderedColor-$matte'),
         view: ScooterArtworkView.side,
         color: renderedColor,
-        matte: _customColor == null || _customColorMatte,
+        matte: matte,
         height: 160,
       );
     }

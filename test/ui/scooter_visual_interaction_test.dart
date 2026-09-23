@@ -109,7 +109,7 @@ void main() {
       await tester.tap(artwork);
     }
     await tester.pump();
-    expect(find.byKey(const ValueKey('scooter-skin-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-skin-#D5D5D5-true')), findsOneWidget);
     var shake = tester.widget<Transform>(find.byKey(const ValueKey('scooter-artwork-shake')));
     expect(shake.transform.storage[12], 0);
 
@@ -125,13 +125,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('scooter-skin-8')), findsOneWidget);
-    expect(find.byKey(const ValueKey('scooter-skin-1')), findsNothing);
+    expect(find.byKey(const ValueKey('scooter-skin-#D5D5D5-true')), findsNothing);
     expect(find.byKey(const ValueKey('eclipse-backdrop')), findsNothing);
     expect(surpriseChanges, [8]);
 
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('scooter-skin-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-skin-#D5D5D5-true')), findsOneWidget);
     expect(find.byKey(const ValueKey('eclipse-backdrop')), findsNothing);
     expect(surpriseChanges, [8, null]);
   });
@@ -146,7 +146,7 @@ void main() {
     await tester.tap(artwork);
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('scooter-skin-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-skin-#D5D5D5-true')), findsOneWidget);
     expect(find.byKey(const ValueKey('scooter-skin-7')), findsNothing);
     expect(find.byKey(const ValueKey('scooter-skin-8')), findsNothing);
     expect(find.byKey(const ValueKey('scooter-skin-9')), findsNothing);

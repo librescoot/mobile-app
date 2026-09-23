@@ -50,17 +50,17 @@ class RenderedScooterArtwork extends StatelessWidget {
               key: const ValueKey('custom-paint-gloss-layer'),
               child: ShaderMask(
                 blendMode: BlendMode.srcIn,
-                shaderCallback: (bounds) => const LinearGradient(
-                  begin: Alignment(-1.2, -0.8),
-                  end: Alignment(1.0, 0.9),
-                  colors: [
-                    Colors.transparent,
-                    Color(0x12FFFFFF),
-                    Color(0x42FFFFFF),
-                    Color(0x0AFFFFFF),
+                shaderCallback: (bounds) => RadialGradient(
+                  center:
+                      view == ScooterArtworkView.front ? const Alignment(-0.72, -0.62) : const Alignment(-0.78, -0.48),
+                  radius: view == ScooterArtworkView.front ? 0.82 : 0.95,
+                  colors: const [
+                    Color(0x52FFFFFF),
+                    Color(0x26FFFFFF),
+                    Color(0x08FFFFFF),
                     Colors.transparent,
                   ],
-                  stops: [0, 0.27, 0.43, 0.62, 1],
+                  stops: const [0, 0.28, 0.58, 1],
                 ).createShader(bounds),
                 child: _image('images/scooter/${_prefix}_panels.png', imageFit),
               ),
