@@ -75,7 +75,12 @@ class _Service extends ChangeNotifier implements ScooterService {
   dynamic noSuchMethod(Invocation invocation) => throw StateError('Unexpected service call: ${invocation.memberName}');
 }
 
-Future<void> _mount(WidgetTester tester, _Service service, {VoidCallback? onNavigateBack}) async {
+Future<void> _mount(
+  WidgetTester tester,
+  _Service service, {
+  VoidCallback? onNavigateBack,
+  Brightness brightness = Brightness.light,
+}) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(412, 1600);
   addTearDown(() {
@@ -86,6 +91,7 @@ Future<void> _mount(WidgetTester tester, _Service service, {VoidCallback? onNavi
     ChangeNotifierProvider<ScooterService>.value(
       value: service,
       child: MaterialApp(
+        theme: ThemeData(brightness: brightness),
         localizationsDelegates: [
           FlutterI18nDelegate(
             translationLoader: FileTranslationLoader(
@@ -312,8 +318,8 @@ void main() {
     final cachedVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_2.webp'));
     final stockVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_3.webp'));
     expect(liveVisual.height, closeTo(412 * 0.18, 0.01));
-    expect(liveVisual.backdropColor, const Color(0xFF225661));
-    expect(cachedVisual.backdropColor, const Color(0xFF225661));
+    expect(liveVisual.backdropColor, const Color(0xFFB8DCDD));
+    expect(cachedVisual.backdropColor, const Color(0xFFB8DCDD));
     expect(stockVisual.backdropColor, isNull);
 
     live.isLibrescoot = true;
@@ -343,6 +349,15 @@ void main() {
     for (final icon in tester.widgetList<Icon>(find.byIcon(Icons.radio_button_unchecked))) {
       expect(icon.size, 16);
     }
+  });
+
+  testWidgets('confirmed Librescoot artwork keeps its subdued backdrop in dark mode', (tester) async {
+    final scooter = _CountingScooter(id: 'A', name: 'Alpha');
+    final service = _Service([scooter]);
+    await _mount(tester, service, brightness: Brightness.dark);
+
+    expect(tester.widget<ScooterSideVisual>(find.byType(ScooterSideVisual)).backdropColor,
+        const Color(0xFF225661));
   });
 
   testWidgets('stale Bluetooth warning stays compact and opens guidance', (tester) async {

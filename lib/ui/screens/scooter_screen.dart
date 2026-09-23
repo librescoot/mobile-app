@@ -22,7 +22,12 @@ import '../wide_layout.dart';
 
 /// Shared by the list screen and its cards.
 final _log = Logger("ScooterSection");
-const _librescootBackdropColor = Color(0xFF225661);
+const _librescootDarkBackdropColor = Color(0xFF225661);
+const _librescootLightBackdropColor = Color(0xFFB8DCDD);
+
+Color _librescootBackdropColor(BuildContext context) => Theme.of(context).brightness == Brightness.dark
+    ? _librescootDarkBackdropColor
+    : _librescootLightBackdropColor;
 
 enum ScooterTileStatus { disconnected, outOfRange, nearbyManual, nearbyAuto, waiting, connecting, connected }
 
@@ -823,7 +828,7 @@ class _SavedScooterCardBody extends StatelessWidget {
                           imagePath: "images/scooter/side_${forceHover ? 9 : savedScooter.color}.webp",
                           height: 160,
                           backdropDiameter: 264,
-                          backdropColor: isLibrescoot ? _librescootBackdropColor : null,
+                          backdropColor: isLibrescoot ? _librescootBackdropColor(context) : null,
                         ),
                       ),
                     ),
@@ -1131,7 +1136,7 @@ class _SavedScooterListItemBody extends StatelessWidget {
                         child: ScooterSideVisual(
                           imagePath: "images/scooter/side_${savedScooter.color}.webp",
                           height: MediaQuery.of(context).size.width * 0.18,
-                          backdropColor: isLibrescoot ? _librescootBackdropColor : null,
+                          backdropColor: isLibrescoot ? _librescootBackdropColor(context) : null,
                         ),
                       ),
                     ),
