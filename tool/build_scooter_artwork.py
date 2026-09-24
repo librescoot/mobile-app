@@ -184,6 +184,8 @@ def tone_layer(source: Path, view: str, finish: str, alpha: np.ndarray) -> np.nd
     reference_luminance = np.dot(rgb, [0.2126, 0.7152, 0.0722])
     luminance = np.dot(image[:, :, :3], [0.2126, 0.7152, 0.0722])
     tone = np.clip(luminance / reference_luminance, 0, 1)
+    if use_master:
+        tone = 0.5 + 0.5 * tone
 
     output = np.empty_like(image, dtype=np.uint8)
     output[:, :, :3] = np.rint(tone[:, :, None] * 255).astype(np.uint8)
