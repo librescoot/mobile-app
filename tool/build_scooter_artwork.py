@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import json
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
@@ -132,11 +133,28 @@ def select_leaves(root: ET.Element, selected: set[int], *, mask: bool = False) -
     return result
 
 
-def remove_texture_overlays(root: ET.Element) -> None:
-    for parent in root.iter():
-        for child in list(parent):
-            if "url(#pattern" in child.get("fill", ""):
-                parent.remove(child)
+def blend_mode(element: ET.Element) -> str:
+    for declaration in element.get("style", "").split(";"):
+        name, separator, value = declaration.partition(":")
+        if separator and name.strip() == "mix-blend-mode":
+            return {
+                "soft-light": "softLight",
+            }.get(value.strip(), value.strip())
+    return "srcOver"
+
+
+def remove_blend_modes(root: ET.Element) -> None:
+    for element in root.iter():
+        declarations = [
+            declaration.strip()
+            for declaration in element.get("style", "").split(";")
+            if declaration.strip()
+            and declaration.partition(":")[0].strip() != "mix-blend-mode"
+        ]
+        if declarations:
+            element.set("style", ";".join(declarations))
+        else:
+            element.attrib.pop("style", None)
 
 
 def replace_placeholder(root: ET.Element, colour: str) -> None:
@@ -161,7 +179,40 @@ def render(root: ET.Element, destination: Path, *, webp: bool = False) -> None:
                 image.save(destination, "PNG", optimize=True)
 
 
-def build_layers(source_file: Path, output: Path, view: str) -> None:
+def render_cropped(root: ET.Element, destination: Path) -> dict[str, object]:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        full_path = Path(temp_dir) / "full.png"
+        render(root, full_path)
+        with Image.open(full_path) as source:
+            image = source.convert("RGBA")
+            bounds = image.getchannel("A").getbbox()
+            if bounds is None:
+                bounds = (0, 0, 1, 1)
+            image.crop(bounds).save(destination, "PNG", optimize=True)
+    left, top, right, bottom = bounds
+    return {
+        "asset": f"images/scooter/{destination.name}",
+        "x": left,
+        "y": top,
+        "width": right - left,
+        "height": bottom - top,
+    }
+
+
+def effect_groups(leaves: list[ET.Element], start: int, end: int) -> list[tuple[set[int], str, bool]]:
+    groups: list[tuple[set[int], str, bool]] = []
+    for index in range(start, end):
+        leaf = leaves[index]
+        mode = blend_mode(leaf)
+        matte_only = "url(#pattern" in leaf.get("fill", "")
+        if groups and mode == "srcOver" and groups[-1][1:] == (mode, matte_only):
+            groups[-1][0].add(index)
+        else:
+            groups.append(({index}, mode, matte_only))
+    return groups
+
+
+def build_layers(source_file: Path, output: Path, view: str) -> dict[str, object]:
     root = wrap_source(source_file, view)
     leaves = drawing_leaves(root)
     paint_indices = [index for index, leaf in enumerate(leaves) if leaf.get("fill", "").upper() == PLACEHOLDER]
@@ -170,23 +221,43 @@ def build_layers(source_file: Path, output: Path, view: str) -> None:
 
     shadow = ground_shadow(next(child for child in root if local_name(child) != "defs"))
     shadow_index = next(index for index, leaf in enumerate(leaves) if leaf in set(shadow.iter()))
-    render(select_leaves(root, {shadow_index}), output / f"custom_{view}_shadow.png")
+    manifest: dict[str, object] = {
+        "width": SIZES[view][0],
+        "height": SIZES[view][1],
+        "shadow": render_cropped(
+            select_leaves(root, {shadow_index}), output / f"custom_{view}_shadow.png"
+        ),
+    }
 
     under_indices = set(range(paint_indices[0])) - {shadow_index}
-    render(select_leaves(root, under_indices), output / f"custom_{view}_under.png")
+    manifest["under"] = render_cropped(
+        select_leaves(root, under_indices), output / f"custom_{view}_under.png"
+    )
 
+    paint_layers: list[dict[str, object]] = []
     for layer, paint_index in enumerate(paint_indices):
         next_paint = paint_indices[layer + 1] if layer + 1 < len(paint_indices) else len(leaves)
-        render(
+        paint = render_cropped(
             select_leaves(root, {paint_index}, mask=True),
             output / f"custom_{view}_paint_{layer}.png",
         )
-        overlay_indices = set(range(paint_index + 1, next_paint))
-        matte = select_leaves(root, overlay_indices)
-        render(matte, output / f"custom_{view}_over_{layer}_matte.png")
-        gloss = copy.deepcopy(matte)
-        remove_texture_overlays(gloss)
-        render(gloss, output / f"custom_{view}_over_{layer}_gloss.png")
+        effects: list[dict[str, object]] = []
+        for effect, (indices, mode, matte_only) in enumerate(
+            effect_groups(leaves, paint_index + 1, next_paint)
+        ):
+            effect_root = select_leaves(root, indices)
+            remove_blend_modes(effect_root)
+            effect_data = render_cropped(
+                effect_root,
+                output / f"custom_{view}_effect_{layer}_{effect}.png",
+            )
+            effect_data["blendMode"] = mode
+            if matte_only:
+                effect_data["matteOnly"] = True
+            effects.append(effect_data)
+        paint_layers.append({"paint": paint, "effects": effects})
+    manifest["paintLayers"] = paint_layers
+    return manifest
 
 
 def build_hover(source: Path, output: Path) -> None:
@@ -205,8 +276,19 @@ def main() -> None:
     parser.add_argument("output", type=Path, help="Runtime artwork directory")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
-    build_layers(args.source / "mode=scooter.svg", args.output, "front")
-    build_layers(args.source / "side_master.svg", args.output, "side")
+    for pattern in ("custom_*_effect_*.png", "custom_*_over_*.png"):
+        for stale in args.output.glob(pattern):
+            stale.unlink()
+    manifest = {
+        "version": 1,
+        "views": {
+            "front": build_layers(args.source / "mode=scooter.svg", args.output, "front"),
+            "side": build_layers(args.source / "side_master.svg", args.output, "side"),
+        },
+    }
+    (args.output / "custom_artwork_layers.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
     build_hover(args.source, args.output)
 
 

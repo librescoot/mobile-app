@@ -25,7 +25,7 @@ bool usesLayeredScooterArtwork(int value) => standardScooterColorValues.contains
 String layeredScooterColor(int value) => _layeredArtworkColors[canonicalScooterColor(value)]!;
 
 const Map<int, String> _layeredArtworkColors = {
-  0: '#303234',
+  0: '#0F0F0F',
   2: '#557064',
   3: '#D5D5D5',
   4: '#E87962',
@@ -42,7 +42,7 @@ bool layeredScooterColorIsMatte(int value) =>
 const Map<int, ScooterColor> scooterColors = {
   0: ScooterColor(
     value: 0,
-    displayColor: Color(0xFF303234),
+    displayColor: Color(0xFF0F0F0F),
     simpleName: "black",
     finish: ScooterColorFinish.matte,
   ),

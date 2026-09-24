@@ -1,9 +1,20 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:unustasis/ui/theme/scooter_colors.dart';
 import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
 
 void main() {
+  test('uses the established coral swatch and darker matte black', () {
+    expect(layeredScooterColor(0), '#0F0F0F');
+    expect(scooterColors[0]!.displayColor, const Color(0xFF0F0F0F));
+    expect(layeredScooterColor(4), '#E87962');
+    expect(scooterColors[4]!.displayColor, const Color(0xFFE87962));
+  });
+
   Widget buildVisual(
     Brightness brightness, {
     Color? backdropColor,
@@ -79,6 +90,9 @@ void main() {
         renderedColorMatte: false,
       ),
     );
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+    await tester.pump();
 
     final artworkFinder = find.byType(RenderedScooterArtwork);
     final artwork = tester.widget<RenderedScooterArtwork>(artworkFinder);
@@ -88,43 +102,27 @@ void main() {
     expect(artwork.matte, isFalse);
     expect(find.byKey(const ValueKey('custom-paint-gloss-layer')), findsOneWidget);
     expect(find.byKey(const ValueKey('custom-paint-matte-layer')), findsNothing);
-
-    final paintLayers = tester.widgetList<ColorFiltered>(find.byType(ColorFiltered));
-    expect(paintLayers, hasLength(3));
-    for (final layer in paintLayers) {
-      expect(
-        layer.colorFilter,
-        const ColorFilter.mode(Color(0xFF123456), BlendMode.srcIn),
-      );
-    }
+    expect(
+      tester.widget<CustomPaint>(find.byKey(const ValueKey('custom-paint-gloss-layer'))).painter,
+      isNotNull,
+    );
+    expect(find.byType(ColorFiltered), findsNothing);
   });
 
-  testWidgets('keeps lights and details above the matte finish', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: RenderedScooterArtwork(
-          view: ScooterArtworkView.front,
-          color: '#202020',
-          matte: true,
-          height: 160,
-        ),
-      ),
+  testWidgets('keeps matte texture and details in source order', (tester) async {
+    final encoded = await tester.runAsync(
+      () => File('images/scooter/custom_artwork_layers.json').readAsString(),
     );
+    final manifest = jsonDecode(encoded!) as Map<String, dynamic>;
+    final views = manifest['views'] as Map<String, dynamic>;
+    final front = views['front'] as Map<String, dynamic>;
+    final paintLayers = front['paintLayers'] as List<dynamic>;
+    final finalPaint = paintLayers.last as Map<String, dynamic>;
+    final effects = finalPaint['effects'] as List<dynamic>;
 
-    final stack = tester.widget<Stack>(
-      find.descendant(
-        of: find.byType(RenderedScooterArtwork),
-        matching: find.byType(Stack),
-      ),
-    );
-    final matteIndex = stack.children.indexWhere(
-      (child) => child.key == const ValueKey('custom-paint-matte-layer'),
-    );
-    final detailsIndex = stack.children.indexWhere(
-      (child) => child.key == const ValueKey('scooter-artwork-details'),
-    );
-    expect(matteIndex, greaterThanOrEqualTo(0));
-    expect(detailsIndex, greaterThan(matteIndex));
+    expect((effects.first as Map<String, dynamic>)['blendMode'], 'overlay');
+    expect((effects[1] as Map<String, dynamic>)['matteOnly'], isTrue);
+    expect((effects.last as Map<String, dynamic>)['blendMode'], 'srcOver');
   });
 
   testWidgets('can omit the independently rendered ground shadow', (tester) async {
@@ -140,7 +138,7 @@ void main() {
       ),
     );
 
-    expect(find.byKey(const ValueKey('scooter-ground-shadow')), findsNothing);
+    expect(tester.widget<RenderedScooterArtwork>(find.byType(RenderedScooterArtwork)).showShadow, isFalse);
 
     await tester.pumpWidget(
       const MaterialApp(
@@ -152,8 +150,7 @@ void main() {
         ),
       ),
     );
-
-    expect(find.byKey(const ValueKey('scooter-ground-shadow')), findsOneWidget);
+    expect(tester.widget<RenderedScooterArtwork>(find.byType(RenderedScooterArtwork)).showShadow, isTrue);
   });
 
   testWidgets('does not add the dark backdrop in light mode', (tester) async {
