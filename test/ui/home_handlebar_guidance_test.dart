@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:scooter_core/scooter_core.dart';
 import 'package:scooter_flutter/scooter_flutter.dart';
+import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/state/scooter_identity.dart';
 import 'package:unustasis/ui/dialogs/handlebar_lock_guidance.dart';
@@ -58,6 +59,11 @@ class _Service extends ChangeNotifier implements ScooterService {
   bool connected = true;
   @override
   String? currentScooterId = 'A';
+  @override
+  late Map<String, SavedScooter> savedScooters = {
+    'A': SavedScooter(id: 'A', color: 2),
+    'B': SavedScooter(id: 'B', color: 6),
+  };
   @override
   bool autoUnlock = false;
   @override
@@ -166,6 +172,16 @@ Future<void> _finish(WidgetTester tester, _Service service) async {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('Home uses the current scooter appearance', (tester) async {
+    final service = _Service();
+    service.identity.color = 6;
+    await _mountHome(tester, service);
+
+    expect(tester.widget<ScooterVisual>(find.byType(ScooterVisual)).color, 2);
+
+    await _finish(tester, service);
+  });
   testWidgets('Home drops delayed warning after background without resurrecting on resume', (tester) async {
     final service = _Service();
     await _mountHome(tester, service);

@@ -258,20 +258,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final cornerInset = largeScreen ? 24.0 : 8.0;
     final cornerTop = largeScreen ? 16.0 : 0.0;
     final currentScooterId = context.select<ScooterService, String?>((service) => service.currentScooterId);
-    final scooterColor = context.select<ScooterService, int?>((service) => service.identity.color) ?? 1;
-    final scooterAppearance = context.select<ScooterService, ({String? customColor, bool customColorMatte})>(
+    final identityColor = context.select<ScooterService, int?>((service) => service.identity.color);
+    final scooterAppearance =
+        context.select<ScooterService, ({int? color, String? customColor, bool customColorMatte})>(
       (service) {
         try {
           final savedScooter = service.savedScooters[service.currentScooterId];
           return (
+            color: savedScooter?.color,
             customColor: savedScooter?.customColor,
             customColorMatte: savedScooter?.customColorMatte ?? true,
           );
         } on NoSuchMethodError {
-          return (customColor: null, customColorMatte: true);
+          return (color: null, customColor: null, customColorMatte: true);
         }
       },
     );
+    final scooterColor = scooterAppearance.color ?? identityColor ?? 1;
     // Resolved once per build: provider forbids select() from nested builders.
     final ({AlarmStatus? status, bool unsupported}) alarm =
         context.select<ScooterService, ({AlarmStatus? status, bool unsupported})>((service) => (

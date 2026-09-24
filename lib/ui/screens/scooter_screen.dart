@@ -753,9 +753,11 @@ class _SavedScooterCardBody extends StatelessWidget {
     } else {
       savedScooter.color = selection.color;
     }
-    SharedPreferencesAsync prefs = SharedPreferencesAsync();
-    await prefs.setInt("color", selection.color);
-    if (context.mounted) context.read<ScooterService>().scooterColor = selection.color;
+    if (!context.mounted) return;
+    final service = context.read<ScooterService>();
+    if (service.currentScooterId != savedScooter.id) return;
+    await SharedPreferencesAsync().setInt("color", selection.color);
+    if (context.mounted) service.scooterColor = selection.color;
   }
 
   Future<void> _changeColor(BuildContext context) async {
@@ -1344,9 +1346,11 @@ class _SavedScooterListItemBody extends StatelessWidget {
     } else {
       savedScooter.color = selection.color;
     }
-    SharedPreferencesAsync prefs = SharedPreferencesAsync();
-    await prefs.setInt("color", selection.color);
-    if (context.mounted) context.read<ScooterService>().scooterColor = selection.color;
+    if (!context.mounted) return;
+    final service = context.read<ScooterService>();
+    if (service.currentScooterId != savedScooter.id) return;
+    await SharedPreferencesAsync().setInt("color", selection.color);
+    if (context.mounted) service.scooterColor = selection.color;
   }
 
   Future<void> _changeColor(BuildContext context) async {
