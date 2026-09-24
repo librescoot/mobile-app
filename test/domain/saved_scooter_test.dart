@@ -65,6 +65,7 @@ void main() {
       supportsTripExpunge: false,
       supportsScheduledHibernation: true,
       supportsBatteryKeepActive: false,
+      capabilityGroups: const {'nav': 2, 'alarm': null},
       cachedOdometerMeters: 123456,
       odometerUpdatedAt: DateTime.fromMicrosecondsSinceEpoch(micros, isUtc: true),
       cachedTripCounter: const TripCounterSnapshot(
@@ -116,6 +117,7 @@ void main() {
       'supportsTripExpunge': false,
       'supportsScheduledHibernation': true,
       'supportsBatteryKeepActive': false,
+      'capabilityGroups': {'nav': 2, 'alarm': null},
       'cachedOdometerMeters': 123456,
       'odometerUpdatedAt': micros,
       'cachedTripCounter': {
@@ -174,6 +176,7 @@ void main() {
       'supportsTripExpunge',
       'supportsScheduledHibernation',
       'supportsBatteryKeepActive',
+      'capabilityGroups',
       'cachedOdometerMeters',
       'odometerUpdatedAt',
       'cachedTripCounter',
@@ -302,6 +305,7 @@ void main() {
       () => scooter.supportsTripExpunge = true,
       () => scooter.supportsScheduledHibernation = true,
       () => scooter.supportsBatteryKeepActive = true,
+      () => scooter.capabilityGroups = const {'nav': 2},
       () => scooter.cacheOdometer(1200, updatedAt: DateTime.fromMicrosecondsSinceEpoch(10)),
       () => scooter.cacheTripCounter(
             const TripCounterSnapshot(

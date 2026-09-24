@@ -120,7 +120,8 @@ class CachedTelemetry {
       this.supportsTripCounter,
       this.supportsTripExpunge,
       this.supportsScheduledHibernation,
-      this.supportsBatteryKeepActive});
+      this.supportsBatteryKeepActive,
+      this.capabilityGroups});
   final int? primarySOC;
   final int? secondarySOC;
   final int? cbbSOC;
@@ -137,6 +138,10 @@ class CachedTelemetry {
   final bool? supportsTripExpunge;
   final bool? supportsScheduledHibernation;
   final bool? supportsBatteryKeepActive;
+
+  /// Last complete capability-group answer. Null means no confirmed answer has
+  /// been cached; an empty map is a confirmed answer with no groups.
+  final Map<String, int?>? capabilityGroups;
 }
 
 /// A partial cache update: null means leave the saved field unchanged. Wire
@@ -155,7 +160,8 @@ class TelemetryCachePatch {
       this.supportsTripCounter,
       this.supportsTripExpunge,
       this.supportsScheduledHibernation,
-      this.supportsBatteryKeepActive});
+      this.supportsBatteryKeepActive,
+      this.capabilityGroups});
   final int? primarySOC;
   final int? secondarySOC;
   final int? cbbSOC;
@@ -172,6 +178,9 @@ class TelemetryCachePatch {
   final bool? supportsTripExpunge;
   final bool? supportsScheduledHibernation;
   final bool? supportsBatteryKeepActive;
+
+  /// A complete confirmed answer. Null leaves the saved answer unchanged.
+  final Map<String, int?>? capabilityGroups;
 }
 
 /// A copied view; no mutable BLE state or application metadata escapes here.

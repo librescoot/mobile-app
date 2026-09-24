@@ -616,6 +616,45 @@ void main() {
         [true, null, false, null, null, null, null, null]);
   });
 
+  test('failed firmware read keeps cached navigation capability', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    h.telemetry.seed(const CachedTelemetry(
+      isLibrescoot: true,
+      capabilityGroups: {'nav': 2},
+    ));
+
+    r['nrfVersion'].reads.single.completeError(StateError('transient read'));
+    await _flush();
+
+    expect(h.telemetry.identity.supportsNavigation, true);
+    expect(h.telemetry.identity.navigationCapabilityVersion, 2);
+    expect(h.telemetry.identity.supportsRoutePlans, true);
+    expect(h.queries, isEmpty);
+  });
+
+  test('firmware identity retries after a transient GATT read failure',
+      () async {
+    final h = _Harness(
+      capabilityGroups: () async => const LsCapabilityGroups(
+        {'nav': 2},
+        usedFallback: false,
+      ),
+    );
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+
+    r['nrfVersion'].reads.single.completeError(StateError('GATT busy'));
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(r['nrfVersion'].reads, hasLength(2));
+    r['nrfVersion'].reads.last.complete(utf8.encode('v2.13.0-ls'));
+    await _flush();
+
+    expect(h.telemetry.identity.supportsNavigation, true);
+    expect(h.telemetry.identity.navigationCapabilityVersion, 2);
+  });
+
   test('navigation capability version enables route plans', () async {
     final h = _Harness(
       capabilityGroups: () async => const LsCapabilityGroups(
@@ -648,18 +687,17 @@ void main() {
     // the UI is notified once the first probe step publishes.
     expect(h.effects.trace.take(2), ['cache:A', 'firmware:A:true']);
     expect(h.effects.trace, contains('notify'));
-    expect(h.effects.patches.length, 7);
+    expect(h.effects.patches.length, 5);
     expect(h.effects.patches[0].$2.isLibrescoot, true);
+    expect(h.effects.patches[1].$2.capabilityGroups, isNotNull);
     expect(h.effects.patches[1].$2.supportsHibernateFor, true);
-    expect(h.effects.patches[2].$2.supportsScheduledHibernation, true);
-    expect(h.effects.patches[3].$2.supportsApnConfig, true);
-    expect(h.effects.patches[4].$2.supportsBatteryKeepActive, true);
-    expect(h.effects.patches[5].$2.supportsAlarmControl, true);
-    // Trip and retention follow their own probes, so the patches carry what the
-    // probe concluded rather than an assumption about the harness.
-    expect(h.effects.patches[5].$2.supportsTripCounter,
+    expect(h.effects.patches[1].$2.supportsApnConfig, true);
+    expect(h.effects.patches[1].$2.supportsAlarmControl, true);
+    expect(h.effects.patches[1].$2.supportsTripCounter,
         h.telemetry.identity.supportsTripCounter);
-    expect(h.effects.patches[6].$2.supportsTripExpunge,
+    expect(h.effects.patches[2].$2.supportsScheduledHibernation, true);
+    expect(h.effects.patches[3].$2.supportsBatteryKeepActive, true);
+    expect(h.effects.patches[4].$2.supportsTripExpunge,
         h.telemetry.identity.supportsTripExpunge);
     expect(h.effects.patches.every((p) => p.$1 == 'A'), true);
   });
@@ -674,13 +712,17 @@ void main() {
         supportsTripCounter: true,
         supportsTripExpunge: false,
         supportsScheduledHibernation: true,
-        supportsBatteryKeepActive: false));
+        supportsBatteryKeepActive: false,
+        capabilityGroups: {'alarm': null, 'trip': null, 'nav': 2}));
     final identity = h.telemetry.identity;
     expect(identity.supportsAlarmControl, true);
     expect(identity.supportsTripCounter, true);
     expect(identity.supportsTripExpunge, false);
     expect(identity.supportsScheduledHibernation, true);
     expect(identity.supportsBatteryKeepActive, false);
+    expect(identity.supportsNavigation, true);
+    expect(identity.navigationCapabilityVersion, 2);
+    expect(identity.supportsRoutePlans, true);
   });
 
   test('a scooter that reports the trip counter caches that too', () async {
@@ -772,6 +814,7 @@ void main() {
     // cached from a librescoot session of its own.
     expect(h.effects.patches.first.$2.isLibrescoot, false);
     expect(h.effects.patches.last.$2.supportsAlarmControl, false);
+    expect(h.effects.patches.last.$2.capabilityGroups, isEmpty);
   });
 
   test('iMX version does not leak between scooter connections', () async {
@@ -969,7 +1012,7 @@ void main() {
     expect(_caps(h.telemetry.identity), List.filled(8, false));
   });
 
-  test('a channel that stops answering clears the cached capabilities',
+  test('a channel that stops answering keeps the cached capabilities',
       () async {
     final h = _Harness();
     addTearDown(h.dispose);
@@ -989,12 +1032,10 @@ void main() {
     _firmware(r);
     await _flush();
 
-    expect(_caps(h.telemetry.identity), List.filled(8, false));
+    expect(_caps(h.telemetry.identity),
+        [true, true, true, null, true, true, null, null]);
     expect(h.queries, isEmpty, reason: 'a dead channel is not probed');
-    final patch = h.effects.patches.last.$2;
-    expect(patch.supportsAlarmControl, false);
-    expect(patch.supportsApnConfig, false);
-    expect(patch.supportsTripCounter, false);
+    expect(h.effects.patches.last.$2.capabilityGroups, isNull);
   });
 
   test('queued capability probe cannot write after Service Changed rebuild',
@@ -1030,8 +1071,10 @@ void main() {
     final r = await h.connect('A');
     _firmware(r);
     await _flush();
-    expect(_caps(h.telemetry.identity), List.filled(8, false));
-    expect(h.effects.patches.length, 7);
+    expect(_caps(h.telemetry.identity),
+        [false, null, false, false, null, false, false, false]);
+    expect(h.effects.patches.length, 3);
+    expect(h.effects.patches[1].$2.capabilityGroups, isEmpty);
   });
 
   test(
@@ -1293,8 +1336,7 @@ void main() {
       };
       _firmware(r);
       await _flush();
-      expect(h.queries,
-          capability == 'pm' ? ['cap:ext'] : _queryOrder.take(2).toList());
+      expect(h.queries, ['cap:ext']);
       expect(h.effects.trace.last, 'cache:A');
     });
   }

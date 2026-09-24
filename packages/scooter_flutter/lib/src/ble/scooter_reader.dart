@@ -147,7 +147,7 @@ Future<void> readAnonImxVersion(
 
 /// Reads the nRF firmware version once from the characteristic.
 /// Calls [onRead] with the version string and whether it's a librescoot build.
-Future<void> readNrfVersion(
+Future<bool> readNrfVersion(
   BluetoothCharacteristic characteristic,
   void Function(String version, bool isLibrescoot) onRead,
 ) async {
@@ -155,9 +155,11 @@ Future<void> readNrfVersion(
     List<int> value = await characteristic.read();
     String version = decodeCharacteristicString(value).trim();
     _log.info("nRF version received: $version");
-    if (version.isEmpty) return;
+    if (version.isEmpty) return false;
     onRead(version, version.contains("-ls"));
+    return true;
   } catch (e, stack) {
     _log.warning("Failed to read nRF version", e, stack);
+    return false;
   }
 }

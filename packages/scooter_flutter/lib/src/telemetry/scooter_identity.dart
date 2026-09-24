@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:scooter_core/telemetry.dart';
 import 'package:logging/logging.dart';
 
@@ -42,9 +45,9 @@ class FirmwareIdentity {
   bool? supportsTripCounter;
   bool? supportsTripExpunge;
 
-  /// Session-only, like [supportsBondForget]: both answer a question the
-  /// firmware reports in `cap:ext` either way, so caching them would go stale
-  /// the moment the scooter's other components change.
+  /// Group capabilities come from one complete `cap:ext` answer. The runtime
+  /// seeds them from that last confirmed answer until a newer answer replaces
+  /// it, so transient connection failures do not hide available features.
   bool? supportsServiceMode;
   bool? supportsNavigation;
   int? navigationCapabilityVersion;
@@ -126,14 +129,31 @@ class FirmwareIdentity {
     required VoidCallback onUpdate,
     bool Function()? isCurrent,
   }) {
-    if (chars.nrfVersionCharacteristic != null) {
-      _log.info('Reading nRF version');
-      readNrfVersion(chars.nrfVersionCharacteristic!, (version, isLibre) {
+    final characteristic = chars.nrfVersionCharacteristic;
+    if (characteristic == null) return;
+    unawaited(_readNrfVersion(
+      characteristic,
+      onUpdate: onUpdate,
+      isCurrent: isCurrent,
+    ));
+  }
+
+  Future<void> _readNrfVersion(
+    BluetoothCharacteristic characteristic, {
+    required VoidCallback onUpdate,
+    bool Function()? isCurrent,
+  }) async {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (isCurrent?.call() == false) return;
+      _log.info('Reading nRF version (attempt ${attempt + 1})');
+      final answered = await readNrfVersion(characteristic, (version, isLibre) {
         if (isCurrent?.call() == false) return;
         nrfVersion = version;
         isLibrescoot = isLibre;
         onUpdate();
       });
+      if (answered || isCurrent?.call() == false) return;
+      await Future<void>.delayed(Duration(milliseconds: 250 * (attempt + 1)));
     }
   }
 }

@@ -18,6 +18,18 @@ String? _normalizeCustomColor(Object? value) {
   return '#${normalized.toUpperCase()}';
 }
 
+Map<String, int?>? _capabilityGroupsFromJson(Object? value) {
+  if (value is! Map) return null;
+  final result = <String, int?>{};
+  for (final entry in value.entries) {
+    if (entry.key is! String || (entry.value != null && entry.value is! int)) {
+      return null;
+    }
+    result[entry.key as String] = entry.value as int?;
+  }
+  return result;
+}
+
 Map<String, dynamic> _tripCounterToJson(TripCounterSnapshot snapshot) => {
       'distanceMeters': snapshot.distanceMeters,
       'ridingSeconds': snapshot.ridingSeconds,
@@ -75,6 +87,7 @@ class SavedScooter implements SavedScooterRecord {
   bool? _supportsTripExpunge;
   bool? _supportsScheduledHibernation;
   bool? _supportsBatteryKeepActive;
+  Map<String, int?>? _capabilityGroups;
   int? _cachedOdometerMeters;
   DateTime? _odometerUpdatedAt;
   TripCounterSnapshot? _cachedTripCounter;
@@ -108,6 +121,7 @@ class SavedScooter implements SavedScooterRecord {
     bool? supportsTripExpunge,
     bool? supportsScheduledHibernation,
     bool? supportsBatteryKeepActive,
+    Map<String, int?>? capabilityGroups,
     int? cachedOdometerMeters,
     DateTime? odometerUpdatedAt,
     TripCounterSnapshot? cachedTripCounter,
@@ -139,6 +153,7 @@ class SavedScooter implements SavedScooterRecord {
         _supportsTripExpunge = supportsTripExpunge,
         _supportsScheduledHibernation = supportsScheduledHibernation,
         _supportsBatteryKeepActive = supportsBatteryKeepActive,
+        _capabilityGroups = capabilityGroups == null ? null : Map.unmodifiable(capabilityGroups),
         _cachedOdometerMeters = cachedOdometerMeters,
         _odometerUpdatedAt = odometerUpdatedAt,
         _cachedTripCounter = cachedTripCounter,
@@ -283,6 +298,11 @@ class SavedScooter implements SavedScooterRecord {
     _scheduleTelemetryWrite();
   }
 
+  set capabilityGroups(Map<String, int?>? capabilityGroups) {
+    _capabilityGroups = capabilityGroups == null ? null : Map.unmodifiable(capabilityGroups);
+    _scheduleTelemetryWrite();
+  }
+
   void cacheOdometer(int meters, {DateTime? updatedAt}) {
     _cachedOdometerMeters = meters;
     _odometerUpdatedAt = updatedAt ?? DateTime.now();
@@ -335,6 +355,7 @@ class SavedScooter implements SavedScooterRecord {
   bool? get supportsTripExpunge => _supportsTripExpunge;
   bool? get supportsScheduledHibernation => _supportsScheduledHibernation;
   bool? get supportsBatteryKeepActive => _supportsBatteryKeepActive;
+  Map<String, int?>? get capabilityGroups => _capabilityGroups;
   int? get cachedOdometerMeters => _cachedOdometerMeters;
   DateTime? get odometerUpdatedAt => _odometerUpdatedAt;
   TripCounterSnapshot? get cachedTripCounter => _cachedTripCounter;
@@ -371,6 +392,7 @@ class SavedScooter implements SavedScooterRecord {
         'supportsTripExpunge': _supportsTripExpunge,
         'supportsScheduledHibernation': _supportsScheduledHibernation,
         'supportsBatteryKeepActive': _supportsBatteryKeepActive,
+        'capabilityGroups': _capabilityGroups,
         'cachedOdometerMeters': _cachedOdometerMeters,
         'odometerUpdatedAt': _odometerUpdatedAt?.microsecondsSinceEpoch,
         'cachedTripCounter': _cachedTripCounter == null ? null : _tripCounterToJson(_cachedTripCounter!),
@@ -409,6 +431,7 @@ class SavedScooter implements SavedScooterRecord {
       supportsTripExpunge: map['supportsTripExpunge'],
       supportsScheduledHibernation: map['supportsScheduledHibernation'],
       supportsBatteryKeepActive: map['supportsBatteryKeepActive'],
+      capabilityGroups: _capabilityGroupsFromJson(map['capabilityGroups']),
       cachedOdometerMeters: map['cachedOdometerMeters'],
       odometerUpdatedAt: _dateTimeFromMicros(map['odometerUpdatedAt']),
       cachedTripCounter: _tripCounterFromJson(map['cachedTripCounter']),

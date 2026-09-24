@@ -1008,7 +1008,8 @@ CachedTelemetry _cachedTelemetry(SavedScooter? scooter) => CachedTelemetry(
     supportsTripCounter: scooter?.supportsTripCounter,
     supportsTripExpunge: scooter?.supportsTripExpunge,
     supportsScheduledHibernation: scooter?.supportsScheduledHibernation,
-    supportsBatteryKeepActive: scooter?.supportsBatteryKeepActive);
+    supportsBatteryKeepActive: scooter?.supportsBatteryKeepActive,
+    capabilityGroups: scooter?.capabilityGroups);
 
 bool _sameTripCounter(TripCounterSnapshot? a, TripCounterSnapshot b) =>
     a != null &&
@@ -1045,6 +1046,9 @@ class _ServiceTelemetryEffects implements ScooterTelemetryEffects {
     }
     if (patch.supportsBatteryKeepActive != null) {
       saved.supportsBatteryKeepActive = patch.supportsBatteryKeepActive;
+    }
+    if (patch.capabilityGroups != null) {
+      saved.capabilityGroups = patch.capabilityGroups!;
     }
   }
 

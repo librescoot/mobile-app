@@ -173,6 +173,24 @@ class ScooterTelemetry {
     identity.supportsTripExpunge = cache.supportsTripExpunge;
     identity.supportsScheduledHibernation = cache.supportsScheduledHibernation;
     identity.supportsBatteryKeepActive = cache.supportsBatteryKeepActive;
+    final groups = cache.capabilityGroups;
+    if (groups != null) _applyCapabilityGroups(groups);
+  }
+
+  void _applyCapabilityGroups(Map<String, int?> groups) {
+    identity.supportsHibernateFor = groups.containsKey('pm');
+    identity.supportsApnConfig = groups.containsKey('config');
+    identity.supportsBondForget = groups.containsKey('ble');
+    identity.supportsAlarmControl = groups.containsKey('alarm');
+    identity.supportsServiceMode = groups.containsKey('service-mode');
+    identity.supportsNavigation = groups.containsKey('nav');
+    identity.navigationCapabilityVersion = groups['nav'];
+    identity.supportsClockSync = groups.containsKey('time');
+    identity.supportsUsbMode = groups.containsKey('usb');
+    final supportsKeycardV2 = (groups['keycard'] ?? 0) >= 2;
+    identity.supportsPhoneKeyManagement = supportsKeycardV2;
+    identity.supportsKeyAliases = supportsKeycardV2;
+    identity.supportsTripCounter = groups.containsKey('trip');
   }
 
   void refreshOdometer() {
@@ -451,7 +469,8 @@ class ScooterTelemetry {
             supportsAlarmControl: false,
             supportsTripCounter: false,
             supportsTripExpunge: false,
-            supportsBatteryKeepActive: false));
+            supportsBatteryKeepActive: false,
+            capabilityGroups: <String, int?>{}));
   }
 
   Future<void> _probeLsCapabilities(
@@ -461,7 +480,8 @@ class ScooterTelemetry {
         _current(connection) && identical(_repository, repository);
     if (repository.gattTableMismatch ||
         repository.extendedChannelUnresponsive) {
-      _clearLsCapabilities(connection);
+      _log.info(
+          'Capability channel unavailable; keeping the cached capabilities');
       return;
     }
     queries.LsCapabilityGroups groups;
@@ -478,13 +498,19 @@ class ScooterTelemetry {
       return;
     }
     // A listed group is its complete initial contract unless it supplies a
-    // future version. Only status and BLE have historically varied details.
-    final supportsHibernateFor = groups.contains('pm');
-    if (!current()) return;
-    identity.supportsHibernateFor = supportsHibernateFor;
-    // cache the capability so the next session doesn't wait for the probe
-    effects.cachePatch(connection.id,
-        TelemetryCachePatch(supportsHibernateFor: supportsHibernateFor));
+    // future version. Cache the complete answer before optional detail probes:
+    // transient reads must not turn a confirmed capability into an absence.
+    _applyCapabilityGroups(groups.versions);
+    effects.cachePatch(
+      connection.id,
+      TelemetryCachePatch(
+        capabilityGroups: Map<String, int?>.of(groups.versions),
+        supportsHibernateFor: identity.supportsHibernateFor,
+        supportsApnConfig: identity.supportsApnConfig,
+        supportsAlarmControl: identity.supportsAlarmControl,
+        supportsTripCounter: identity.supportsTripCounter,
+      ),
+    );
     if (!_publishTableState(connection, repository)) return;
 
     bool? supportsScheduledHibernation;
@@ -498,23 +524,15 @@ class ScooterTelemetry {
       supportsScheduledHibernation = value != null;
     } catch (e, stack) {
       effects.probeFailed("scheduled hibernation probe failed", e, stack);
-      supportsScheduledHibernation = false;
     }
     if (!current()) return;
-    identity.supportsScheduledHibernation = supportsScheduledHibernation;
-    effects.cachePatch(
-        connection.id,
-        TelemetryCachePatch(
-            supportsScheduledHibernation: supportsScheduledHibernation));
-    if (!_publishTableState(connection, repository)) return;
-
-    final supportsApnConfig = groups.contains('config');
-    if (!current()) return;
-    identity.supportsApnConfig = supportsApnConfig;
-    // cached like the pm capability, so the APN tile does not vanish and
-    // reappear every time the probe re-runs on a reconnect
-    effects.cachePatch(connection.id,
-        TelemetryCachePatch(supportsApnConfig: supportsApnConfig));
+    if (supportsScheduledHibernation != null) {
+      identity.supportsScheduledHibernation = supportsScheduledHibernation;
+      effects.cachePatch(
+          connection.id,
+          TelemetryCachePatch(
+              supportsScheduledHibernation: supportsScheduledHibernation));
+    }
     if (!_publishTableState(connection, repository)) return;
 
     bool supportsBondForget = groups.contains('ble');
@@ -531,10 +549,8 @@ class ScooterTelemetry {
       }
     }
     if (!current()) return;
-    // Not cached on the SavedScooter, unlike the two above. Nothing renders it,
-    // so there is no flicker to avoid, and the answer depends on the nRF
-    // firmware rather than the app: a cache would go stale the moment the
-    // scooter takes a firmware update.
+    // cap:ext's group answer is cached above. A legacy category answer still
+    // needs this detail query for the current session.
     identity.supportsBondForget = supportsBondForget;
     if (!_publishTableState(connection, repository)) return;
 
@@ -549,39 +565,19 @@ class ScooterTelemetry {
       supportsBatteryKeepActive = value != null;
     } catch (e, stack) {
       effects.probeFailed("battery keep-active probe failed", e, stack);
-      supportsBatteryKeepActive = false;
     }
     if (!current()) return;
-    identity.supportsBatteryKeepActive = supportsBatteryKeepActive;
-    effects.cachePatch(
-        connection.id,
-        TelemetryCachePatch(
-            supportsBatteryKeepActive: supportsBatteryKeepActive));
+    if (supportsBatteryKeepActive != null) {
+      identity.supportsBatteryKeepActive = supportsBatteryKeepActive;
+      effects.cachePatch(
+          connection.id,
+          TelemetryCachePatch(
+              supportsBatteryKeepActive: supportsBatteryKeepActive));
+    }
     if (!_publishTableState(connection, repository)) return;
 
-    final supportsAlarmControl = groups.contains('alarm');
     if (!current()) return;
-    identity.supportsAlarmControl = supportsAlarmControl;
-    // Both are advertised by the firmware in cap:ext, so the app can gate the
-    // controls on the answer instead of assuming every librescoot scooter
-    // still has the services behind them.
-    identity.supportsServiceMode = groups.contains('service-mode');
-    identity.supportsNavigation = groups.contains('nav');
-    identity.navigationCapabilityVersion = groups.versions['nav'];
-    identity.supportsClockSync = groups.contains('time');
-    identity.supportsUsbMode = groups.contains('usb');
-    // The unversioned keycard capability covers physical cards only. Legacy
-    // cap:list has no versions, so it cannot establish phone or name support.
-    final supportsKeycardV2 = (groups.versions['keycard'] ?? 0) >= 2;
-    identity.supportsPhoneKeyManagement = supportsKeycardV2;
-    identity.supportsKeyAliases = supportsKeycardV2;
-    final supportsTripCounter = groups.contains('trip');
-    identity.supportsTripCounter = supportsTripCounter;
-    effects.cachePatch(
-        connection.id,
-        TelemetryCachePatch(
-            supportsAlarmControl: supportsAlarmControl,
-            supportsTripCounter: supportsTripCounter));
+    var tripExpungeAnswered = false;
     if (identity.supportsTripCounter == true) {
       try {
         final value = await _setting(
@@ -591,6 +587,7 @@ class ScooterTelemetry {
           isCurrent: current,
         );
         if (!current()) return;
+        tripExpungeAnswered = true;
         if (value == null) {
           identity.supportsTripExpunge = false;
         } else {
@@ -599,16 +596,18 @@ class ScooterTelemetry {
         }
       } catch (e, stack) {
         effects.probeFailed('trip retention probe failed', e, stack);
-        identity.supportsTripExpunge = false;
       }
     } else {
+      tripExpungeAnswered = true;
       identity.supportsTripExpunge = false;
     }
     if (!current()) return;
-    // Retention decides whether its row is offered at all, so cache the answer
-    // rather than let a failed probe hide it for the session.
-    effects.cachePatch(connection.id,
-        TelemetryCachePatch(supportsTripExpunge: identity.supportsTripExpunge));
+    if (tripExpungeAnswered) {
+      effects.cachePatch(
+          connection.id,
+          TelemetryCachePatch(
+              supportsTripExpunge: identity.supportsTripExpunge));
+    }
     identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repository);
     _notify(connection);
     if (identity.supportsTripCounter == true && current()) {
@@ -622,16 +621,14 @@ class ScooterTelemetry {
   }
 
   /// Publishes the table verdict, and reports whether probing further is worth
-  /// another response timeout.
+  /// another response timeout. A table failure is not a capability answer, so
+  /// it must not invalidate the last confirmed answer.
   bool _publishTableState(
       SessionConnection connection, CharacteristicRepository repo) {
     if (!_current(connection) || !identical(_repository, repo)) return false;
     identity.bluetoothTableOutOfDate = _bluetoothTableOutOfDate(repo);
-    // Mid-probe silence means the answers still to come will never arrive, so
-    // drop the capabilities rather than leaving the cached ones standing.
     final usable =
         !(repo.gattTableMismatch || repo.extendedChannelUnresponsive);
-    if (!usable) _clearLsCapabilities(connection);
     _notify(connection);
     // A listener can invalidate the connection while being notified.
     if (!_current(connection) || !identical(_repository, repo)) return false;
