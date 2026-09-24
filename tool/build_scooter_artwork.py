@@ -53,6 +53,20 @@ def render_svg_elements(
         return rgba(png)
 
 
+def front_master_gloss(source: Path) -> np.ndarray:
+    tree = ET.parse(source / "front_master.svg")
+    root = tree.getroot()
+    for parent in root.iter():
+        for child in list(parent):
+            if "url(#pattern" in child.get("fill", ""):
+                parent.remove(child)
+    for element in root.iter():
+        if element.get("fill", "").upper() == "#0F0F0F":
+            element.set("fill", "white")
+    elements = [child for child in root if child.tag.rsplit("}", 1)[-1] != "defs"]
+    return pad_front_master(render_svg_elements(tree, elements, FRONT_MASTER_SIZE))
+
+
 def front_master_masks(source: Path) -> tuple[np.ndarray, np.ndarray]:
     tree = ET.parse(source / "front_master.svg")
     children = list(tree.getroot())
@@ -172,10 +186,14 @@ def shadow_layer(source: Path, view: str, destination: Path) -> np.ndarray:
 
 
 def tone_layer(source: Path, view: str, finish: str, alpha: np.ndarray) -> np.ndarray:
-    use_master = view == "front" and finish == "matte" and (source / "front_master@2x.png").exists()
-    if use_master:
+    use_master_matte = view == "front" and finish == "matte" and (source / "front_master@2x.png").exists()
+    use_master_gloss = view == "front" and finish == "gloss" and (source / "front_master.svg").exists()
+    if use_master_matte:
         image = pad_front_master(rgba(source / "front_master@2x.png"))
         color = "#2F2F2F"
+    elif use_master_gloss:
+        image = front_master_gloss(source)
+        color = "#F9F9F9"
     else:
         source_id = 3 if finish == "matte" else 1
         image = rgba(source / f"{view}_{source_id}.png")
@@ -184,8 +202,8 @@ def tone_layer(source: Path, view: str, finish: str, alpha: np.ndarray) -> np.nd
     reference_luminance = np.dot(rgb, [0.2126, 0.7152, 0.0722])
     luminance = np.dot(image[:, :, :3], [0.2126, 0.7152, 0.0722])
     tone = np.clip(luminance / reference_luminance, 0, 1)
-    if use_master:
-        tone = 0.5 + 0.5 * tone
+    if use_master_matte:
+        tone = 0.75 + 0.25 * tone
 
     output = np.empty_like(image, dtype=np.uint8)
     output[:, :, :3] = np.rint(tone[:, :, None] * 255).astype(np.uint8)
