@@ -64,7 +64,10 @@ class _StateCircleState extends State<StateCircle> with SingleTickerProviderStat
 
   double get _scale {
     if (widget._alarm) return 1.5 + 0.12 * _pulse.value;
-    if (!widget._connected) return widget._scanning ? 1.5 : 0;
+    if (!widget._connected) {
+      if (widget._scanning) return 1.5;
+      return widget._scooterState == ScooterState.disconnected ? 0 : 1.2;
+    }
     if (widget._eclipse) return 1.5;
     switch (widget._scooterState) {
       case ScooterState.parked:

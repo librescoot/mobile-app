@@ -11,6 +11,8 @@ void main() {
     (true, false, ScooterState.ready, 3.0),
     (true, false, ScooterState.standby, 1.2),
     (false, true, ScooterState.disconnected, 1.5),
+    (false, false, null, 1.2),
+    (false, false, ScooterState.parked, 1.2),
     (false, false, ScooterState.disconnected, 0.0),
   ]) {
     testWidgets('upstream circle $connected/$scanning/$state uses scale $scale', (tester) async {
@@ -46,7 +48,7 @@ void main() {
       expect(widget.constraints!.maxHeight, 412 * 0.85);
       final decoration = widget.decoration! as BoxDecoration;
       expect(decoration.shape, BoxShape.circle);
-      if (state.isOn) {
+      if (state?.isOn == true) {
         expect(HSLColor.fromColor(decoration.color!).lightness, closeTo(0.18, 0.005));
       }
       if (state == ScooterState.standby) {
