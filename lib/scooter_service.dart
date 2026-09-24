@@ -95,6 +95,11 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final _actionWarnings = StreamController<HandlebarWarning>.broadcast(sync: true);
   Stream<HandlebarWarning> get actionWarnings => _actionWarnings.stream;
   bool get autoUnlockCoolingDown => actions.coolingDown;
+  bool _blinkerLeft = false;
+  bool _blinkerRight = false;
+  int _blinkerCommandGeneration = 0;
+  bool get blinkerLeft => _blinkerLeft;
+  bool get blinkerRight => _blinkerRight;
 
   /// In-range scooters with auto-unlock enabled, the connected one included.
   /// Refreshed from a throttled scan on the keyless poll cycle.
@@ -767,7 +772,25 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   /// Silences a sounding alarm without changing the alarm setting. The alarm
   /// service re-arms it as usual once the scooter is parked again.
   Future<void> disarmAlarm() => actions.disarmAlarm();
-  Future<void> blink({required bool left, required bool right}) => actions.blink(left: left, right: right);
+  Future<void> blink({required bool left, required bool right}) async {
+    final generation = ++_blinkerCommandGeneration;
+    final previousLeft = _blinkerLeft;
+    final previousRight = _blinkerRight;
+    _blinkerLeft = left;
+    _blinkerRight = right;
+    notifyListeners();
+    try {
+      await actions.blink(left: left, right: right);
+    } catch (_) {
+      if (generation == _blinkerCommandGeneration) {
+        _blinkerLeft = previousLeft;
+        _blinkerRight = previousRight;
+        notifyListeners();
+      }
+      rethrow;
+    }
+  }
+
   Future<void> hazard({int times = 1}) => actions.hazard(times: times);
   Future<void> wakeUp() => actions.wakeUp();
   Future<void> hibernate() => actions.hibernate();

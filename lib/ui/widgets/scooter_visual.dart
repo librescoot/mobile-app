@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:shimmer/shimmer.dart';
 
 import 'package:unustasis/domain/scooter_state.dart';
+import 'package:unustasis/ui/animation/blinker_curve.dart';
 import 'package:unustasis/ui/theme/scooter_colors.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
 import 'package:unustasis/ui/widgets/eclipse_backdrop.dart';
@@ -368,6 +369,11 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
                               ? CrossFadeState.showFirst
                               : CrossFadeState.showSecond,
                         ),
+                      if (widget.state != ScooterState.disconnected)
+                        BlinkerWidget(
+                          blinkerLeft: widget.blinkerLeft,
+                          blinkerRight: widget.blinkerRight,
+                        ),
                       AnimatedOpacity(
                         opacity: (widget.state != null && widget.state!.isOn) ? (_ringFlickering ? 0.5 : 1.0) : 0.0,
                         duration: _ringOpacityDuration,
@@ -404,7 +410,6 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
         ),
       ],
     );
-    //BlinkerWidget(blinkerLeft: blinkerLeft, blinkerRight: blinkerRight),
   }
 
   IconData stateIcon() {
@@ -444,57 +449,57 @@ class BlinkerWidget extends StatefulWidget {
   State<BlinkerWidget> createState() => _BlinkerWidgetState();
 }
 
-class _BlinkerWidgetState extends State<BlinkerWidget> {
-  bool _showBlinker = true;
+class _BlinkerWidgetState extends State<BlinkerWidget> with SingleTickerProviderStateMixin {
+  late final AnimationController _cycle;
 
-  // Timer to toggle the image every second
-  late Timer _timer;
+  bool get _active => widget.blinkerLeft || widget.blinkerRight;
 
   @override
   void initState() {
     super.initState();
+    _cycle = AnimationController(vsync: this, duration: blinkerCycle);
+    if (_active) _cycle.repeat();
+  }
 
-    var anyBlinker = widget.blinkerLeft || widget.blinkerRight;
-
-    if (anyBlinker) {
-      _timer = Timer.periodic(const Duration(milliseconds: 600), (Timer t) {
-        setState(() => _showBlinker = !_showBlinker);
-      });
+  @override
+  void didUpdateWidget(covariant BlinkerWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final wasActive = oldWidget.blinkerLeft || oldWidget.blinkerRight;
+    if (_active && !wasActive) {
+      _cycle.value = 0;
+      _cycle.repeat();
+    } else if (!_active && wasActive) {
+      _cycle.stop();
+      _cycle.value = 0;
     }
   }
 
   @override
   void dispose() {
-    // Cancel the timer to avoid memory leaks
-    _timer.cancel();
+    _cycle.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) {
-    const blinkerDuration = Duration(milliseconds: 200);
-
-    var showBlinkerLeft = _showBlinker && widget.blinkerLeft;
-    var showBlinkerRight = _showBlinker && widget.blinkerRight;
-
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        AnimatedOpacity(
-          opacity: showBlinkerLeft ? 1.0 : 0.0,
-          duration: blinkerDuration,
-          child: const Image(
-            image: AssetImage("images/scooter/blinker_l.webp"),
-          ),
-        ),
-        AnimatedOpacity(
-          opacity: showBlinkerRight ? 1.0 : 0.0,
-          duration: blinkerDuration,
-          child: const Image(
-            image: AssetImage("images/scooter/blinker_r.webp"),
-          ),
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _cycle,
+        builder: (context, _) {
+          final opacity = blinkerBrightness(blinkerCycle * _cycle.value);
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              Opacity(
+                key: const ValueKey('left-blinker'),
+                opacity: widget.blinkerLeft ? opacity : 0,
+                child: const Image(image: AssetImage('images/scooter/blinker_l.webp')),
+              ),
+              Opacity(
+                key: const ValueKey('right-blinker'),
+                opacity: widget.blinkerRight ? opacity : 0,
+                child: const Image(image: AssetImage('images/scooter/blinker_r.webp')),
+              ),
+            ],
+          );
+        },
+      );
 }

@@ -21,6 +21,10 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   bool connected = true;
   @override
+  bool blinkerLeft = false;
+  @override
+  bool blinkerRight = false;
+  @override
   bool? tripCounterSupported = true;
   int resets = 0;
   Object? resetError;
@@ -32,7 +36,12 @@ class _Service extends ChangeNotifier implements ScooterService {
   }
 
   @override
-  Future<void> blink({required bool left, required bool right}) async {}
+  Future<void> blink({required bool left, required bool right}) async {
+    blinkerLeft = left;
+    blinkerRight = right;
+    notifyListeners();
+  }
+
   @override
   Future<void> lock(
       {bool checkHandlebars = true, bool confirmOpenSeat = false, EventSource source = EventSource.app}) async {}
@@ -110,6 +119,23 @@ void main() {
     }
     expect(reset, findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('restores the selected blinker mode when reopened', (tester) async {
+    final service = _Service()..blinkerLeft = true;
+    addTearDown(service.dispose);
+    await _pumpSheet(tester, service);
+
+    var control = tester.widget<SegmentedButton<BlinkerMode?>>(find.byType(SegmentedButton<BlinkerMode?>).first);
+    expect(control.selected, {BlinkerMode.left});
+
+    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('open controls'));
+    await tester.pumpAndSettle();
+
+    control = tester.widget<SegmentedButton<BlinkerMode?>>(find.byType(SegmentedButton<BlinkerMode?>).first);
+    expect(control.selected, {BlinkerMode.left});
   });
 
   testWidgets('the sheet still fits or scrolls with 2x text', (tester) async {

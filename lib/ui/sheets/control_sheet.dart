@@ -24,7 +24,6 @@ class ControlSheet extends StatefulWidget {
 }
 
 class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMixin {
-  BlinkerMode _blinkerMode = BlinkerMode.off;
   bool _disconnectedHandled = false;
 
   Widget _controlLabel(
@@ -115,6 +114,15 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
+    final blinkers = context.select<ScooterService, ({bool left, bool right})>(
+      (service) => (left: service.blinkerLeft, right: service.blinkerRight),
+    );
+    final blinkerMode = switch (blinkers) {
+      (left: true, right: true) => BlinkerMode.hazard,
+      (left: true, right: false) => BlinkerMode.left,
+      (left: false, right: true) => BlinkerMode.right,
+      _ => BlinkerMode.off,
+    };
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
@@ -130,9 +138,6 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
                 _disconnectedHandled = true;
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (!mounted) return;
-                  setState(() {
-                    _blinkerMode = BlinkerMode.off;
-                  });
                   Navigator.of(context).pop();
                 });
               }
@@ -166,29 +171,16 @@ class _ControlSheetState extends State<ControlSheet> with TickerProviderStateMix
                 icon: Icon(Icons.chevron_right_rounded, size: 24),
               ),
             ],
-            selected: {_blinkerMode},
-            onSelectionChanged: (value) {
-              if (value.isNotEmpty) {
-                try {
-                  context.read<ScooterService>().blink(
-                        left: value.first == BlinkerMode.left || value.first == BlinkerMode.hazard,
-                        right: value.first == BlinkerMode.right || value.first == BlinkerMode.hazard,
-                      );
-                  setState(() {
-                    _blinkerMode = value.first!;
-                  });
-                } catch (e) {
-                  Fluttertoast.showToast(msg: e.toString());
-                }
-              } else {
-                try {
-                  context.read<ScooterService>().blink(left: false, right: false);
-                  setState(() {
-                    _blinkerMode = BlinkerMode.off;
-                  });
-                } catch (e) {
-                  Fluttertoast.showToast(msg: e.toString());
-                }
+            selected: blinkerMode == BlinkerMode.off ? const {} : {blinkerMode},
+            onSelectionChanged: (value) async {
+              final mode = value.isEmpty ? BlinkerMode.off : value.first!;
+              try {
+                await context.read<ScooterService>().blink(
+                      left: mode == BlinkerMode.left || mode == BlinkerMode.hazard,
+                      right: mode == BlinkerMode.right || mode == BlinkerMode.hazard,
+                    );
+              } catch (e) {
+                Fluttertoast.showToast(msg: e.toString());
               }
             },
           ),

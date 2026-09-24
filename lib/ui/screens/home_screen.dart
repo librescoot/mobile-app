@@ -251,6 +251,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final bool showRideMetrics = context.select<ScooterService, bool>(_showsRideMetrics);
+    final blinkers = context.select<ScooterService, ({bool left, bool right})>((service) {
+      try {
+        return (left: service.blinkerLeft, right: service.blinkerRight);
+      } on NoSuchMethodError {
+        return (left: false, right: false);
+      }
+    });
     final navigationAvailable = context.select<ScooterService, bool>(
       (service) => service.identity.supportsNavigation == true,
     );
@@ -402,8 +409,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     scanning: context.select(
                                       (ScooterService service) => service.scanning,
                                     ),
-                                    blinkerLeft: _hazards,
-                                    blinkerRight: _hazards,
+                                    blinkerLeft: _hazards || blinkers.left,
+                                    blinkerRight: _hazards || blinkers.right,
                                     winter: _snowing,
                                     aprilFools: _forceHover,
                                     halloween: _fall && context.isDarkMode,
