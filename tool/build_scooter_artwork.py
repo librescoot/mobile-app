@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build locally tintable scooter artwork layers from design exports."""
+"""Build runtime-colourable scooter layers from semantic SVG masters."""
 
 from __future__ import annotations
 
@@ -10,243 +10,204 @@ import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import numpy as np
 from PIL import Image
 
+SVG_NS = "http://www.w3.org/2000/svg"
+XLINK_NS = "http://www.w3.org/1999/xlink"
+PLACEHOLDER = "#FF00DD"
 SIZES = {"front": (866, 1800), "side": (2110, 1738)}
-FRONT_MASTER_SIZE = (866, 1668)
-FRONT_MASTER_TOP = 86
+FRONT_SOURCE_WIDTH = 1135
+FRONT_TOP = 86
+SIDE_SOURCE_WIDTH = 1095
+SIDE_HOVER_TOP = 889
+
+ET.register_namespace("", SVG_NS)
+ET.register_namespace("xlink", XLINK_NS)
 
 
-def rgba(path: Path) -> np.ndarray:
-    return np.asarray(Image.open(path).convert("RGBA"), dtype=np.float32)
+def local_name(element: ET.Element) -> str:
+    return element.tag.rsplit("}", 1)[-1]
 
 
-def pad_front_master(image: np.ndarray) -> np.ndarray:
-    padded = np.zeros((SIZES["front"][1], SIZES["front"][0], 4), dtype=image.dtype)
-    padded[FRONT_MASTER_TOP : FRONT_MASTER_TOP + FRONT_MASTER_SIZE[1]] = image
-    return padded
+def definitions(root: ET.Element) -> ET.Element:
+    return next(child for child in root if local_name(child) == "defs")
 
 
-def render_svg_elements(
-    tree: ET.ElementTree,
-    elements: list[ET.Element],
-    size: tuple[int, int],
-) -> np.ndarray:
-    root = copy.deepcopy(tree.getroot())
-    definitions = next(child for child in root if child.tag.rsplit("}", 1)[-1] == "defs")
+def remove_artboard(root: ET.Element) -> None:
     for child in list(root):
-        root.remove(child)
-    for element in elements:
-        root.append(copy.deepcopy(element))
-    root.append(definitions)
-
-    with tempfile.TemporaryDirectory() as temporary:
-        svg = Path(temporary) / "selection.svg"
-        png = Path(temporary) / "selection.png"
-        ET.ElementTree(root).write(svg, encoding="utf-8", xml_declaration=True)
-        subprocess.run(
-            ["rsvg-convert", "-w", str(size[0]), "-h", str(size[1]), "-o", str(png), str(svg)],
-            check=True,
-        )
-        return rgba(png)
+        if child.get("stroke", "").upper() == "#9747FF":
+            root.remove(child)
 
 
-def noise_free_artwork(source: Path, view: str) -> np.ndarray:
-    master = view == "front"
-    tree = ET.parse(source / ("front_master.svg" if master else "side_4.svg"))
-    root = tree.getroot()
-    paint_color = "#0F0F0F" if master else "#FF635A"
+def ground_shadow(root: ET.Element) -> ET.Element:
+    return next(
+        child
+        for child in root
+        if local_name(child) == "g" and "filter0_" in child.get("filter", "")
+    )
+
+
+def wrap_source(source: Path, view: str, *, hover: bool = False) -> ET.Element:
+    source_root = ET.parse(source).getroot()
+    remove_artboard(source_root)
+    source_defs = copy.deepcopy(definitions(source_root))
+
+    if view == "side":
+        children = [
+            copy.deepcopy(child)
+            for index, child in enumerate(source_root)
+            if local_name(child) != "defs" and (hover or index < 42)
+        ]
+        translate_y = -SIDE_HOVER_TOP * (SIZES[view][0] / SIDE_SOURCE_WIDTH) if hover else 0
+        scale = SIZES[view][0] / SIDE_SOURCE_WIDTH
+    else:
+        children = [copy.deepcopy(child) for child in source_root if local_name(child) != "defs"]
+        translate_y = FRONT_TOP
+        scale = SIZES[view][0] / FRONT_SOURCE_WIDTH
+
+    width, height = SIZES[view]
+    output_root = ET.Element(
+        f"{{{SVG_NS}}}svg",
+        {
+            "width": str(width),
+            "height": str(height),
+            "viewBox": f"0 0 {width} {height}",
+            "fill": "none",
+        },
+    )
+    transform = ET.SubElement(
+        output_root,
+        f"{{{SVG_NS}}}g",
+        {"transform": f"translate(0 {translate_y}) scale({scale})"},
+    )
+    transform.extend(children)
+    output_root.append(source_defs)
+    return output_root
+
+
+def drawing_leaves(root: ET.Element) -> list[ET.Element]:
+    leaves: list[ET.Element] = []
+
+    def visit(element: ET.Element) -> None:
+        if local_name(element) == "defs":
+            return
+        children = list(element)
+        if not children:
+            leaves.append(element)
+            return
+        for child in children:
+            visit(child)
+
+    visit(root)
+    return leaves
+
+
+def select_leaves(root: ET.Element, selected: set[int], *, mask: bool = False) -> ET.Element:
+    result = copy.deepcopy(root)
+    index = 0
+
+    def prune(parent: ET.Element) -> None:
+        nonlocal index
+        for child in list(parent):
+            if local_name(child) == "defs":
+                continue
+            if not list(child):
+                keep = index in selected
+                index += 1
+                if not keep:
+                    parent.remove(child)
+                elif mask:
+                    child.set("fill", "white")
+                    for attribute in ("fill-opacity", "opacity", "filter", "style"):
+                        child.attrib.pop(attribute, None)
+            else:
+                prune(child)
+                if not list(child):
+                    parent.remove(child)
+                elif mask:
+                    child.attrib.pop("filter", None)
+                    child.attrib.pop("style", None)
+
+    prune(result)
+    return result
+
+
+def remove_texture_overlays(root: ET.Element) -> None:
     for parent in root.iter():
         for child in list(parent):
             if "url(#pattern" in child.get("fill", ""):
                 parent.remove(child)
+
+
+def replace_placeholder(root: ET.Element, colour: str) -> None:
     for element in root.iter():
-        if element.get("fill", "").upper() == paint_color:
-            element.set("fill", "white")
-    elements = [child for child in root if child.tag.rsplit("}", 1)[-1] != "defs"]
-    rendered = render_svg_elements(
-        tree,
-        elements,
-        FRONT_MASTER_SIZE if master else SIZES["side"],
-    )
-    return pad_front_master(rendered) if master else rendered
+        if element.get("fill", "").upper() == PLACEHOLDER:
+            element.set("fill", colour)
 
 
-def front_master_masks(source: Path) -> tuple[np.ndarray, np.ndarray]:
-    tree = ET.parse(source / "front_master.svg")
-    children = list(tree.getroot())
-    body = copy.deepcopy(
-        next(
-            element
-            for element in children
-            if element.tag.rsplit("}", 1)[-1] == "path"
-            and element.get("fill", "").upper() == "#0F0F0F"
+def render(root: ET.Element, destination: Path, *, webp: bool = False) -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        svg_path = Path(temp_dir) / "layer.svg"
+        png_path = Path(temp_dir) / "layer.png"
+        ET.ElementTree(root).write(svg_path, encoding="utf-8", xml_declaration=True)
+        subprocess.run(["rsvg-convert", "-o", png_path, svg_path], check=True)
+        if webp:
+            subprocess.run(
+                ["cwebp", "-lossless", "-exact", "-quiet", png_path, "-o", destination],
+                check=True,
+            )
+        else:
+            with Image.open(png_path) as image:
+                image.save(destination, "PNG", optimize=True)
+
+
+def build_layers(source_file: Path, output: Path, view: str) -> None:
+    root = wrap_source(source_file, view)
+    leaves = drawing_leaves(root)
+    paint_indices = [index for index, leaf in enumerate(leaves) if leaf.get("fill", "").upper() == PLACEHOLDER]
+    if len(paint_indices) != 3:
+        raise ValueError(f"expected three {view} paint paths, found {len(paint_indices)}")
+
+    shadow = ground_shadow(next(child for child in root if local_name(child) != "defs"))
+    shadow_index = next(index for index, leaf in enumerate(leaves) if leaf in set(shadow.iter()))
+    render(select_leaves(root, {shadow_index}), output / f"custom_{view}_shadow.png")
+
+    under_indices = set(range(paint_indices[0])) - {shadow_index}
+    render(select_leaves(root, under_indices), output / f"custom_{view}_under.png")
+
+    for layer, paint_index in enumerate(paint_indices):
+        next_paint = paint_indices[layer + 1] if layer + 1 < len(paint_indices) else len(leaves)
+        render(
+            select_leaves(root, {paint_index}, mask=True),
+            output / f"custom_{view}_paint_{layer}.png",
         )
-    )
-    body.set("fill", "white")
-    body.attrib.pop("style", None)
-    fender_group = next(
-        element
-        for element in children
-        if element.tag.rsplit("}", 1)[-1] == "g"
-        and any(child.get("fill", "").upper() == "#0F0F0F" for child in element)
-    )
-    fender = copy.deepcopy(
-        next(child for child in fender_group if child.get("fill", "").upper() == "#0F0F0F")
-    )
-    fender.set("fill", "white")
-    headlight_index = next(
-        index
-        for index, element in enumerate(children)
-        if any(child.get("fill", "").upper() == "#1F1F1F" for child in element)
-    )
-    paint = render_svg_elements(tree, [body, fender], FRONT_MASTER_SIZE)
-    foreground = render_svg_elements(tree, children[headlight_index:-1], FRONT_MASTER_SIZE)
-    return pad_front_master(paint)[:, :, 3] / 255, pad_front_master(foreground)[:, :, 3] / 255
+        overlay_indices = set(range(paint_index + 1, next_paint))
+        matte = select_leaves(root, overlay_indices)
+        render(matte, output / f"custom_{view}_over_{layer}_matte.png")
+        gloss = copy.deepcopy(matte)
+        remove_texture_overlays(gloss)
+        render(gloss, output / f"custom_{view}_over_{layer}_gloss.png")
 
 
-def paint_alpha(source: Path, view: str) -> np.ndarray:
-    if view == "front" and (source / "front_master.svg").exists():
-        return front_master_masks(source)[0]
+def build_hover(source: Path, output: Path) -> None:
+    front = wrap_source(source / "mode=hover.svg", "front", hover=True)
+    replace_placeholder(front, "#C8F8FA")
+    render(front, output / "base_9.webp", webp=True)
 
-    tree = ET.parse(source / f"{view}_6.svg")
-    root = tree.getroot()
-    definitions = next(child for child in root if child.tag.rsplit("}", 1)[-1] == "defs")
-    painted = [
-        copy.deepcopy(element)
-        for element in root.iter()
-        if element.get("fill", "").upper() == "#11255A"
-    ]
-    for child in list(root):
-        root.remove(child)
-    for element in painted:
-        element.set("fill", "white")
-        element.attrib.pop("filter", None)
-        element.attrib.pop("style", None)
-        root.append(element)
-    root.append(definitions)
-
-    width, height = SIZES[view]
-    with tempfile.TemporaryDirectory() as temporary:
-        mask_svg = Path(temporary) / "mask.svg"
-        mask_png = Path(temporary) / "mask.png"
-        tree.write(mask_svg, encoding="utf-8", xml_declaration=True)
-        subprocess.run(
-            ["rsvg-convert", "-w", str(width), "-h", str(height), "-o", str(mask_png), str(mask_svg)],
-            check=True,
-        )
-        geometry_alpha = rgba(mask_png)[:, :, 3] / 255
-
-    matte_difference = np.max(
-        np.abs(rgba(source / f"{view}_2.png")[:, :, :3] - rgba(source / f"{view}_4.png")[:, :, :3]),
-        axis=2,
-    )
-    gloss_difference = np.max(
-        np.abs(rgba(source / f"{view}_1.png")[:, :, :3] - rgba(source / f"{view}_6.png")[:, :, :3]),
-        axis=2,
-    )
-    visible_paint = np.clip((np.maximum(matte_difference, gloss_difference) - 1) / 6, 0, 1)
-    return geometry_alpha * visible_paint
-
-
-def shadow_layer(source: Path, view: str, destination: Path) -> np.ndarray:
-    use_master = view == "front" and (source / "front_master.svg").exists()
-    tree = ET.parse(source / ("front_master.svg" if use_master else f"{view}_6.svg"))
-    root = tree.getroot()
-    children = list(root)
-    for child in children:
-        if child is not children[0] and child.tag.rsplit("}", 1)[-1] != "defs":
-            root.remove(child)
-
-    width, height = FRONT_MASTER_SIZE if use_master else SIZES[view]
-    with tempfile.TemporaryDirectory() as temporary:
-        shadow_svg = Path(temporary) / "shadow.svg"
-        tree.write(shadow_svg, encoding="utf-8", xml_declaration=True)
-        rendered_shadow = Path(temporary) / "rendered-shadow.png"
-        subprocess.run(
-            [
-                "rsvg-convert",
-                "-w",
-                str(width),
-                "-h",
-                str(height),
-                "-o",
-                str(rendered_shadow),
-                str(shadow_svg),
-            ],
-            check=True,
-        )
-        rendered = rgba(rendered_shadow)
-
-    if use_master:
-        rendered = pad_front_master(rendered)
-        reference = pad_front_master(rgba(source / "front_master@2x.png"))
-    else:
-        reference = rgba(source / f"{view}_6.png")
-    visible = (reference[:, :, 3] <= rendered[:, :, 3] + 5) & (rendered[:, :, 3] > 0)
-    shadow = np.zeros_like(reference)
-    shadow[visible] = reference[visible]
-    Image.fromarray(np.rint(shadow).astype(np.uint8), "RGBA").save(destination, optimize=True)
-    return shadow
-
-
-def tone_layer(source: Path, view: str, finish: str, alpha: np.ndarray) -> np.ndarray:
-    texture = (
-        pad_front_master(rgba(source / "front_master@2x.png"))
-        if view == "front"
-        else rgba(source / "side_4.png")
-    )
-    clean = noise_free_artwork(source, view)
-
-    painted = alpha > 0.5
-    clean_luminance = np.dot(clean[:, :, :3], [0.2126, 0.7152, 0.0722])
-    clean_baseline = np.median(clean_luminance[painted])
-    value = 128 + 0.8 * (clean_luminance - clean_baseline)
-    if finish == "matte":
-        texture_luminance = np.dot(texture[:, :, :3], [0.2126, 0.7152, 0.0722])
-        texture_baseline = np.median(texture_luminance[painted])
-        value += 0.3 * (texture_luminance - texture_baseline)
-
-    output = np.empty_like(texture, dtype=np.uint8)
-    output[:, :, :3] = np.rint(np.clip(value, 0, 255)[:, :, None]).astype(np.uint8)
-    output[:, :, 3] = np.rint(alpha * 255).astype(np.uint8)
-    return output
-
-
-def build_view(source: Path, output: Path, view: str) -> None:
-    alpha = paint_alpha(source, view)
-    shadow_path = output / f"custom_{view}_shadow.png"
-    shadow = shadow_layer(source, view, shadow_path)
-
-    use_master = view == "front" and (source / "front_master@2x.png").exists()
-    if use_master:
-        base = pad_front_master(rgba(source / "front_master@2x.png"))
-        foreground_alpha = front_master_masks(source)[1]
-        base[:, :, 3] *= 1 - alpha * (1 - foreground_alpha)
-    else:
-        base = rgba(source / f"{view}_1.png")
-        base[:, :, 3] *= 1 - alpha
-    visible_shadow = (base[:, :, 3] <= shadow[:, :, 3] + 5) & (shadow[:, :, 3] > 0)
-    base[visible_shadow] = 0
-    Image.fromarray(np.rint(base).astype(np.uint8), "RGBA").save(
-        output / f"custom_{view}_base.png", optimize=True
-    )
-
-    for finish in ("matte", "gloss"):
-        Image.fromarray(tone_layer(source, view, finish, alpha), "RGBA").save(
-            output / f"custom_{view}_{finish}.png", optimize=True
-        )
+    side = wrap_source(source / "side_master.svg", "side", hover=True)
+    replace_placeholder(side, "#C8F8FA")
+    render(side, output / "side_9.webp", webp=True)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("source", type=Path, help="Directory containing front_N and side_N SVG/PNG exports")
+    parser.add_argument("source", type=Path, help="Directory containing the exported SVG masters")
     parser.add_argument("output", type=Path, help="Runtime artwork directory")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
-    for view in SIZES:
-        build_view(args.source, args.output, view)
+    build_layers(args.source / "mode=scooter.svg", args.output, "front")
+    build_layers(args.source / "side_master.svg", args.output, "side")
+    build_hover(args.source, args.output)
 
 
 if __name__ == "__main__":

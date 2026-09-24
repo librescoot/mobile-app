@@ -88,6 +88,15 @@ void main() {
     expect(artwork.matte, isFalse);
     expect(find.byKey(const ValueKey('custom-paint-gloss-layer')), findsOneWidget);
     expect(find.byKey(const ValueKey('custom-paint-matte-layer')), findsNothing);
+
+    final paintLayers = tester.widgetList<ColorFiltered>(find.byType(ColorFiltered));
+    expect(paintLayers, hasLength(3));
+    for (final layer in paintLayers) {
+      expect(
+        layer.colorFilter,
+        const ColorFilter.mode(Color(0xFF123456), BlendMode.srcIn),
+      );
+    }
   });
 
   testWidgets('keeps lights and details above the matte finish', (tester) async {

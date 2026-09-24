@@ -30,6 +30,7 @@ class RenderedScooterArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final finish = matte ? 'matte' : 'gloss';
     final artwork = Stack(
       alignment: Alignment.center,
       children: [
@@ -39,37 +40,25 @@ class RenderedScooterArtwork extends StatelessWidget {
             child: _image('images/scooter/${_prefix}_shadow.png'),
           ),
         Positioned.fill(
-          key: ValueKey(matte ? 'custom-paint-matte-layer' : 'custom-paint-gloss-layer'),
-          child: ColorFiltered(
-            colorFilter: ColorFilter.matrix([
-              1,
-              0,
-              0,
-              0,
-              _paintColor.r * 255 - 128,
-              0,
-              1,
-              0,
-              0,
-              _paintColor.g * 255 - 128,
-              0,
-              0,
-              1,
-              0,
-              _paintColor.b * 255 - 128,
-              0,
-              0,
-              0,
-              1,
-              0,
-            ]),
-            child: _image('images/scooter/${_prefix}_${matte ? 'matte' : 'gloss'}.png'),
+          child: _image('images/scooter/${_prefix}_under.png'),
+        ),
+        for (var index = 0; index < 3; index++) ...[
+          Positioned.fill(
+            key: ValueKey('custom-paint-mask-$index'),
+            child: ColorFiltered(
+              colorFilter: ColorFilter.mode(_paintColor, BlendMode.srcIn),
+              child: _image('images/scooter/${_prefix}_paint_$index.png'),
+            ),
           ),
-        ),
-        KeyedSubtree(
-          key: const ValueKey('scooter-artwork-details'),
-          child: _image('images/scooter/${_prefix}_base.png'),
-        ),
+          Positioned.fill(
+            key: index == 0
+                ? ValueKey('custom-paint-$finish-layer')
+                : index == 2
+                    ? const ValueKey('scooter-artwork-details')
+                    : null,
+            child: _image('images/scooter/${_prefix}_over_${index}_$finish.png'),
+          ),
+        ],
       ],
     );
     final sizedArtwork = height != null && width == null
