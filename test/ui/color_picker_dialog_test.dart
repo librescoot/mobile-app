@@ -51,14 +51,18 @@ void main() {
     expect(find.text('Matte Pine'), findsOneWidget);
     expect(find.byKey(const ValueKey('scooter-color-noise-2')), findsOneWidget);
     expect(find.byKey(const ValueKey('scooter-color-noise-6')), findsNothing);
+    expect(
+      tester.getCenter(find.byKey(const ValueKey('scooter-color-option-custom'))).dy,
+      closeTo(tester.getCenter(find.byKey(const ValueKey('scooter-color-option-5'))).dy, 1),
+    );
     final title = find.text('Scooter Pro');
     expect(title, findsOneWidget);
     expect(find.ancestor(of: title, matching: find.byType(Center)), findsWidgets);
     final backdrop = find.byKey(const ValueKey('scooter-color-preview-backdrop'));
     expect(backdrop, findsOneWidget);
     final backdropSize = tester.getSize(backdrop);
-    expect(find.byKey(const ValueKey('scooter-color-front-#255242-true')), findsOneWidget);
-    expect(find.byKey(const ValueKey('scooter-color-side-#255242-true')), findsNothing);
+    expect(find.byKey(const ValueKey('scooter-color-front-#557064-true')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-color-side-#557064-true')), findsNothing);
 
     final glossyFill = tester.widget<DecoratedBox>(find.byKey(const ValueKey('scooter-color-fill-6')));
     final glossyGradient = (glossyFill.decoration as BoxDecoration).gradient! as LinearGradient;
@@ -71,11 +75,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 260));
     expect(tester.getSize(backdrop), backdropSize);
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byKey(const ValueKey('scooter-color-side-#255242-true')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-color-side-#557064-true')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('scooter-color-option-6')));
     await tester.pump(const Duration(milliseconds: 160));
-    expect(find.byKey(const ValueKey('scooter-color-side-#255242-true')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-color-side-#557064-true')), findsOneWidget);
     expect(find.byKey(const ValueKey('scooter-color-side-#0F214F-false')), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.byKey(const ValueKey('scooter-color-side-#0F214F-false')), findsOneWidget);

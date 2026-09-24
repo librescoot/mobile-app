@@ -72,6 +72,8 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      contentPadding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
       title: widget.scooterName.trim().isEmpty
           ? null
           : Center(
@@ -87,11 +89,11 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _preview(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             Wrap(
               alignment: WrapAlignment.center,
-              spacing: 12,
-              runSpacing: 16,
+              spacing: 4,
+              runSpacing: 12,
               children: [
                 for (final value in _availableColors) _colorOption(value),
                 _customColorOption(),
@@ -247,7 +249,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
           _customColor = null;
         }),
         child: SizedBox(
-          width: 82,
+          width: 64,
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Column(
@@ -256,6 +258,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                 ScooterColorSwatch(
                   scooterColor: scooterColor,
                   selected: selected,
+                  size: 58,
                 ),
                 const SizedBox(height: 7),
                 Text(
@@ -333,7 +336,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
         borderRadius: BorderRadius.circular(12),
         onTap: _editCustomColor,
         child: SizedBox(
-          width: 82,
+          width: 64,
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Column(
@@ -345,6 +348,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                     ScooterColorSwatch(
                       scooterColor: scooterColor,
                       selected: selected,
+                      size: 58,
                     ),
                     if (!selected)
                       Icon(

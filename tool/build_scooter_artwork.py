@@ -14,7 +14,6 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 SIZES = {"front": (866, 1800), "side": (2110, 1738)}
-SOURCE_COLORS = {"matte": "#A4A4A4", "gloss": "#F9F9F9"}
 FRONT_MASTER_SIZE = (866, 1668)
 FRONT_MASTER_TOP = 86
 
@@ -65,6 +64,17 @@ def front_master_gloss(source: Path) -> np.ndarray:
             element.set("fill", "white")
     elements = [child for child in root if child.tag.rsplit("}", 1)[-1] != "defs"]
     return pad_front_master(render_svg_elements(tree, elements, FRONT_MASTER_SIZE))
+
+
+def front_master_ring_mask(source: Path) -> np.ndarray:
+    tree = ET.parse(source / "front_master.svg")
+    ring = next(
+        element
+        for element in tree.getroot()
+        if any(child.get("stroke", "").upper() == "#868686" for child in element)
+    )
+    rendered = render_svg_elements(tree, [ring], FRONT_MASTER_SIZE)
+    return pad_front_master(rendered)[:, :, 3] / 255
 
 
 def front_master_masks(source: Path) -> tuple[np.ndarray, np.ndarray]:
@@ -190,30 +200,30 @@ def tone_layer(source: Path, view: str, finish: str, alpha: np.ndarray) -> np.nd
     use_master_gloss = view == "front" and finish == "gloss" and (source / "front_master.svg").exists()
     if use_master_matte:
         image = pad_front_master(rgba(source / "front_master@2x.png"))
-        color = "#2F2F2F"
     elif use_master_gloss:
         image = front_master_gloss(source)
-        color = "#F9F9F9"
     else:
         source_id = 3 if finish == "matte" else 1
         image = rgba(source / f"{view}_{source_id}.png")
-        color = SOURCE_COLORS[finish]
-    rgb = np.array([int(color[index : index + 2], 16) for index in (1, 3, 5)], dtype=np.float32)
-    reference_luminance = np.dot(rgb, [0.2126, 0.7152, 0.0722])
+
     luminance = np.dot(image[:, :, :3], [0.2126, 0.7152, 0.0722])
-    tone = np.clip(luminance / reference_luminance, 0, 1)
-    if use_master_matte:
+    painted = alpha > 0.5
+    if finish == "matte":
+        radius = 18 if view == "front" else 28
         smoothed = np.asarray(
-            Image.fromarray(np.rint(tone * 255).astype(np.uint8), "L").filter(
-                ImageFilter.GaussianBlur(18)
+            Image.fromarray(np.rint(luminance).astype(np.uint8), "L").filter(
+                ImageFilter.GaussianBlur(radius)
             ),
             dtype=np.float32,
-        ) / 255
-        tone = 0.5 + 0.5 * smoothed + 0.1 * (tone - smoothed)
-        tone = np.clip(tone, 0, 1)
+        )
+        baseline = np.median(smoothed[painted])
+        value = 128 + 1.2 * (smoothed - baseline) + 0.3 * (luminance - smoothed)
+    else:
+        baseline = np.median(luminance[painted])
+        value = 128 + 0.8 * (luminance - baseline)
 
     output = np.empty_like(image, dtype=np.uint8)
-    output[:, :, :3] = np.rint(tone[:, :, None] * 255).astype(np.uint8)
+    output[:, :, :3] = np.rint(np.clip(value, 0, 255)[:, :, None]).astype(np.uint8)
     output[:, :, 3] = np.rint(alpha * 255).astype(np.uint8)
     return output
 
@@ -227,6 +237,8 @@ def build_view(source: Path, output: Path, view: str) -> None:
     if use_master:
         base = pad_front_master(rgba(source / "front_master@2x.png"))
         foreground_alpha = front_master_masks(source)[1]
+        ring_alpha = front_master_ring_mask(source)
+        base[:, :, :3] *= 1 - 0.65 * ring_alpha[:, :, None]
         base[:, :, 3] *= 1 - alpha * (1 - foreground_alpha)
     else:
         base = rgba(source / f"{view}_1.png")
