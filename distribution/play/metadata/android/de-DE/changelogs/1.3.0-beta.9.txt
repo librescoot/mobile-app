@@ -1,0 +1,9 @@
+Neu gegenüber 1.3.0 (53):
+
+• Routen mit mehreren Stopps, klarer Fortschrittsanzeige und Fahrtenstatistik
+• Klarere Verbindungs- und Nähezustände in der Rollerübersicht
+• Demo-Modus, Alarmstatus und passende Funktionen je Firmware
+• Verbessertes Onboarding und Layout für große Displays
+• Trennen bleibt aktiv, bis du dich erneut verbindest
+• Eigene Lackfarben mit matter oder glänzender Live-Vorschau
+• Bessere Bluetooth-Hilfe und überarbeitete Rollergrafik

@@ -1,0 +1,9 @@
+Nouveautés depuis la 1.3.0 (53) :
+
+• Itinéraires à plusieurs étapes avec progression claire et statistiques de trajet
+• États de connexion et de proximité plus clairs dans la liste
+• Mode démo, état de l’alarme et fonctions adaptées au firmware
+• Accueil et affichage sur grand écran améliorés
+• Une déconnexion reste active jusqu’à une reconnexion explicite
+• Peintures personnalisées avec aperçu mat ou brillant
+• Aide Bluetooth et graphismes du scooter améliorés
