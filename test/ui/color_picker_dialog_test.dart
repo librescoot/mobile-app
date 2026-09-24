@@ -2,9 +2,11 @@ import 'package:easy_dynamic_theme/easy_dynamic_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:scooter_core/scooter_core.dart';
 import 'package:unustasis/ui/theme/scooter_colors.dart';
 import 'package:unustasis/ui/widgets/color_picker_dialog.dart';
 import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
+import 'package:unustasis/ui/widgets/scooter_visual.dart';
 
 void main() {
   Future<void> mount(
@@ -62,6 +64,7 @@ void main() {
     expect(backdrop, findsOneWidget);
     final backdropSize = tester.getSize(backdrop);
     expect(find.byKey(const ValueKey('scooter-color-front-#557064-true')), findsOneWidget);
+    expect(tester.widget<ScooterVisual>(find.byType(ScooterVisual)).state, ScooterState.standby);
     expect(find.byKey(const ValueKey('scooter-color-side-#557064-true')), findsNothing);
 
     final glossyFill = tester.widget<DecoratedBox>(find.byKey(const ValueKey('scooter-color-fill-6')));

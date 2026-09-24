@@ -286,15 +286,18 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
       ),
       width: 132,
       height: 246,
-      child: ScooterVisual(
-        color: selectedValue,
-        customColor: _customColor,
-        customColorMatte: _customColorMatte,
-        state: ScooterState.parked,
-        scanning: false,
-        blinkerLeft: false,
-        blinkerRight: false,
-        showEclipseBackdrop: false,
+      child: Transform.scale(
+        scale: 1.10,
+        child: ScooterVisual(
+          color: selectedValue,
+          customColor: _customColor,
+          customColorMatte: _customColorMatte,
+          state: ScooterState.standby,
+          scanning: false,
+          blinkerLeft: false,
+          blinkerRight: false,
+          showEclipseBackdrop: false,
+        ),
       ),
     );
   }
