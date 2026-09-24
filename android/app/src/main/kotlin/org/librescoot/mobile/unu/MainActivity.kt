@@ -11,6 +11,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import android.content.pm.PackageManager
 import android.nfc.NfcAdapter
+import org.librescoot.mobile.unu.tasker.TaskerSettings
 
 class MainActivity : FlutterFragmentActivity() {
 
@@ -41,6 +42,22 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, TASKER_SETTINGS_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "setBackgroundScan" -> {
+                        val enabled = call.argument<Boolean>("enabled")
+                        if (enabled == null) {
+                            result.error("BAD_ARGUMENT", "Missing background scan state", null)
+                        } else {
+                            TaskerSettings.setBackgroundScan(this, enabled)
+                            result.success(null)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BATTERY_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -54,6 +71,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     companion object {
         private const val BATTERY_CHANNEL = "org.librescoot.mobile.unu/battery_optimization"
+        private const val TASKER_SETTINGS_CHANNEL = "org.librescoot.mobile.unu/tasker_settings"
     }
 }
 

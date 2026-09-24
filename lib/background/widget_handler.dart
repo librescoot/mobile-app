@@ -304,18 +304,17 @@ FutureOr<void> backgroundCallback(Uri? data) async {
     // invoke() may silently fail; SharedPreferences ensures the action
     // is not lost.
     if (action != null) {
-      final prefs = await SharedPreferences.getInstance();
-      // Publish the payload before arming it so another isolate can never
-      // observe a newly armed request with the previous action name.
-      await prefs.setString("pendingWidgetActionName", action);
       if (requestId != null) {
-        await prefs.setString(pendingWidgetActionRequestIdKey, requestId);
+        if (!await persistTaskerAction(requestId, action)) {
+          throw StateError("Tasker action was not persisted");
+        }
       } else {
-        // A widget tap must not inherit a request id left over from an
-        // abandoned Tasker request.
-        await prefs.remove(pendingWidgetActionRequestIdKey);
+        final prefs = await SharedPreferences.getInstance();
+        // Widget actions retain their compatibility slot; Tasker requests use
+        // independent single-key entries and cannot replace this payload.
+        await prefs.setString("pendingWidgetActionName", action);
+        await prefs.setBool("pendingWidgetAction", true);
       }
-      await prefs.setBool("pendingWidgetAction", true);
     }
 
     final running = await FlutterBackgroundService().isRunning();
@@ -327,7 +326,7 @@ FutureOr<void> backgroundCallback(Uri? data) async {
       // Fast path: invoke directly.  _executeAction() will clear the
       // persisted pending action so it won't run twice.
       if (action != null) {
-        FlutterBackgroundService().invoke(action);
+        FlutterBackgroundService().invoke(action, requestId == null ? null : {"requestId": requestId});
       }
     }
   } catch (e) {

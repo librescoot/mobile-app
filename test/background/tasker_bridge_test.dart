@@ -40,31 +40,28 @@ void main() {
     expect(taskerResultForError('Failed to lock, response: nope'), 'failed:Failed to lock, response: nope');
   });
 
-  test('dropAndReport disarms the slot and answers the waiting request', () async {
+  test('Tasker requests persist independently in one write each', () async {
+    expect(await persistTaskerAction('req-1', 'lock'), isTrue);
+    expect(await persistTaskerAction('req-2', 'unlock'), isTrue);
+
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('pendingWidgetActionName', 'lock');
-    await prefs.setString(pendingWidgetActionRequestIdKey, 'req-1');
+    final pending = await pendingTaskerActions(prefs);
+    expect(pending.map((request) => '${request.requestId}:${request.action}'), ['req-1:lock', 'req-2:unlock']);
+  });
+
+  test('dropAndReport removes only its Tasker request and publishes the result', () async {
+    final prefs = await SharedPreferences.getInstance();
+    await persistTaskerAction('req-1', 'lock');
+    await persistTaskerAction('req-2', 'unlock');
+    await prefs.setString('pendingWidgetActionName', 'openseat');
     await prefs.setBool('pendingWidgetAction', true);
 
     await dropAndReport('req-1', taskerResultNoScooterSaved);
 
-    expect(prefs.getBool('pendingWidgetAction'), false);
-    expect(prefs.getString('pendingWidgetActionName'), isNull);
-    expect(prefs.getString(pendingWidgetActionRequestIdKey), isNull);
-    expect(prefs.getString('${taskerResultPrefix}req-1')!.split(':').last, taskerResultNoScooterSaved);
-  });
-
-  test('dropAndReport leaves a slot another request has since claimed', () async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('pendingWidgetActionName', 'unlock');
-    await prefs.setString(pendingWidgetActionRequestIdKey, 'req-2');
-    await prefs.setBool('pendingWidgetAction', true);
-
-    await dropAndReport('req-1', taskerResultOk);
-
+    expect(prefs.getString(pendingTaskerActionKey('req-1')), isNull);
+    expect(prefs.getString(pendingTaskerActionKey('req-2')), 'unlock');
     expect(prefs.getBool('pendingWidgetAction'), true);
-    expect(prefs.getString('pendingWidgetActionName'), 'unlock');
-    expect(prefs.getString(pendingWidgetActionRequestIdKey), 'req-2');
-    expect(prefs.getString('${taskerResultPrefix}req-1'), isNotNull);
+    expect(prefs.getString('pendingWidgetActionName'), 'openseat');
+    expect(prefs.getString('${taskerResultPrefix}req-1')!.split(':').last, taskerResultNoScooterSaved);
   });
 }

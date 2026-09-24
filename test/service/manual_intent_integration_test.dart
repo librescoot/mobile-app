@@ -6,6 +6,7 @@ import 'package:shared_preferences_platform_interface/types.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:unustasis/background/notification_handler.dart';
+import 'package:unustasis/background/tasker_bridge.dart';
 import 'package:flutter/material.dart';
 import 'package:unustasis/background/bg_service.dart' as background;
 import 'dart:async';
@@ -66,6 +67,10 @@ class _Storage extends Fake implements ScooterStorage {
     loads++;
     await loadGate?.future;
   }
+
+  @override
+  Future<List<String>> getIds({bool onlyAutoConnect = false}) async =>
+      scooters.values.where((scooter) => !onlyAutoConnect || scooter.autoConnect).map((scooter) => scooter.id).toList();
 
   @override
   Future<bool> add(String id) async {
@@ -950,6 +955,26 @@ void main() {
     command.writeGate!.complete();
     await action;
     expect(command.writes, hasLength(1));
+  });
+
+  test('notification and Tasker requests keep independent pending entries', () async {
+    final h = _WidgetHarness();
+    addTearDown(h.dispose);
+    h.service.setManualConnectionTarget('A');
+    await h.pending('lock');
+    await persistTaskerAction('tasker-1', 'openseat');
+
+    await background.executeWidgetAction('lock');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    await h.expectPending(null);
+    expect(prefs.getString(pendingTaskerActionKey('tasker-1')), 'openseat');
+
+    await background.executeWidgetAction('openseat', requestId: 'tasker-1');
+    await prefs.reload();
+    expect(prefs.getString(pendingTaskerActionKey('tasker-1')), isNull);
+    expect(prefs.getString('${taskerResultPrefix}tasker-1')?.split(':').last, taskerResultOk);
+    expect(h.writes('A'), ['scooter:state lock', 'scooter:seatbox open']);
   });
 
   for (final action in ['lock', 'unlock', 'openseat']) {

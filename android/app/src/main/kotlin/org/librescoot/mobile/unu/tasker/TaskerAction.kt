@@ -5,11 +5,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
+import android.os.Bundle
 import android.os.SystemClock
+import android.util.Base64
 import android.util.Log
 import androidx.annotation.StringRes
 import org.librescoot.mobile.unu.R
 import es.antonborri.home_widget.HomeWidgetBackgroundReceiver
+import java.security.MessageDigest
+import java.security.SecureRandom
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -33,12 +39,74 @@ object TaskerPluginProtocol {
 
     /** Key of the chosen action inside our own config bundle. */
     const val BUNDLE_KEY_ACTION = "org.librescoot.mobile.unu.tasker.ACTION"
+    const val BUNDLE_KEY_AUTHORIZATION = "org.librescoot.mobile.unu.tasker.AUTHORIZATION"
 
     /** Variable the plugin reports back, holding the action's outcome. */
     const val VARIABLE_RESULT = "%scooter_result"
 
     /** Tasker's own error variable, which its error log renders as text. */
     const val VARIABLE_ERROR_MESSAGE = "%errmsg"
+}
+
+object TaskerAuthorization {
+    private val TASKER_PACKAGES = setOf(
+        "net.dinglisch.android.taskerm",
+        "net.dinglisch.android.tasker",
+    )
+    private const val PREFS = "tasker_authorization"
+    private const val SECRET = "secret"
+
+    fun isTrustedEditor(packageName: String?): Boolean = packageName in TASKER_PACKAGES
+
+    fun authorize(context: Context, settings: Bundle) {
+        val action = settings.getString(TaskerPluginProtocol.BUNDLE_KEY_ACTION)
+            ?: error("Cannot authorize an actionless Tasker configuration")
+        settings.putString(TaskerPluginProtocol.BUNDLE_KEY_AUTHORIZATION, signature(context, action))
+    }
+
+    fun accepts(context: Context, settings: Bundle?): Boolean {
+        val action = settings?.getString(TaskerPluginProtocol.BUNDLE_KEY_ACTION) ?: return false
+        val supplied = settings.getString(TaskerPluginProtocol.BUNDLE_KEY_AUTHORIZATION) ?: return false
+        return MessageDigest.isEqual(
+            supplied.toByteArray(Charsets.UTF_8),
+            signature(context, action).toByteArray(Charsets.UTF_8),
+        )
+    }
+
+    private fun signature(context: Context, action: String): String {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(secret(context), "HmacSHA256"))
+        return Base64.encodeToString(
+            mac.doFinal(action.toByteArray(Charsets.UTF_8)),
+            Base64.NO_WRAP or Base64.NO_PADDING or Base64.URL_SAFE,
+        )
+    }
+
+    @Synchronized
+    private fun secret(context: Context): ByteArray {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.getString(SECRET, null)?.let { return Base64.decode(it, Base64.NO_WRAP or Base64.URL_SAFE) }
+        val generated = ByteArray(32).also(SecureRandom()::nextBytes)
+        val encoded = Base64.encodeToString(generated, Base64.NO_WRAP or Base64.NO_PADDING or Base64.URL_SAFE)
+        check(prefs.edit().putString(SECRET, encoded).commit()) { "Could not persist Tasker authorization" }
+        return generated
+    }
+}
+
+object TaskerSettings {
+    private const val PREFS = "tasker_settings"
+    private const val BACKGROUND_SCAN = "backgroundScan"
+
+    fun setBackgroundScan(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(BACKGROUND_SCAN, enabled)
+            .apply()
+    }
+
+    fun backgroundScanEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(BACKGROUND_SCAN, false)
 }
 
 /**

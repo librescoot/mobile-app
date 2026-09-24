@@ -20,6 +20,7 @@ import 'package:scooter_flutter/trip_commands.dart';
 import 'package:scooter_core/trip_expunge.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:unustasis/background/tasker_bridge.dart';
 import 'package:unustasis/domain/alarm_status.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
 import 'package:unustasis/domain/scooter_keyless_distance.dart';
@@ -1125,6 +1126,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
               }
               if (confirmed == true) {
                 await prefs.setBool("backgroundScan", value);
+                await syncTaskerBackgroundScanSetting(value);
                 final backgroundService = FlutterBackgroundService();
                 // The service stops itself while scanning is disabled and no
                 // scooter is connected. Explicitly restart it before sending

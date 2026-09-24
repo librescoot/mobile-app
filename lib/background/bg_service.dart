@@ -142,40 +142,49 @@ Future<void> _checkPendingWidgetAction() async {
   if (_widgetActionInProgress) return;
   try {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.reload(); // re-read from disk (action was written in another isolate)
-    final pending = prefs.getBool("pendingWidgetAction") ?? false;
-    final actionName = prefs.getString("pendingWidgetActionName");
-    if (pending && actionName != null) {
-      Logger("bgservice").info("Found lost pending widget action: $actionName");
-      await executeWidgetAction(actionName);
+    final pending = await _nextPendingAction(prefs);
+    if (pending != null) {
+      Logger("bgservice").info("Found lost pending action: ${pending.actionName}");
+      await executeWidgetAction(pending.actionName, requestId: pending.requestId);
     }
   } catch (e) {
-    Logger("bgservice").warning("Error checking pending widget action", e);
+    Logger("bgservice").warning("Error checking pending action", e);
   }
 }
 
+Future<({String actionName, String? requestId})?> _nextPendingAction(SharedPreferences prefs) async {
+  await prefs.reload();
+  if (prefs.getBool("pendingWidgetAction") == true) {
+    final actionName = prefs.getString("pendingWidgetActionName");
+    if (actionName != null) return (actionName: actionName, requestId: null);
+  }
+  final taskerActions = await pendingTaskerActions(prefs);
+  if (taskerActions.isEmpty) return null;
+  return (actionName: taskerActions.first.action, requestId: taskerActions.first.requestId);
+}
+
+bool _matchesPendingAction(SharedPreferences prefs, String actionName, String? requestId) => requestId == null
+    ? prefs.getBool("pendingWidgetAction") == true && prefs.getString("pendingWidgetActionName") == actionName
+    : prefs.getString(pendingTaskerActionKey(requestId)) == actionName;
+
 /// Connects to the scooter if needed, then performs the given action.
 /// Handles foreground promotion, scanning UI, and post-action cleanup.
-Future<void> executeWidgetAction(String actionName) async {
+Future<void> executeWidgetAction(String actionName, {String? requestId}) async {
   if (_widgetActionInProgress) return;
   _widgetActionInProgress = true;
 
   final log = Logger("bgservice");
   log.info("Executing action: $actionName");
 
-  // Id of the request waiting on this slot, set only for Tasker.
-  String? requestId;
   try {
     promoteToForeground();
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
-    bool matchesRequest() =>
-        prefs.getBool("pendingWidgetAction") == true && prefs.getString("pendingWidgetActionName") == actionName;
+    bool matchesRequest() => _matchesPendingAction(prefs, actionName, requestId);
     // All producers persist first. A delayed invoke after a successful action
     // must not replay an already consumed slot (or an unrelated action name).
     if (!matchesRequest()) return;
-    requestId = prefs.getString(pendingWidgetActionRequestIdKey);
 
     if (!scooterService.connected) await setWidgetScanning(true);
 
@@ -205,8 +214,12 @@ Future<void> executeWidgetAction(String actionName) async {
       if (_androidServiceInstance != null) updateNotification();
       await prefs.reload();
       if (matchesRequest()) {
-        await prefs.setBool("pendingWidgetAction", false);
-        await prefs.remove("pendingWidgetActionName");
+        if (requestId == null) {
+          await prefs.setBool("pendingWidgetAction", false);
+          await prefs.remove("pendingWidgetActionName");
+        } else {
+          await prefs.remove(pendingTaskerActionKey(requestId));
+        }
       }
       return;
     }
@@ -226,22 +239,30 @@ Future<void> executeWidgetAction(String actionName) async {
     // reload disk, not infer durability from that optimistic cache.
     var mayHaveIssued = false;
     try {
-      if (!await prefs.setBool("pendingWidgetAction", false)) {
-        throw StateError("Pending action claim was not persisted");
-      }
-      if (!dispatch.isReady()) return;
-      await prefs.reload();
-      if (!dispatch.isReady() ||
-          prefs.getBool("pendingWidgetAction") == true ||
-          prefs.getString("pendingWidgetActionName") != actionName) {
-        return;
-      }
-      if (!await prefs.remove("pendingWidgetActionName")) {
-        throw StateError("Pending action name removal was not persisted");
-      }
-      await prefs.reload();
-      if (prefs.getBool("pendingWidgetAction") == true || prefs.getString("pendingWidgetActionName") != null) {
-        return; // A newer request arrived during the issued removal.
+      if (requestId == null) {
+        if (!await prefs.setBool("pendingWidgetAction", false)) {
+          throw StateError("Pending action claim was not persisted");
+        }
+        if (!dispatch.isReady()) return;
+        await prefs.reload();
+        if (!dispatch.isReady() ||
+            prefs.getBool("pendingWidgetAction") == true ||
+            prefs.getString("pendingWidgetActionName") != actionName) {
+          return;
+        }
+        if (!await prefs.remove("pendingWidgetActionName")) {
+          throw StateError("Pending action name removal was not persisted");
+        }
+        await prefs.reload();
+        if (prefs.getBool("pendingWidgetAction") == true || prefs.getString("pendingWidgetActionName") != null) {
+          return; // A newer widget request arrived during the issued removal.
+        }
+      } else {
+        if (!await prefs.remove(pendingTaskerActionKey(requestId))) {
+          throw StateError("Tasker action claim was not persisted");
+        }
+        await prefs.reload();
+        if (!dispatch.isReady() || prefs.containsKey(pendingTaskerActionKey(requestId))) return;
       }
       if (!dispatch.isReady()) return;
       if (actionName == "lock") scooterService.warnIfLockingWithOpenSeatbox();
@@ -259,11 +280,11 @@ Future<void> executeWidgetAction(String actionName) async {
         mayHaveIssued = false;
       }
     } finally {
-      if (!mayHaveIssued) await _restoreUnissuedWidgetAction(prefs, actionName);
+      if (!mayHaveIssued) await _restoreUnissuedWidgetAction(prefs, actionName, requestId: requestId);
     }
   } catch (e, stack) {
     log.severe("Action '$actionName' failed", e, stack);
-    if (requestId != null) await publishActionResult(requestId, taskerResultForError(e));
+    if (requestId != null) await dropAndReport(requestId, taskerResultForError(e));
   } finally {
     try {
       await setWidgetScanning(false);
@@ -298,12 +319,23 @@ Future<bool> _noSavedScooters() async {
   return (await scooterService.getSavedScooterIds()).isEmpty;
 }
 
-/// One best-effort recovery pass, never an automatic actuation retry. These two
-/// keys are not a transaction: a concurrent same-name request is indistinguishable
-/// and already-issued preference operations cannot be rolled back.
-Future<void> _restoreUnissuedWidgetAction(SharedPreferences prefs, String actionName) async {
+/// One best-effort recovery pass, never an automatic actuation retry. Tasker
+/// requests restore their own atomic entry; the widget compatibility slot still
+/// has two keys and cannot safely distinguish concurrent same-name requests.
+Future<void> _restoreUnissuedWidgetAction(
+  SharedPreferences prefs,
+  String actionName, {
+  String? requestId,
+}) async {
   try {
     await prefs.reload();
+    if (requestId != null) {
+      final key = pendingTaskerActionKey(requestId);
+      if (!prefs.containsKey(key) && !await prefs.setString(key, actionName)) {
+        throw StateError("Unissued Tasker action was not restored");
+      }
+      return;
+    }
     if (prefs.getBool("pendingWidgetAction") == true) return;
     final name = prefs.getString("pendingWidgetActionName");
     if (name != null && name != actionName) return;
@@ -389,9 +421,8 @@ void onStart(ServiceInstance service) async {
 
   // Check if we were started by a widget action.
   final prefs = await SharedPreferences.getInstance();
-  await prefs.reload();
-  final pendingWidgetAction = prefs.getBool("pendingWidgetAction") ?? false;
-  final pendingActionName = prefs.getString("pendingWidgetActionName");
+  final pendingAction = await _nextPendingAction(prefs);
+  final pendingWidgetAction = pendingAction != null;
 
   if (service is AndroidServiceInstance) {
     _androidServiceInstance = service;
@@ -518,10 +549,11 @@ void onStart(ServiceInstance service) async {
     }
   });
 
-  service.on("connect").listen((data) async => executeWidgetAction("connect"));
-  service.on("lock").listen((data) async => executeWidgetAction("lock"));
-  service.on("unlock").listen((data) async => executeWidgetAction("unlock"));
-  service.on("openseat").listen((data) async => executeWidgetAction("openseat"));
+  String? requestId(dynamic data) => data?["requestId"] as String?;
+  service.on("connect").listen((data) async => executeWidgetAction("connect", requestId: requestId(data)));
+  service.on("lock").listen((data) async => executeWidgetAction("lock", requestId: requestId(data)));
+  service.on("unlock").listen((data) async => executeWidgetAction("unlock", requestId: requestId(data)));
+  service.on("openseat").listen((data) async => executeWidgetAction("openseat", requestId: requestId(data)));
 
   service.on("test").listen((data) async {
     Logger("bgservice").info("Test command received by background service! Data: $data");
@@ -555,9 +587,9 @@ void onStart(ServiceInstance service) async {
   // If the service was started by a widget action, execute it now that
   // everything is initialized and all listeners are registered.
   // Wait for scooterService to load cached data (saved scooter IDs, etc.)
-  if (pendingWidgetAction && pendingActionName != null) {
+  if (pendingAction != null) {
     await Future.delayed(const Duration(seconds: 3));
-    executeWidgetAction(pendingActionName);
+    executeWidgetAction(pendingAction.actionName, requestId: pendingAction.requestId);
   }
 
   _rescanTimer = PausableTimer.periodic(const Duration(seconds: 35), () async {

@@ -1,9 +1,50 @@
+import 'dart:io';
+
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Tasker request id, persisted with the existing widget action slot so the
-/// service can pair an action with the request waiting on it. Widget taps leave
-/// it absent.
-const String pendingWidgetActionRequestIdKey = "pendingWidgetActionRequestId";
+const MethodChannel _taskerSettingsChannel = MethodChannel('org.librescoot.mobile.unu/tasker_settings');
+
+Future<void> syncTaskerBackgroundScanSetting(bool enabled) async {
+  if (!Platform.isAndroid) return;
+  try {
+    await _taskerSettingsChannel.invokeMethod<void>('setBackgroundScan', {'enabled': enabled});
+  } on MissingPluginException {
+    // Tests and background Flutter engines do not own the activity channel.
+  }
+}
+
+/// Each Tasker request owns one preference entry. A single-key write is atomic,
+/// and separate request IDs cannot overwrite notification/widget actions or one
+/// another when Flutter isolates publish concurrently.
+const String pendingTaskerActionPrefix = "pendingTaskerAction.";
+
+String pendingTaskerActionKey(String requestId) => "$pendingTaskerActionPrefix$requestId";
+
+class PendingTaskerAction {
+  const PendingTaskerAction(this.requestId, this.action);
+
+  final String requestId;
+  final String action;
+}
+
+Future<bool> persistTaskerAction(String requestId, String action) async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.setString(pendingTaskerActionKey(requestId), action);
+}
+
+Future<List<PendingTaskerAction>> pendingTaskerActions(SharedPreferences prefs) async {
+  await prefs.reload();
+  final actions = <PendingTaskerAction>[];
+  for (final key in prefs.getKeys()) {
+    if (!key.startsWith(pendingTaskerActionPrefix)) continue;
+    final action = prefs.getString(key);
+    if (action == null) continue;
+    actions.add(PendingTaskerAction(key.substring(pendingTaskerActionPrefix.length), action));
+  }
+  actions.sort((a, b) => a.requestId.compareTo(b.requestId));
+  return actions;
+}
 
 /// Results are stored as `actionResult.<requestId>` -> `<epochMillis>:<result>`.
 const String taskerResultPrefix = "actionResult.";
@@ -35,12 +76,7 @@ String taskerResultForError(Object error) {
 /// replay it.
 Future<void> dropAndReport(String requestId, String result) async {
   final prefs = await SharedPreferences.getInstance();
-  await prefs.reload();
-  if (prefs.getString(pendingWidgetActionRequestIdKey) == requestId) {
-    await prefs.setBool("pendingWidgetAction", false);
-    await prefs.remove("pendingWidgetActionName");
-    await prefs.remove(pendingWidgetActionRequestIdKey);
-  }
+  await prefs.remove(pendingTaskerActionKey(requestId));
   await publishActionResult(requestId, result);
 }
 

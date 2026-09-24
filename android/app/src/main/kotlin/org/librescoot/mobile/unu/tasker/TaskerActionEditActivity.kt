@@ -1,7 +1,6 @@
 package org.librescoot.mobile.unu.tasker
 
 import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
@@ -21,6 +20,11 @@ class TaskerActionEditActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!TaskerAuthorization.isTrustedEditor(callingPackage)) {
+            setResult(RESULT_CANCELED)
+            finish()
+            return
+        }
         setTitle(R.string.tasker_config_title)
 
         val actions = TaskerAction.entries
@@ -71,9 +75,7 @@ class TaskerActionEditActivity : Activity() {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
-    private fun backgroundScanEnabled(): Boolean =
-        getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-            .getBoolean("flutter.backgroundScan", false)
+    private fun backgroundScanEnabled(): Boolean = TaskerSettings.backgroundScanEnabled(this)
 
     private fun previousAction(): TaskerAction? = TaskerAction.fromKey(
         intent.getBundleExtra(TaskerPluginProtocol.EXTRA_BUNDLE)
@@ -87,6 +89,7 @@ class TaskerActionEditActivity : Activity() {
     private fun save(action: TaskerAction) {
         val settings = Bundle().apply {
             putString(TaskerPluginProtocol.BUNDLE_KEY_ACTION, action.key)
+            TaskerAuthorization.authorize(this@TaskerActionEditActivity, this)
             putInt(TaskerPluginProtocol.EXTRA_REQUESTED_TIMEOUT, TaskerActionRunner.DEFAULT_TIMEOUT_MS.toInt())
             putStringArray(TaskerPluginProtocol.EXTRA_RELEVANT_VARIABLES, relevantVariables())
         }

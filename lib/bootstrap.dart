@@ -12,6 +12,7 @@ import 'package:shared_preferences/util/legacy_to_async_migration_util.dart';
 
 import 'app.dart';
 import 'background/bg_service.dart';
+import 'background/tasker_bridge.dart';
 import 'background/widget_handler.dart';
 import 'domain/log_helper.dart';
 import 'flutter/blue_plus_mockable.dart';
@@ -34,7 +35,9 @@ Future<void> bootstrap() async {
 
   await migrateSharedPrefs();
 
-  final String? localeString = await SharedPreferencesAsync().getString('savedLocale');
+  final asyncPreferences = SharedPreferencesAsync();
+  await syncTaskerBackgroundScanSetting(await asyncPreferences.getBool('backgroundScan') ?? false);
+  final String? localeString = await asyncPreferences.getString('savedLocale');
   if (localeString != null) {
     Logger("Main").fine("Saved locale: $localeString");
     final parts = localeString.split('_');
