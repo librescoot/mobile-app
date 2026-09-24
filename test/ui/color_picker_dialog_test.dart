@@ -74,8 +74,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('scooter-color-preview')));
     await tester.pump(const Duration(milliseconds: 260));
     expect(tester.getSize(backdrop), backdropSize);
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 400));
     expect(find.byKey(const ValueKey('scooter-color-side-#557064-true')), findsOneWidget);
+    final sideArtwork = find.byKey(const ValueKey('scooter-color-side-#557064-true-artwork'));
+    expect(tester.getSize(sideArtwork).height, 246);
+    expect(tester.getSize(sideArtwork).width, greaterThan(backdropSize.width));
 
     await tester.tap(find.byKey(const ValueKey('scooter-color-option-6')));
     await tester.pump(const Duration(milliseconds: 160));

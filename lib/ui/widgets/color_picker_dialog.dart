@@ -303,15 +303,24 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
     final renderedColor =
         _customColor ?? (usesLayeredScooterArtwork(selectedValue) ? layeredScooterColor(selectedValue) : null);
     final matte = _customColor == null ? layeredScooterColorIsMatte(selectedValue) : _customColorMatte;
-    return ScooterSideVisual(
-      key: ValueKey(
-        renderedColor == null ? 'scooter-color-side-$selectedValue' : 'scooter-color-side-$renderedColor-$matte',
+    final transitionKey =
+        renderedColor == null ? 'scooter-color-side-$selectedValue' : 'scooter-color-side-$renderedColor-$matte';
+    return OverflowBox(
+      key: ValueKey(transitionKey),
+      maxWidth: double.infinity,
+      maxHeight: double.infinity,
+      child: SizedBox(
+        key: ValueKey('$transitionKey-artwork'),
+        width: 246 * 2110 / 1738,
+        height: 246,
+        child: ScooterSideVisual(
+          imagePath: 'images/scooter/side_$selectedValue.webp',
+          height: 246,
+          showBackdrop: false,
+          renderedColor: renderedColor,
+          renderedColorMatte: matte,
+        ),
       ),
-      imagePath: 'images/scooter/side_$selectedValue.webp',
-      height: 160,
-      showBackdrop: false,
-      renderedColor: renderedColor,
-      renderedColorMatte: matte,
     );
   }
 

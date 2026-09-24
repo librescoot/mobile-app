@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image
 
 SIZES = {"front": (866, 1800), "side": (2110, 1738)}
 FRONT_MASTER_SIZE = (866, 1668)
@@ -52,29 +52,25 @@ def render_svg_elements(
         return rgba(png)
 
 
-def front_master_gloss(source: Path) -> np.ndarray:
-    tree = ET.parse(source / "front_master.svg")
+def noise_free_artwork(source: Path, view: str) -> np.ndarray:
+    master = view == "front"
+    tree = ET.parse(source / ("front_master.svg" if master else "side_4.svg"))
     root = tree.getroot()
+    paint_color = "#0F0F0F" if master else "#FF635A"
     for parent in root.iter():
         for child in list(parent):
             if "url(#pattern" in child.get("fill", ""):
                 parent.remove(child)
     for element in root.iter():
-        if element.get("fill", "").upper() == "#0F0F0F":
+        if element.get("fill", "").upper() == paint_color:
             element.set("fill", "white")
     elements = [child for child in root if child.tag.rsplit("}", 1)[-1] != "defs"]
-    return pad_front_master(render_svg_elements(tree, elements, FRONT_MASTER_SIZE))
-
-
-def front_master_ring_mask(source: Path) -> np.ndarray:
-    tree = ET.parse(source / "front_master.svg")
-    ring = next(
-        element
-        for element in tree.getroot()
-        if any(child.get("stroke", "").upper() == "#868686" for child in element)
+    rendered = render_svg_elements(
+        tree,
+        elements,
+        FRONT_MASTER_SIZE if master else SIZES["side"],
     )
-    rendered = render_svg_elements(tree, [ring], FRONT_MASTER_SIZE)
-    return pad_front_master(rendered)[:, :, 3] / 255
+    return pad_front_master(rendered) if master else rendered
 
 
 def front_master_masks(source: Path) -> tuple[np.ndarray, np.ndarray]:
@@ -196,33 +192,23 @@ def shadow_layer(source: Path, view: str, destination: Path) -> np.ndarray:
 
 
 def tone_layer(source: Path, view: str, finish: str, alpha: np.ndarray) -> np.ndarray:
-    use_master_matte = view == "front" and finish == "matte" and (source / "front_master@2x.png").exists()
-    use_master_gloss = view == "front" and finish == "gloss" and (source / "front_master.svg").exists()
-    if use_master_matte:
-        image = pad_front_master(rgba(source / "front_master@2x.png"))
-    elif use_master_gloss:
-        image = front_master_gloss(source)
-    else:
-        source_id = 3 if finish == "matte" else 1
-        image = rgba(source / f"{view}_{source_id}.png")
+    texture = (
+        pad_front_master(rgba(source / "front_master@2x.png"))
+        if view == "front"
+        else rgba(source / "side_4.png")
+    )
+    clean = noise_free_artwork(source, view)
 
-    luminance = np.dot(image[:, :, :3], [0.2126, 0.7152, 0.0722])
     painted = alpha > 0.5
+    clean_luminance = np.dot(clean[:, :, :3], [0.2126, 0.7152, 0.0722])
+    clean_baseline = np.median(clean_luminance[painted])
+    value = 128 + 0.8 * (clean_luminance - clean_baseline)
     if finish == "matte":
-        radius = 18 if view == "front" else 28
-        smoothed = np.asarray(
-            Image.fromarray(np.rint(luminance).astype(np.uint8), "L").filter(
-                ImageFilter.GaussianBlur(radius)
-            ),
-            dtype=np.float32,
-        )
-        baseline = np.median(smoothed[painted])
-        value = 128 + 1.2 * (smoothed - baseline) + 0.3 * (luminance - smoothed)
-    else:
-        baseline = np.median(luminance[painted])
-        value = 128 + 0.8 * (luminance - baseline)
+        texture_luminance = np.dot(texture[:, :, :3], [0.2126, 0.7152, 0.0722])
+        texture_baseline = np.median(texture_luminance[painted])
+        value += 0.3 * (texture_luminance - texture_baseline)
 
-    output = np.empty_like(image, dtype=np.uint8)
+    output = np.empty_like(texture, dtype=np.uint8)
     output[:, :, :3] = np.rint(np.clip(value, 0, 255)[:, :, None]).astype(np.uint8)
     output[:, :, 3] = np.rint(alpha * 255).astype(np.uint8)
     return output
@@ -237,8 +223,6 @@ def build_view(source: Path, output: Path, view: str) -> None:
     if use_master:
         base = pad_front_master(rgba(source / "front_master@2x.png"))
         foreground_alpha = front_master_masks(source)[1]
-        ring_alpha = front_master_ring_mask(source)
-        base[:, :, :3] *= 1 - 0.65 * ring_alpha[:, :, None]
         base[:, :, 3] *= 1 - alpha * (1 - foreground_alpha)
     else:
         base = rgba(source / f"{view}_1.png")
