@@ -1,0 +1,9 @@
+Nieuw sinds 1.3.0 (53):
+
+• Routes met meerdere stops, duidelijke voortgang en ritstatistieken
+• Duidelijkere verbindings- en nabijheidsstatussen in de scooterlijst
+• Demomodus, alarmstatus en functies afgestemd op de firmware
+• Verbeterde onboarding en indeling voor grote schermen
+• Een verbroken verbinding blijft verbroken tot je zelf opnieuw verbindt
+• Eigen lakkleuren met live matte of glanzende preview
+• Betere Bluetooth-hulp en vernieuwde scooterafbeeldingen

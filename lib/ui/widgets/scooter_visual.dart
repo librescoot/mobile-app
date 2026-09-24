@@ -6,7 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:shimmer/shimmer.dart';
 
 import 'package:unustasis/domain/scooter_state.dart';
+import 'package:unustasis/ui/theme/scooter_colors.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
+import 'package:unustasis/ui/widgets/eclipse_backdrop.dart';
+import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 
 class ScooterVisual extends StatefulWidget {
   final ScooterState? state;
@@ -14,12 +17,16 @@ class ScooterVisual extends StatefulWidget {
   final bool blinkerLeft;
   final bool blinkerRight;
   final int? color;
+  final String? customColor;
+  final bool customColorMatte;
   final bool winter;
   final bool aprilFools;
   final bool halloween;
   final Random? random;
   final List<int> surpriseThresholds;
   final Duration? surpriseDuration;
+  final bool showEclipseBackdrop;
+  final ValueChanged<int?>? onSurpriseChanged;
 
   const ScooterVisual({
     required this.state,
@@ -30,9 +37,13 @@ class ScooterVisual extends StatefulWidget {
     this.aprilFools = false,
     this.halloween = false,
     this.color,
+    this.customColor,
+    this.customColorMatte = true,
     this.random,
     this.surpriseThresholds = const [42, 69, 83],
     this.surpriseDuration,
+    this.showEclipseBackdrop = true,
+    this.onSurpriseChanged,
     super.key,
   });
 
@@ -86,8 +97,13 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
     super.didUpdateWidget(oldWidget);
 
     if (widget.color != oldWidget.color ||
+        widget.customColor != oldWidget.customColor ||
+        widget.customColorMatte != oldWidget.customColorMatte ||
         (widget.state == ScooterState.disconnected && oldWidget.state != ScooterState.disconnected)) {
       _surpriseTimer?.cancel();
+      if (_surpriseColor != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => widget.onSurpriseChanged?.call(null));
+      }
       _surpriseColor = null;
       _tapCount = 0;
       _tapThreshold = _nextTapThreshold();
@@ -158,6 +174,7 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
       _surpriseColor = choices[_rand.nextInt(choices.length)];
       _shakeIntensity = 8;
     });
+    widget.onSurpriseChanged?.call(_surpriseColor);
     HapticFeedback.mediumImpact();
     _tapAnimation.forward(from: 0);
     final duration = widget.surpriseDuration ?? Duration(seconds: 10 + _rand.nextInt(21));
@@ -169,6 +186,7 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
         _tapThreshold = _nextTapThreshold();
         _shakeIntensity = 0;
       });
+      widget.onSurpriseChanged?.call(null);
     });
   }
 
@@ -240,9 +258,16 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final displayColor = _surpriseColor ?? _regularColor;
+    final layeredColor = _surpriseColor == null && !widget.aprilFools
+        ? widget.customColor ?? (usesLayeredScooterArtwork(displayColor) ? layeredScooterColor(displayColor) : null)
+        : null;
+    final layeredMatte =
+        widget.customColor == null ? layeredScooterColorIsMatte(displayColor) : widget.customColorMatte;
+    final showEclipse = widget.showEclipseBackdrop && layeredColor == null && displayColor == 7;
     return Stack(
       alignment: Alignment.center,
       children: [
+        if (showEclipse) EclipseBackdrop(diameter: MediaQuery.sizeOf(context).width * 0.85),
         if (widget.halloween)
           AnimatedOpacity(
             opacity: widget.state == ScooterState.disconnected ? 0 : 1,
@@ -309,11 +334,18 @@ class _ScooterVisualState extends State<ScooterVisual> with SingleTickerProvider
                               child: child,
                             ),
                           ),
-                          child: Image(
-                            key: ValueKey('scooter-skin-$displayColor'),
-                            gaplessPlayback: true,
-                            image: AssetImage("images/scooter/base_$displayColor.webp"),
-                          ),
+                          child: layeredColor == null
+                              ? Image(
+                                  key: ValueKey('scooter-skin-$displayColor'),
+                                  gaplessPlayback: true,
+                                  image: AssetImage("images/scooter/base_$displayColor.webp"),
+                                )
+                              : RenderedScooterArtwork(
+                                  key: ValueKey('scooter-skin-$layeredColor-$layeredMatte'),
+                                  view: ScooterArtworkView.front,
+                                  color: layeredColor,
+                                  matte: layeredMatte,
+                                ),
                         ),
                         crossFadeState: widget.state == ScooterState.disconnected
                             ? CrossFadeState.showFirst

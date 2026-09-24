@@ -21,6 +21,8 @@ class _CountingScooter extends SavedScooter {
     required super.id,
     required super.name,
     super.color,
+    super.customColor,
+    super.customColorMatte,
     super.isLibrescoot,
     super.supportsHibernateFor,
   });
@@ -58,8 +60,7 @@ class _Service extends ChangeNotifier implements ScooterService {
   bool scooterPresenceKnown = false;
   @override
   String? autoConnectPriorityId;
-  int stopAutoRestartCalls = 0;
-  int disconnectCalls = 0;
+  int pauseConnectionCalls = 0;
   @override
   Future<void> refreshScooterPresence() async {}
   @override
@@ -73,9 +74,7 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   void refreshOdometer() {}
   @override
-  void stopAutoRestart({bool clearManualTarget = true}) => stopAutoRestartCalls++;
-  @override
-  void disconnectAndClearDevice() => disconnectCalls++;
+  Future<void> pauseConnections() async => pauseConnectionCalls++;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw StateError('Unexpected service call: ${invocation.memberName}');
@@ -153,6 +152,21 @@ void main() {
     expect(scooter.nameReads, readsAfterFirstBuild);
   });
 
+  testWidgets('cards use rendered artwork for custom finishes', (tester) async {
+    final scooter = _CountingScooter(
+      id: 'A',
+      name: 'Alpha',
+      customColor: '#123456',
+      customColorMatte: false,
+    );
+    final service = _Service([scooter]);
+    await _mount(tester, service);
+
+    final visual = tester.widget<ScooterSideVisual>(find.byType(ScooterSideVisual));
+    expect(visual.renderedColor, '#123456');
+    expect(visual.renderedColorMatte, isFalse);
+  });
+
   testWidgets('card hierarchy stays stable and labels disconnected scooters', (tester) async {
     final scooter = _CountingScooter(id: 'A', name: 'Alpha');
     final service = _Service([scooter]);
@@ -225,16 +239,14 @@ void main() {
 
     await tester.longPress(find.byType(SavedScooterCard));
     await tester.pump();
-    expect(service.stopAutoRestartCalls, 1);
-    expect(service.disconnectCalls, 1);
+    expect(service.pauseConnectionCalls, 1);
 
     await tester.tap(find.byIcon(Icons.more_horiz));
     await tester.pumpAndSettle();
     expect(find.text('Disconnect'), findsOneWidget);
     await tester.tap(find.text('Disconnect'));
     await tester.pumpAndSettle();
-    expect(service.stopAutoRestartCalls, 2);
-    expect(service.disconnectCalls, 2);
+    expect(service.pauseConnectionCalls, 2);
   });
 
   testWidgets('animates a newly connected scooter to the top', (tester) async {
@@ -281,7 +293,7 @@ void main() {
   });
 
   testWidgets('list enlarges artwork and marks confirmed Librescoot identity with its backdrop', (tester) async {
-    final live = _CountingScooter(id: 'A', name: 'Live', color: 1);
+    final live = _CountingScooter(id: 'A', name: 'Live', color: 0);
     final cached = _CountingScooter(
       id: 'B',
       name: 'Cached',
@@ -339,7 +351,7 @@ void main() {
 
     final visuals = tester.widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual)).toList();
     expect(visuals, hasLength(3));
-    final liveVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
+    final liveVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_0.webp'));
     final cachedVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_2.webp'));
     final stockVisual = visuals.singleWhere((visual) => visual.imagePath.endsWith('side_3.webp'));
     expect(liveVisual.height, closeTo(412 * 0.18, 0.01));
@@ -355,7 +367,7 @@ void main() {
     await tester.pump();
     final unconfirmedLiveVisual = tester
         .widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual))
-        .singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
+        .singleWhere((visual) => visual.imagePath.endsWith('side_0.webp'));
     expect(unconfirmedLiveVisual.backdropColor, isNull);
 
     service.identity
@@ -365,7 +377,7 @@ void main() {
     await tester.pump();
     final stockLiveVisual = tester
         .widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual))
-        .singleWhere((visual) => visual.imagePath.endsWith('side_1.webp'));
+        .singleWhere((visual) => visual.imagePath.endsWith('side_0.webp'));
     expect(stockLiveVisual.backdropColor, isNull);
 
     for (final icon in tester.widgetList<Icon>(find.byIcon(Icons.more_horiz))) {
@@ -376,13 +388,27 @@ void main() {
     }
   });
 
+  testWidgets('Eclipse artwork replaces the solid card and list backdrops', (tester) async {
+    final eclipse = _CountingScooter(id: 'A', name: 'Eclipse', color: 7);
+    final other = _CountingScooter(id: 'B', name: 'Other', color: 1);
+    final service = _Service([eclipse, other]);
+    await _mount(tester, service);
+
+    ScooterSideVisual eclipseVisual() => tester
+        .widgetList<ScooterSideVisual>(find.byType(ScooterSideVisual))
+        .singleWhere((visual) => visual.imagePath.endsWith('side_7.webp'));
+    expect(eclipseVisual().eclipseBackdrop, isTrue);
+    await tester.tap(find.byIcon(Icons.list));
+    await tester.pumpAndSettle();
+    expect(eclipseVisual().eclipseBackdrop, isTrue);
+  });
+
   testWidgets('confirmed Librescoot artwork keeps its subdued backdrop in dark mode', (tester) async {
     final scooter = _CountingScooter(id: 'A', name: 'Alpha');
     final service = _Service([scooter]);
     await _mount(tester, service, brightness: Brightness.dark);
 
-    expect(tester.widget<ScooterSideVisual>(find.byType(ScooterSideVisual)).backdropColor,
-        const Color(0xFF225661));
+    expect(tester.widget<ScooterSideVisual>(find.byType(ScooterSideVisual)).backdropColor, const Color(0xFF225661));
   });
 
   testWidgets('stale Bluetooth warning stays compact and opens guidance', (tester) async {

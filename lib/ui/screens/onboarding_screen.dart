@@ -16,6 +16,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:unustasis/domain/scooter_candidate.dart';
 import 'package:unustasis/ui/theme/scooter_colors.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
+import 'package:unustasis/ui/widgets/scooter_color_swatch.dart';
 import 'package:unustasis/ui/widgets/scooter_picker.dart';
 import 'package:unustasis/ui/screens/home_screen.dart';
 import 'package:unustasis/scooter_service.dart';
@@ -787,26 +788,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     bool selected = false,
   }) {
     return Semantics(
-      label: scooterColors[color]!.simpleName,
+      button: true,
+      selected: selected,
+      label: FlutterI18n.translate(context, "color_${scooterColors[color]!.simpleName}"),
       child: GestureDetector(
         onTap: onTap,
-        child: Container(
-          width: 48,
-          height: 48,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? Theme.of(context).colorScheme.primary : Colors.transparent,
-            shape: BoxShape.circle,
-          ),
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: scooterColors[color]!.displayColor,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.grey.shade500, width: 1),
-            ),
-          ),
+        child: ScooterColorSwatch(
+          scooterColor: scooterColors[color]!,
+          selected: selected,
+          size: 48,
         ),
       ),
     );
@@ -837,12 +827,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (var index = 0; index < 7; index++) ...[
-                    if (index > 0) const SizedBox(width: 16),
+                  for (final (position, color) in standardScooterColorValues.indexed) ...[
+                    if (position > 0) const SizedBox(width: 16),
                     _colorButton(
-                      color: index,
-                      selected: _pendingColor == index,
-                      onTap: () => setState(() => _pendingColor = index),
+                      color: color,
+                      selected: _pendingColor == color,
+                      onTap: () => setState(() => _pendingColor = color),
                     ),
                   ],
                 ],

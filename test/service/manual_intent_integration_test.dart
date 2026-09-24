@@ -280,13 +280,15 @@ class _Service extends ScooterService {
       {Future<LatLng?> Function()? pollLocation,
       bool initializeRuntime = false,
       bool background = true,
-      bool allowAutomaticActions = true})
+      bool allowAutomaticActions = true,
+      bool connectionsPaused = false})
       : super(
           pollLocation: pollLocation ?? (() async => null),
           storage: storage,
           initializeRuntime: initializeRuntime,
           isInBackgroundService: background,
           allowAutomaticActions: allowAutomaticActions,
+          connectionsPaused: connectionsPaused,
           deviceFromId: (id) {
             deviceRequests.add(id);
             return devices[id]!;
@@ -391,12 +393,13 @@ class _ClaimPreferences extends InMemorySharedPreferencesStore {
 }
 
 class _WidgetHarness {
-  _WidgetHarness({bool holdA = false}) {
+  _WidgetHarness({bool holdA = false, bool connectionsPaused = false}) {
     if (!holdA) a.connection.complete();
     b.connection.complete();
     service = ScooterService(bluetooth,
         isInBackgroundService: true,
         initializeRuntime: false,
+        connectionsPaused: connectionsPaused,
         storage: _Storage(),
         pollLocation: () async => null,
         deviceFromId: (id) {
@@ -453,6 +456,11 @@ final class _RuntimePreferences extends SharedPreferencesAsyncPlatform {
     reads.add(key);
     await gates[key]?.future;
     return values[key] as int?;
+  }
+
+  @override
+  Future<void> setBool(String key, bool value, SharedPreferencesOptions options) async {
+    values[key] = value;
   }
 
   @override
@@ -548,6 +556,40 @@ void main() {
     expect(h.writes('A'), isEmpty);
     expect(h.writes('B'), isEmpty);
     expect(h.service.connected, isTrue);
+    await h.expectPending(null);
+  });
+
+  testWidgets('explicit pause disconnects, clears widget work, and blocks passive reconnect', (tester) async {
+    final h = _WidgetHarness();
+    addTearDown(h.dispose);
+    await h.pending('unlock');
+    await h.service.connectToScooterId('A');
+    expect(h.service.connected, isTrue);
+
+    await h.service.pauseConnections();
+
+    expect(h.service.connected, isFalse);
+    expect(h.service.connectionsPaused, isTrue);
+    expect(await SharedPreferencesAsync().getBool(connectionPausedPreferenceKey), isTrue);
+    await h.expectPending(null);
+    final requestsBeforeRetry = h.requests.length;
+    expect(await h.service.attemptLatestAutoConnection(), isFalse);
+    expect(h.requests, hasLength(requestsBeforeRetry));
+  });
+
+  test('widget connect explicitly resumes a paused connection', () async {
+    final h = _WidgetHarness(connectionsPaused: true);
+    addTearDown(h.dispose);
+    expect(await h.service.attemptLatestAutoConnection(), isFalse);
+    expect(h.requests, isEmpty);
+
+    await h.pending('connect');
+    await background.executeWidgetAction('connect');
+
+    expect(h.service.connectionsPaused, isFalse);
+    expect(await SharedPreferencesAsync().getBool(connectionPausedPreferenceKey), isFalse);
+    expect(h.service.connected, isTrue);
+    expect(h.requests, ['A']);
     await h.expectPending(null);
   });
 

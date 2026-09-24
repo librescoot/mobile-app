@@ -83,6 +83,9 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     needs: build
+    concurrency:
+      group: google-play-publish
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write

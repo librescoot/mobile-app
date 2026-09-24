@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
 
 void main() {
   Widget buildVisual(
     Brightness brightness, {
     Color? backdropColor,
+    bool eclipseBackdrop = false,
+    String? renderedColor,
+    bool renderedColorMatte = true,
   }) =>
       MaterialApp(
         theme: ThemeData(brightness: brightness),
@@ -15,6 +19,9 @@ void main() {
             height: 160,
             backdropDiameter: 264,
             backdropColor: backdropColor,
+            eclipseBackdrop: eclipseBackdrop,
+            renderedColor: renderedColor,
+            renderedColorMatte: renderedColorMatte,
           ),
         ),
       );
@@ -46,6 +53,98 @@ void main() {
     final decoration = backdrop.decoration! as BoxDecoration;
     expect(decoration.color, librescootColor);
     expect(decoration.border, isNull);
+  });
+
+  testWidgets('Eclipse replaces the solid disk with a radial ring in either theme', (tester) async {
+    await tester.pumpWidget(
+      buildVisual(
+        Brightness.light,
+        backdropColor: const Color(0xFFB8DCDD),
+        eclipseBackdrop: true,
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('scooter-side-dark-backdrop')), findsNothing);
+    final backdrop = tester.widget<Container>(find.byKey(const ValueKey('eclipse-backdrop')));
+    final decoration = backdrop.decoration! as BoxDecoration;
+    expect(decoration.gradient, isA<RadialGradient>());
+    expect(decoration.color, isNull);
+  });
+
+  testWidgets('uses cached rendered artwork for a custom finish', (tester) async {
+    await tester.pumpWidget(
+      buildVisual(
+        Brightness.light,
+        renderedColor: '#123456',
+        renderedColorMatte: false,
+      ),
+    );
+
+    final artworkFinder = find.byType(RenderedScooterArtwork);
+    final artwork = tester.widget<RenderedScooterArtwork>(artworkFinder);
+    expect(tester.getSize(artworkFinder).height, 160);
+    expect(tester.getSize(artworkFinder).width, closeTo(160 * 2110 / 1738, 0.1));
+    expect(artwork.color, '#123456');
+    expect(artwork.matte, isFalse);
+    expect(find.byKey(const ValueKey('custom-paint-gloss-layer')), findsOneWidget);
+    expect(find.byKey(const ValueKey('custom-paint-matte-layer')), findsNothing);
+  });
+
+  testWidgets('keeps lights and details above the matte finish', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: RenderedScooterArtwork(
+          view: ScooterArtworkView.front,
+          color: '#202020',
+          matte: true,
+          height: 160,
+        ),
+      ),
+    );
+
+    final stack = tester.widget<Stack>(
+      find.descendant(
+        of: find.byType(RenderedScooterArtwork),
+        matching: find.byType(Stack),
+      ),
+    );
+    final matteIndex = stack.children.indexWhere(
+      (child) => child.key == const ValueKey('custom-paint-matte-layer'),
+    );
+    final detailsIndex = stack.children.indexWhere(
+      (child) => child.key == const ValueKey('scooter-artwork-details'),
+    );
+    expect(matteIndex, greaterThanOrEqualTo(0));
+    expect(detailsIndex, greaterThan(matteIndex));
+  });
+
+  testWidgets('can omit the independently rendered ground shadow', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: RenderedScooterArtwork(
+          view: ScooterArtworkView.side,
+          color: '#123456',
+          matte: true,
+          showShadow: false,
+          height: 160,
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('scooter-ground-shadow')), findsNothing);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: RenderedScooterArtwork(
+          view: ScooterArtworkView.side,
+          color: '#123456',
+          matte: true,
+          height: 160,
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('scooter-ground-shadow')), findsOneWidget);
   });
 
   testWidgets('does not add the dark backdrop in light mode', (tester) async {

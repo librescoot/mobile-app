@@ -283,7 +283,7 @@ void main() {
         await drainPreferenceWrites();
         expect(store.scooters.keys, ['unknown']);
         expect(store.scooters['unknown']!.name, kind == 'rename' ? 'New' : 'Scooter Pro');
-        expect(store.scooters['unknown']!.color, kind == 'rename' ? 1 : 7);
+        expect(store.scooters['unknown']!.color, kind == 'rename' ? 3 : 7);
         expect(prefs.saved.containsKey('unknown'), kind == 'rename');
         expect(trace, [
           {'updateSavedScooters': true},

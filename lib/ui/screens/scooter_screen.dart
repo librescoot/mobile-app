@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unustasis/ui/screens/home_screen.dart';
 import 'package:unustasis/ui/presentation/relative_time.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
+import 'package:unustasis/ui/theme/scooter_colors.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
@@ -25,9 +26,8 @@ final _log = Logger("ScooterSection");
 const _librescootDarkBackdropColor = Color(0xFF225661);
 const _librescootLightBackdropColor = Color(0xFFB8DCDD);
 
-Color _librescootBackdropColor(BuildContext context) => Theme.of(context).brightness == Brightness.dark
-    ? _librescootDarkBackdropColor
-    : _librescootLightBackdropColor;
+Color _librescootBackdropColor(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark ? _librescootDarkBackdropColor : _librescootLightBackdropColor;
 
 enum ScooterTileStatus { disconnected, outOfRange, nearbyManual, nearbyAuto, waiting, connecting, connected }
 
@@ -273,9 +273,7 @@ Future<void> showScooterActionsSheet(
 
 void disconnectScooter(BuildContext context, {required void Function() onListChanged}) {
   HapticFeedback.mediumImpact();
-  final service = context.read<ScooterService>();
-  service.stopAutoRestart();
-  service.disconnectAndClearDevice();
+  unawaited(context.read<ScooterService>().pauseConnections());
   onListChanged();
 }
 
@@ -749,18 +747,30 @@ class _SavedScooterCardBody extends StatelessWidget {
     this.onNavigateBack,
   });
 
-  void setColor(int newColor, BuildContext context) async {
-    savedScooter.color = newColor;
-    SharedPreferencesAsync prefs = SharedPreferencesAsync();
-    await prefs.setInt("color", newColor);
-    if (context.mounted) context.read<ScooterService>().scooterColor = newColor;
+  void setColor(ScooterColorSelection selection, BuildContext context) async {
+    if (selection.isCustom) {
+      savedScooter.setCustomColor(selection.customColor!, matte: selection.matte);
+    } else {
+      savedScooter.color = selection.color;
+    }
+    if (!context.mounted) return;
+    final service = context.read<ScooterService>();
+    if (service.currentScooterId != savedScooter.id) return;
+    await SharedPreferencesAsync().setInt("color", selection.color);
+    if (context.mounted) service.scooterColor = selection.color;
   }
 
   Future<void> _changeColor(BuildContext context) async {
     HapticFeedback.mediumImpact();
-    final newColor = await showColorDialog(savedScooter.color, savedScooter.name, context);
-    if (newColor != null && context.mounted) {
-      setColor(newColor, context);
+    final selection = await showColorDialog(
+      savedScooter.color,
+      savedScooter.name,
+      context,
+      initialCustomColor: savedScooter.customColor,
+      initialCustomColorMatte: savedScooter.customColorMatte,
+    );
+    if (selection != null && context.mounted) {
+      setColor(selection, context);
       rebuild();
     }
   }
@@ -855,6 +865,16 @@ class _SavedScooterCardBody extends StatelessWidget {
                           height: 160,
                           backdropDiameter: 264,
                           backdropColor: isLibrescoot ? _librescootBackdropColor(context) : null,
+                          eclipseBackdrop: !forceHover && !savedScooter.hasCustomColor && savedScooter.color == 7,
+                          renderedColor: forceHover
+                              ? null
+                              : savedScooter.customColor ??
+                                  (usesLayeredScooterArtwork(savedScooter.color)
+                                      ? layeredScooterColor(savedScooter.color)
+                                      : null),
+                          renderedColorMatte: savedScooter.hasCustomColor
+                              ? savedScooter.customColorMatte
+                              : layeredScooterColorIsMatte(savedScooter.color),
                         ),
                       ),
                     ),
@@ -1166,6 +1186,14 @@ class _SavedScooterListItemBody extends StatelessWidget {
                           imagePath: "images/scooter/side_${savedScooter.color}.webp",
                           height: MediaQuery.of(context).size.width * 0.18,
                           backdropColor: isLibrescoot ? _librescootBackdropColor(context) : null,
+                          eclipseBackdrop: !savedScooter.hasCustomColor && savedScooter.color == 7,
+                          renderedColor: savedScooter.customColor ??
+                              (usesLayeredScooterArtwork(savedScooter.color)
+                                  ? layeredScooterColor(savedScooter.color)
+                                  : null),
+                          renderedColorMatte: savedScooter.hasCustomColor
+                              ? savedScooter.customColorMatte
+                              : layeredScooterColorIsMatte(savedScooter.color),
                         ),
                       ),
                     ),
@@ -1312,18 +1340,30 @@ class _SavedScooterListItemBody extends StatelessWidget {
 
   Future<void> _forget(BuildContext context) => forgetScooter(context, savedScooter, onListChanged: onListChanged);
 
-  void setColor(int newColor, BuildContext context) async {
-    savedScooter.color = newColor;
-    SharedPreferencesAsync prefs = SharedPreferencesAsync();
-    await prefs.setInt("color", newColor);
-    if (context.mounted) context.read<ScooterService>().scooterColor = newColor;
+  void setColor(ScooterColorSelection selection, BuildContext context) async {
+    if (selection.isCustom) {
+      savedScooter.setCustomColor(selection.customColor!, matte: selection.matte);
+    } else {
+      savedScooter.color = selection.color;
+    }
+    if (!context.mounted) return;
+    final service = context.read<ScooterService>();
+    if (service.currentScooterId != savedScooter.id) return;
+    await SharedPreferencesAsync().setInt("color", selection.color);
+    if (context.mounted) service.scooterColor = selection.color;
   }
 
   Future<void> _changeColor(BuildContext context) async {
     HapticFeedback.mediumImpact();
-    final newColor = await showColorDialog(savedScooter.color, savedScooter.name, context);
-    if (newColor != null && context.mounted) {
-      setColor(newColor, context);
+    final selection = await showColorDialog(
+      savedScooter.color,
+      savedScooter.name,
+      context,
+      initialCustomColor: savedScooter.customColor,
+      initialCustomColorMatte: savedScooter.customColorMatte,
+    );
+    if (selection != null && context.mounted) {
+      setColor(selection, context);
       rebuild();
     }
   }

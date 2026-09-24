@@ -141,6 +141,9 @@ jobs:
     needs: [meta, android]
     if: needs.android.result == 'success'
     environment: ${{ needs.meta.outputs.play_track }}
+    concurrency:
+      group: google-play-publish
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write

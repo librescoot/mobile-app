@@ -258,7 +258,7 @@ void main() {
   test('rename creates missing entries and persists existing entries', () async {
     await storage.rename('a', 'Alpha');
     final a = storage.scooters['a']!;
-    expect(a.color, 1);
+    expect(a.color, 3);
     expect(prefs.saved['a'], a.toJson());
     await storage.rename('a', 'Beta');
     await drainPreferenceWrites();

@@ -11,6 +11,13 @@ import 'nav_destination.dart';
 
 DateTime? _dateTimeFromMicros(Object? value) => value is int ? DateTime.fromMicrosecondsSinceEpoch(value) : null;
 
+String? _normalizeCustomColor(Object? value) {
+  if (value is! String) return null;
+  final normalized = value.startsWith('#') ? value.substring(1) : value;
+  if (!RegExp(r'^[0-9a-fA-F]{6}$').hasMatch(normalized)) return null;
+  return '#${normalized.toUpperCase()}';
+}
+
 Map<String, dynamic> _tripCounterToJson(TripCounterSnapshot snapshot) => {
       'distanceMeters': snapshot.distanceMeters,
       'ridingSeconds': snapshot.ridingSeconds,
@@ -45,6 +52,8 @@ class SavedScooter implements SavedScooterRecord {
   String _name;
   String _id;
   int _color;
+  String? _customColor;
+  bool _customColorMatte;
   DateTime _lastPing;
   bool _autoConnect;
   bool _autoUnlock;
@@ -76,6 +85,8 @@ class SavedScooter implements SavedScooterRecord {
     required String id,
     String? name,
     int? color,
+    String? customColor,
+    bool? customColorMatte,
     DateTime? lastPing,
     bool? autoConnect,
     bool? autoUnlock,
@@ -104,7 +115,9 @@ class SavedScooter implements SavedScooterRecord {
     List<NavDestination>? cachedDestinations,
   })  : _name = name ?? "Scooter Pro",
         _id = id,
-        _color = color ?? 1,
+        _color = color == null || color == 1 ? 3 : color,
+        _customColor = _normalizeCustomColor(customColor),
+        _customColorMatte = customColorMatte ?? true,
         _lastPing = lastPing ?? DateTime.now(),
         _autoConnect = autoConnect ?? true,
         _autoUnlock = autoUnlock ?? false,
@@ -140,7 +153,16 @@ class SavedScooter implements SavedScooterRecord {
 
   @override
   set color(int color) {
-    _color = color;
+    _color = color == 1 ? 3 : color;
+    _customColor = null;
+    updateSharedPreferences();
+  }
+
+  void setCustomColor(String color, {required bool matte}) {
+    final normalized = _normalizeCustomColor(color);
+    if (normalized == null) throw ArgumentError.value(color, 'color', 'Expected #RRGGBB');
+    _customColor = normalized;
+    _customColorMatte = matte;
     updateSharedPreferences();
   }
 
@@ -283,6 +305,9 @@ class SavedScooter implements SavedScooterRecord {
   String get id => _id;
   @override
   int get color => _color;
+  String? get customColor => _customColor;
+  bool get customColorMatte => _customColorMatte;
+  bool get hasCustomColor => _customColor != null;
   @override
   DateTime get lastPing => _lastPing;
   @override
@@ -323,6 +348,8 @@ class SavedScooter implements SavedScooterRecord {
         'id': _id,
         'name': _name,
         'color': _color,
+        'customColor': _customColor,
+        'customColorMatte': _customColorMatte,
         'lastPing': _lastPing.microsecondsSinceEpoch,
         'autoConnect': _autoConnect,
         'autoUnlock': _autoUnlock,
@@ -359,6 +386,8 @@ class SavedScooter implements SavedScooterRecord {
       id: id,
       name: map['name'],
       color: map['color'],
+      customColor: map['customColor'],
+      customColorMatte: map['customColorMatte'],
       lastPing: map.containsKey('lastPing') ? DateTime.fromMicrosecondsSinceEpoch(map['lastPing']) : DateTime.now(),
       autoConnect: map['autoConnect'],
       autoUnlock: map['autoUnlock'] ?? false,

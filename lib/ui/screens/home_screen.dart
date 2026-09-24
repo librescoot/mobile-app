@@ -144,6 +144,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _forceHover = false;
   bool _spring = false;
   bool _fall = false;
+  String? _surpriseScooterId;
 
   @override
   void initState() {
@@ -256,6 +257,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final largeScreen = MediaQuery.sizeOf(context).shortestSide >= 600;
     final cornerInset = largeScreen ? 24.0 : 8.0;
     final cornerTop = largeScreen ? 16.0 : 0.0;
+    final currentScooterId = context.select<ScooterService, String?>((service) => service.currentScooterId);
+    final identityColor = context.select<ScooterService, int?>((service) => service.identity.color);
+    final scooterAppearance =
+        context.select<ScooterService, ({int? color, String? customColor, bool customColorMatte})>(
+      (service) {
+        try {
+          final savedScooter = service.savedScooters[service.currentScooterId];
+          return (
+            color: savedScooter?.color,
+            customColor: savedScooter?.customColor,
+            customColorMatte: savedScooter?.customColorMatte ?? true,
+          );
+        } on NoSuchMethodError {
+          return (color: null, customColor: null, customColorMatte: true);
+        }
+      },
+    );
+    final scooterColor = scooterAppearance.color ?? identityColor ?? 1;
     // Resolved once per build: provider forbids select() from nested builders.
     final ({AlarmStatus? status, bool unsupported}) alarm =
         context.select<ScooterService, ({AlarmStatus? status, bool unsupported})>((service) => (
@@ -263,6 +282,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               unsupported: service.identity.supportsAlarmControl == false,
             ));
     final triggeredAlarm = alarm.status != null && alarm.status!.isTriggered ? alarm.status : null;
+    final eclipseBackdrop = triggeredAlarm == null &&
+        ((scooterAppearance.customColor == null && scooterColor == 7) ||
+            (currentScooterId != null && _surpriseScooterId == currentScooterId));
     // Firmware that reports no alarm command category cannot be commanded, so
     // the button must not pretend. Unknown counts as available: the alarm is
     // sounding now, and a rejected command reports itself on the button.
@@ -357,7 +379,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 children: [
                                   // A sounding alarm needs the circle in either
                                   // theme; otherwise it stays a dark-mode flourish.
-                                  if (context.isDarkMode || triggeredAlarm != null)
+                                  if (context.isDarkMode || triggeredAlarm != null || eclipseBackdrop)
                                     IgnorePointer(
                                       child: StateCircle(
                                         connected: context.select((ScooterService service) => service.connected),
@@ -366,16 +388,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                         halloween: _fall,
                                         fall: false,
                                         alarm: triggeredAlarm != null,
+                                        eclipse: eclipseBackdrop,
                                       ),
                                     ),
                                   ScooterVisual(
-                                    key: ValueKey(
-                                      context.select<ScooterService, String?>((service) => service.currentScooterId),
-                                    ),
-                                    color: context.select<ScooterService, int?>(
-                                          (service) => service.identity.color,
-                                        ) ??
-                                        1,
+                                    key: ValueKey(currentScooterId),
+                                    color: scooterColor,
+                                    customColor: scooterAppearance.customColor,
+                                    customColorMatte: scooterAppearance.customColorMatte,
                                     state: context.select(
                                       (ScooterService service) => service.state,
                                     ),
@@ -387,6 +407,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     winter: _snowing,
                                     aprilFools: _forceHover,
                                     halloween: _fall && context.isDarkMode,
+                                    showEclipseBackdrop: false,
+                                    onSurpriseChanged: (color) {
+                                      if (!mounted) return;
+                                      setState(() => _surpriseScooterId = color == 7 ? currentScooterId : null);
+                                    },
                                   ),
                                 ],
                               ),

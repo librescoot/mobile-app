@@ -1,0 +1,8 @@
+Nouveautés depuis la 1.3.0 (53) :
+
+• Itinéraires à plusieurs étapes et statistiques de trajet sur les systèmes Librescoot compatibles
+• Liste des scooters revue avec des états de connexion et de proximité plus clairs
+• Mode démo, état de l’alarme et fonctions adaptées au firmware
+• Accueil et affichage sur grand écran améliorés
+• Une déconnexion reste active jusqu’à une reconnexion explicite
+• Nouvelle apparence Eclipse

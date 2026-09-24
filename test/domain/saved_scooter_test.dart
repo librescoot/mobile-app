@@ -42,6 +42,8 @@ void main() {
       id: 'outer-id',
       name: 'Commuter',
       color: 3,
+      customColor: '#123abc',
+      customColorMatte: false,
       lastPing: DateTime.fromMicrosecondsSinceEpoch(micros, isUtc: true),
       autoConnect: false,
       autoUnlock: true,
@@ -89,6 +91,8 @@ void main() {
       'id': 'outer-id',
       'name': 'Commuter',
       'color': 3,
+      'customColor': '#123ABC',
+      'customColorMatte': false,
       'lastPing': micros,
       'autoConnect': false,
       'autoUnlock': true,
@@ -149,7 +153,7 @@ void main() {
     final after = DateTime.now();
     expect(scooter.id, 'key');
     expect(scooter.name, 'Scooter Pro');
-    expect(scooter.color, 1);
+    expect(scooter.color, 3);
     expect(scooter.autoConnect, isTrue);
     expect(scooter.lastPing.microsecondsSinceEpoch,
         inInclusiveRange(before.microsecondsSinceEpoch, after.microsecondsSinceEpoch));
@@ -226,9 +230,36 @@ void main() {
       'autoConnect': null,
     });
     expect(scooter.name, 'Scooter Pro');
-    expect(scooter.color, 1);
+    expect(scooter.color, 3);
     expect(scooter.autoConnect, isTrue);
     expect(() => SavedScooter.fromJson('id', {'lastPing': null}), throwsA(isA<TypeError>()));
+  });
+
+  test('legacy white color maps to Matte Stone', () {
+    expect(SavedScooter.fromJson('id', {'color': 1}).color, 3);
+    expect(SavedScooter(id: 'id', color: 1).toJson()['color'], 3);
+  });
+
+  test('custom appearance normalizes, persists, and clears with a built-in color', () {
+    final scooter = SavedScooter.fromJson('id', {
+      'customColor': '12abEF',
+      'customColorMatte': false,
+    });
+    expect(scooter.customColor, '#12ABEF');
+    expect(scooter.customColorMatte, isFalse);
+    expect(scooter.hasCustomColor, isTrue);
+
+    scooter.color = 2;
+    expect(scooter.customColor, isNull);
+    expect(scooter.hasCustomColor, isFalse);
+  });
+
+  test('rejects invalid custom colors', () {
+    expect(SavedScooter.fromJson('id', {'customColor': 'not-a-color'}).customColor, isNull);
+    expect(
+      () => SavedScooter(id: 'id').setCustomColor('#12345', matte: true),
+      throwsArgumentError,
+    );
   });
 
   test('malformed cached trip data is ignored without losing other cached ride data', () {

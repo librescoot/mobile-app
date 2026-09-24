@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:unustasis/ui/widgets/eclipse_backdrop.dart';
+import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 
 /// Side-view scooter art with enough dark contrast for dark scooter colours.
 ///
@@ -15,23 +17,33 @@ class ScooterSideVisual extends StatelessWidget {
     required this.height,
     this.backdropDiameter,
     this.backdropColor,
+    this.eclipseBackdrop = false,
+    this.showBackdrop = true,
+    this.renderedColor,
+    this.renderedColorMatte = true,
   });
 
   final String imagePath;
   final double height;
   final double? backdropDiameter;
   final Color? backdropColor;
+  final bool eclipseBackdrop;
+  final bool showBackdrop;
+  final String? renderedColor;
+  final bool renderedColorMatte;
 
   @override
   Widget build(BuildContext context) {
-    final showBackdrop = Theme.of(context).brightness == Brightness.dark || backdropColor != null;
+    final paintBackdrop = showBackdrop && (Theme.of(context).brightness == Brightness.dark || backdropColor != null);
     return SizedBox(
       height: height,
       child: Stack(
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
-          if (showBackdrop)
+          if (paintBackdrop && eclipseBackdrop)
+            EclipseBackdrop(diameter: backdropDiameter ?? height * 1.65)
+          else if (paintBackdrop)
             Container(
               key: const ValueKey('scooter-side-dark-backdrop'),
               width: backdropDiameter ?? height * 1.65,
@@ -41,11 +53,20 @@ class ScooterSideVisual extends StatelessWidget {
                 color: backdropColor ?? const Color(0xFF3E4549),
               ),
             ),
-          Image.asset(
-            imagePath,
-            height: height,
-            cacheWidth: (height * _sideArtAspectRatio * MediaQuery.devicePixelRatioOf(context)).ceil(),
-          ),
+          if (renderedColor == null)
+            Image.asset(
+              imagePath,
+              height: height,
+              cacheWidth: (height * _sideArtAspectRatio * MediaQuery.devicePixelRatioOf(context)).ceil(),
+            )
+          else
+            RenderedScooterArtwork(
+              view: ScooterArtworkView.side,
+              color: renderedColor!,
+              matte: renderedColorMatte,
+              height: height,
+              cacheWidth: (height * _sideArtAspectRatio * MediaQuery.devicePixelRatioOf(context)).ceil(),
+            ),
         ],
       ),
     );

@@ -56,12 +56,17 @@ Future<void> bootstrap() async {
     }
   }
 
+  final connectionsPaused = await SharedPreferencesAsync().getBool(connectionPausedPreferenceKey) ?? false;
+
   // here goes nothing...
   setupBackgroundService();
   setupWidget();
 
   runApp(ChangeNotifierProvider(
-      create: (context) => ScooterService(FlutterBluePlusMockable()),
+      create: (context) => ScooterService(
+            FlutterBluePlusMockable(),
+            connectionsPaused: connectionsPaused,
+          ),
       child: EasyDynamicThemeWidget(
         child: MyApp(
           savedLocale: savedLocale,
