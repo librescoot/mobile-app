@@ -18,29 +18,31 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.librescoot.mobile/phone_key")
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "existingFingerprint" -> {
-                        try {
-                            result.success(PhoneKey.existingFingerprint())
-                        } catch (e: Exception) {
-                            result.error("KEY_ERROR", "Could not read phone key: ${e.message}", null)
+        if (BuildConfig.PHONE_KEY_ENABLED) {
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.librescoot.mobile/phone_key")
+                .setMethodCallHandler { call, result ->
+                    when (call.method) {
+                        "existingFingerprint" -> {
+                            try {
+                                result.success(PhoneKey.existingFingerprint())
+                            } catch (e: Exception) {
+                                result.error("KEY_ERROR", "Could not read phone key: ${e.message}", null)
+                            }
                         }
-                    }
-                    "fingerprint" -> {
-                        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION) ||
-                            NfcAdapter.getDefaultAdapter(this)?.isEnabled != true) {
-                            result.error("NFC_UNAVAILABLE", "Android NFC card emulation is unavailable", null)
-                        } else try {
-                            result.success(PhoneKey.fingerprint())
-                        } catch (e: Exception) {
-                            result.error("KEY_ERROR", "Could not initialize phone key: ${e.message}", null)
+                        "fingerprint" -> {
+                            if (!packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION) ||
+                                NfcAdapter.getDefaultAdapter(this)?.isEnabled != true) {
+                                result.error("NFC_UNAVAILABLE", "Android NFC card emulation is unavailable", null)
+                            } else try {
+                                result.success(PhoneKey.fingerprint())
+                            } catch (e: Exception) {
+                                result.error("KEY_ERROR", "Could not initialize phone key: ${e.message}", null)
+                            }
                         }
+                        else -> result.notImplemented()
                     }
-                    else -> result.notImplemented()
                 }
-            }
+        }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, TASKER_SETTINGS_CHANNEL)
             .setMethodCallHandler { call, result ->

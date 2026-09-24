@@ -58,6 +58,8 @@ android {
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
+        manifestPlaceholders.phoneKeyEnabled = "false"
+        buildConfigField "boolean", "PHONE_KEY_ENABLED", "false"
     }
 
     signingConfigs {
@@ -76,14 +78,19 @@ android {
         debug {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
+            manifestPlaceholders.phoneKeyEnabled = "true"
+            buildConfigField "boolean", "PHONE_KEY_ENABLED", "true"
         }
         profile {
             applicationIdSuffix ".profile"
             versionNameSuffix "-profile"
+            manifestPlaceholders.phoneKeyEnabled = "true"
+            buildConfigField "boolean", "PHONE_KEY_ENABLED", "true"
         }
     }
 
     buildFeatures {
+        buildConfig true
         compose true
     }
 }

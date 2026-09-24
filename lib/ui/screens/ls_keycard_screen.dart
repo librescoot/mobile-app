@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:scooter_core/actions.dart';
 
+import 'package:unustasis/feature_flags.dart';
 import 'package:unustasis/ui/dialogs/keycard_add_dialog.dart';
 import 'package:unustasis/ui/key_alias_sync.dart';
 import 'package:unustasis/scooter_service.dart';
@@ -87,7 +88,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   void initState() {
     super.initState();
     _localAliasLoad = _loadAliases();
-    _restorePhoneKey();
+    if (phoneKeyFeatureEnabled) _restorePhoneKey();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshIndicatorKey.currentState?.show();
     });
@@ -96,7 +97,8 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   @override
   Widget build(BuildContext context) {
     final scooter = context.watch<ScooterService>();
-    final phoneListAvailable = scooter.connected && scooter.phoneKeyManagementSupported == true;
+    final phoneListAvailable =
+        phoneKeyFeatureEnabled && scooter.connected && scooter.phoneKeyManagementSupported == true;
     final aliasAvailable = scooter.connected && scooter.keyAliasesSupported == true;
     if (_aliasScooterId != scooter.currentScooterId || _aliasAvailable != aliasAvailable) {
       if (_aliasScooterId != scooter.currentScooterId) {
@@ -142,7 +144,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: wideContentPadding(context, base: const EdgeInsets.only(top: 16, bottom: 32)),
           children: [
-            if (Platform.isAndroid)
+            if (phoneKeyFeatureEnabled)
               Card(
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: Padding(
@@ -305,7 +307,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   }
 
   Future<void> _loadEnrolledPhones() async {
-    if (!mounted) return;
+    if (!mounted || !phoneKeyFeatureEnabled) return;
     if (_loadingPhones) {
       _reloadPhonesAfterCurrent = true;
       return;

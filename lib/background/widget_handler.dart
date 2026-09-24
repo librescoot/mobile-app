@@ -70,7 +70,6 @@ Future<void> clearPendingWidgetAction() async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool("pendingWidgetAction", false);
   await prefs.remove("pendingWidgetActionName");
-  await prefs.remove(pendingWidgetActionRequestIdKey);
   await setWidgetScanning(false);
 }
 
