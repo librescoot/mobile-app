@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 SIZES = {"front": (866, 1800), "side": (2110, 1738)}
 SOURCE_COLORS = {"matte": "#A4A4A4", "gloss": "#F9F9F9"}
@@ -203,7 +203,14 @@ def tone_layer(source: Path, view: str, finish: str, alpha: np.ndarray) -> np.nd
     luminance = np.dot(image[:, :, :3], [0.2126, 0.7152, 0.0722])
     tone = np.clip(luminance / reference_luminance, 0, 1)
     if use_master_matte:
-        tone = 0.75 + 0.25 * tone
+        smoothed = np.asarray(
+            Image.fromarray(np.rint(tone * 255).astype(np.uint8), "L").filter(
+                ImageFilter.GaussianBlur(18)
+            ),
+            dtype=np.float32,
+        ) / 255
+        tone = 0.5 + 0.5 * smoothed + 0.1 * (tone - smoothed)
+        tone = np.clip(tone, 0, 1)
 
     output = np.empty_like(image, dtype=np.uint8)
     output[:, :, :3] = np.rint(tone[:, :, None] * 255).astype(np.uint8)
