@@ -56,13 +56,33 @@ def render_svg_elements(
 def front_master_masks(source: Path) -> tuple[np.ndarray, np.ndarray]:
     tree = ET.parse(source / "front_master.svg")
     children = list(tree.getroot())
-    body = copy.deepcopy(children[26])
+    body = copy.deepcopy(
+        next(
+            element
+            for element in children
+            if element.tag.rsplit("}", 1)[-1] == "path"
+            and element.get("fill", "").upper() == "#0F0F0F"
+        )
+    )
     body.set("fill", "white")
     body.attrib.pop("style", None)
-    fender = copy.deepcopy(list(children[39])[0])
+    fender_group = next(
+        element
+        for element in children
+        if element.tag.rsplit("}", 1)[-1] == "g"
+        and any(child.get("fill", "").upper() == "#0F0F0F" for child in element)
+    )
+    fender = copy.deepcopy(
+        next(child for child in fender_group if child.get("fill", "").upper() == "#0F0F0F")
+    )
     fender.set("fill", "white")
+    headlight_index = next(
+        index
+        for index, element in enumerate(children)
+        if any(child.get("fill", "").upper() == "#1F1F1F" for child in element)
+    )
     paint = render_svg_elements(tree, [body, fender], FRONT_MASTER_SIZE)
-    foreground = render_svg_elements(tree, children[42:52], FRONT_MASTER_SIZE)
+    foreground = render_svg_elements(tree, children[headlight_index:-1], FRONT_MASTER_SIZE)
     return pad_front_master(paint)[:, :, 3] / 255, pad_front_master(foreground)[:, :, 3] / 255
 
 
