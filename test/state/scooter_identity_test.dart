@@ -101,13 +101,13 @@ void main() {
           expect(characteristic.reads, hasLength(1));
           expect(_snapshot(identity), initial);
           expect(updates, isEmpty);
-          expect(checks, 0);
+          expect(checks, nrf && guarded ? 1 : 0);
 
           characteristic.reads.single.complete(currentBytes);
           await pumpEventQueue(times: 2);
           expect(_snapshot(identity), current);
           expect(updates, [current]);
-          expect(checks, guarded ? 1 : 0);
+          expect(checks, guarded ? (nrf ? 2 : 1) : 0);
           await pumpEventQueue(times: 2);
           expect(updates, [current]);
           expect(characteristic.reads, hasLength(1));
@@ -122,11 +122,11 @@ void main() {
           return valid;
         });
         expect(characteristic.reads, hasLength(1));
-        expect(checks, 0);
+        expect(checks, nrf ? 1 : 0);
         valid = false;
         characteristic.reads.single.complete(currentBytes);
         await pumpEventQueue(times: 2);
-        expect(checks, 1);
+        expect(checks, nrf ? 2 : 1);
         expect(_snapshot(identity), initial);
         expect(updates, isEmpty);
       });
@@ -175,10 +175,15 @@ void main() {
         await pumpEventQueue(times: 2);
         expect(_snapshot(identity), initial);
         expect(updates, isEmpty);
-        expect(checks, 0);
+        expect(checks, nrf ? 2 : 0);
         expect(characteristic.reads, hasLength(1));
 
-        start(isCurrent: () => true);
+        if (nrf) {
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+        } else {
+          start(isCurrent: () => true);
+        }
+        expect(characteristic.reads, hasLength(2));
         characteristic.reads[1].complete(currentBytes);
         await pumpEventQueue(times: 2);
         expect(_snapshot(identity), current);
