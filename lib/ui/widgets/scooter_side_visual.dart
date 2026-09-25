@@ -4,11 +4,10 @@ import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 
 /// Side-view scooter art with enough dark contrast for dark scooter colours.
 ///
-/// The art is 2110x1738, so a box [height] tall paints it a little wider than
-/// [height]. Decoding the source at full resolution costs 14 MB per card,
-/// against a 100 MB image cache the whole app shares, so the decode is pinned
-/// to the painted width instead.
-const double _sideArtAspectRatio = 2110 / 1738;
+/// Decoding the source at full resolution costs about 14 MB per card against a
+/// 100 MB image cache, so each view is decoded near its painted width.
+const double _renderedSideArtAspectRatio = 2110 / 1738;
+const double _prerenderedSideArtAspectRatio = 2072 / 1577;
 
 class ScooterSideVisual extends StatelessWidget {
   const ScooterSideVisual({
@@ -57,7 +56,7 @@ class ScooterSideVisual extends StatelessWidget {
             Image.asset(
               imagePath,
               height: height,
-              cacheWidth: (height * _sideArtAspectRatio * MediaQuery.devicePixelRatioOf(context)).ceil(),
+              cacheWidth: (height * _prerenderedSideArtAspectRatio * MediaQuery.devicePixelRatioOf(context)).ceil(),
             )
           else
             RenderedScooterArtwork(
@@ -65,7 +64,7 @@ class ScooterSideVisual extends StatelessWidget {
               color: renderedColor!,
               matte: renderedColorMatte,
               height: height,
-              cacheWidth: (height * _sideArtAspectRatio * MediaQuery.devicePixelRatioOf(context)).ceil(),
+              cacheWidth: (height * _renderedSideArtAspectRatio * MediaQuery.devicePixelRatioOf(context)).ceil(),
             ),
         ],
       ),

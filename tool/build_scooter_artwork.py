@@ -22,7 +22,6 @@ SIZES = {"front": (866, 1800), "side": (2110, 1738)}
 FRONT_SOURCE_WIDTH = 1135
 FRONT_TOP = 86
 SIDE_SOURCE_WIDTH = 1095
-SIDE_HOVER_TOP = 889
 
 ET.register_namespace("", SVG_NS)
 ET.register_namespace("xlink", XLINK_NS)
@@ -50,7 +49,7 @@ def ground_shadow(root: ET.Element) -> ET.Element:
     )
 
 
-def wrap_source(source: Path, view: str, *, hover: bool = False) -> ET.Element:
+def wrap_source(source: Path, view: str) -> ET.Element:
     source_root = ET.parse(source).getroot()
     remove_artboard(source_root)
     source_defs = copy.deepcopy(definitions(source_root))
@@ -59,9 +58,9 @@ def wrap_source(source: Path, view: str, *, hover: bool = False) -> ET.Element:
         children = [
             copy.deepcopy(child)
             for index, child in enumerate(source_root)
-            if local_name(child) != "defs" and (hover or index < 42)
+            if local_name(child) != "defs" and index < 42
         ]
-        translate_y = -SIDE_HOVER_TOP * (SIZES[view][0] / SIDE_SOURCE_WIDTH) if hover else 0
+        translate_y = 0
         scale = SIZES[view][0] / SIDE_SOURCE_WIDTH
     else:
         children = [copy.deepcopy(child) for child in source_root if local_name(child) != "defs"]
@@ -449,14 +448,28 @@ def build_layers(source_file: Path, output: Path, view: str) -> dict[str, object
     return manifest
 
 
-def build_hover(source: Path, output: Path) -> None:
-    front = wrap_source(source / "mode=hover.svg", "front", hover=True)
-    replace_placeholder(front, "#C8F8FA")
-    render(front, output / "base_9.webp", webp=True)
-
-    side = wrap_source(source / "side_master.svg", "side", hover=True)
-    replace_placeholder(side, "#C8F8FA")
-    render(side, output / "side_9.webp", webp=True)
+def build_prerendered(source: Path, output: Path) -> None:
+    for index in (7, 8, 9):
+        for view, output_prefix in (("front", "base"), ("side", "side")):
+            source_file = source / f"{view}_{index}.png"
+            with Image.open(source_file) as image:
+                expected_width = 866 if view == "front" else 2072
+                if image.width != expected_width:
+                    raise ValueError(
+                        f"{source_file.name} is {image.width}px wide, expected {expected_width}px"
+                    )
+            subprocess.run(
+                [
+                    "cwebp",
+                    "-lossless",
+                    "-exact",
+                    "-quiet",
+                    source_file,
+                    "-o",
+                    output / f"{output_prefix}_{index}.webp",
+                ],
+                check=True,
+            )
 
 
 def main() -> None:
@@ -486,7 +499,7 @@ def main() -> None:
     (args.output / "custom_artwork_layers.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
-    build_hover(args.source, args.output)
+    build_prerendered(args.source, args.output)
 
 
 if __name__ == "__main__":
