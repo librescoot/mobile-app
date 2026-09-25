@@ -264,13 +264,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final largeScreen = MediaQuery.sizeOf(context).shortestSide >= 600;
     final cornerInset = largeScreen ? 24.0 : 8.0;
     final cornerTop = largeScreen ? 16.0 : 0.0;
-    final currentScooterId = context.select<ScooterService, String?>((service) => service.currentScooterId);
+    final selectedScooterId = context.select<ScooterService, String?>((service) {
+      try {
+        return service.selectedScooterId ?? service.currentScooterId;
+      } on NoSuchMethodError {
+        return service.currentScooterId;
+      }
+    });
     final identityColor = context.select<ScooterService, int?>((service) => service.identity.color);
     final scooterAppearance =
         context.select<ScooterService, ({int? color, String? customColor, bool customColorMatte})>(
       (service) {
         try {
-          final savedScooter = service.savedScooters[service.currentScooterId];
+          final savedScooter = service.savedScooters[selectedScooterId];
           return (
             color: savedScooter?.color,
             customColor: savedScooter?.customColor,
@@ -291,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final triggeredAlarm = alarm.status != null && alarm.status!.isTriggered ? alarm.status : null;
     final eclipseBackdrop = triggeredAlarm == null &&
         ((scooterAppearance.customColor == null && scooterColor == 7) ||
-            (currentScooterId != null && _surpriseScooterId == currentScooterId));
+            (selectedScooterId != null && _surpriseScooterId == selectedScooterId));
     // Firmware that reports no alarm command category cannot be commanded, so
     // the button must not pretend. Unknown counts as available: the alarm is
     // sounding now, and a rejected command reports itself on the button.
@@ -399,7 +405,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                       ),
                                     ),
                                   ScooterVisual(
-                                    key: ValueKey(currentScooterId),
+                                    key: ValueKey(selectedScooterId),
                                     color: scooterColor,
                                     customColor: scooterAppearance.customColor,
                                     customColorMatte: scooterAppearance.customColorMatte,
@@ -417,7 +423,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     showEclipseBackdrop: false,
                                     onSurpriseChanged: (color) {
                                       if (!mounted) return;
-                                      setState(() => _surpriseScooterId = color == 7 ? currentScooterId : null);
+                                      setState(() => _surpriseScooterId = color == 7 ? selectedScooterId : null);
                                     },
                                   ),
                                 ],

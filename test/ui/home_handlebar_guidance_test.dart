@@ -60,6 +60,8 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   String? currentScooterId = 'A';
   @override
+  String? selectedScooterId = 'A';
+  @override
   late Map<String, SavedScooter> savedScooters = {
     'A': SavedScooter(id: 'A', color: 2),
     'B': SavedScooter(id: 'B', color: 6),
@@ -173,12 +175,21 @@ Future<void> _finish(WidgetTester tester, _Service service) async {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('Home uses the current scooter appearance', (tester) async {
+  testWidgets('Home uses the selected scooter appearance', (tester) async {
     final service = _Service();
     service.identity.color = 6;
     await _mountHome(tester, service);
 
     expect(tester.widget<ScooterVisual>(find.byType(ScooterVisual)).color, 2);
+
+    service.selectedScooterId = 'B';
+    service.changed();
+    await tester.pump();
+
+    final visual = tester.widget<ScooterVisual>(find.byType(ScooterVisual));
+    expect(visual.color, 6);
+    expect((visual.key! as ValueKey<String?>).value, 'B');
+    expect(service.currentScooterId, 'A');
 
     await _finish(tester, service);
   });
