@@ -1,6 +1,7 @@
 package org.librescoot.mobile.unu
 
 import android.annotation.SuppressLint
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -27,6 +28,28 @@ class MainActivity : FlutterFragmentActivity() {
                                 result.success(PhoneKey.existingFingerprint())
                             } catch (e: Exception) {
                                 result.error("KEY_ERROR", "Could not read phone key: ${e.message}", null)
+                            }
+                        }
+                        "serviceEnabled" -> result.success(
+                            packageManager.getComponentEnabledSetting(
+                                ComponentName(this, PhoneKeyService::class.java)
+                            ) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                        )
+                        "setServiceEnabled" -> {
+                            val enabled = call.argument<Boolean>("enabled")
+                            if (enabled == null) {
+                                result.error("BAD_ARGUMENT", "Missing NFC service state", null)
+                            } else if (enabled && (!packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION) ||
+                                    NfcAdapter.getDefaultAdapter(this)?.isEnabled != true)) {
+                                result.error("NFC_UNAVAILABLE", "Android NFC card emulation is unavailable", null)
+                            } else {
+                                packageManager.setComponentEnabledSetting(
+                                    ComponentName(this, PhoneKeyService::class.java),
+                                    if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                                    else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                                    PackageManager.DONT_KILL_APP,
+                                )
+                                result.success(null)
                             }
                         }
                         "fingerprint" -> {

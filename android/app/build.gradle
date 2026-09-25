@@ -78,13 +78,11 @@ android {
         debug {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
-            manifestPlaceholders.phoneKeyEnabled = "true"
             buildConfigField "boolean", "PHONE_KEY_ENABLED", "true"
         }
         profile {
             applicationIdSuffix ".profile"
             versionNameSuffix "-profile"
-            manifestPlaceholders.phoneKeyEnabled = "true"
             buildConfigField "boolean", "PHONE_KEY_ENABLED", "true"
         }
     }

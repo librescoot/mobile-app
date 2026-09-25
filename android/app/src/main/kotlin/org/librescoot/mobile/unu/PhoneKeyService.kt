@@ -3,7 +3,7 @@ package org.librescoot.mobile.unu
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 
-/** LibreScoot ISO-DEP credential. Only a locally enrolled public key can unlock. */
+/** Librescoot ISO-DEP credential. Only a locally enrolled public key can unlock. */
 class PhoneKeyService : HostApduService() {
     private var selected = false
     private val aid = byteArrayOf(0xF0.toByte(), 0x4C, 0x53, 0x43, 0x4F, 0x4F, 0x54, 0x01)

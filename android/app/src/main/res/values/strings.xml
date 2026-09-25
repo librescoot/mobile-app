@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Librescoot App for unu</string>
-    <string name="phone_key_description">LibreScoot scooter key</string>
+    <string name="phone_key_description">Librescoot scooter key</string>
 
     <!-- Tasker plugin. Kept in Android resources rather than assets/i18n because
          Tasker shows these without the Flutter engine running. -->

@@ -67,7 +67,39 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   String? _phoneFingerprint;
   String? _phoneKeyError;
   bool _creatingPhoneKey = false;
+  bool? _phoneKeyServiceEnabled;
+  bool _changingPhoneKeyService = false;
   static const _phoneKeyChannel = MethodChannel('org.librescoot.mobile/phone_key');
+
+  Future<void> _loadPhoneKeyService() async {
+    try {
+      final enabled = await _phoneKeyChannel.invokeMethod<bool>('serviceEnabled');
+      if (mounted) {
+        setState(() => _phoneKeyServiceEnabled = enabled);
+        if (enabled == true) _stopBackgroundNfcScan();
+      }
+    } catch (e) {
+      if (mounted) setState(() => _phoneKeyError = e.toString());
+    }
+  }
+
+  Future<void> _setPhoneKeyService(bool enabled) async {
+    setState(() {
+      _changingPhoneKeyService = true;
+      _phoneKeyError = null;
+    });
+    try {
+      await _phoneKeyChannel.invokeMethod<void>('setServiceEnabled', {'enabled': enabled});
+      if (mounted) {
+        setState(() => _phoneKeyServiceEnabled = enabled);
+        if (enabled) _stopBackgroundNfcScan();
+      }
+    } catch (e) {
+      if (mounted) setState(() => _phoneKeyError = e.toString());
+    } finally {
+      if (mounted) setState(() => _changingPhoneKeyService = false);
+    }
+  }
 
   Future<void> _restorePhoneKey() async {
     if (!Platform.isAndroid) return;
@@ -120,7 +152,10 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   void initState() {
     super.initState();
     _localAliasLoad = _loadAliases();
-    if (phoneKeyFeatureEnabled) _restorePhoneKey();
+    if (phoneKeyFeatureEnabled) {
+      _restorePhoneKey();
+      _loadPhoneKeyService();
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshIndicatorKey.currentState?.show();
     });
@@ -189,6 +224,15 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
                         'The phone screen and NFC must be on for future taps.'),
                     const SizedBox(height: 8),
                     if (_phoneFingerprint != null) SelectableText('Phone key: $_phoneFingerprint'),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Provide NFC phone key'),
+                      subtitle: const Text('Turn this off to keep this app out of the NFC key chooser. '
+                          'The phone key remains on this device.'),
+                      value: _phoneKeyServiceEnabled ?? false,
+                      onChanged:
+                          _phoneKeyServiceEnabled == null || _changingPhoneKeyService ? null : _setPhoneKeyService,
+                    ),
                     if (_phoneKeyError != null) Text(_phoneKeyError!, style: const TextStyle(color: Colors.red)),
                     TextButton(
                       onPressed: _creatingPhoneKey ? null : _setUpPhoneKey,
@@ -438,10 +482,17 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   void _startBackgroundNfcScan() async {
     // Android reader mode prevents our HostApduService from handling a scooter
     // tap. Leave NFC card emulation available when a phone key is configured.
-    if (!Platform.isAndroid || _phoneFingerprint != null || _creatingPhoneKey) return;
+    if (!Platform.isAndroid || _phoneFingerprint != null || _creatingPhoneKey || _phoneKeyServiceEnabled == true) {
+      return;
+    }
     if (_isBackgroundScanning) return;
     final availability = await FlutterNfcKit.nfcAvailability;
-    if (availability != NFCAvailability.available || !mounted || _phoneFingerprint != null) return;
+    if (availability != NFCAvailability.available ||
+        !mounted ||
+        _phoneFingerprint != null ||
+        _phoneKeyServiceEnabled == true) {
+      return;
+    }
     setState(() => _isBackgroundScanning = true);
     // Poll in a loop so that each tap can be detected while the screen is open.
     while (_isBackgroundScanning && mounted) {
