@@ -1,0 +1,7 @@
+Nouveautés depuis la 1.3.0-beta.10 :
+
+• Peinture brillante plus réaliste de face et de côté, avec de meilleures ombres et une roue avant corrigée
+• Les clignotants restent synchronisés et suivent l’animation du scooter
+• La couleur du scooter choisi apparaît immédiatement pendant la connexion
+• Les fonctions confirmées du firmware résistent aux coupures Bluetooth temporaires
+• Le scooter reste visible sur son arrière-plan pendant la connexion

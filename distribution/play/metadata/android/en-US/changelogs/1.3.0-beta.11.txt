@@ -2,6 +2,6 @@ What's new since 1.3.0-beta.10:
 
 • More realistic glossy paint in front and side views, with improved shading and cleaner front-wheel artwork
 • Blinker selections now stay in sync and animate like the scooter
-• The selected scooter colour appears immediately while connecting
+• The selected scooter color appears immediately while connecting
 • Confirmed firmware capabilities survive temporary Bluetooth failures
 • Scooter artwork stays visible against its backdrop during connection

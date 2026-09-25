@@ -1,0 +1,7 @@
+Neu seit 1.3.0-beta.10:
+
+• Realistischere Glanzlackierung in Front- und Seitenansicht, bessere Schattierung und sauberere Vorderradgrafik
+• Blinkerauswahl bleibt synchron und folgt der Animation des Rollers
+• Die Farbe des gewählten Rollers erscheint sofort beim Verbindungsaufbau
+• Bestätigte Firmware-Funktionen bleiben bei kurzen Bluetooth-Ausfällen erhalten
+• Die Rollergrafik bleibt beim Verbindungsaufbau vor ihrem Hintergrund sichtbar

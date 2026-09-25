@@ -1,0 +1,7 @@
+Nieuw sinds 1.3.0-beta.10:
+
+• Realistischere glanslak voor voor- en zijaanzicht, met betere schaduwen en een opgeschoond voorwiel
+• Richtingaanwijzers blijven synchroon en volgen de animatie van de scooter
+• De kleur van de gekozen scooter verschijnt direct tijdens het verbinden
+• Bevestigde firmwarefuncties blijven behouden bij tijdelijke Bluetooth-storingen
+• De scooter blijft tijdens het verbinden zichtbaar op de achtergrond
