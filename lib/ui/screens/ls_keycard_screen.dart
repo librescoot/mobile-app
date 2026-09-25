@@ -16,6 +16,38 @@ import 'package:unustasis/ui/key_alias_sync.dart';
 import 'package:unustasis/scooter_service.dart';
 import '../wide_layout.dart';
 
+Future<KeyAliasChoice?> showKeyAliasConflictDialog(BuildContext context, KeyAliasConflict conflict) {
+  return showDialog<KeyAliasChoice>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) => PopScope(
+      canPop: false,
+      child: AlertDialog(
+        title: Text(FlutterI18n.translate(dialogContext, 'ls_key_alias_conflict_title')),
+        content: Text(FlutterI18n.translate(
+          dialogContext,
+          'ls_key_alias_conflict_message',
+          translationParams: {
+            'uid': conflict.uid,
+            'localName': conflict.localName,
+            'scooterName': conflict.scooterName,
+          },
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, KeyAliasChoice.local),
+            child: Text(FlutterI18n.translate(dialogContext, 'ls_key_alias_use_local')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, KeyAliasChoice.scooter),
+            child: Text(FlutterI18n.translate(dialogContext, 'ls_key_alias_use_scooter')),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class LsKeycardScreen extends StatefulWidget {
   const LsKeycardScreen({super.key});
 
@@ -529,8 +561,8 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     }
   }
 
-  Future<void> _saveAliases() async {
-    await SharedPreferencesAsync().setString('keycard_aliases', jsonEncode(_localAliases));
+  Future<void> _saveAliases([Map<String, String>? aliases]) async {
+    await SharedPreferencesAsync().setString('keycard_aliases', jsonEncode(aliases ?? _localAliases));
   }
 
   Future<void> _queueAliasOperation(Future<void> Function() action) {
@@ -555,14 +587,14 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
       final names = await service.actions.listKeyAliases();
       if (!mounted || service.currentScooterId != scooterId || !service.connected) return;
       final plan = planKeyAliasImport([...keycards, ...masters], names, _localAliases);
-      var importFailed = plan.invalidLocalNames;
+      var syncFailed = plan.invalidLocalNames;
       for (final entry in plan.names.entries) {
         try {
           await service.actions.setKeyAlias('card', entry.key, entry.value);
           if (!mounted || service.currentScooterId != scooterId || !service.connected) return;
           names['card:${entry.key}'] = entry.value;
         } catch (e) {
-          importFailed = true;
+          syncFailed = true;
           Logger('LsKeycardScreen').warning('Could not import local key name: $e');
         }
       }
@@ -570,8 +602,28 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
       setState(() {
         _aliases = names;
         _masterCards = masters;
-        _aliasError = importFailed ? 'import' : null;
       });
+      for (final conflict in plan.conflicts) {
+        final choice = await showKeyAliasConflictDialog(context, conflict);
+        if (!mounted || service.currentScooterId != scooterId || !service.connected) return;
+        try {
+          if (choice == KeyAliasChoice.local) {
+            await service.actions.setKeyAlias('card', conflict.uid, conflict.localName);
+            if (!mounted || service.currentScooterId != scooterId || !service.connected) return;
+            setState(() => _aliases['card:${conflict.uid}'] = conflict.localName);
+          } else if (choice == KeyAliasChoice.scooter) {
+            final localAliases = {..._localAliases, conflict.uid: conflict.scooterName};
+            await _saveAliases(localAliases);
+            if (!mounted || service.currentScooterId != scooterId || !service.connected) return;
+            setState(() => _localAliases = localAliases);
+          }
+        } catch (e) {
+          syncFailed = true;
+          Logger('LsKeycardScreen').warning('Could not resolve key name conflict: $e');
+        }
+      }
+      if (!mounted || service.currentScooterId != scooterId || !service.connected) return;
+      setState(() => _aliasError = syncFailed ? 'sync' : null);
     } catch (e) {
       if (!mounted || service.currentScooterId != scooterId) return;
       setState(() => _aliasError = e.toString());
@@ -619,14 +671,15 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
       }
       if (kind == 'card') {
         if (!mounted || (synced && service.currentScooterId != scooterId)) return;
-        setState(() {
-          if (cleaned.isEmpty) {
-            _localAliases.remove(id);
-          } else {
-            _localAliases[id] = cleaned;
-          }
-        });
-        await _saveAliases();
+        final localAliases = Map<String, String>.of(_localAliases);
+        if (cleaned.isEmpty) {
+          localAliases.remove(id);
+        } else {
+          localAliases[id] = cleaned;
+        }
+        await _saveAliases(localAliases);
+        if (!mounted || (synced && service.currentScooterId != scooterId)) return;
+        setState(() => _localAliases = localAliases);
       }
     } catch (e) {
       Logger('LsKeycardScreen').warning('Could not save key name: $e');
