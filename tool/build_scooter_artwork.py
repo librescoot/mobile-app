@@ -11,7 +11,9 @@ import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import numpy as np
 from PIL import Image
+from scipy.ndimage import distance_transform_edt, gaussian_filter
 
 SVG_NS = "http://www.w3.org/2000/svg"
 XLINK_NS = "http://www.w3.org/1999/xlink"
@@ -199,6 +201,184 @@ def render_cropped(root: ET.Element, destination: Path) -> dict[str, object]:
     }
 
 
+def full_layer_alpha(output: Path, layer: dict[str, object], size: tuple[int, int]) -> np.ndarray:
+    alpha = np.zeros((size[1], size[0]), dtype=np.float32)
+    with Image.open(output / Path(str(layer["asset"])).name) as source:
+        cropped = np.array(source.convert("RGBA"), dtype=np.uint8)[..., 3] / 255
+    x, y = int(layer["x"]), int(layer["y"])
+    width, height = int(layer["width"]), int(layer["height"])
+    alpha[y : y + height, x : x + width] = cropped
+    return alpha
+
+
+def save_alpha_layer(
+    destination: Path,
+    alpha: np.ndarray,
+    colour: tuple[int, int, int],
+) -> dict[str, object]:
+    alpha_image = Image.fromarray(np.clip(alpha * 255, 0, 255).astype(np.uint8), "L")
+    bounds = alpha_image.getbbox() or (0, 0, 1, 1)
+    rgba = Image.new("RGBA", alpha_image.size, (*colour, 0))
+    rgba.putalpha(alpha_image)
+    rgba.crop(bounds).save(destination, "PNG", optimize=True)
+    left, top, right, bottom = bounds
+    return {
+        "asset": f"images/scooter/{destination.name}",
+        "x": left,
+        "y": top,
+        "width": right - left,
+        "height": bottom - top,
+        "blendMode": "screen",
+    }
+
+
+def build_gloss(
+    output: Path,
+    manifest: dict[str, object],
+    view: str,
+) -> None:
+    width, height = SIZES[view]
+    paint_layers = manifest["paintLayers"]
+    assert isinstance(paint_layers, list)
+    masks = [
+        full_layer_alpha(output, paint_layer["paint"], (width, height))
+        for paint_layer in paint_layers
+    ]
+    combined = np.maximum.reduce(masks)
+    surfaces = (
+        [masks[0], np.maximum(masks[1], masks[2])]
+        if view == "front"
+        else masks
+    )
+    contour = np.zeros((height, width), dtype=np.float32)
+    sweep = np.zeros_like(contour)
+    y_grid, x_grid = np.mgrid[:height, :width]
+
+    for index, mask in enumerate(surfaces):
+        inside = mask > 0.02
+        ys, xs = np.nonzero(inside)
+        x0, x1 = xs.min(), xs.max()
+        y0, y1 = ys.min(), ys.max()
+        distance = distance_transform_edt(inside)
+        distance_scale = np.percentile(distance[inside], 97) or 1
+        bulge = np.clip(distance / distance_scale, 0, 1) ** 0.58
+        if view == "front":
+            surface_blur = 7 if index == 0 else 3
+            normal_strength = 22 if index == 0 else 11
+        else:
+            surface_blur = max(3, round(min(x1 - x0, y1 - y0) / 90))
+            normal_strength = 18
+        surface = gaussian_filter(bulge * mask, surface_blur)
+
+        gradient_y, gradient_x = np.gradient(surface)
+        normal_x = -gradient_x * normal_strength
+        normal_y = -gradient_y * normal_strength
+        normal_z = np.ones_like(normal_x)
+        normal_length = np.sqrt(
+            normal_x * normal_x + normal_y * normal_y + normal_z * normal_z
+        )
+        normal_x /= normal_length
+        normal_y /= normal_length
+        normal_z /= normal_length
+
+        normal_half = np.clip(
+            normal_x * -0.30 + normal_y * -0.40 + normal_z * 0.865,
+            0,
+            1,
+        )
+        sharp = normal_half**30
+        broad = normal_half**7
+        if view == "front":
+            inset = 15 if index == 0 else 6
+        else:
+            inset = max(6, round(min(x1 - x0, y1 - y0) * 0.026))
+        inset_width = max(3, round(inset * 0.52))
+        edge_gate = np.clip((distance - 3) / inset, 0, 1) ** 0.8
+        inset_rim = np.exp(-((distance - inset) / inset_width) ** 2) * inside
+        slope = np.sqrt(normal_x * normal_x + normal_y * normal_y)
+        light_facing = np.clip(
+            (-0.66 * normal_x - 0.75 * normal_y) / (slope + 1e-6),
+            0,
+            1,
+        ) ** 0.7
+        local_x = (x_grid - x0) / max(x1 - x0, 1)
+        local_y = (y_grid - y0) / max(y1 - y0, 1)
+        lit_side = np.clip((0.82 - local_x) / 0.58, 0, 1)
+        lit_height = np.clip((0.90 - local_y) / 0.58, 0, 1)
+        local = np.clip(0.72 * sharp + 0.20 * broad + 0.12 * inset_rim, 0, 1)
+        local *= light_facing * lit_side * lit_height * edge_gate * mask
+        contour = np.maximum(contour, local)
+
+        reflected_center = x0 + (x1 - x0) * (0.28 + 0.12 * (local_y - 0.25))
+        if view == "front" and index == 0:
+            nose_y = np.exp(-((y_grid - 731) / 185) ** 2)
+            reflected_center -= 86 * nose_y
+            nose_core = np.exp(
+                -(
+                    ((x_grid - 433) / 145) ** 2
+                    + ((y_grid - 731) / 164) ** 2
+                )
+                * 2.2
+            )
+            stripe_width = 43
+        else:
+            nose_core = 0
+            stripe_width = max(
+                10 if view == "front" else 14,
+                (x1 - x0) * (0.09 if view == "front" else 0.075),
+            )
+        stripe = np.exp(-((x_grid - reflected_center) / stripe_width) ** 2)
+        taper = np.sin(np.clip(local_y, 0, 1) * np.pi) ** 0.7
+        stripe *= taper * np.clip(bulge * 1.5, 0, 1) * edge_gate * mask
+        stripe *= 1 - 0.92 * nose_core
+        sweep = np.maximum(sweep, stripe)
+
+    bloom = gaussian_filter(np.clip(contour * 0.75 + sweep * 0.65, 0, 1), 7)
+    bloom *= combined
+    gloss_layers = [
+        save_alpha_layer(
+            output / f"custom_{view}_gloss_bloom.png",
+            np.clip(bloom * 0.32, 0, 0.30),
+            (225, 238, 255),
+        ),
+        save_alpha_layer(
+            output / f"custom_{view}_gloss_contour.png",
+            np.clip(contour * 0.92, 0, 0.88),
+            (255, 255, 255),
+        ),
+        save_alpha_layer(
+            output / f"custom_{view}_gloss_sweep.png",
+            np.clip(sweep * 0.70, 0, 0.70),
+            (245, 250, 255),
+        ),
+    ]
+    final_effects = paint_layers[-1]["effects"]
+    assert isinstance(final_effects, list) and final_effects
+    manifest["glossBefore"] = final_effects[-1]["asset"]
+    manifest["glossLayers"] = gloss_layers
+
+
+def replace_front_tire(
+    reference: Path,
+    destination: Path,
+    layer: dict[str, object],
+) -> None:
+    with Image.open(reference) as source:
+        target_height = round(source.height * SIZES["front"][0] / source.width)
+        scaled = source.convert("RGBA").resize(
+            (SIZES["front"][0], target_height), Image.Resampling.LANCZOS
+        )
+    aligned = Image.new("RGBA", SIZES["front"])
+    aligned.alpha_composite(scaled, (0, FRONT_TOP))
+    with Image.open(destination) as tire:
+        alpha = tire.convert("RGBA").getchannel("A")
+    x, y = int(layer["x"]), int(layer["y"])
+    bounds = (x, y, x + int(layer["width"]), y + int(layer["height"]))
+    replacement = aligned.crop(bounds).convert("L").convert("RGBA")
+    replacement.putalpha(alpha)
+    replacement.save(destination, "PNG", optimize=True)
+
+
 def effect_groups(leaves: list[ET.Element], start: int, end: int) -> list[tuple[set[int], str, bool]]:
     groups: list[tuple[set[int], str, bool]] = []
     for index in range(start, end):
@@ -242,19 +422,28 @@ def build_layers(source_file: Path, output: Path, view: str) -> dict[str, object
             output / f"custom_{view}_paint_{layer}.png",
         )
         effects: list[dict[str, object]] = []
-        for effect, (indices, mode, matte_only) in enumerate(
-            effect_groups(leaves, paint_index + 1, next_paint)
+        effect_number = 0
+        for indices, mode, matte_only in effect_groups(
+            leaves, paint_index + 1, next_paint
         ):
+            fills = {leaves[index].get("fill", "") for index in indices}
+            if view == "front" and any("paint30_radial" in fill for fill in fills):
+                continue
             effect_root = select_leaves(root, indices)
             remove_blend_modes(effect_root)
-            effect_data = render_cropped(
-                effect_root,
-                output / f"custom_{view}_effect_{layer}_{effect}.png",
-            )
+            destination = output / f"custom_{view}_effect_{layer}_{effect_number}.png"
+            effect_data = render_cropped(effect_root, destination)
+            if view == "front" and any("paint29_radial" in fill for fill in fills):
+                replace_front_tire(
+                    source_file.parent / "coral" / "mode=scooter@2x.png",
+                    destination,
+                    effect_data,
+                )
             effect_data["blendMode"] = mode
             if matte_only:
                 effect_data["matteOnly"] = True
             effects.append(effect_data)
+            effect_number += 1
         paint_layers.append({"paint": paint, "effects": effects})
     manifest["paintLayers"] = paint_layers
     return manifest
@@ -276,14 +465,22 @@ def main() -> None:
     parser.add_argument("output", type=Path, help="Runtime artwork directory")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
-    for pattern in ("custom_*_effect_*.png", "custom_*_over_*.png"):
+    for pattern in (
+        "custom_*_effect_*.png",
+        "custom_*_gloss_*.png",
+        "custom_*_over_*.png",
+    ):
         for stale in args.output.glob(pattern):
             stale.unlink()
+    front = build_layers(args.source / "mode=scooter.svg", args.output, "front")
+    side = build_layers(args.source / "side_master.svg", args.output, "side")
+    build_gloss(args.output, front, "front")
+    build_gloss(args.output, side, "side")
     manifest = {
         "version": 1,
         "views": {
-            "front": build_layers(args.source / "mode=scooter.svg", args.output, "front"),
-            "side": build_layers(args.source / "side_master.svg", args.output, "side"),
+            "front": front,
+            "side": side,
         },
     }
     (args.output / "custom_artwork_layers.json").write_text(

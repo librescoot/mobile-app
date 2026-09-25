@@ -125,6 +125,57 @@ void main() {
     expect((effects.last as Map<String, dynamic>)['blendMode'], 'srcOver');
   });
 
+  test('adds directional gloss before foreground details', () async {
+    final encoded = await File('images/scooter/custom_artwork_layers.json').readAsString();
+    final manifest = jsonDecode(encoded) as Map<String, dynamic>;
+    final views = manifest['views'] as Map<String, dynamic>;
+    final front = views['front'] as Map<String, dynamic>;
+    final glossLayers = front['glossLayers'] as List<dynamic>;
+    final paintLayers = front['paintLayers'] as List<dynamic>;
+    final foregroundEffects = (paintLayers.last as Map<String, dynamic>)['effects'] as List<dynamic>;
+
+    expect(glossLayers, hasLength(3));
+    expect(
+      glossLayers.map((value) => (value as Map<String, dynamic>)['blendMode']),
+      everyElement('screen'),
+    );
+    expect(
+      glossLayers.map((value) => (value as Map<String, dynamic>)['asset']),
+      containsAll(<String>[
+        'images/scooter/custom_front_gloss_bloom.png',
+        'images/scooter/custom_front_gloss_contour.png',
+        'images/scooter/custom_front_gloss_sweep.png',
+      ]),
+    );
+    expect(
+      front['glossBefore'],
+      (foregroundEffects.last as Map<String, dynamic>)['asset'],
+    );
+    expect(
+      paintLayers
+          .expand(
+            (value) => (value as Map<String, dynamic>)['effects'] as List<dynamic>,
+          )
+          .map((value) => (value as Map<String, dynamic>)['blendMode']),
+      isNot(contains('softLight')),
+    );
+    final side = views['side'] as Map<String, dynamic>;
+    final sideGlossLayers = side['glossLayers'] as List<dynamic>;
+    final sidePaintLayers = side['paintLayers'] as List<dynamic>;
+    final sideForegroundEffects = (sidePaintLayers.last as Map<String, dynamic>)['effects'] as List<dynamic>;
+    expect(sideGlossLayers, hasLength(3));
+    expect(
+      sideGlossLayers.map(
+        (value) => (value as Map<String, dynamic>)['blendMode'],
+      ),
+      everyElement('screen'),
+    );
+    expect(
+      side['glossBefore'],
+      (sideForegroundEffects.last as Map<String, dynamic>)['asset'],
+    );
+  });
+
   testWidgets('can omit the independently rendered ground shadow', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(

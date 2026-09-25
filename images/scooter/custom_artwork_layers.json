@@ -115,14 +115,6 @@
               "width": 141,
               "height": 599,
               "blendMode": "srcOver"
-            },
-            {
-              "asset": "images/scooter/custom_front_effect_0_11.png",
-              "x": 363,
-              "y": 1106,
-              "width": 141,
-              "height": 599,
-              "blendMode": "softLight"
             }
           ]
         },
@@ -197,6 +189,33 @@
               "blendMode": "srcOver"
             }
           ]
+        }
+      ],
+      "glossBefore": "images/scooter/custom_front_effect_2_2.png",
+      "glossLayers": [
+        {
+          "asset": "images/scooter/custom_front_gloss_bloom.png",
+          "x": 156,
+          "y": 468,
+          "width": 385,
+          "height": 680,
+          "blendMode": "screen"
+        },
+        {
+          "asset": "images/scooter/custom_front_gloss_contour.png",
+          "x": 155,
+          "y": 470,
+          "width": 431,
+          "height": 721,
+          "blendMode": "screen"
+        },
+        {
+          "asset": "images/scooter/custom_front_gloss_sweep.png",
+          "x": 173,
+          "y": 497,
+          "width": 266,
+          "height": 649,
+          "blendMode": "screen"
         }
       ]
     },
@@ -314,6 +333,33 @@
               "blendMode": "srcOver"
             }
           ]
+        }
+      ],
+      "glossBefore": "images/scooter/custom_side_effect_2_1.png",
+      "glossLayers": [
+        {
+          "asset": "images/scooter/custom_side_gloss_bloom.png",
+          "x": 168,
+          "y": 474,
+          "width": 1646,
+          "height": 754,
+          "blendMode": "screen"
+        },
+        {
+          "asset": "images/scooter/custom_side_gloss_contour.png",
+          "x": 171,
+          "y": 469,
+          "width": 1663,
+          "height": 738,
+          "blendMode": "screen"
+        },
+        {
+          "asset": "images/scooter/custom_side_gloss_sweep.png",
+          "x": 264,
+          "y": 495,
+          "width": 1455,
+          "height": 733,
+          "blendMode": "screen"
         }
       ]
     }

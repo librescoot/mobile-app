@@ -358,6 +358,8 @@ class _ArtworkViewData {
     required this.shadow,
     required this.under,
     required this.paintLayers,
+    required this.glossLayers,
+    required this.glossBefore,
   });
 
   factory _ArtworkViewData.fromJson(Map<String, dynamic> json) => _ArtworkViewData(
@@ -369,6 +371,11 @@ class _ArtworkViewData {
           for (final value in json['paintLayers'] as List<dynamic>)
             _ArtworkPaintLayer.fromJson(value as Map<String, dynamic>),
         ],
+        glossLayers: [
+          for (final value in (json['glossLayers'] as List<dynamic>?) ?? const [])
+            _ArtworkLayer.fromJson(value as Map<String, dynamic>),
+        ],
+        glossBefore: json['glossBefore'] as String?,
       );
 
   final int width;
@@ -376,6 +383,8 @@ class _ArtworkViewData {
   final _ArtworkLayer shadow;
   final _ArtworkLayer under;
   final List<_ArtworkPaintLayer> paintLayers;
+  final List<_ArtworkLayer> glossLayers;
+  final String? glossBefore;
 
   List<_ArtworkLayer> get allLayers => [
         shadow,
@@ -384,6 +393,7 @@ class _ArtworkViewData {
           paintLayer.paint,
           ...paintLayer.effects,
         ],
+        ...glossLayers,
       ];
 
   Iterable<_ArtworkLayer> layers({required bool matte, required bool showShadow}) sync* {
@@ -393,7 +403,14 @@ class _ArtworkViewData {
     yield under;
     for (final paintLayer in paintLayers) {
       yield paintLayer.paint;
-      yield* paintLayer.effects.where((effect) => matte || !effect.matteOnly);
+      for (final effect in paintLayer.effects) {
+        if (!matte && effect.asset == glossBefore) {
+          yield* glossLayers;
+        }
+        if (matte || !effect.matteOnly) {
+          yield effect;
+        }
+      }
     }
   }
 }
