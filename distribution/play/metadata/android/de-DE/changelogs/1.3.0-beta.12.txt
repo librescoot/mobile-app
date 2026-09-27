@@ -1,0 +1,4 @@
+Neu seit 1.3.0-beta.11:
+
+• Wenn gespeicherte Schlüsselkartennamen auf dem Handy und dem Roller voneinander abweichen, kannst du wählen, welcher Name bleiben soll
+• Überarbeitete Grafiken der Sonderfarben in Front- und Seitenansicht

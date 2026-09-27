@@ -1,0 +1,4 @@
+Nieuw sinds 1.3.0-beta.11:
+
+• Als opgeslagen sleutelkaartnamen op je telefoon en scooter verschillen, kies je welke naam je behoudt
+• Vernieuwde afbeeldingen van speciale scooterkleuren in voor- en zijaanzicht

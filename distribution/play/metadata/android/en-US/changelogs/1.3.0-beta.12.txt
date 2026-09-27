@@ -1,4 +1,4 @@
 What's new since 1.3.0-beta.11:
 
 • When a saved keycard name differs between the phone and scooter, choose which name to keep
-• Refreshed artwork for limited-edition scooter colours in the front and side views
+• Refreshed artwork for limited-edition scooter colors in the front and side views

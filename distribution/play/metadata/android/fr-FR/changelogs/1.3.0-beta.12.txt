@@ -1,0 +1,4 @@
+Nouveautés depuis la 1.3.0-beta.11 :
+
+• Si un nom de carte enregistré diffère entre le téléphone et le scooter, choisissez celui à conserver
+• Illustrations retravaillées pour les coloris en édition limitée, de face et de côté
