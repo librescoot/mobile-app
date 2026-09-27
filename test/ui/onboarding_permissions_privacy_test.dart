@@ -148,10 +148,13 @@ void main() {
     await tester.tap(find.text('CONTINUE'));
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('Online place services'), findsOneWidget);
+    expect(find.text('Online Location Services'), findsOneWidget);
+    expect(find.textContaining('Settings → App → Online Location Services'), findsOneWidget);
+    expect(find.text('Disable address lookups and searches. Locations without saved names will show coordinates.'),
+        findsOneWidget);
     expect(find.text('SAVE AND CONTINUE'), findsNothing);
     expect(preferences.writes, isEmpty);
-    await tester.tap(find.text('Keep online place services off'));
+    await tester.tap(find.text('Keep off'));
     await tester.pump();
     await tester.tap(find.text('SAVE AND CONTINUE'));
     await tester.pump(const Duration(seconds: 1));
@@ -224,7 +227,7 @@ void main() {
     await tester.ensureVisible(find.text('CONTINUE'));
     await tester.tap(find.text('CONTINUE'));
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Online place services'), findsOneWidget);
+    expect(find.text('Online Location Services'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -241,14 +244,23 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.tap(find.text('CONTINUE'));
     await tester.pump(const Duration(seconds: 1));
-    await tester.tap(find.text('Enable online place services'));
+    await tester.tap(find.text('Turn on'));
     await tester.pump();
-    await tester.tap(find.text('SAVE AND CONTINUE'));
+    final button = find.widgetWithText(ElevatedButton, 'SAVE AND CONTINUE');
+    final buttonSize = tester.getSize(button);
+    await tester.tap(button);
     await tester.pump();
+
+    final savingButton = find.byType(ElevatedButton);
+    expect(tester.getSize(savingButton), buttonSize);
+    expect(tester.widget<ElevatedButton>(savingButton).onPressed, isNull);
+    final spinner = find.descendant(of: savingButton, matching: find.byType(CircularProgressIndicator));
+    expect(spinner, findsOneWidget);
+    expect(tester.getSize(spinner), const Size(24, 24));
 
     final choices = tester.widgetList<RadioListTile<bool>>(find.byType(RadioListTile<bool>));
     expect(choices.every((choice) => choice.enabled == false), true);
-    await tester.tap(find.text('Keep online place services off'), warnIfMissed: false);
+    await tester.tap(find.text('Keep off'), warnIfMissed: false);
     gate.complete();
     await tester.pump(const Duration(seconds: 1));
     expect(preferences.values['osmConsent'], true);
@@ -267,7 +279,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.tap(find.text('CONTINUE'));
     await tester.pump(const Duration(seconds: 1));
-    await tester.tap(find.text('Keep online place services off'));
+    await tester.tap(find.text('Keep off'));
     await tester.pump();
     await tester.tap(find.text('SAVE AND CONTINUE'));
     await tester.pump(const Duration(seconds: 1));

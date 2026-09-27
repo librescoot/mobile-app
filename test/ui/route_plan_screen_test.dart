@@ -1,17 +1,56 @@
+import 'package:easy_dynamic_theme/easy_dynamic_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:unustasis/domain/nav_destination.dart';
+import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/state/scooter_identity.dart';
+import 'package:unustasis/state/vehicle_status.dart';
+import 'package:unustasis/ui/screens/navigation_screen.dart';
 import 'package:unustasis/ui/screens/route_plan_screen.dart';
+import 'package:unustasis/ui/screens/settings_screen.dart';
+import 'package:unustasis/ui/widgets/photon_autocomplete.dart';
+
+import '../support/persistence_fakes.dart';
 
 class _PlanService extends ChangeNotifier implements ScooterService {
   @override
   bool connected = true;
+  @override
+  final identity = ScooterIdentity();
+  @override
+  final vehicle = VehicleStatus();
+  @override
+  bool demoMode = false;
+  @override
+  bool otaAvailable = false;
+  @override
+  bool autoUnlock = false;
+  @override
+  bool openSeatOnUnlock = false;
+  @override
+  bool hazardLocking = false;
+  @override
+  bool get tripCounterSupported => false;
+  @override
+  int get autoUnlockThreshold => -65;
+  @override
+  String? get currentScooterId => null;
+  @override
+  Map<String, SavedScooter> get savedScooters => {};
+  @override
+  Future<SavedScooter?> getMostRecentScooter() async => null;
+  @override
+  NavDestination? get pendingNavigation => null;
+  @override
+  NavDestination? get activeNavigation => null;
 
   List<NavDestination> stops = [];
+  List<NavDestination> favorites = [];
   int step = 0;
 
   @override
@@ -32,7 +71,7 @@ class _PlanService extends ChangeNotifier implements ScooterService {
   @override
   Future<void> refreshRoutePlan() async {}
   @override
-  Future<List<NavDestination>> routePlanFavorites() async => const [];
+  Future<List<NavDestination>> routePlanFavorites() async => favorites;
 
   @override
   Future<void> addRouteStop(NavDestination stop) async {
@@ -74,26 +113,33 @@ class _PlanService extends ChangeNotifier implements ScooterService {
 
 NavDestination _stop(String name, double lat) => NavDestination(location: LatLng(lat, 13.4), name: name);
 
-Future<void> _mount(WidgetTester tester, _PlanService service) async {
+Future<void> _mount(WidgetTester tester, _PlanService service,
+    {bool consent = false, Widget home = const RoutePlanScreen(), Size size = const Size(800, 1200)}) async {
+  final previousPrefs = SharedPreferencesAsyncPlatform.instance;
+  SharedPreferencesAsyncPlatform.instance = MemoryPreferences()..bools['osmConsent'] = consent;
+  addTearDown(() => SharedPreferencesAsyncPlatform.instance = previousPrefs);
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(800, 1200);
+  tester.view.physicalSize = size;
   addTearDown(() {
     tester.view.resetDevicePixelRatio();
     tester.view.resetPhysicalSize();
   });
   await tester.pumpWidget(ChangeNotifierProvider<ScooterService>.value(
     value: service,
-    child: MaterialApp(
-      localizationsDelegates: [
-        FlutterI18nDelegate(
-          translationLoader: FileTranslationLoader(
-            basePath: 'assets/i18n',
-            fallbackFile: 'en',
-            forcedLocale: const Locale('en'),
+    child: EasyDynamicThemeWidget(
+      initialThemeMode: ThemeMode.light,
+      child: MaterialApp(
+        localizationsDelegates: [
+          FlutterI18nDelegate(
+            translationLoader: FileTranslationLoader(
+              basePath: 'assets/i18n',
+              fallbackFile: 'en',
+              forcedLocale: const Locale('en'),
+            ),
           ),
-        ),
-      ],
-      home: const RoutePlanScreen(),
+        ],
+        home: home,
+      ),
     ),
   ));
   await tester.pumpAndSettle();
@@ -105,6 +151,87 @@ void main() {
 
     expect(find.text('No route planned'), findsOneWidget);
     expect(find.text('Add stop'), findsOneWidget);
+  });
+
+  testWidgets('online search is hidden in the route planner until consent is enabled', (tester) async {
+    await _mount(tester, _PlanService());
+
+    expect(find.text('Online Location Services are off'), findsOneWidget);
+    await tester.tap(find.text('Add stop'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PhotonAutocomplete), findsNothing);
+    expect(find.text('Online Location Services are off'), findsNWidgets(2));
+  });
+
+  testWidgets('saved destinations remain selectable while online search is off', (tester) async {
+    final service = _PlanService()..favorites = [_stop('Home', 52.51)];
+    await _mount(tester, service);
+    await tester.tap(find.text('Add stop'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Home'), findsOneWidget);
+    await tester.tap(find.text('Home'));
+    await tester.pumpAndSettle();
+    expect(service.stops.single.name, 'Home');
+  });
+
+  testWidgets('route-stop picker links to Settings instead of searching while disabled', (tester) async {
+    await _mount(tester, _PlanService());
+    await tester.tap(find.text('Add stop'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Online Location Services are off').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.byType(PhotonAutocomplete), findsNothing);
+  });
+
+  testWidgets('notice opens the app setting and search is restored on return', (tester) async {
+    await _mount(tester, _PlanService(), size: const Size(393, 852));
+    await tester.tap(find.text('Online Location Services are off'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    final toggle = find.widgetWithText(SwitchListTile, 'Online Location Services');
+    expect(toggle, findsOneWidget);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect((SharedPreferencesAsyncPlatform.instance as MemoryPreferences).bools['osmConsent'], true);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Online Location Services are off'), findsNothing);
+    await tester.tap(find.text('Add stop'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PhotonAutocomplete), findsOneWidget);
+  });
+
+  testWidgets('navigation notice opens Settings and refreshes search on return', (tester) async {
+    final service = _PlanService()..connected = false;
+    await _mount(tester, service, home: const NavigationScreen(), size: const Size(393, 852));
+
+    expect(find.text('Online Location Services are off'), findsOneWidget);
+    expect(find.byType(PhotonAutocomplete), findsNothing);
+    await tester.tap(find.text('Online Location Services are off'));
+    await tester.pumpAndSettle();
+    final toggle = find.widgetWithText(SwitchListTile, 'Online Location Services');
+    expect(toggle, findsOneWidget);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Online Location Services are off'), findsNothing);
+    expect(find.byType(PhotonAutocomplete), findsOneWidget);
+  });
+
+  testWidgets('place search remains available when consent is enabled', (tester) async {
+    await _mount(tester, _PlanService(), consent: true);
+
+    expect(find.text('Online Location Services are off'), findsNothing);
+    await tester.tap(find.text('Add stop'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PhotonAutocomplete), findsOneWidget);
   });
 
   testWidgets('lists stops and highlights the current one', (tester) async {

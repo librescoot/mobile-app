@@ -39,7 +39,9 @@ import 'package:unustasis/ui/screens/log_screen.dart';
 import '../wide_layout.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({this.focusOnlineLocationServices = false, super.key});
+
+  final bool focusOnlineLocationServices;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -78,6 +80,8 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   bool? _alarmHonk;
   bool _alarmSettingsLoaded = false;
   final TextEditingController _apnController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _onlineLocationKey = GlobalKey();
   final SharedPreferencesAsync prefs = SharedPreferencesAsync();
 
   void getInitialSettings() async {
@@ -102,6 +106,18 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     getInitialSettings();
     WidgetsBinding.instance.addObserver(this);
     refreshBatteryOptimization();
+    if (widget.focusOnlineLocationServices) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final target = _onlineLocationKey.currentContext;
+          if (target != null) {
+            Scrollable.ensureVisible(target, duration: const Duration(milliseconds: 250));
+          }
+        });
+      });
+    }
   }
 
   @override
@@ -121,6 +137,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _apnController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -1358,6 +1375,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           ),
         ),
         SwitchListTile(
+          key: _onlineLocationKey,
           secondary: const Icon(Icons.pin_drop_outlined),
           title: Text(FlutterI18n.translate(context, "settings_osm_consent")),
           subtitle: Text(
@@ -1484,6 +1502,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
       body: SettingsHelpRowTheme(
         child: SafeArea(
           child: ListView.separated(
+            controller: _scrollController,
             padding: wideContentPadding(context, base: const EdgeInsets.only(bottom: 24)),
             shrinkWrap: true,
             itemCount: items.length,

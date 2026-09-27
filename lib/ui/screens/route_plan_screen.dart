@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:unustasis/domain/nav_destination.dart';
 import 'package:unustasis/geo_helper.dart';
 import 'package:unustasis/scooter_service.dart';
 import '../widgets/header.dart';
+import '../widgets/online_location_notice.dart';
 import '../widgets/photon_autocomplete.dart';
 import '../wide_layout.dart';
+import 'settings_screen.dart';
 
 /// Editor for the scooter's multi-hop route plan. Edits go over BLE one stop
 /// per command, capped at 100 bytes.
@@ -22,6 +25,7 @@ class RoutePlanScreen extends StatefulWidget {
 class _RoutePlanScreenState extends State<RoutePlanScreen> {
   bool _loading = true;
   bool _busy = false;
+  bool? _onlineConsent;
   String? _error;
   List<NavDestination> _favorites = const [];
 
@@ -29,6 +33,19 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _reload());
+    _loadOnlineConsent();
+  }
+
+  Future<void> _loadOnlineConsent() async {
+    final consent = await SharedPreferencesAsync().getBool('osmConsent');
+    if (mounted) setState(() => _onlineConsent = consent ?? false);
+  }
+
+  Future<void> _openOnlineLocationSettings() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => const SettingsScreen(focusOnlineLocationServices: true),
+    ));
+    if (mounted) await _loadOnlineConsent();
   }
 
   Future<void> _reload() async {
@@ -80,7 +97,11 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
     final destination = await showModalBottomSheet<NavDestination>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _StopPickerSheet(favorites: _favorites),
+      builder: (context) => _StopPickerSheet(
+        favorites: _favorites,
+        onlineSearchEnabled: _onlineConsent == true,
+        onOpenSettings: _openOnlineLocationSettings,
+      ),
     );
     if (destination == null || !mounted) return;
     await _run(() => context.read<ScooterService>().addRouteStop(destination));
@@ -176,16 +197,23 @@ class _RoutePlanScreenState extends State<RoutePlanScreen> {
             ),
         ],
       ),
-      body: Stack(
+      body: Column(
         children: [
-          _body(service, stops, step),
-          if (_busy)
-            const Positioned.fill(
-              child: ColoredBox(
-                color: Color(0x33000000),
-                child: Center(child: CircularProgressIndicator()),
-              ),
+          if (_onlineConsent == false) OnlineLocationNotice(onTap: _openOnlineLocationSettings),
+          Expanded(
+            child: Stack(
+              children: [
+                _body(service, stops, step),
+                if (_busy)
+                  const Positioned.fill(
+                    child: ColoredBox(
+                      color: Color(0x33000000),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     );
@@ -412,11 +440,13 @@ class _RouteStopMarker extends StatelessWidget {
   }
 }
 
-/// Picks one stop: Photon search plus saved destinations.
+/// Picks one stop from online search or saved destinations.
 class _StopPickerSheet extends StatelessWidget {
-  const _StopPickerSheet({required this.favorites});
+  const _StopPickerSheet({required this.favorites, required this.onlineSearchEnabled, required this.onOpenSettings});
 
   final List<NavDestination> favorites;
+  final bool onlineSearchEnabled;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -433,15 +463,21 @@ class _StopPickerSheet extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
               ),
             ),
-            PhotonAutocomplete(
-              formatFeature: GeoHelper.fullNameFromFeature,
-              onSelected: (feature) {
-                Navigator.of(context).pop(NavDestination(
-                  location: LatLng(feature.coordinates.latitude.toDouble(), feature.coordinates.longitude.toDouble()),
-                  name: GeoHelper.nameFromFeature(feature),
-                ));
-              },
-            ),
+            if (onlineSearchEnabled)
+              PhotonAutocomplete(
+                formatFeature: GeoHelper.fullNameFromFeature,
+                onSelected: (feature) {
+                  Navigator.of(context).pop(NavDestination(
+                    location: LatLng(feature.coordinates.latitude.toDouble(), feature.coordinates.longitude.toDouble()),
+                    name: GeoHelper.nameFromFeature(feature),
+                  ));
+                },
+              )
+            else
+              OnlineLocationNotice(onTap: () {
+                Navigator.of(context).pop();
+                onOpenSettings();
+              }),
             if (favorites.isNotEmpty) ...[
               const SizedBox(height: 16),
               Text(

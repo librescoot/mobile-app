@@ -361,12 +361,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
           icon: const Icon(Icons.privacy_tip_outlined),
           label: Text(FlutterI18n.translate(context, 'settings_privacy_policy')),
         ),
-        if (_savingOnlineServicesChoice)
-          const CircularProgressIndicator()
-        else if (_onlineServicesChoice != null)
+        if (_onlineServicesChoice != null)
           _primaryButton(
             text: FlutterI18n.translate(context, 'onboarding_online_continue'),
             onPressed: _saveOnlineServicesChoice,
+            loading: _savingOnlineServicesChoice,
           ),
       ];
 
@@ -913,23 +912,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     ];
   }
 
-  Widget _primaryButton({required String text, required void Function() onPressed}) {
+  Widget _primaryButton({required String text, required void Function() onPressed, bool loading = false}) {
+    final colors = Theme.of(context).colorScheme;
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
-        minimumSize: const Size.fromHeight(
-          60,
-        ), // fromHeight use double.infinity as width and 40 is the height
-        backgroundColor: Theme.of(context).colorScheme.onSurface,
+        minimumSize: const Size.fromHeight(60),
+        backgroundColor: colors.onSurface,
+        disabledBackgroundColor: colors.onSurface,
       ),
-      onPressed: onPressed,
+      onPressed: loading ? null : onPressed,
       child: Padding(
         padding: const EdgeInsets.all(8.0),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onTertiary,
-          ),
-        ),
+        child: loading
+            ? SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: colors.onTertiary),
+              )
+            : Text(text, style: TextStyle(color: colors.onTertiary)),
       ),
     );
   }

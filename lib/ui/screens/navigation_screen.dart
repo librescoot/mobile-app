@@ -11,8 +11,10 @@ import 'package:unustasis/domain/nav_destination.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/geo_helper.dart';
 import 'package:unustasis/scooter_service.dart';
+import '../widgets/online_location_notice.dart';
 import '../widgets/photon_autocomplete.dart';
 import 'route_plan_screen.dart';
+import 'settings_screen.dart';
 import '../wide_layout.dart';
 
 class NavigationScreen extends StatefulWidget {
@@ -28,7 +30,7 @@ class NavigationScreen extends StatefulWidget {
 class _NavigationScreenState extends State<NavigationScreen> {
   List<NavDestination> _destinations = [];
   bool _loading = false;
-  bool _osmConsent = false;
+  bool? _osmConsent;
   bool _initialLoad = true;
   bool _showingCached = false;
   double _dismissPullDistance = 0;
@@ -59,11 +61,15 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   Future<void> _loadOsmConsent() async {
-    final prefs = SharedPreferencesAsync();
-    final consent = await prefs.getBool("osmConsent");
-    if (mounted) {
-      setState(() => _osmConsent = consent ?? false);
-    }
+    final consent = await SharedPreferencesAsync().getBool('osmConsent');
+    if (mounted) setState(() => _osmConsent = consent ?? false);
+  }
+
+  Future<void> _openOnlineLocationSettings() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => const SettingsScreen(focusOnlineLocationServices: true),
+    ));
+    if (mounted) await _loadOsmConsent();
   }
 
   Future<void> _loadCachedDestinations() async {
@@ -520,7 +526,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
       children: [
         Column(
           children: [
-            if (_osmConsent) _searchField(),
+            if (_osmConsent == true) _searchField(),
+            if (_osmConsent == false) OnlineLocationNotice(onTap: _openOnlineLocationSettings),
             const SizedBox(height: 8),
             if (_loading && _initialLoad)
               const Expanded(child: _DestinationsLoading())
@@ -617,7 +624,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             ),
         ],
       ),
-      floatingActionButton: _osmConsent &&
+      floatingActionButton: _osmConsent == true &&
               context.watch<ScooterService>().pendingNavigation == null &&
               context.watch<ScooterService>().vehicle.navigationActive != true
           ? FloatingActionButton(

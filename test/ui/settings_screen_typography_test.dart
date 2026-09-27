@@ -504,7 +504,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(service.openSeatOnUnlock, isFalse);
     expect(service.actions.reads, [lsKeyAutoStandbySeconds, lsKeyHibernateTimer]);
-    final onlineLocation = find.widgetWithText(SwitchListTile, 'Online location services');
+    final onlineLocation = find.widgetWithText(SwitchListTile, 'Online Location Services');
     await _show(tester, onlineLocation);
     expect(tester.widget<SwitchListTile>(onlineLocation).value, isFalse);
     expect(find.text('Privacy policy'), findsOneWidget);
