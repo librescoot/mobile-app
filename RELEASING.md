@@ -39,8 +39,9 @@ through nightly. Production uploads always land as drafts: start the rollout
 from the Play console when the release should reach users. It verifies the
 uploaded AAB's version code
 and SHA-256 before committing the Play edit, then checks the committed track and
-bundle again. Every configured iOS build goes to TestFlight, since TestFlight
-has no track split.
+bundle again. Every configured iOS build goes to TestFlight. Only tagged
+prereleases are assigned to the `External Testing` group; nightlies and stable
+tags are not.
 
 `changelog.md` becomes the GitHub release body. Play release notes come from
 the per-locale files
@@ -76,7 +77,14 @@ processing it, then creates or updates the per-locale
   gets its own text. Apple allows 4000 characters here, well above Play's 500.
 
 A build rejected during processing (state `FAILED`/`INVALID`) fails the job
-with that state rather than silently leaving the build without notes.
+with that state rather than silently leaving the build without notes. For
+prerelease tags pushed to GitHub, the same script also assigns the processed
+build to the `External Testing` group, enables automatic tester notifications,
+and submits it for TestFlight App Review if it has not already been submitted.
+It verifies group membership and fails the iOS job if the group is missing,
+the build was rejected at publication time, or Apple rejects an API request.
+App Review may still be pending when the CI job finishes; check the build's
+external testing status in App Store Connect before announcing availability.
 
 ## Required secrets
 
@@ -107,11 +115,12 @@ service account after interactive user authentication.
 
 The iOS jobs are skipped when `APPSTORE_KEY_ID`, `IOS_DIST_CERT_P12` or
 `APPLE_TEAM_ID` is missing, so Android can publish before Apple's side is set
-up. On pushes to `main`, the nightly iOS job uploads automatically; App Store
-Connect then processes the build and distributes it to every group whose
-automatic distribution is on. Both the internal testers and the External
-Testing group take nightlies and tagged builds alike — TestFlight has no
-per-build track split.
+up. On pushes to `main`, the nightly iOS job uploads automatically for internal
+testing. On a tagged prerelease push, the iOS job assigns the build to the
+existing external group named `External Testing`. The App Store Connect app
+must have its external TestFlight review information and export compliance
+configured; Apple may require review before the build is available to testers.
+The `External Testing` group must already contain the intended testers.
 
 Provisioning profiles are fetched from App Store Connect at build time rather
 than stored, so they cannot drift out of step with the certificate. The app and

@@ -289,16 +289,18 @@ jobs:
           api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
 
-      - name: Publish What to Test notes
+      - name: Publish What to Test notes and tagged beta distribution
         env:
           APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          EXTERNAL_GROUP: ${{ github.event_name == 'push' && needs.meta.outputs.prerelease == 'true' && 'External Testing' || '' }}
         run: |
           python3 .github/scripts/testflight_notes.py \
             --build-number "${{ steps.version.outputs.build_number }}" \
             --notes-dir distribution/play/metadata/android \
             --notes-version "${{ needs.meta.outputs.version }}" \
             --issuer-id "${{ secrets.APPSTORE_ISSUER_ID }}" \
-            --key-id "${{ secrets.APPSTORE_KEY_ID }}"
+            --key-id "${{ secrets.APPSTORE_KEY_ID }}" \
+            --external-group "$EXTERNAL_GROUP"
 
       - uses: actions/upload-artifact@v6
         with:

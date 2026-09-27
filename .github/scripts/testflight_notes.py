@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Publish TestFlight "What to Test" notes for a build that was just uploaded.
+"""Publish TestFlight notes and optionally distribute a processed build externally.
 
-The upload action has no way to set these, so the notes are written through the
-App Store Connect API afterwards: the build is resolved by its build number, and
-the per-locale betaBuildLocalizations are created or updated.
+The upload action cannot set notes or external tester groups. The build is
+resolved by its build number, and per-locale betaBuildLocalizations are created
+or updated. Tagged betas can also be assigned to an external group and submitted
+for review.
 
 JWT signing goes through openssl rather than a Python JWT library so the CI job
 needs no extra dependencies.
@@ -18,6 +19,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 API = "https://api.appstoreconnect.apple.com/v1"
@@ -131,6 +133,97 @@ def find_localization(token, build_id, locale):
     return data[0]["id"] if data else None
 
 
+def resolve_external_group(token, app_id, name):
+    query = urllib.parse.urlencode(
+        {"filter[app]": app_id, "filter[name]": name, "filter[isInternalGroup]": "false"}
+    )
+    groups = request(token, "GET", f"{API}/betaGroups?{query}&limit=200").get("data") or []
+    matches = [
+        group for group in groups
+        if group["attributes"]["name"] == name
+        and group["attributes"]["isInternalGroup"] is False
+    ]
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"expected one external TestFlight group named {name!r} for app {app_id}; "
+            f"found {len(matches)}"
+        )
+    return matches[0]["id"]
+
+
+def group_has_build(token, group_id, build_id):
+    url = f"{API}/betaGroups/{group_id}/relationships/builds?limit=200"
+    while url:
+        result = request(token, "GET", url)
+        if any(build["id"] == build_id for build in result.get("data") or []):
+            return True
+        url = (result.get("links") or {}).get("next")
+    return False
+
+
+def await_external_detail(token, build_id, timeout=300):
+    deadline = time.monotonic() + timeout
+    while True:
+        detail = request(token, "GET", f"{API}/builds/{build_id}/buildBetaDetail")["data"]
+        state = detail["attributes"]["externalBuildState"]
+        if state not in ("PROCESSING", "IN_EXPORT_COMPLIANCE_REVIEW"):
+            return detail
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"build {build_id} is still {state} after {timeout}s")
+        time.sleep(15)
+
+
+def publish_external(token, build_id, app_id, group_name, dry_run):
+    group_id = resolve_external_group(token, app_id, group_name)
+    if dry_run:
+        print(f"would assign build {build_id} to {group_name}, "
+              "enable notifications and submit for review")
+        return
+
+    detail = await_external_detail(token, build_id)
+    state = detail["attributes"]["externalBuildState"]
+    eligible = {"READY_FOR_BETA_SUBMISSION", "WAITING_FOR_BETA_REVIEW", "IN_BETA_REVIEW",
+                "BETA_APPROVED", "READY_FOR_BETA_TESTING", "IN_BETA_TESTING"}
+    if state not in eligible:
+        raise RuntimeError(f"build {build_id} cannot enter external testing ({state})")
+    if not group_has_build(token, group_id, build_id):
+        body = json.dumps({"data": [{"type": "builds", "id": build_id}]}).encode()
+        request(token, "POST", f"{API}/betaGroups/{group_id}/relationships/builds", body)
+    if not group_has_build(token, group_id, build_id):
+        raise RuntimeError(f"build {build_id} was not assigned to {group_name}")
+
+    if not detail["attributes"].get("autoNotifyEnabled"):
+        body = json.dumps({
+            "data": {"type": "buildBetaDetails", "id": detail["id"],
+                     "attributes": {"autoNotifyEnabled": True}}
+        }).encode()
+        updated = request(token, "PATCH", f"{API}/buildBetaDetails/{detail['id']}", body)
+        if updated["data"]["attributes"]["autoNotifyEnabled"] is not True:
+            raise RuntimeError(f"automatic external notifications were not enabled for {build_id}")
+
+    query = urllib.parse.urlencode({"filter[build]": build_id})
+    submissions = request(token, "GET", f"{API}/betaAppReviewSubmissions?{query}&limit=1")
+    reviews = submissions.get("data") or []
+    if reviews:
+        review_state = reviews[0]["attributes"]["betaReviewState"]
+        if review_state == "REJECTED":
+            raise RuntimeError(f"build {build_id} was rejected by TestFlight App Review")
+    elif state in ("READY_FOR_BETA_TESTING", "IN_BETA_TESTING", "BETA_APPROVED"):
+        review_state = "APPROVED"
+    else:
+        body = json.dumps({
+            "data": {"type": "betaAppReviewSubmissions", "relationships": {
+                "build": {"data": {"type": "builds", "id": build_id}}
+            }}
+        }).encode()
+        result = request(token, "POST", f"{API}/betaAppReviewSubmissions", body)
+        review_state = result["data"]["attributes"]["betaReviewState"]
+    if review_state not in ("APPROVED", "WAITING_FOR_REVIEW", "IN_REVIEW"):
+        raise RuntimeError(f"build {build_id} has unexpected beta review state {review_state}")
+    print(f"build {build_id}: assigned to {group_name}; "
+          f"beta review {review_state}; auto-notify enabled")
+
+
 def write_notes(token, build_id, locale, text, dry_run):
     if dry_run:
         print(f"would set {locale} notes ({len(text)} chars)")
@@ -186,6 +279,7 @@ def main():
         help=f"path to the .p8 key; defaults to the {KEY_ENV} environment variable",
     )
     parser.add_argument("--timeout", type=int, default=900, help="seconds to await processing")
+    parser.add_argument("--external-group", help="assign the build to this external TestFlight group")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -226,6 +320,10 @@ def main():
         build_id = await_build(token, app_id, args.build_number, args.timeout)
         for locale, text in sorted(notes.items()):
             write_notes(token, build_id, locale, text, args.dry_run)
+        if args.external_group:
+            # Processing can take longer than the token's 15-minute lifetime.
+            token = mint_token(key_path, args.key_id, args.issuer_id)
+            publish_external(token, build_id, app_id, args.external_group, args.dry_run)
     finally:
         if temporary:
             os.unlink(temporary)

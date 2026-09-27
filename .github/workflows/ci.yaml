@@ -21,6 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Test TestFlight publishing
+        run: python3 -m unittest discover -s tool -p 'test_testflight_notes.py'
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.2'
