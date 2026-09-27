@@ -1,0 +1,5 @@
+Neu seit 1.3.0-beta.12:
+
+• Verständlichere Wahl für Online-Standortdienste mit Link zur Einstellung aus Navigation und Routenplanung
+• Die Ortssuche bleibt ausgeschaltet, bis du sie aktivierst; gespeicherte Ziele bleiben verfügbar
+• Der Speichern-Button behält beim Speichern seine Größe

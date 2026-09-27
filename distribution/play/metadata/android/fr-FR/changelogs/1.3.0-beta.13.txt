@@ -1,0 +1,5 @@
+Nouveautés depuis la 1.3.0-beta.12 :
+
+• Choix des services de localisation plus clair, avec un accès au réglage depuis la navigation et les itinéraires
+• La recherche de lieux reste désactivée jusqu’à son activation ; les destinations enregistrées restent disponibles
+• Le bouton d’enregistrement garde sa taille pendant l’enregistrement
