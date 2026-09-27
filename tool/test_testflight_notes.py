@@ -21,13 +21,26 @@ class ExternalDistributionTests(unittest.TestCase):
 
     def test_resolves_only_the_exact_external_group(self):
         with patch.object(notes, "request", return_value=self.group_response()) as request:
-            self.assertEqual(notes.resolve_external_group("token", "app-1", "External Testing"), "group-1")
+            self.assertEqual(notes.resolve_external_group("token", "app-1", "External Testing"),
+                             ("group-1", "External Testing"))
             url = request.call_args.args[2]
             self.assertIn("filter%5Bapp%5D=app-1", url)
-            self.assertIn("filter%5Bname%5D=External+Testing", url)
-            self.assertIn("filter%5BisInternalGroup%5D=false", url)
         with patch.object(notes, "request", return_value=self.group_response(internal=True)):
-            with self.assertRaisesRegex(RuntimeError, "expected one external"):
+            with self.assertRaisesRegex(RuntimeError, "available external groups: \\[\\]"):
+                notes.resolve_external_group("token", "app-1", "External Testing")
+
+    def test_uses_sole_external_group_when_named_differently(self):
+        with patch.object(notes, "request", return_value=self.group_response(name="Beta testers")):
+            self.assertEqual(notes.resolve_external_group("token", "app-1", "External Testing"),
+                             ("group-1", "Beta testers"))
+
+    def test_refuses_to_guess_among_multiple_external_groups(self):
+        data = {"data": [
+            {"id": "group-1", "attributes": {"name": "Early access", "isInternalGroup": False}},
+            {"id": "group-2", "attributes": {"name": "Preview", "isInternalGroup": False}},
+        ]}
+        with patch.object(notes, "request", return_value=data):
+            with self.assertRaisesRegex(RuntimeError, "Early access.*Preview"):
                 notes.resolve_external_group("token", "app-1", "External Testing")
 
     def test_searches_paginated_group_membership(self):

@@ -134,21 +134,27 @@ def find_localization(token, build_id, locale):
 
 
 def resolve_external_group(token, app_id, name):
-    query = urllib.parse.urlencode(
-        {"filter[app]": app_id, "filter[name]": name, "filter[isInternalGroup]": "false"}
-    )
-    groups = request(token, "GET", f"{API}/betaGroups?{query}&limit=200").get("data") or []
-    matches = [
-        group for group in groups
-        if group["attributes"]["name"] == name
-        and group["attributes"]["isInternalGroup"] is False
-    ]
-    if len(matches) != 1:
+    query = urllib.parse.urlencode({"filter[app]": app_id})
+    url = f"{API}/betaGroups?{query}&limit=200"
+    groups = []
+    while url:
+        result = request(token, "GET", url)
+        groups.extend(result.get("data") or [])
+        url = (result.get("links") or {}).get("next")
+    external = [group for group in groups if group["attributes"]["isInternalGroup"] is False]
+    matches = [group for group in external if group["attributes"]["name"] == name]
+    if len(matches) == 1:
+        chosen = matches[0]
+    elif not matches and len(external) == 1:
+        chosen = external[0]
+        print(f"using sole external TestFlight group {chosen['attributes']['name']!r}")
+    else:
+        available = [group["attributes"]["name"] for group in external]
         raise RuntimeError(
             f"expected one external TestFlight group named {name!r} for app {app_id}; "
-            f"found {len(matches)}"
+            f"available external groups: {available}"
         )
-    return matches[0]["id"]
+    return chosen["id"], chosen["attributes"]["name"]
 
 
 def group_has_build(token, group_id, build_id):
@@ -174,7 +180,7 @@ def await_external_detail(token, build_id, timeout=300):
 
 
 def publish_external(token, build_id, app_id, group_name, dry_run):
-    group_id = resolve_external_group(token, app_id, group_name)
+    group_id, group_name = resolve_external_group(token, app_id, group_name)
     if dry_run:
         print(f"would assign build {build_id} to {group_name}, "
               "enable notifications and submit for review")

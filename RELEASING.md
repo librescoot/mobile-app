@@ -81,10 +81,15 @@ with that state rather than silently leaving the build without notes. For
 prerelease tags pushed to GitHub, the same script also assigns the processed
 build to the `External Testing` group, enables automatic tester notifications,
 and submits it for TestFlight App Review if it has not already been submitted.
+It prefers the group named `External Testing`, uses the sole external group
+when named differently, and fails rather than guessing among multiple groups.
 It verifies group membership and fails the iOS job if the group is missing,
 the build was rejected at publication time, or Apple rejects an API request.
 App Review may still be pending when the CI job finishes; check the build's
 external testing status in App Store Connect before announcing availability.
+For an already-uploaded prerelease build, use the `Distribute existing TestFlight
+beta` workflow with its TestFlight build number and prerelease tag. It updates
+notes and repeats the group assignment and review checks without uploading an IPA.
 
 ## Required secrets
 
@@ -117,7 +122,7 @@ The iOS jobs are skipped when `APPSTORE_KEY_ID`, `IOS_DIST_CERT_P12` or
 `APPLE_TEAM_ID` is missing, so Android can publish before Apple's side is set
 up. On pushes to `main`, the nightly iOS job uploads automatically for internal
 testing. On a tagged prerelease push, the iOS job assigns the build to the
-existing external group named `External Testing`. The App Store Connect app
+existing external TestFlight group. The App Store Connect app
 must have its external TestFlight review information and export compliance
 configured; Apple may require review before the build is available to testers.
 The `External Testing` group must already contain the intended testers.
