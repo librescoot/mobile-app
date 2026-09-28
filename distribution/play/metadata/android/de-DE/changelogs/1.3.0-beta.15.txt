@@ -1,0 +1,5 @@
+Neu in 1.3.0-beta.15:
+
+• Die Signalstärke für das schlüssellose Entsperren wird live aktualisiert; der Verbindungsstatus ist sichtbar.
+• Das vordere Schutzblech erscheint ohne versetzten Schatten.
+• Sitzfachöffnung und Warnblinker lassen sich auch ohne automatisches Entsperren einstellen.

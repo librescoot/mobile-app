@@ -1,0 +1,5 @@
+Nouveautés de la 1.3.0-beta.15 :
+
+• Le signal du déverrouillage sans clé se met à jour en direct et indique l'état de connexion.
+• Le garde-boue avant s'affiche sans ombre décalée.
+• L'ouverture du coffre et les feux de détresse se règlent indépendamment du déverrouillage automatique.

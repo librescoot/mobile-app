@@ -1,0 +1,5 @@
+Nieuw in 1.3.0-beta.15:
+
+• De signaalsterkte voor sleutelloos ontgrendelen wordt live bijgewerkt, met verbindingsstatus.
+• Het voorspatbord verschijnt zonder verschoven schaduw.
+• De buddy openen en alarmlichten knipperen zijn ook zonder automatisch ontgrendelen instelbaar.

@@ -1,5 +1,5 @@
 What's new in 1.3.0-beta.15:
 
 • The keyless signal line updates live and shows connection guidance.
-• The front fender displays without a displaced shadow.
+• The front mudguard displays without a displaced shadow.
 • Seatbox-on-unlock and hazard feedback can be configured independently of keyless auto-unlock.
