@@ -129,6 +129,12 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   bool autoUnlock = false;
   @override
+  int? get rssi => identity.rssi;
+  void updateRssi(int? value) {
+    identity.rssi = value;
+    notifyListeners();
+  }
+  @override
   void setAutoUnlock(bool value) {
     autoUnlock = value;
     notifyListeners();
@@ -252,6 +258,39 @@ Finder _timer(int index) => find.byWidgetPredicate((widget) =>
 Finder _button(Finder row) => find.descendant(of: row, matching: find.byType(DropdownButton<int>));
 
 void main() {
+  testWidgets('keyless signal indicator follows RSSI without moving the slider', (tester) async {
+    final service = _Service()..autoUnlock = true;
+    addTearDown(service.dispose);
+    service.updateRssi(-80);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+
+    final slider = find.byType(Slider);
+    expect(tester.widget<Slider>(slider).secondaryTrackValue, -80);
+    expect(find.textContaining('-80 dBm'), findsOneWidget);
+
+    service.updateRssi(-60);
+    await tester.pump();
+    expect(tester.widget<Slider>(slider).secondaryTrackValue, -60);
+    expect(find.textContaining('-60 dBm'), findsOneWidget);
+    expect(find.textContaining('-80 dBm'), findsNothing);
+
+    service.updateRssi(-75);
+    await tester.pump();
+    expect(tester.widget<Slider>(slider).secondaryTrackValue, -75);
+    expect(find.textContaining('-75 dBm'), findsOneWidget);
+
+    service.updateRssi(-90);
+    await tester.pump();
+    expect(tester.widget<Slider>(slider).secondaryTrackValue, -85);
+    expect(find.textContaining('-90 dBm'), findsOneWidget);
+
+    service.updateRssi(-45);
+    await tester.pump();
+    expect(tester.widget<Slider>(slider).secondaryTrackValue, -55);
+    expect(find.textContaining('-45 dBm'), findsOneWidget);
+  });
+
   testWidgets('an unprobed alarm capability still shows the alarm settings', (tester) async {
     final service = _Service();
     addTearDown(service.dispose);
