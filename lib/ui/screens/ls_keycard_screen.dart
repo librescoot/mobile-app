@@ -14,6 +14,7 @@ import 'package:unustasis/feature_flags.dart';
 import 'package:unustasis/ui/dialogs/keycard_add_dialog.dart';
 import 'package:unustasis/ui/key_alias_sync.dart';
 import 'package:unustasis/ui/presentation/keycard_colors.dart';
+import 'package:unustasis/ui/presentation/keycard_icons.dart';
 import 'package:unustasis/scooter_service.dart';
 import '../wide_layout.dart';
 
@@ -137,8 +138,11 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   Map<String, String> _aliases = {};
   Map<String, String> _localAliases = {};
   Map<String, int> _cardColors = {};
+  Map<String, String> _cardIcons = {};
   late final Future<void> _cardColorsLoad;
+  late final Future<void> _cardIconsLoad;
   Future<void> _cardColorSaveQueue = Future.value();
+  Future<void> _cardIconSaveQueue = Future.value();
   List<String> _masterCards = [];
   bool _loadingAliases = false;
   Future<void> _aliasQueue = Future.value();
@@ -157,6 +161,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     super.initState();
     _localAliasLoad = _loadAliases();
     _cardColorsLoad = _loadCardColors();
+    _cardIconsLoad = _loadCardIcons();
     if (phoneKeyFeatureEnabled) {
       _restorePhoneKey();
       _loadPhoneKeyService();
@@ -339,7 +344,9 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
                   onDelete: _deleteKeycard,
                   onRename: _renameKeycard,
                   colorIndex: _cardColors[keycard],
+                  iconId: _cardIcons[keycard],
                   onColorSelected: _setCardColor,
+                  onIconSelected: _setCardIcon,
                 ),
               ),
           ],
@@ -654,6 +661,33 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     await _cardColorSaveQueue;
   }
 
+  Future<void> _loadCardIcons() async {
+    try {
+      final raw = await SharedPreferencesAsync().getString('keycard_icons');
+      if (raw == null || !mounted) return;
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      setState(() => _cardIcons = {
+            for (final entry in decoded.entries)
+              if (entry.value is String && keycardIconIds.contains(entry.value)) entry.key: entry.value as String,
+          });
+    } catch (e) {
+      Logger('LsKeycardScreen').warning('Could not load keycard icons: $e');
+    }
+  }
+
+  Future<void> _setCardIcon(String uid, String iconId) async {
+    await _cardIconsLoad;
+    if (!mounted) return;
+    setState(() => _cardIcons[uid] = iconId);
+    final snapshot = jsonEncode(_cardIcons);
+    _cardIconSaveQueue = _cardIconSaveQueue
+        .then((_) => SharedPreferencesAsync().setString('keycard_icons', snapshot))
+        .catchError((Object error) {
+      Logger('LsKeycardScreen').warning('Could not save keycard icon: $error');
+    });
+    await _cardIconSaveQueue;
+  }
+
   Future<void> _queueAliasOperation(Future<void> Function() action) {
     final next = _aliasQueue.then((_) => action());
     _aliasQueue = next.catchError((Object error, StackTrace stack) {
@@ -845,9 +879,11 @@ class KeycardCard extends StatefulWidget {
   final bool onlyCard;
   final bool highlighted;
   final int? colorIndex;
+  final String? iconId;
   final Future<void> Function(String uid) onDelete;
   final Future<void> Function(String uid, String alias) onRename;
   final Future<void> Function(String uid, int index) onColorSelected;
+  final Future<void> Function(String uid, String iconId) onIconSelected;
 
   const KeycardCard({
     super.key,
@@ -856,7 +892,9 @@ class KeycardCard extends StatefulWidget {
     required this.onDelete,
     required this.onRename,
     required this.onColorSelected,
+    required this.onIconSelected,
     this.colorIndex,
+    this.iconId,
     this.alias,
     this.onlyCard = false,
     this.highlighted = false,
@@ -934,7 +972,7 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(Icons.contactless_outlined, size: 40, color: Colors.white),
+              keycardIcon(widget.iconId ?? 'contactless'),
               PopupMenuButton<String>(
                 icon: const Icon(
                   Icons.more_vert,
@@ -943,11 +981,13 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
                 onSelected: (value) {
                   if (value == 'rename') _showRenameDialog(context);
                   if (value == 'color') _showColorPicker(context);
+                  if (value == 'icon') _showIconPicker(context);
                   if (value == 'delete') _confirmAndDeleteKeycard(context);
                 },
                 itemBuilder: (ctx) => [
                   PopupMenuItem(value: 'rename', child: Text(FlutterI18n.translate(ctx, "nav_rename"))),
                   PopupMenuItem(value: 'color', child: Text(FlutterI18n.translate(ctx, 'ls_keycard_color'))),
+                  PopupMenuItem(value: 'icon', child: Text(FlutterI18n.translate(ctx, 'ls_keycard_icon'))),
                   if (!widget.onlyCard)
                     PopupMenuItem(value: 'delete', child: Text(FlutterI18n.translate(ctx, "ls_keycard_delete_button"))),
                 ],
@@ -1034,6 +1074,66 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
       ),
     );
     if (selected != null && mounted) await widget.onColorSelected(widget.uid, selected);
+  }
+
+  Future<void> _showIconPicker(BuildContext context) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(FlutterI18n.translate(sheetContext, 'ls_keycard_icon'),
+                  style: Theme.of(sheetContext).textTheme.titleLarge),
+              const SizedBox(height: 20),
+              GridView.count(
+                shrinkWrap: true,
+                crossAxisCount: 3,
+                childAspectRatio: 0.8,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                children: [
+                  for (final id in keycardIconIds)
+                    Semantics(
+                      label: FlutterI18n.translate(sheetContext, 'ls_keycard_icon_$id'),
+                      button: true,
+                      selected: id == (widget.iconId ?? 'contactless'),
+                      child: InkWell(
+                        key: ValueKey('keycard-icon-$id'),
+                        onTap: () => Navigator.pop(sheetContext, id),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF303030),
+                            borderRadius: BorderRadius.circular(8),
+                            border: id == (widget.iconId ?? 'contactless')
+                                ? Border.all(color: Theme.of(sheetContext).colorScheme.primary, width: 3)
+                                : null,
+                          ),
+                          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            keycardIcon(id, size: 32),
+                            const SizedBox(height: 8),
+                            Text(
+                              FlutterI18n.translate(sheetContext, 'ls_keycard_icon_$id'),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+    if (selected != null && mounted) await widget.onIconSelected(widget.uid, selected);
   }
 
   void _showRenameDialog(BuildContext context) async {
