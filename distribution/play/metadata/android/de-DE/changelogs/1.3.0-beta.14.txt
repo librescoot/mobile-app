@@ -1,0 +1,5 @@
+Neu seit 1.3.0-beta.13:
+
+• Überarbeitete Rolleransichten mit gleichmäßigerer Farbschattierung
+• Eclipse-, Idioteque- und Hover-Grafiken an die Standardansichten angepasst
+• Doppelte Schattierung unter dem vorderen Schutzblech reduziert

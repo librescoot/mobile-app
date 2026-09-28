@@ -1,0 +1,5 @@
+Nieuw sinds 1.3.0-beta.13:
+
+• Vernieuwde voor- en zijaanzichten van de scooter met gelijkmatigere kleurschakering
+• Eclipse-, Idioteque- en Hover-afbeeldingen uitgelijnd met de standaardweergaven
+• Dubbele schaduw onder het voorspatbord verminderd

@@ -1,0 +1,5 @@
+Nouveautés depuis la 1.3.0-beta.13 :
+
+• Vues avant et latérale du scooter actualisées avec des ombres de peinture plus cohérentes
+• Graphismes Eclipse, Idioteque et Hover alignés sur les vues standard
+• Ombre en double sous le garde-boue avant réduite
