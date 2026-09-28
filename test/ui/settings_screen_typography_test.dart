@@ -264,6 +264,47 @@ Finder _timer(int index) => find.byWidgetPredicate((widget) =>
 Finder _button(Finder row) => find.descendant(of: row, matching: find.byType(DropdownButton<int>));
 
 void main() {
+  testWidgets('unlock extras remain editable without proximity auto-unlock', (tester) async {
+    final service = _Service();
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    final context = tester.element(find.byType(SettingsScreen));
+
+    final seat = find.text(FlutterI18n.translate(context, 'settings_open_seat_on_unlock'));
+    await _show(tester, seat);
+    final seatSwitch = tester.widget<SwitchListTile>(
+      find.ancestor(of: seat, matching: find.byType(SwitchListTile)),
+    );
+    expect(service.autoUnlock, isFalse);
+    expect(seatSwitch.onChanged, isNotNull);
+    expect((seatSwitch.subtitle as Text).data,
+        FlutterI18n.translate(context, 'settings_open_seat_on_unlock_description'));
+    seatSwitch.onChanged!(true);
+    await tester.pump();
+    expect(service.openSeatOnUnlock, isTrue);
+    tester.widget<SwitchListTile>(find.ancestor(of: seat, matching: find.byType(SwitchListTile)))
+        .onChanged!(false);
+    await tester.pump();
+    expect(service.openSeatOnUnlock, isFalse);
+
+    final hazards = find.text(FlutterI18n.translate(context, 'settings_hazard_locking'));
+    await _show(tester, hazards);
+    final hazardSwitch = tester.widget<SwitchListTile>(
+      find.ancestor(of: hazards, matching: find.byType(SwitchListTile)),
+    );
+    expect(hazardSwitch.onChanged, isNotNull);
+    expect((hazardSwitch.subtitle as Text).data,
+        FlutterI18n.translate(context, 'settings_hazard_locking_description'));
+    hazardSwitch.onChanged!(true);
+    await tester.pump();
+    expect(service.hazardLocking, isTrue);
+    tester.widget<SwitchListTile>(find.ancestor(of: hazards, matching: find.byType(SwitchListTile)))
+        .onChanged!(false);
+    await tester.pump();
+    expect(service.hazardLocking, isFalse);
+  });
+
   testWidgets('keyless signal indicator follows RSSI without moving the slider', (tester) async {
     final service = _Service()..autoUnlock = true;
     addTearDown(service.dispose);
@@ -554,18 +595,10 @@ void main() {
     addTearDown(service.dispose);
     final semantics = tester.ensureSemantics();
 
-    // Flash and open-seat are per-scooter settings that only make sense while
-    // auto-unlock is on for the scooter the section is editing.
-    service.autoUnlock = true;
     await tester.pumpWidget(_screen(service));
     await tester.pumpAndSettle();
     final openSeatRow = find.ancestor(of: find.text('Open seatbox on unlock'), matching: find.byType(SwitchListTile));
     expect(tester.widget<SwitchListTile>(openSeatRow).onChanged, isNotNull);
-    service.setAutoUnlock(false);
-    await tester.pumpAndSettle();
-    expect(tester.widget<SwitchListTile>(openSeatRow).onChanged, isNull);
-    service.setAutoUnlock(true);
-    await tester.pumpAndSettle();
     expect(renderedStyle(tester, 'Auto-unlock').fontSize, 18);
     expect(renderedStyle(tester, 'Auto-unlock').fontWeight, FontWeight.w400);
     expect(renderedStyle(tester, 'Unlock the scooter when your phone is nearby and the app is open.').fontSize, 14);

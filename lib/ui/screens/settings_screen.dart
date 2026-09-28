@@ -1080,18 +1080,9 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           title: Text(
             FlutterI18n.translate(context, "settings_open_seat_on_unlock"),
           ),
-          subtitle: Text(
-            FlutterI18n.translate(
-              context,
-              autoUnlock ? "settings_open_seat_on_unlock_description" : "settings_requires_auto_unlock",
-            ),
-          ),
+          subtitle: Text(FlutterI18n.translate(context, "settings_open_seat_on_unlock_description")),
           value: openSeatOnUnlock,
-          onChanged: autoUnlock
-              ? (value) async {
-                  context.read<ScooterService>().setOpenSeatOnUnlock(value);
-                }
-              : null,
+          onChanged: (value) => context.read<ScooterService>().setOpenSeatOnUnlock(value),
         ),
         SwitchListTile(
           secondary: const ImageIcon(
@@ -1099,18 +1090,9 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             size: 24,
           ),
           title: Text(FlutterI18n.translate(context, "settings_hazard_locking")),
-          subtitle: Text(
-            FlutterI18n.translate(
-              context,
-              autoUnlock ? "settings_hazard_locking_description" : "settings_requires_auto_unlock",
-            ),
-          ),
+          subtitle: Text(FlutterI18n.translate(context, "settings_hazard_locking_description")),
           value: hazardLocking,
-          onChanged: autoUnlock
-              ? (value) async {
-                  context.read<ScooterService>().setHazardLocking(value);
-                }
-              : null,
+          onChanged: (value) => context.read<ScooterService>().setHazardLocking(value),
         ),
         if (isLibrescoot) ..._connectionRequiredItems(_librescootAccessSettingsItems()),
         if (isLibrescoot) ...[
