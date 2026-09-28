@@ -28,7 +28,7 @@ void main() {
       sides.add(await _loadImage('images/scooter/side_$index.webp'));
     }
 
-    expect(fronts.map((image) => image.width), everyElement(866));
+    expect(fronts.map((image) => (image.width, image.height)), everyElement((866, 1800)));
     expect(sides.map((image) => image.width), everyElement(2072));
     expect((fronts[0].width, fronts[0].height), (fronts[1].width, fronts[1].height));
     expect((sides[0].width, sides[0].height), (sides[1].width, sides[1].height));

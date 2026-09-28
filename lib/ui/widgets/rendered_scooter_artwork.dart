@@ -390,6 +390,7 @@ class _ArtworkViewData {
         shadow,
         under,
         for (final paintLayer in paintLayers) ...[
+          if (paintLayer.before != null) paintLayer.before!,
           paintLayer.paint,
           ...paintLayer.effects,
         ],
@@ -402,6 +403,7 @@ class _ArtworkViewData {
     }
     yield under;
     for (final paintLayer in paintLayers) {
+      if (paintLayer.before != null) yield paintLayer.before!;
       yield paintLayer.paint;
       for (final effect in paintLayer.effects) {
         if (!matte && effect.asset == glossBefore) {
@@ -416,15 +418,17 @@ class _ArtworkViewData {
 }
 
 class _ArtworkPaintLayer {
-  const _ArtworkPaintLayer({required this.paint, required this.effects});
+  const _ArtworkPaintLayer({required this.paint, required this.effects, this.before});
 
   factory _ArtworkPaintLayer.fromJson(Map<String, dynamic> json) => _ArtworkPaintLayer(
+        before: json['before'] == null ? null : _ArtworkLayer.fromJson(json['before'] as Map<String, dynamic>),
         paint: _ArtworkLayer.fromJson(json['paint'] as Map<String, dynamic>, paintMask: true),
         effects: [
           for (final value in json['effects'] as List<dynamic>) _ArtworkLayer.fromJson(value as Map<String, dynamic>),
         ],
       );
 
+  final _ArtworkLayer? before;
   final _ArtworkLayer paint;
   final List<_ArtworkLayer> effects;
 }

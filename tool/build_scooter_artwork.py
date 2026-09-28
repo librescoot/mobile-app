@@ -210,6 +210,50 @@ def full_layer_alpha(output: Path, layer: dict[str, object], size: tuple[int, in
     return alpha
 
 
+def build_front_fender_shadow(
+    root: ET.Element,
+    leaves: list[ET.Element],
+    destination: Path,
+) -> dict[str, object]:
+    fender = next(
+        child for child in root.iter() if "filter3_d" in child.get("filter", "")
+    )
+    fender_leaves = set(fender.iter())
+    indices = {index for index, leaf in enumerate(leaves) if leaf in fender_leaves}
+    filtered = select_leaves(root, indices)
+    unfiltered = copy.deepcopy(filtered)
+    for element in unfiltered.iter():
+        if any(name in element.get("filter", "") for name in ("filter3_d", "filter4_d")):
+            element.attrib.pop("filter")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        filtered_path = Path(temp_dir) / "filtered.png"
+        unfiltered_path = Path(temp_dir) / "unfiltered.png"
+        render(filtered, filtered_path)
+        render(unfiltered, unfiltered_path)
+        with Image.open(filtered_path) as image:
+            pixels = np.array(image.convert("RGBA"), dtype=np.uint8)
+        with Image.open(unfiltered_path) as image:
+            plain_alpha = np.array(image.convert("RGBA"), dtype=np.uint8)[..., 3]
+
+    # Each fender filter belongs to the combined group, not to individual effects.
+    pixels[..., 3] = np.maximum(
+        pixels[..., 3].astype(np.int16) - plain_alpha.astype(np.int16), 0
+    ).astype(np.uint8)
+    pixels[..., :3] = 0
+    shadow = Image.fromarray(pixels, "RGBA")
+    bounds = shadow.getchannel("A").getbbox() or (0, 0, 1, 1)
+    shadow.crop(bounds).save(destination, "PNG", optimize=True)
+    left, top, right, bottom = bounds
+    return {
+        "asset": f"images/scooter/{destination.name}",
+        "x": left,
+        "y": top,
+        "width": right - left,
+        "height": bottom - top,
+    }
+
+
 def save_alpha_layer(
     destination: Path,
     alpha: np.ndarray,
@@ -413,6 +457,10 @@ def build_layers(source_file: Path, output: Path, view: str) -> dict[str, object
         select_leaves(root, under_indices), output / f"custom_{view}_under.png"
     )
 
+    fender_shadow = (
+        build_front_fender_shadow(root, leaves, output / "custom_front_fender_shadow.png")
+        if view == "front" else None
+    )
     paint_layers: list[dict[str, object]] = []
     for layer, paint_index in enumerate(paint_indices):
         next_paint = paint_indices[layer + 1] if layer + 1 < len(paint_indices) else len(leaves)
@@ -429,6 +477,10 @@ def build_layers(source_file: Path, output: Path, view: str) -> dict[str, object
             if view == "front" and any("paint30_radial" in fill for fill in fills):
                 continue
             effect_root = select_leaves(root, indices)
+            if view == "front":
+                for element in effect_root.iter():
+                    if any(name in element.get("filter", "") for name in ("filter3_d", "filter4_d")):
+                        element.attrib.pop("filter")
             remove_blend_modes(effect_root)
             destination = output / f"custom_{view}_effect_{layer}_{effect_number}.png"
             effect_data = render_cropped(effect_root, destination)
@@ -443,14 +495,23 @@ def build_layers(source_file: Path, output: Path, view: str) -> dict[str, object
                 effect_data["matteOnly"] = True
             effects.append(effect_data)
             effect_number += 1
-        paint_layers.append({"paint": paint, "effects": effects})
+        paint_layers.append({
+            "paint": paint,
+            "effects": effects,
+            **({"before": fender_shadow} if layer == 1 and fender_shadow else {}),
+        })
     manifest["paintLayers"] = paint_layers
     return manifest
 
 
 def build_prerendered(source: Path, output: Path) -> None:
+    hover = wrap_source(source / "mode=hover.svg", "front")
+    replace_placeholder(hover, "#C8F8FA")
+    render(hover, output / "base_9.webp", webp=True)
     for index in (7, 8, 9):
         for view, output_prefix in (("front", "base"), ("side", "side")):
+            if view == "front" and index == 9:
+                continue
             source_file = source / f"{view}_{index}.png"
             with Image.open(source_file) as image:
                 expected_width = 866 if view == "front" else 2072
@@ -458,18 +519,23 @@ def build_prerendered(source: Path, output: Path) -> None:
                     raise ValueError(
                         f"{source_file.name} is {image.width}px wide, expected {expected_width}px"
                     )
-            subprocess.run(
-                [
-                    "cwebp",
-                    "-lossless",
-                    "-exact",
-                    "-quiet",
-                    source_file,
-                    "-o",
-                    output / f"{output_prefix}_{index}.webp",
-                ],
-                check=True,
-            )
+                if view == "front":
+                    if image.height + FRONT_TOP > SIZES["front"][1]:
+                        raise ValueError(f"{source_file.name} exceeds the front canvas")
+                    padded = Image.new("RGBA", SIZES["front"])
+                    padded.alpha_composite(image.convert("RGBA"), (0, FRONT_TOP))
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        padded_path = Path(temp_dir) / "front.png"
+                        padded.save(padded_path)
+                        subprocess.run([
+                            "cwebp", "-lossless", "-exact", "-quiet", padded_path,
+                            "-o", output / f"{output_prefix}_{index}.webp",
+                        ], check=True)
+                    continue
+            subprocess.run([
+                "cwebp", "-lossless", "-exact", "-quiet", source_file,
+                "-o", output / f"{output_prefix}_{index}.webp",
+            ], check=True)
 
 
 def main() -> None:

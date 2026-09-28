@@ -34,7 +34,7 @@
               "y": 467,
               "width": 568,
               "height": 816,
-              "blendMode": "luminosity"
+              "blendMode": "softLight"
             },
             {
               "asset": "images/scooter/custom_front_effect_0_1.png",
@@ -42,7 +42,7 @@
               "y": 467,
               "width": 568,
               "height": 816,
-              "blendMode": "screen"
+              "blendMode": "softLight"
             },
             {
               "asset": "images/scooter/custom_front_effect_0_2.png",
@@ -50,23 +50,23 @@
               "y": 467,
               "width": 568,
               "height": 816,
-              "blendMode": "srcOver"
+              "blendMode": "softLight"
             },
             {
               "asset": "images/scooter/custom_front_effect_0_3.png",
               "x": 305,
-              "y": 583,
+              "y": 584,
               "width": 257,
-              "height": 299,
+              "height": 298,
               "blendMode": "multiply"
             },
             {
               "asset": "images/scooter/custom_front_effect_0_4.png",
               "x": 289,
-              "y": 570,
+              "y": 571,
               "width": 289,
-              "height": 314,
-              "blendMode": "luminosity"
+              "height": 312,
+              "blendMode": "overlay"
             },
             {
               "asset": "images/scooter/custom_front_effect_0_5.png",
@@ -129,30 +129,28 @@
           "effects": [
             {
               "asset": "images/scooter/custom_front_effect_1_0.png",
-              "x": 287,
-              "y": 1086,
-              "width": 294,
-              "height": 112,
+              "x": 303,
+              "y": 1089,
+              "width": 262,
+              "height": 75,
               "blendMode": "overlay"
             },
             {
               "asset": "images/scooter/custom_front_effect_1_1.png",
-              "x": 287,
-              "y": 1086,
-              "width": 294,
-              "height": 112,
+              "x": 303,
+              "y": 1089,
+              "width": 262,
+              "height": 75,
               "blendMode": "srcOver"
-            },
-            {
-              "asset": "images/scooter/custom_front_effect_1_2.png",
-              "x": 287,
-              "y": 1086,
-              "width": 294,
-              "height": 112,
-              "blendMode": "srcOver",
-              "matteOnly": true
             }
-          ]
+          ],
+          "before": {
+            "asset": "images/scooter/custom_front_fender_shadow.png",
+            "x": 287,
+            "y": 1070,
+            "width": 294,
+            "height": 131
+          }
         },
         {
           "paint": {
@@ -165,33 +163,24 @@
           "effects": [
             {
               "asset": "images/scooter/custom_front_effect_2_0.png",
-              "x": 287,
+              "x": 304,
               "y": 1070,
-              "width": 294,
-              "height": 131,
+              "width": 258,
+              "height": 99,
               "blendMode": "overlay"
             },
             {
               "asset": "images/scooter/custom_front_effect_2_1.png",
-              "x": 287,
-              "y": 1070,
-              "width": 294,
-              "height": 131,
-              "blendMode": "srcOver",
-              "matteOnly": true
-            },
-            {
-              "asset": "images/scooter/custom_front_effect_2_2.png",
               "x": 208,
               "y": 639,
               "width": 453,
-              "height": 562,
+              "height": 530,
               "blendMode": "srcOver"
             }
           ]
         }
       ],
-      "glossBefore": "images/scooter/custom_front_effect_2_2.png",
+      "glossBefore": "images/scooter/custom_front_effect_2_1.png",
       "glossLayers": [
         {
           "asset": "images/scooter/custom_front_gloss_bloom.png",
