@@ -1,0 +1,67 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_i18n/flutter_i18n.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:scooter_flutter/scooter_actions.dart';
+import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
+
+class _Actions implements ScooterActions {
+  @override
+  Future<List<String>> listKeycards() async => [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Service extends ChangeNotifier implements ScooterService {
+  @override
+  bool get connected => false;
+  @override
+  String? get currentScooterId => null;
+  @override
+  bool? get phoneKeyManagementSupported => false;
+  @override
+  bool? get keyAliasesSupported => false;
+  @override
+  ScooterActions get actions => _Actions();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+void main() {
+  testWidgets('Android phone key instructions start collapsed and can be expanded', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final service = _Service();
+    addTearDown(service.dispose);
+
+    await tester.pumpWidget(ChangeNotifierProvider<ScooterService>.value(
+      value: service,
+      child: MaterialApp(
+        localizationsDelegates: [
+          FlutterI18nDelegate(
+            translationLoader: FileTranslationLoader(
+              basePath: 'assets/i18n',
+              fallbackFile: 'en',
+              forcedLocale: const Locale('en'),
+            ),
+          ),
+        ],
+        home: const LsKeycardScreen(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final panel = find.byKey(const ValueKey('phone-key-expansion'));
+    expect(panel, findsOneWidget);
+    expect(tester.widget<ExpansionTile>(panel).initiallyExpanded, isFalse);
+    expect(find.text('Provide NFC phone key'), findsNothing);
+
+    await tester.tap(find.text('Use this Android phone as a key'));
+    await tester.pumpAndSettle();
+    expect(find.text('Provide NFC phone key'), findsOneWidget);
+    debugDefaultTargetPlatformOverride = null;
+  });
+}

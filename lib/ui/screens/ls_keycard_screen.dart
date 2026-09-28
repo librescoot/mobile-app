@@ -214,31 +214,34 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
             if (phoneKeyFeatureEnabled)
               Card(
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Use this Android phone as a key', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    const Text('Set up a device-bound key, then tap your master card to enter learn mode. '
-                        'Hold the unlocked phone against the scooter reader, and tap the master card again to save it. '
-                        'The phone screen and NFC must be on for future taps.'),
-                    const SizedBox(height: 8),
-                    if (_phoneFingerprint != null) SelectableText('Phone key: $_phoneFingerprint'),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Provide NFC phone key'),
-                      subtitle: const Text('Turn this off to keep this app out of the NFC key chooser. '
-                          'The phone key remains on this device.'),
-                      value: _phoneKeyServiceEnabled ?? false,
-                      onChanged:
-                          _phoneKeyServiceEnabled == null || _changingPhoneKeyService ? null : _setPhoneKeyService,
-                    ),
-                    if (_phoneKeyError != null) Text(_phoneKeyError!, style: const TextStyle(color: Colors.red)),
-                    TextButton(
-                      onPressed: _creatingPhoneKey ? null : _setUpPhoneKey,
-                      child: Text(_creatingPhoneKey ? 'Setting up…' : 'Set up / show phone key'),
-                    ),
-                  ]),
+                child: ExpansionTile(
+                  key: const ValueKey('phone-key-expansion'),
+                  initiallyExpanded: false,
+                  title: Text('Use this Android phone as a key', style: Theme.of(context).textTheme.titleMedium),
+                  childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  children: [
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('Set up a device-bound key, then tap your master card to enter learn mode. '
+                          'Hold the unlocked phone against the scooter reader, and tap the master card again to save it. '
+                          'The phone screen and NFC must be on for future taps.'),
+                      const SizedBox(height: 8),
+                      if (_phoneFingerprint != null) SelectableText('Phone key: $_phoneFingerprint'),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Provide NFC phone key'),
+                        subtitle: const Text('Turn this off to keep this app out of the NFC key chooser. '
+                            'The phone key remains on this device.'),
+                        value: _phoneKeyServiceEnabled ?? false,
+                        onChanged:
+                            _phoneKeyServiceEnabled == null || _changingPhoneKeyService ? null : _setPhoneKeyService,
+                      ),
+                      if (_phoneKeyError != null) Text(_phoneKeyError!, style: const TextStyle(color: Colors.red)),
+                      TextButton(
+                        onPressed: _creatingPhoneKey ? null : _setUpPhoneKey,
+                        child: Text(_creatingPhoneKey ? 'Setting up…' : 'Set up / show phone key'),
+                      ),
+                    ]),
+                  ],
                 ),
               ),
             if (phoneListAvailable)
