@@ -78,6 +78,21 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  testWidgets('keycard has an eight-pixel corner radius', (tester) async {
+    final service = _Service();
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+
+    final containers = tester.widgetList<Container>(find.descendant(
+      of: find.byType(KeycardCard).first,
+      matching: find.byType(Container),
+    ));
+    final card = containers.map((container) => container.decoration).whereType<BoxDecoration>()
+        .firstWhere((decoration) => decoration.gradient != null);
+    expect(card.borderRadius, BorderRadius.circular(8));
+  });
+
   testWidgets('card colour choice persists for its UID', (tester) async {
     final service = _Service();
     addTearDown(service.dispose);

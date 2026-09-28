@@ -911,7 +911,7 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
               blurRadius: 16,
             ),
           ],
-          borderRadius: const BorderRadius.all(Radius.circular(16)),
+          borderRadius: const BorderRadius.all(Radius.circular(8)),
           gradient: LinearGradient(
             colors: [
               HSLColor.fromColor(color).withLightness(0.4).toColor(),
