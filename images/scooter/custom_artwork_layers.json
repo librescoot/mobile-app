@@ -143,14 +143,7 @@
               "height": 75,
               "blendMode": "srcOver"
             }
-          ],
-          "before": {
-            "asset": "images/scooter/custom_front_fender_shadow.png",
-            "x": 287,
-            "y": 1070,
-            "width": 294,
-            "height": 131
-          }
+          ]
         },
         {
           "paint": {

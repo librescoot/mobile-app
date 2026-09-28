@@ -213,50 +213,6 @@ def full_layer_alpha(output: Path, layer: dict[str, object], size: tuple[int, in
     return alpha
 
 
-def build_front_fender_shadow(
-    root: ET.Element,
-    leaves: list[ET.Element],
-    destination: Path,
-) -> dict[str, object]:
-    fender = next(
-        child for child in root.iter() if "filter3_d" in child.get("filter", "")
-    )
-    fender_leaves = set(fender.iter())
-    indices = {index for index, leaf in enumerate(leaves) if leaf in fender_leaves}
-    filtered = select_leaves(root, indices)
-    unfiltered = copy.deepcopy(filtered)
-    for element in unfiltered.iter():
-        if any(name in element.get("filter", "") for name in ("filter3_d", "filter4_d")):
-            element.attrib.pop("filter")
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        filtered_path = Path(temp_dir) / "filtered.png"
-        unfiltered_path = Path(temp_dir) / "unfiltered.png"
-        render(filtered, filtered_path)
-        render(unfiltered, unfiltered_path)
-        with Image.open(filtered_path) as image:
-            pixels = np.array(image.convert("RGBA"), dtype=np.uint8)
-        with Image.open(unfiltered_path) as image:
-            plain_alpha = np.array(image.convert("RGBA"), dtype=np.uint8)[..., 3]
-
-    # Each fender filter belongs to the combined group, not to individual effects.
-    pixels[..., 3] = np.maximum(
-        pixels[..., 3].astype(np.int16) - plain_alpha.astype(np.int16), 0
-    ).astype(np.uint8)
-    pixels[..., :3] = 0
-    shadow = Image.fromarray(pixels, "RGBA")
-    bounds = shadow.getchannel("A").getbbox() or (0, 0, 1, 1)
-    shadow.crop(bounds).save(destination, "PNG", optimize=True)
-    left, top, right, bottom = bounds
-    return {
-        "asset": f"images/scooter/{destination.name}",
-        "x": left,
-        "y": top,
-        "width": right - left,
-        "height": bottom - top,
-    }
-
-
 def save_alpha_layer(
     destination: Path,
     alpha: np.ndarray,
@@ -460,10 +416,6 @@ def build_layers(source_file: Path, output: Path, view: str) -> dict[str, object
         select_leaves(root, under_indices), output / f"custom_{view}_under.png"
     )
 
-    fender_shadow = (
-        build_front_fender_shadow(root, leaves, output / "custom_front_fender_shadow.png")
-        if view == "front" else None
-    )
     paint_layers: list[dict[str, object]] = []
     for layer, paint_index in enumerate(paint_indices):
         next_paint = paint_indices[layer + 1] if layer + 1 < len(paint_indices) else len(leaves)
@@ -498,11 +450,7 @@ def build_layers(source_file: Path, output: Path, view: str) -> dict[str, object
                 effect_data["matteOnly"] = True
             effects.append(effect_data)
             effect_number += 1
-        paint_layers.append({
-            "paint": paint,
-            "effects": effects,
-            **({"before": fender_shadow} if layer == 1 and fender_shadow else {}),
-        })
+        paint_layers.append({"paint": paint, "effects": effects})
     manifest["paintLayers"] = paint_layers
     return manifest
 
