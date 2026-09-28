@@ -930,6 +930,16 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           ),
       ];
 
+  String _keylessSignalLabel(BuildContext context, {required bool connected, String? name, int? rssi}) {
+    final named = name?.trim().isNotEmpty == true;
+    final state = connected ? (rssi == null ? 'connected_waiting' : 'connected') : 'disconnected';
+    final key = 'settings_auto_unlock_signal_$state${named ? '' : '_unnamed'}';
+    return FlutterI18n.translate(context, key, translationParams: {
+      if (named) 'name': name!.trim(),
+      if (rssi != null) 'rssi': '$rssi',
+    });
+  }
+
   List<Widget> settingsItems({
     required bool isLibrescoot,
     required bool supportsScheduledHibernation,
@@ -999,9 +1009,13 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           },
         ),
         if (autoUnlock)
-          Selector<ScooterService, int?>(
-            selector: (_, service) => service.rssi,
-            builder: (context, rssi, _) {
+          Selector<ScooterService, ({int? rssi, bool connected, String? name})>(
+            selector: (_, service) => (
+              rssi: service.rssi,
+              connected: service.connected && !service.demoMode,
+              name: service.scooterName,
+            ),
+            builder: (context, signal, _) {
               final min = ScooterKeylessDistance.getMinThresholdDistance().threshold.toDouble();
               final max = ScooterKeylessDistance.getMaxThresholdDistance().threshold.toDouble();
               return ListTile(
@@ -1012,27 +1026,42 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                   mainAxisAlignment: MainAxisAlignment.start,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Slider(
-                      value: autoUnlockDistance.threshold.toDouble(),
-                      min: min,
-                      max: max,
-                      secondaryTrackValue: rssi?.toDouble().clamp(min, max),
-                      divisions: ScooterKeylessDistance.values.length - 1,
-                      label: autoUnlockDistance.getFormattedThreshold(),
-                      onChanged: (value) async {
-                        final distance = ScooterKeylessDistance.fromThreshold(value.toInt());
-                        context.read<ScooterService>().setAutoUnlockThreshold(value.toInt());
-                        setState(() => autoUnlockDistance = distance);
-                      },
-                    ),
-                    if (rssi != null)
-                      Text(
-                        FlutterI18n.translate(
-                          context,
-                          "settings_auto_unlock_threshold_explainer",
-                          translationParams: {"rssi": rssi.toString()},
-                        ),
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        secondaryActiveTrackColor: signal.connected
+                            ? SliderTheme.of(context).secondaryActiveTrackColor
+                            : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
                       ),
+                      child: Slider(
+                        value: autoUnlockDistance.threshold.toDouble(),
+                        min: min,
+                        max: max,
+                        secondaryTrackValue: signal.rssi?.toDouble().clamp(min, max),
+                        divisions: ScooterKeylessDistance.values.length - 1,
+                        label: autoUnlockDistance.getFormattedThreshold(),
+                        onChanged: (value) async {
+                          final distance = ScooterKeylessDistance.fromThreshold(value.toInt());
+                          context.read<ScooterService>().setAutoUnlockThreshold(value.toInt());
+                          setState(() => autoUnlockDistance = distance);
+                        },
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 20, right: 16, bottom: 4),
+                      child: Row(
+                        children: [
+                          Icon(signal.connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled, size: 16),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              _keylessSignalLabel(context,
+                                  connected: signal.connected, name: signal.name, rssi: signal.rssi),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               );

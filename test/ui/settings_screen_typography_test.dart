@@ -130,8 +130,14 @@ class _Service extends ChangeNotifier implements ScooterService {
   bool autoUnlock = false;
   @override
   int? get rssi => identity.rssi;
+  @override
+  String? get scooterName => identity.name;
   void updateRssi(int? value) {
     identity.rssi = value;
+    notifyListeners();
+  }
+  void updateName(String? value) {
+    identity.name = value;
     notifyListeners();
   }
   @override
@@ -289,6 +295,40 @@ void main() {
     await tester.pump();
     expect(tester.widget<Slider>(slider).secondaryTrackValue, -55);
     expect(find.textContaining('-45 dBm'), findsOneWidget);
+  });
+
+  testWidgets('keyless status distinguishes measured, waiting and disconnected signals', (tester) async {
+    final service = _Service()..autoUnlock = true;
+    addTearDown(service.dispose);
+    service.updateName('Hubert');
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Connected to Hubert — measuring signal strength…'), findsOneWidget);
+    expect(tester.widget<Slider>(find.byType(Slider)).secondaryTrackValue, isNull);
+    expect(find.byIcon(Icons.bluetooth_connected), findsOneWidget);
+
+    service.updateRssi(-60);
+    await tester.pump();
+    expect(find.text('Connected to Hubert — signal strength -60 dBm'), findsOneWidget);
+
+    service.setConnection(false);
+    await tester.pump();
+    expect(find.text('Not connected to Hubert — move closer to the scooter'), findsOneWidget);
+    expect(find.byIcon(Icons.bluetooth_disabled), findsOneWidget);
+    expect(tester.widget<Slider>(find.byType(Slider)).secondaryTrackValue, -60);
+    expect(tester.widget<SliderTheme>(find.byType(SliderTheme).last).data.secondaryActiveTrackColor, isNotNull);
+
+    service.updateName(null);
+    await tester.pump();
+    expect(find.text('Not connected — move closer to the scooter'), findsOneWidget);
+
+    service.setConnection(true);
+    await tester.pump();
+    expect(find.text('Connected — signal strength -60 dBm'), findsOneWidget);
+    service.updateRssi(null);
+    await tester.pump();
+    expect(find.text('Connected — measuring signal strength…'), findsOneWidget);
   });
 
   testWidgets('an unprobed alarm capability still shows the alarm settings', (tester) async {
