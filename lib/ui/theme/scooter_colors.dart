@@ -25,12 +25,12 @@ bool usesLayeredScooterArtwork(int value) => standardScooterColorValues.contains
 String layeredScooterColor(int value) => _layeredArtworkColors[canonicalScooterColor(value)]!;
 
 const Map<int, String> _layeredArtworkColors = {
-  0: '#0F0F0F',
-  2: '#557064',
-  3: '#D5D5D5',
-  4: '#E87962',
+  0: '#282828',
+  2: '#4E6F5E',
+  3: '#C8C8C8',
+  4: '#E07962',
   5: '#D43D27',
-  6: '#0F214F',
+  6: '#1A2C61',
   7: '#494949',
   8: '#80CBC4',
   9: '#03A9F4',
@@ -42,31 +42,31 @@ bool layeredScooterColorIsMatte(int value) =>
 const Map<int, ScooterColor> scooterColors = {
   0: ScooterColor(
     value: 0,
-    displayColor: Color(0xFF0F0F0F),
+    displayColor: Color(0xFF282828),
     simpleName: "black",
     finish: ScooterColorFinish.matte,
   ),
   1: ScooterColor(
     value: 1,
-    displayColor: Color(0xFFD5D5D5),
+    displayColor: Color(0xFFC8C8C8),
     simpleName: "gray",
     finish: ScooterColorFinish.matte,
   ),
   2: ScooterColor(
     value: 2,
-    displayColor: Color(0xFF557064),
+    displayColor: Color(0xFF4E6F5E),
     simpleName: "green",
     finish: ScooterColorFinish.matte,
   ),
   3: ScooterColor(
     value: 3,
-    displayColor: Color(0xFFD5D5D5),
+    displayColor: Color(0xFFC8C8C8),
     simpleName: "gray",
     finish: ScooterColorFinish.matte,
   ),
   4: ScooterColor(
     value: 4,
-    displayColor: Color(0xFFE87962),
+    displayColor: Color(0xFFE07962),
     simpleName: "orange",
     finish: ScooterColorFinish.matte,
   ),
@@ -78,7 +78,7 @@ const Map<int, ScooterColor> scooterColors = {
   ),
   6: ScooterColor(
     value: 6,
-    displayColor: Color(0xFF0F214F),
+    displayColor: Color(0xFF1A2C61),
     simpleName: "blue",
     finish: ScooterColorFinish.glossy,
   ),

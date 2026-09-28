@@ -63,9 +63,9 @@ void main() {
     final backdrop = find.byKey(const ValueKey('scooter-color-preview-backdrop'));
     expect(backdrop, findsOneWidget);
     final backdropSize = tester.getSize(backdrop);
-    expect(find.byKey(const ValueKey('scooter-color-front-#557064-true')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-color-front-#4E6F5E-true')), findsOneWidget);
     expect(tester.widget<ScooterVisual>(find.byType(ScooterVisual)).state, ScooterState.standby);
-    expect(find.byKey(const ValueKey('scooter-color-side-#557064-true')), findsNothing);
+    expect(find.byKey(const ValueKey('scooter-color-side-#4E6F5E-true')), findsNothing);
 
     final glossyFill = tester.widget<DecoratedBox>(find.byKey(const ValueKey('scooter-color-fill-6')));
     final glossyGradient = (glossyFill.decoration as BoxDecoration).gradient! as LinearGradient;
@@ -78,25 +78,25 @@ void main() {
     await tester.pump(const Duration(milliseconds: 260));
     expect(tester.getSize(backdrop), backdropSize);
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byKey(const ValueKey('scooter-color-side-#557064-true')), findsOneWidget);
-    final sideArtwork = find.byKey(const ValueKey('scooter-color-side-#557064-true-artwork'));
+    expect(find.byKey(const ValueKey('scooter-color-side-#4E6F5E-true')), findsOneWidget);
+    final sideArtwork = find.byKey(const ValueKey('scooter-color-side-#4E6F5E-true-artwork'));
     expect(tester.getSize(sideArtwork).height, 246);
     expect(tester.getSize(sideArtwork).width, greaterThan(backdropSize.width));
 
     await tester.tap(find.byKey(const ValueKey('scooter-color-option-6')));
     await tester.pump(const Duration(milliseconds: 160));
-    expect(find.byKey(const ValueKey('scooter-color-side-#557064-true')), findsOneWidget);
-    expect(find.byKey(const ValueKey('scooter-color-side-#0F214F-false')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-color-side-#4E6F5E-true')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-color-side-#1A2C61-false')), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 200));
-    expect(find.byKey(const ValueKey('scooter-color-side-#0F214F-false')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-color-side-#1A2C61-false')), findsOneWidget);
   });
 
   testWidgets('maps legacy white to the Matte Stone swatch', (tester) async {
-    expect(scooterColors[3]!.displayColor, const Color(0xFFD5D5D5));
+    expect(scooterColors[3]!.displayColor, const Color(0xFFC8C8C8));
     await mount(tester, initialValue: 1);
 
     final stone = find.byKey(const ValueKey('scooter-color-option-3'));
-    expect(find.byKey(const ValueKey('scooter-color-front-#D5D5D5-true')), findsOneWidget);
+    expect(find.byKey(const ValueKey('scooter-color-front-#C8C8C8-true')), findsOneWidget);
     expect(find.descendant(of: stone, matching: find.byIcon(Icons.check)), findsOneWidget);
   });
 
@@ -111,7 +111,7 @@ void main() {
     expect(find.byKey(const ValueKey('custom-color-backdrop')), findsOneWidget);
     expect(
       tester.widget<RenderedScooterArtwork>(find.byKey(const ValueKey('custom-color-preview'))).color,
-      '#0F214F',
+      '#1A2C61',
     );
     expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
 
@@ -119,7 +119,7 @@ void main() {
     await tester.pump();
     final updatedColor =
         tester.widget<RenderedScooterArtwork>(find.byKey(const ValueKey('custom-color-preview'))).color;
-    expect(updatedColor, isNot('#0F214F'));
+    expect(updatedColor, isNot('#1A2C61'));
 
     await tester.tap(find.byType(Switch));
     await tester.tap(find.widgetWithText(TextButton, 'Save').last);

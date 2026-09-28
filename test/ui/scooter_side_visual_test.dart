@@ -8,11 +8,21 @@ import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
 
 void main() {
-  test('uses the established coral swatch and darker matte black', () {
-    expect(layeredScooterColor(0), '#0F0F0F');
-    expect(scooterColors[0]!.displayColor, const Color(0xFF0F0F0F));
-    expect(layeredScooterColor(4), '#E87962');
-    expect(scooterColors[4]!.displayColor, const Color(0xFFE87962));
+  test('standard swatches match layered paint colors', () {
+    const colors = {
+      0: '#282828',
+      2: '#4E6F5E',
+      3: '#C8C8C8',
+      4: '#E07962',
+      6: '#1A2C61',
+    };
+    for (final entry in colors.entries) {
+      expect(layeredScooterColor(entry.key), entry.value);
+      expect(scooterColors[entry.key]!.displayColor,
+          Color(0xFF000000 | int.parse(entry.value.substring(1), radix: 16)));
+    }
+    expect(layeredScooterColor(1), colors[3]);
+    expect(scooterColors[1]!.displayColor, scooterColors[3]!.displayColor);
   });
 
   Widget buildVisual(
