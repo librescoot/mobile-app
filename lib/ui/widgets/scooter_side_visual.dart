@@ -6,8 +6,7 @@ import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 ///
 /// Decoding the source at full resolution costs about 14 MB per card against a
 /// 100 MB image cache, so each view is decoded near its painted width.
-const double _renderedSideArtAspectRatio = 2110 / 1738;
-const double _prerenderedSideArtAspectRatio = 2072 / 1577;
+const double _sideArtAspectRatio = 2110 / 1738;
 
 class ScooterSideVisual extends StatelessWidget {
   const ScooterSideVisual({
@@ -56,7 +55,7 @@ class ScooterSideVisual extends StatelessWidget {
             Image.asset(
               imagePath,
               height: height,
-              cacheWidth: (height * _prerenderedSideArtAspectRatio * MediaQuery.devicePixelRatioOf(context)).ceil(),
+              cacheWidth: (height * _sideArtAspectRatio * MediaQuery.devicePixelRatioOf(context)).ceil(),
             )
           else
             RenderedScooterArtwork(
@@ -64,7 +63,7 @@ class ScooterSideVisual extends StatelessWidget {
               color: renderedColor!,
               matte: renderedColorMatte,
               height: height,
-              cacheWidth: (height * _renderedSideArtAspectRatio * MediaQuery.devicePixelRatioOf(context)).ceil(),
+              cacheWidth: (height * _sideArtAspectRatio * MediaQuery.devicePixelRatioOf(context)).ceil(),
             ),
         ],
       ),

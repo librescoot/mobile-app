@@ -121,8 +121,9 @@ void main() {
     final effects = finalPaint['effects'] as List<dynamic>;
 
     expect((effects.first as Map<String, dynamic>)['blendMode'], 'overlay');
-    expect((effects[1] as Map<String, dynamic>)['matteOnly'], isTrue);
     expect((effects.last as Map<String, dynamic>)['blendMode'], 'srcOver');
+    expect(effects.map((value) => (value as Map<String, dynamic>)['matteOnly']),
+        everyElement(isNull));
   });
 
   test('adds directional gloss before foreground details', () async {
@@ -151,14 +152,9 @@ void main() {
       front['glossBefore'],
       (foregroundEffects.last as Map<String, dynamic>)['asset'],
     );
-    expect(
-      paintLayers
-          .expand(
-            (value) => (value as Map<String, dynamic>)['effects'] as List<dynamic>,
-          )
-          .map((value) => (value as Map<String, dynamic>)['blendMode']),
-      isNot(contains('softLight')),
-    );
+    final bodyEffects = (paintLayers.first as Map<String, dynamic>)['effects'] as List<dynamic>;
+    expect(bodyEffects.take(3).map((value) => (value as Map<String, dynamic>)['blendMode']),
+        everyElement('softLight'));
     final side = views['side'] as Map<String, dynamic>;
     final sideGlossLayers = side['glossLayers'] as List<dynamic>;
     final sidePaintLayers = side['paintLayers'] as List<dynamic>;

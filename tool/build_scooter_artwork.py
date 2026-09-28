@@ -21,7 +21,9 @@ PLACEHOLDER = "#FF00DD"
 SIZES = {"front": (866, 1800), "side": (2110, 1738)}
 FRONT_SOURCE_WIDTH = 1135
 FRONT_TOP = 86
-SIDE_SOURCE_WIDTH = 1095
+SIDE_SOURCE_WIDTH = 1036
+SIDE_LEFT = 19
+SIDE_TOP = 71
 
 ET.register_namespace("", SVG_NS)
 ET.register_namespace("xlink", XLINK_NS)
@@ -54,18 +56,19 @@ def wrap_source(source: Path, view: str) -> ET.Element:
     remove_artboard(source_root)
     source_defs = copy.deepcopy(definitions(source_root))
 
+    expected_width = SIDE_SOURCE_WIDTH if view == "side" else FRONT_SOURCE_WIDTH
+    if int(source_root.get("width", "0")) != expected_width:
+        raise ValueError(f"{source.name} is not a {view} master ({expected_width}px wide)")
+    children = [copy.deepcopy(child) for child in source_root if local_name(child) != "defs"]
     if view == "side":
-        children = [
-            copy.deepcopy(child)
-            for index, child in enumerate(source_root)
-            if local_name(child) != "defs" and index < 42
-        ]
-        translate_y = 0
-        scale = SIZES[view][0] / SIDE_SOURCE_WIDTH
+        for child in children:
+            for element in child.iter():
+                style = element.get("style", "")
+                if "mix-blend-mode:luminosity" in style:
+                    element.set("style", style.replace("mix-blend-mode:luminosity", "mix-blend-mode:soft-light"))
+        translate_x, translate_y, scale = SIDE_LEFT, SIDE_TOP, 2
     else:
-        children = [copy.deepcopy(child) for child in source_root if local_name(child) != "defs"]
-        translate_y = FRONT_TOP
-        scale = SIZES[view][0] / FRONT_SOURCE_WIDTH
+        translate_x, translate_y, scale = 0, FRONT_TOP, SIZES[view][0] / FRONT_SOURCE_WIDTH
 
     width, height = SIZES[view]
     output_root = ET.Element(
@@ -80,7 +83,7 @@ def wrap_source(source: Path, view: str) -> ET.Element:
     transform = ET.SubElement(
         output_root,
         f"{{{SVG_NS}}}g",
-        {"transform": f"translate(0 {translate_y}) scale({scale})"},
+        {"transform": f"translate({translate_x} {translate_y}) scale({scale})"},
     )
     transform.extend(children)
     output_root.append(source_defs)
@@ -504,56 +507,61 @@ def build_layers(source_file: Path, output: Path, view: str) -> dict[str, object
     return manifest
 
 
-def build_prerendered(source: Path, output: Path) -> None:
-    hover = wrap_source(source / "mode=hover.svg", "front")
-    replace_placeholder(hover, "#C8F8FA")
-    render(hover, output / "base_9.webp", webp=True)
-    for index in (7, 8, 9):
-        for view, output_prefix in (("front", "base"), ("side", "side")):
-            if view == "front" and index == 9:
-                continue
-            source_file = source / f"{view}_{index}.png"
-            with Image.open(source_file) as image:
-                expected_width = 866 if view == "front" else 2072
-                if image.width != expected_width:
-                    raise ValueError(
-                        f"{source_file.name} is {image.width}px wide, expected {expected_width}px"
-                    )
-                if view == "front":
-                    if image.height + FRONT_TOP > SIZES["front"][1]:
-                        raise ValueError(f"{source_file.name} exceeds the front canvas")
-                    padded = Image.new("RGBA", SIZES["front"])
-                    padded.alpha_composite(image.convert("RGBA"), (0, FRONT_TOP))
-                    with tempfile.TemporaryDirectory() as temp_dir:
-                        padded_path = Path(temp_dir) / "front.png"
-                        padded.save(padded_path)
-                        subprocess.run([
-                            "cwebp", "-lossless", "-exact", "-quiet", padded_path,
-                            "-o", output / f"{output_prefix}_{index}.webp",
-                        ], check=True)
-                    continue
+def build_prerendered(front_source: Path | None, side_source: Path, output: Path) -> None:
+    if front_source is not None:
+        hover_front = wrap_source(front_source / "mode=hover.svg", "front")
+        replace_placeholder(hover_front, "#C8F8FA")
+        render(hover_front, output / "base_9.webp", webp=True)
+        for index in (7, 8):
+            with Image.open(front_source / f"front_{index}.png") as image:
+                padded = Image.new("RGBA", SIZES["front"])
+                padded.alpha_composite(image.convert("RGBA"), (0, FRONT_TOP))
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    path = Path(temp_dir) / "front.png"
+                    padded.save(path)
+                    subprocess.run([
+                        "cwebp", "-lossless", "-exact", "-quiet", path,
+                        "-o", output / f"base_{index}.webp",
+                    ], check=True)
+
+    eclipse = wrap_source(side_source / "side_7.svg", "side")
+    render(eclipse, output / "side_7.webp", webp=True)
+    with Image.open(side_source / "side_8.png") as image:
+        if image.size != (2072, 1577):
+            raise ValueError(f"side_8.png has unexpected dimensions: {image.size}")
+        idioteque = Image.new("RGBA", SIZES["side"])
+        idioteque.alpha_composite(image.convert("RGBA"), (SIDE_LEFT, SIDE_TOP))
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "side.png"
+            idioteque.save(path)
             subprocess.run([
-                "cwebp", "-lossless", "-exact", "-quiet", source_file,
-                "-o", output / f"{output_prefix}_{index}.webp",
+                "cwebp", "-lossless", "-exact", "-quiet", path,
+                "-o", output / "side_8.webp",
             ], check=True)
+    hover_side = wrap_source(side_source / "mode=hover.svg", "side")
+    replace_placeholder(hover_side, "#C8F8FA")
+    render(hover_side, output / "side_9.webp", webp=True)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path, help="Directory containing the exported SVG masters")
     parser.add_argument("output", type=Path, help="Runtime artwork directory")
+    parser.add_argument("--front-source", type=Path, help="Directory containing the front masters")
+    parser.add_argument("--side-only", action="store_true", help="Keep the existing front artwork")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
-    for pattern in (
-        "custom_*_effect_*.png",
-        "custom_*_gloss_*.png",
-        "custom_*_over_*.png",
-    ):
+    front_source = None if args.side_only else (args.front_source or args.source)
+    if args.side_only:
+        manifest_path = args.output / "custom_artwork_layers.json"
+        front = json.loads(manifest_path.read_text(encoding="utf-8"))["views"]["front"]
+    else:
+        front = build_layers(front_source / "mode=scooter.svg", args.output, "front")
+        build_gloss(args.output, front, "front")
+    for pattern in ("custom_side_effect_*.png", "custom_side_gloss_*.png"):
         for stale in args.output.glob(pattern):
             stale.unlink()
-    front = build_layers(args.source / "mode=scooter.svg", args.output, "front")
-    side = build_layers(args.source / "side_master.svg", args.output, "side")
-    build_gloss(args.output, front, "front")
+    side = build_layers(args.source / "mode=scooter.svg", args.output, "side")
     build_gloss(args.output, side, "side")
     manifest = {
         "version": 1,
@@ -565,7 +573,7 @@ def main() -> None:
     (args.output / "custom_artwork_layers.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
-    build_prerendered(args.source, args.output)
+    build_prerendered(front_source, args.source, args.output)
 
 
 if __name__ == "__main__":
