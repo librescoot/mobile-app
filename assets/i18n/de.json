@@ -531,6 +531,8 @@
     "ls_keycard_delete_error": "Keycard konnte nicht gelöscht werden.",
     "ls_keycard_default_name": "Karte {number}",
     "ls_keycard_rename_title": "Keycard umbenennen",
+    "ls_keycard_color": "Kartenfarbe",
+    "ls_keycard_color_option": "Farbe {number}",
     "ls_keycard_alias_hint": "Name (optional, max. 32 Byte)",
     "ls_key_alias_rename": "Schlüssel umbenennen",
     "ls_key_alias_conflict_title": "Schlüsselname auswählen",

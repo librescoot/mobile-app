@@ -531,6 +531,8 @@
     "ls_keycard_delete_error": "Impossible de supprimer la keycard.",
     "ls_keycard_default_name": "Carte {number}",
     "ls_keycard_rename_title": "Renommer la keycard",
+    "ls_keycard_color": "Couleur de la carte",
+    "ls_keycard_color_option": "Couleur {number}",
     "ls_keycard_alias_hint": "Alias (optionnel)",
     "ls_key_alias_conflict_title": "Choisir le nom de la clé",
     "ls_key_alias_conflict_message": "La clé {uid} s’appelle « {localName} » sur ce téléphone et « {scooterName} » sur le scooter. Quel nom doit être utilisé partout ?",

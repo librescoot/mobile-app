@@ -509,6 +509,8 @@
     "ls_keycard_delete_error": "Failed to plunder that keycard, arr!",
     "ls_keycard_default_name": "Card {number}",
     "ls_keycard_rename_title": "Rename Keycard",
+    "ls_keycard_color": "Card colour, arrr",
+    "ls_keycard_color_option": "Colour {number}",
     "ls_keycard_alias_hint": "Alias (optional)",
     "ls_key_alias_conflict_title": "Choose the key’s name",
     "ls_key_alias_conflict_message": "Key {uid} be called “{localName}” on this phone and “{scooterName}” aboard the scooter. Which name should sail everywhere?",

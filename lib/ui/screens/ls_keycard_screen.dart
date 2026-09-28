@@ -13,6 +13,7 @@ import 'package:scooter_core/actions.dart';
 import 'package:unustasis/feature_flags.dart';
 import 'package:unustasis/ui/dialogs/keycard_add_dialog.dart';
 import 'package:unustasis/ui/key_alias_sync.dart';
+import 'package:unustasis/ui/presentation/keycard_colors.dart';
 import 'package:unustasis/scooter_service.dart';
 import '../wide_layout.dart';
 
@@ -135,6 +136,9 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
 
   Map<String, String> _aliases = {};
   Map<String, String> _localAliases = {};
+  Map<String, int> _cardColors = {};
+  late final Future<void> _cardColorsLoad;
+  Future<void> _cardColorSaveQueue = Future.value();
   List<String> _masterCards = [];
   bool _loadingAliases = false;
   Future<void> _aliasQueue = Future.value();
@@ -152,6 +156,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   void initState() {
     super.initState();
     _localAliasLoad = _loadAliases();
+    _cardColorsLoad = _loadCardColors();
     if (phoneKeyFeatureEnabled) {
       _restorePhoneKey();
       _loadPhoneKeyService();
@@ -333,6 +338,8 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
                   highlighted: _highlightedUid == keycard,
                   onDelete: _deleteKeycard,
                   onRename: _renameKeycard,
+                  colorIndex: _cardColors[keycard],
+                  onColorSelected: _setCardColor,
                 ),
               ),
           ],
@@ -619,6 +626,34 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     await SharedPreferencesAsync().setString('keycard_aliases', jsonEncode(aliases ?? _localAliases));
   }
 
+  Future<void> _loadCardColors() async {
+    try {
+      final raw = await SharedPreferencesAsync().getString('keycard_colors');
+      if (raw == null || !mounted) return;
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      setState(() => _cardColors = {
+            for (final entry in decoded.entries)
+              if (entry.value is int && entry.value >= 0 && entry.value < keycardColors.length)
+                entry.key: entry.value as int,
+          });
+    } catch (e) {
+      Logger('LsKeycardScreen').warning('Could not load keycard colours: $e');
+    }
+  }
+
+  Future<void> _setCardColor(String uid, int index) async {
+    await _cardColorsLoad;
+    if (!mounted) return;
+    setState(() => _cardColors[uid] = index);
+    final snapshot = jsonEncode(_cardColors);
+    _cardColorSaveQueue = _cardColorSaveQueue
+        .then((_) => SharedPreferencesAsync().setString('keycard_colors', snapshot))
+        .catchError((Object error) {
+      Logger('LsKeycardScreen').warning('Could not save keycard colour: $error');
+    });
+    await _cardColorSaveQueue;
+  }
+
   Future<void> _queueAliasOperation(Future<void> Function() action) {
     final next = _aliasQueue.then((_) => action());
     _aliasQueue = next.catchError((Object error, StackTrace stack) {
@@ -809,8 +844,10 @@ class KeycardCard extends StatefulWidget {
   final String? alias;
   final bool onlyCard;
   final bool highlighted;
+  final int? colorIndex;
   final Future<void> Function(String uid) onDelete;
   final Future<void> Function(String uid, String alias) onRename;
+  final Future<void> Function(String uid, int index) onColorSelected;
 
   const KeycardCard({
     super.key,
@@ -818,6 +855,8 @@ class KeycardCard extends StatefulWidget {
     required this.uid,
     required this.onDelete,
     required this.onRename,
+    required this.onColorSelected,
+    this.colorIndex,
     this.alias,
     this.onlyCard = false,
     this.highlighted = false,
@@ -860,6 +899,7 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final color = keycardColors[widget.colorIndex ?? widget.index % keycardColors.length];
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) => Container(
@@ -874,8 +914,8 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
           borderRadius: const BorderRadius.all(Radius.circular(16)),
           gradient: LinearGradient(
             colors: [
-              HSLColor.fromColor(_getColorForIndex(widget.index)).withLightness(0.4).toColor(),
-              HSLColor.fromColor(_getColorForIndex(widget.index)).withLightness(0.2).toColor(),
+              HSLColor.fromColor(color).withLightness(0.4).toColor(),
+              HSLColor.fromColor(color).withLightness(0.2).toColor(),
             ],
             begin: Alignment.topRight,
             end: Alignment.topLeft,
@@ -902,10 +942,12 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
                 ),
                 onSelected: (value) {
                   if (value == 'rename') _showRenameDialog(context);
+                  if (value == 'color') _showColorPicker(context);
                   if (value == 'delete') _confirmAndDeleteKeycard(context);
                 },
                 itemBuilder: (ctx) => [
                   PopupMenuItem(value: 'rename', child: Text(FlutterI18n.translate(ctx, "nav_rename"))),
+                  PopupMenuItem(value: 'color', child: Text(FlutterI18n.translate(ctx, 'ls_keycard_color'))),
                   if (!widget.onlyCard)
                     PopupMenuItem(value: 'delete', child: Text(FlutterI18n.translate(ctx, "ls_keycard_delete_button"))),
                 ],
@@ -948,25 +990,50 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
     );
   }
 
-  Color _getColorForIndex(int index) {
-    switch (index % 7) {
-      case 0:
-        return Color(0xFFFF554C);
-      case 1:
-        return Color(0xFF0395FF);
-      case 2:
-        return Color(0xFF245544);
-      case 3:
-        return Color(0xFF303030);
-      case 4:
-        return Colors.deepOrange.shade400;
-      case 5:
-        return Colors.teal.shade500;
-      case 6:
-        return Colors.deepPurple.shade400;
-      default:
-        return Colors.grey;
-    }
+  Future<void> _showColorPicker(BuildContext context) async {
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(FlutterI18n.translate(sheetContext, 'ls_keycard_color'),
+                  style: Theme.of(sheetContext).textTheme.titleLarge),
+              const SizedBox(height: 20),
+              GridView.count(
+                shrinkWrap: true,
+                crossAxisCount: 4,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                children: [
+                  for (final (index, color) in keycardColors.indexed)
+                    Semantics(
+                      label: FlutterI18n.translate(sheetContext, 'ls_keycard_color_option',
+                          translationParams: {'number': '${index + 1}'}),
+                      button: true,
+                      selected: index == (widget.colorIndex ?? widget.index % keycardColors.length),
+                      child: InkWell(
+                        key: ValueKey('keycard-color-$index'),
+                        onTap: () => Navigator.pop(sheetContext, index),
+                        customBorder: const CircleBorder(),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                          child: index == (widget.colorIndex ?? widget.index % keycardColors.length)
+                              ? const Icon(Icons.check, color: Colors.white)
+                              : null,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+    if (selected != null && mounted) await widget.onColorSelected(widget.uid, selected);
   }
 
   void _showRenameDialog(BuildContext context) async {

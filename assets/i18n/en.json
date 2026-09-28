@@ -531,6 +531,8 @@
   "ls_keycard_delete_error": "Failed to delete keycard.",
   "ls_keycard_default_name": "Card {number}",
   "ls_keycard_rename_title": "Rename Keycard",
+  "ls_keycard_color": "Card color",
+  "ls_keycard_color_option": "Color {number}",
   "ls_keycard_alias_hint": "Name (optional, max. 32 bytes)",
   "ls_keycard_save": "Save",
   "ls_keycard_delete_title": "Delete Keycard",

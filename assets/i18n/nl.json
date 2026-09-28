@@ -531,6 +531,8 @@
     "ls_keycard_delete_error": "Keycard verwijderen mislukt.",
     "ls_keycard_default_name": "Kaart {number}",
     "ls_keycard_rename_title": "Keycard hernoemen",
+    "ls_keycard_color": "Kaartkleur",
+    "ls_keycard_color_option": "Kleur {number}",
     "ls_keycard_alias_hint": "Alias (optioneel)",
     "ls_key_alias_conflict_title": "Kies de sleutelnaam",
     "ls_key_alias_conflict_message": "Sleutel {uid} heet op deze telefoon ‘{localName}’ en op de scooter ‘{scooterName}’. Welke naam moet overal worden gebruikt?",
