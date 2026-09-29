@@ -152,13 +152,16 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     return items.map((item) {
       Widget? leading;
       Widget? title;
+      Widget? subtitle;
       if (item is ListTile) {
         if (!item.enabled) return item;
         leading = item.leading;
         title = item.title;
+        subtitle = item.subtitle;
       } else if (item is SettingsDropdownTile<int>) {
         leading = item.leading;
         title = item.title;
+        subtitle = item.subtitle;
       } else {
         return item;
       }
@@ -166,7 +169,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
         enabled: false,
         leading: leading,
         title: title,
-        subtitle: Text(FlutterI18n.translate(context, 'settings_scooter_disconnected')),
+        subtitle: subtitle,
         trailing: const Icon(Icons.bluetooth_disabled),
       );
     }).toList();
@@ -176,33 +179,50 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     if (_scooterConnected && supported) return item;
     final Widget? leading;
     final Widget? title;
+    final Widget? description;
     if (item is ListTile) {
       leading = item.leading;
       title = item.title;
+      description = item.subtitle;
     } else if (item is SettingsDropdownTile<int>) {
       leading = item.leading;
       title = item.title;
+      description = item.subtitle;
     } else {
       return item;
     }
     return ListTile(
       enabled: false,
       leading: leading,
-      title: title,
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      title: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 6,
+        runSpacing: 2,
         children: [
-          Chip(
-            visualDensity: VisualDensity.compact,
-            label: Text(
-              FlutterI18n.translate(context, 'ls_settings_min_version', translationParams: {'version': minimumVersion}),
-              textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.2),
+          if (title != null) title,
+          Semantics(
+            label: FlutterI18n.translate(context, 'ls_settings_min_version',
+                translationParams: {'version': minimumVersion}),
+            child: ExcludeSemantics(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  child: Text(
+                    minimumVersion,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 10),
+                  ),
+                ),
+              ),
             ),
           ),
-          Text(FlutterI18n.translate(
-              context, _scooterConnected ? 'ls_settings_firmware_unavailable' : 'settings_scooter_disconnected')),
         ],
       ),
+      subtitle:
+          _scooterConnected ? Text(FlutterI18n.translate(context, 'ls_settings_firmware_unavailable')) : description,
       trailing: Icon(_scooterConnected ? Icons.info_outline : Icons.bluetooth_disabled),
     );
   }
@@ -544,7 +564,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
         ListTile(
           leading: Icon(Icons.visibility_outlined),
           title: Text(FlutterI18n.translate(context, "ls_settings_alarm_watch_title")),
-          subtitle: Text(_alarmWatchSubtitle(context, service.vehicle)),
+          subtitle: _scooterConnected ? Text(_alarmWatchSubtitle(context, service.vehicle)) : null,
         ),
         supported: live,
         minimumVersion: LibrescootFirmwareRequirements.base,
@@ -710,12 +730,14 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
         ListTile(
           leading: const Icon(Icons.vpn_key_outlined),
           title: Text(FlutterI18n.translate(context, "ls_keycard_title")),
-          subtitle: Text(!_keycardCountLoaded
-              ? FlutterI18n.translate(context, "ls_settings_keycards_loading")
-              : _keycardCount != null
-                  ? FlutterI18n.translate(context, "ls_settings_keycards_count",
-                      translationParams: {"count": _keycardCount.toString()})
-                  : FlutterI18n.translate(context, "ls_settings_extended_unavailable")),
+          subtitle: !_scooterConnected
+              ? null
+              : Text(!_keycardCountLoaded
+                  ? FlutterI18n.translate(context, "ls_settings_keycards_loading")
+                  : _keycardCount != null
+                      ? FlutterI18n.translate(context, "ls_settings_keycards_count",
+                          translationParams: {"count": _keycardCount.toString()})
+                      : FlutterI18n.translate(context, "ls_settings_extended_unavailable")),
           trailing: _keycardCountLoaded && _keycardCount != null ? const Icon(Icons.chevron_right) : null,
           onTap: _keycardCountLoaded && _keycardCount != null
               ? () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LsKeycardScreen()))
@@ -877,7 +899,9 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           ListTile(
             leading: const Icon(Icons.cell_tower_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_apn_title")),
-            subtitle: Text(_apnSubtitle(context)),
+            subtitle: Text(_scooterConnected
+                ? _apnSubtitle(context)
+                : FlutterI18n.translate(context, 'ls_settings_apn_dialog_body')),
             trailing: _isSendingApn
                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.chevron_right),
@@ -947,27 +971,29 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           ListTile(
             leading: const Icon(Icons.usb_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_update_mode_title")),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  usbMode == UsbMode.massStorage
-                      ? FlutterI18n.translate(context, "ls_settings_update_mode_on_subtitle")
-                      : FlutterI18n.translate(context, "ls_settings_update_mode_off_subtitle"),
-                ),
-                const SizedBox(height: 4),
-                TextButton(
-                  style: TextButton.styleFrom(
-                    alignment: Alignment.centerLeft,
-                    minimumSize: Size.zero,
-                    padding: EdgeInsets.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            subtitle: !connected
+                ? Text(FlutterI18n.translate(context, "ls_settings_update_mode_off_subtitle"))
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        usbMode == UsbMode.massStorage
+                            ? FlutterI18n.translate(context, "ls_settings_update_mode_on_subtitle")
+                            : FlutterI18n.translate(context, "ls_settings_update_mode_off_subtitle"),
+                      ),
+                      const SizedBox(height: 4),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          alignment: Alignment.centerLeft,
+                          minimumSize: Size.zero,
+                          padding: EdgeInsets.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: () => launchUrl(Uri.parse("https://librescoot.org/docs/ums.html")),
+                        child: Text(FlutterI18n.translate(context, "ls_settings_update_mode_learn_more")),
+                      ),
+                    ],
                   ),
-                  onPressed: () => launchUrl(Uri.parse("https://librescoot.org/docs/ums.html")),
-                  child: Text(FlutterI18n.translate(context, "ls_settings_update_mode_learn_more")),
-                ),
-              ],
-            ),
             trailing: Switch(
               value: usbMode == UsbMode.massStorage,
               onChanged: _isUpdatingUsbMode

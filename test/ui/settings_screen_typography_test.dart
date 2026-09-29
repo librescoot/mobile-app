@@ -533,13 +533,37 @@ void main() {
       final rowTitle = find.text(title);
       await _show(tester, rowTitle);
       final row = find.ancestor(of: rowTitle, matching: find.byType(ListTile)).first;
-      expect(find.descendant(of: row, matching: find.text('Librescoot $version+')), findsOneWidget);
-      expect(
-          find.descendant(of: row, matching: find.text('Connect to the scooter to use this setting.')), findsOneWidget);
+      final badge = find.descendant(of: row, matching: find.text(version));
+      expect(badge, findsOneWidget);
+      if (title == 'Service mode') {
+        expect((tester.getTopLeft(badge).dy - tester.getTopLeft(rowTitle).dy).abs(), lessThan(16));
+      }
+      expect(find.descendant(of: row, matching: find.text('Connect to the scooter to use this setting.')),
+          findsNothing);
     }
+    final serviceMode = find.ancestor(of: find.text('Service mode'), matching: find.byType(ListTile)).first;
+    expect(find.descendant(of: serviceMode, matching: find.text('Keeps the scooter awake and USB active; alarm and automatic locking are disabled.')),
+        findsOneWidget);
+    expect(find.text('Loading...'), findsNothing);
     expect(service.actions.reads, isEmpty);
     expect(service.actions.standbyWrites, isEmpty);
     expect(service.actions.hibernateWrites, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('compact firmware badges wrap on narrow screens without overflow', (tester) async {
+    final service = _Service()..connected = false;
+    addTearDown(service.dispose);
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(_screen(service, scale: 2));
+    await tester.pumpAndSettle();
+    final title = find.text('Scheduled hibernation');
+    await _show(tester, title);
+    final row = find.ancestor(of: title, matching: find.byType(ListTile)).first;
+    expect(find.descendant(of: row, matching: find.text('1.1')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -574,7 +598,7 @@ void main() {
     await _show(tester, title);
     final row = find.ancestor(of: title, matching: find.byType(ListTile)).first;
     expect(tester.widget<ListTile>(row).enabled, isFalse);
-    expect(find.descendant(of: row, matching: find.text('Librescoot 1.4+')), findsOneWidget);
+    expect(find.descendant(of: row, matching: find.text('1.4')), findsOneWidget);
     expect(find.descendant(of: row, matching: find.text("Not available on this scooter's firmware.")), findsOneWidget);
     expect(service.actions.serviceModeWrites, isEmpty);
     expect(tester.takeException(), isNull);
@@ -636,7 +660,7 @@ void main() {
       await _show(tester, title);
       final tile = find.ancestor(of: title, matching: find.byType(ListTile)).first;
       expect(tester.widget<ListTile>(tile).enabled, isFalse, reason: label);
-      expect(find.descendant(of: tile, matching: find.text('Librescoot 1.4+')),
+      expect(find.descendant(of: tile, matching: find.text('1.4')),
           label == 'Service mode' ? findsOneWidget : findsNothing);
     }
     expect(tester.takeException(), isNull);
