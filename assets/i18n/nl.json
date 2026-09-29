@@ -769,6 +769,8 @@
   "system_info_copied": "Diagnose gekopieerd",
   "system_info_failed": "Versies konden niet worden gelezen. Controleer de verbinding en probeer opnieuw.",
 "settings_scooter_disconnected": "Maak verbinding met de scooter om deze instelling te gebruiken.",
+"ls_settings_min_version": "Librescoot {version}+",
+"ls_settings_firmware_unavailable": "Niet beschikbaar met de firmware van deze scooter.",
     "trip_title": "Ritstatistieken",
     "ride": {
       "settings_title": "Ritinstellingen",

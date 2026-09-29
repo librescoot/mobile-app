@@ -747,6 +747,8 @@
   "system_info_copied": "Diagnostics copied",
   "system_info_failed": "Could not read versions. Check the connection and try again.",
 "settings_scooter_disconnected": "Connect to the scooter to use this setting.",
+"ls_settings_min_version": "Librescoot {version}+",
+"ls_settings_firmware_unavailable": "Not available on this scooter's firmware.",
     "trip_title": "Ride Stats",
     "ride": {
       "settings_title": "Trip Settings",

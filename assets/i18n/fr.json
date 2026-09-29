@@ -769,6 +769,8 @@
   "system_info_copied": "Diagnostic copié",
   "system_info_failed": "Impossible de lire les versions. Vérifiez la connexion et réessayez.",
 "settings_scooter_disconnected": "Connectez-vous au scooter pour utiliser ce réglage.",
+"ls_settings_min_version": "Librescoot {version}+",
+"ls_settings_firmware_unavailable": "Indisponible avec le firmware de ce scooter.",
     "trip_title": "Statistiques de conduite",
     "ride": {
       "settings_title": "Réglages du trajet",

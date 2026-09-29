@@ -441,6 +441,21 @@ void main() {
       expect(tile.onTap, isNull, reason: key);
       expect(find.byType(CircularProgressIndicator), findsNothing);
     }
+    await tester.drag(find.byType(ListView), const Offset(0, 6000));
+    await tester.pumpAndSettle();
+    for (final (title, version) in [
+      ('Auto-standby', '1.0'),
+      ('Scheduled hibernation', '1.1'),
+      ('Firmware updates', '1.2'),
+      ('Service mode', '1.4'),
+    ]) {
+      final rowTitle = find.text(title);
+      await _show(tester, rowTitle);
+      final row = find.ancestor(of: rowTitle, matching: find.byType(ListTile)).first;
+      expect(find.descendant(of: row, matching: find.text('Librescoot $version+')), findsOneWidget);
+      expect(
+          find.descendant(of: row, matching: find.text('Connect to the scooter to use this setting.')), findsOneWidget);
+    }
     expect(service.actions.reads, isEmpty);
     expect(service.actions.standbyWrites, isEmpty);
     expect(service.actions.hibernateWrites, isEmpty);
@@ -448,7 +463,7 @@ void main() {
   });
 
   testWidgets('service mode switch sends the requested state', (tester) async {
-    // The firmware reports this in cap:ext; without it the row is hidden.
+    // The firmware reports this in its capability list.
     final service = _Service()..identity.supportsServiceMode = true;
     addTearDown(service.dispose);
     await tester.pumpWidget(_screen(service));
@@ -463,20 +478,32 @@ void main() {
     expect(tester.widget<Switch>(toggle).value, isTrue);
   });
 
-  testWidgets('service mode is hidden when the firmware does not offer it', (tester) async {
-    final service = _Service()..identity.supportsServiceMode = false;
+  testWidgets('service mode stays visible with its requirement when unsupported', (tester) async {
+    final service = _Service()..connected = false;
     addTearDown(service.dispose);
     await tester.pumpWidget(_screen(service));
     await tester.pumpAndSettle();
-    expect(find.text('Service mode'), findsNothing);
+    final title = find.text('Service mode');
+    await _show(tester, title);
+    service.identity.supportsServiceMode = false;
+    service.setConnection(true);
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, 6000));
+    await tester.pumpAndSettle();
+    await _show(tester, title);
+    final row = find.ancestor(of: title, matching: find.byType(ListTile)).first;
+    expect(tester.widget<ListTile>(row).enabled, isFalse);
+    expect(find.descendant(of: row, matching: find.text('Librescoot 1.4+')), findsOneWidget);
+    expect(find.descendant(of: row, matching: find.text("Not available on this scooter's firmware.")), findsOneWidget);
+    expect(service.actions.serviceModeWrites, isEmpty);
+    expect(tester.takeException(), isNull);
   });
 
-  testWidgets('rows backed by unavailable firmware groups are hidden', (tester) async {
+  testWidgets('rows backed by unavailable firmware groups remain disabled', (tester) async {
     const labels = [
       'Service mode',
       'Update mode',
       'Auto-standby',
-      'Auto-hibernation',
       'Keep main battery awake',
       'Set scooter clock from phone',
     ];
@@ -509,8 +536,7 @@ void main() {
       expect(offeredRows, contains(label), reason: 'offered: $label');
     }
 
-    // A scooter that answers none of the extended commands: the probe clears
-    // every capability, so none of these dead controls is offered.
+    // A scooter that answers none of the extended commands cannot use these controls.
     final unavailable = _Service()
       ..identity.supportsServiceMode = false
       ..identity.supportsClockSync = false
@@ -522,10 +548,17 @@ void main() {
     addTearDown(unavailable.dispose);
     await tester.pumpWidget(_screen(unavailable));
     await tester.pumpAndSettle();
-    final unavailableRows = await traverse();
     for (final label in labels) {
-      expect(unavailableRows, isNot(contains(label)), reason: 'unavailable: $label');
+      await tester.drag(find.byType(ListView), const Offset(0, 6000));
+      await tester.pumpAndSettle();
+      final title = find.text(label);
+      await _show(tester, title);
+      final tile = find.ancestor(of: title, matching: find.byType(ListTile)).first;
+      expect(tester.widget<ListTile>(tile).enabled, isFalse, reason: label);
+      expect(find.descendant(of: tile, matching: find.text('Librescoot 1.4+')),
+          label == 'Service mode' ? findsOneWidget : findsNothing);
     }
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('failed extended reads settle as unavailable instead of spinning forever', (tester) async {

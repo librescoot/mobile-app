@@ -27,6 +27,7 @@ import 'package:unustasis/domain/scooter_keyless_distance.dart';
 import 'package:unustasis/ui/widgets/header.dart';
 import 'package:unustasis/ui/widgets/settings_help_row_theme.dart';
 import 'package:unustasis/ui/widgets/settings_dropdown_tile.dart';
+import 'package:unustasis/ui/presentation/librescoot_firmware_requirements.dart';
 import 'package:unustasis/ui/presentation/settings_duration.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/service/battery_optimization.dart';
@@ -151,6 +152,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
       Widget? leading;
       Widget? title;
       if (item is ListTile) {
+        if (!item.enabled) return item;
         leading = item.leading;
         title = item.title;
       } else if (item is SettingsDropdownTile<int>) {
@@ -167,6 +169,41 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
         trailing: const Icon(Icons.bluetooth_disabled),
       );
     }).toList();
+  }
+
+  Widget _firmwareItem(Widget item, {required bool supported, required String minimumVersion}) {
+    if (_scooterConnected && supported) return item;
+    final Widget? leading;
+    final Widget? title;
+    if (item is ListTile) {
+      leading = item.leading;
+      title = item.title;
+    } else if (item is SettingsDropdownTile<int>) {
+      leading = item.leading;
+      title = item.title;
+    } else {
+      return item;
+    }
+    return ListTile(
+      enabled: false,
+      leading: leading,
+      title: title,
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Chip(
+            visualDensity: VisualDensity.compact,
+            label: Text(
+              FlutterI18n.translate(context, 'ls_settings_min_version', translationParams: {'version': minimumVersion}),
+              textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.2),
+            ),
+          ),
+          Text(FlutterI18n.translate(
+              context, _scooterConnected ? 'ls_settings_firmware_unavailable' : 'settings_scooter_disconnected')),
+        ],
+      ),
+      trailing: Icon(_scooterConnected ? Icons.info_outline : Icons.bluetooth_disabled),
+    );
   }
 
   void _ensureLsDataLoaded(bool isLibrescoot) {
@@ -432,7 +469,6 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   List<Widget> alarmItems() {
     // Unknown is not "unsupported": the probe may not have answered yet, and the
     // switches below ride the extended settings channel either way.
-    if (_scooterConnected && context.watch<ScooterService>().identity.supportsAlarmControl == false) return [];
     final service = context.watch<ScooterService>();
     // The two switches ride the extended channel; everything else needs the
     // alarm service, which older firmware doesn't have.
@@ -471,13 +507,20 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                 onChanged: _alarmHonk == null || _isSendingAlarmHonk ? null : _setAlarmHonk,
               ),
       ),
-      if (live || !_scooterConnected)
+      _firmwareItem(
         ListTile(
           leading: Icon(Icons.visibility_outlined),
           title: Text(FlutterI18n.translate(context, "ls_settings_alarm_watch_title")),
           subtitle: Text(_alarmWatchSubtitle(context, service.vehicle)),
         ),
-    ];
+        supported: live,
+        minimumVersion: LibrescootFirmwareRequirements.base,
+      ),
+    ]
+        .map((item) => _firmwareItem(item,
+            supported: service.identity.supportsAlarmControl != false,
+            minimumVersion: LibrescootFirmwareRequirements.base))
+        .toList();
   }
 
   Future<void> _getTimerDurations() async {
@@ -651,12 +694,11 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     required bool supportsScheduledHibernation,
     required bool supportsBatteryKeepActive,
     required bool supportsConfigSettings,
-    required bool connected,
   }) =>
       [
         // Auto-standby and the APN both come from the firmware's `config`
         // group, so one capability covers them.
-        if (!connected || supportsConfigSettings)
+        _firmwareItem(
           SettingsDropdownTile<int>(
             leading: const Icon(Icons.hourglass_bottom_rounded),
             title: Text(FlutterI18n.translate(context, "ls_settings_auto_lock_title")),
@@ -703,6 +745,9 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                     }
                   },
           ),
+          supported: supportsConfigSettings,
+          minimumVersion: LibrescootFirmwareRequirements.base,
+        ),
         SettingsDropdownTile<int>(
           leading: const Icon(Icons.bedtime_outlined),
           title: Text(FlutterI18n.translate(context, "ls_settings_auto_hibernate_title")),
@@ -751,7 +796,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                   }
                 },
         ),
-        if (!_scooterConnected || supportsScheduledHibernation)
+        _firmwareItem(
           ListTile(
             leading: const SizedBox(
               width: 24,
@@ -771,7 +816,10 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
               MaterialPageRoute(builder: (context) => const LsScheduledHibernationScreen()),
             ),
           ),
-        if (!_scooterConnected || supportsBatteryKeepActive)
+          supported: supportsScheduledHibernation,
+          minimumVersion: LibrescootFirmwareRequirements.scheduledHibernation,
+        ),
+        _firmwareItem(
           ListTile(
             leading: const Icon(Icons.battery_charging_full_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_battery_keep_active_title")),
@@ -783,13 +831,16 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                     onChanged: _batteryKeepActive == null || _isSendingBatteryKeepActive ? null : _setBatteryKeepActive,
                   ),
           ),
+          supported: supportsBatteryKeepActive,
+          minimumVersion: LibrescootFirmwareRequirements.base,
+        ),
       ];
 
   List<Widget> _librescootConnectivitySettingsItems({
     required bool supportsApnConfig,
   }) =>
       [
-        if (!_scooterConnected || supportsApnConfig)
+        _firmwareItem(
           ListTile(
             leading: const Icon(Icons.cell_tower_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_apn_title")),
@@ -799,6 +850,9 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                 : const Icon(Icons.chevron_right),
             onTap: _isSendingApn ? null : _editApn,
           ),
+          supported: supportsApnConfig,
+          minimumVersion: LibrescootFirmwareRequirements.base,
+        ),
       ];
 
   Future<void> _syncScooterClock() async {
@@ -832,7 +886,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     required bool? supportsUsbMode,
   }) =>
       [
-        if (!connected || supportsClockSync == true)
+        _firmwareItem(
           ListTile(
             leading: const Icon(Icons.access_time_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_clock_title")),
@@ -842,7 +896,10 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                 : const Icon(Icons.sync_rounded),
             onTap: connected && !_isSendingTime ? _syncScooterClock : null,
           ),
-        if (!connected || otaAvailable)
+          supported: supportsClockSync == true,
+          minimumVersion: LibrescootFirmwareRequirements.base,
+        ),
+        _firmwareItem(
           ListTile(
             leading: const Icon(Icons.system_update_alt_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_ota_title")),
@@ -850,7 +907,10 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LsOtaScreen())),
           ),
-        if (!connected || supportsUsbMode == true)
+          supported: otaAvailable,
+          minimumVersion: LibrescootFirmwareRequirements.ota,
+        ),
+        _firmwareItem(
           ListTile(
             leading: const Icon(Icons.usb_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_update_mode_title")),
@@ -913,10 +973,10 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                     },
             ),
           ),
-        // The firmware answers this in cap:ext, so a scooter without the
-        // command (an older nRF behind a stock dashboard, say) hides the switch
-        // instead of offering one that cannot work.
-        if (!connected || supportsServiceMode == true)
+          supported: supportsUsbMode == true,
+          minimumVersion: LibrescootFirmwareRequirements.base,
+        ),
+        _firmwareItem(
           ListTile(
             leading: const Icon(Icons.build_circle_outlined),
             title: Text(FlutterI18n.translate(context, 'ls_settings_service_mode_title')),
@@ -928,6 +988,9 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                     onChanged: _serviceMode == null || _isSendingServiceMode ? null : _setServiceMode,
                   ),
           ),
+          supported: supportsServiceMode == true,
+          minimumVersion: LibrescootFirmwareRequirements.serviceMode,
+        ),
       ];
 
   String _keylessSignalLabel(BuildContext context, {required bool connected, String? name, int? rssi}) {
@@ -944,7 +1007,6 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     required bool isLibrescoot,
     required bool supportsScheduledHibernation,
     required bool supportsBatteryKeepActive,
-    required bool? supportsAlarmControl,
     required bool supportsApnConfig,
     required UsbMode? usbMode,
     required bool connected,
@@ -1101,10 +1163,9 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             supportsScheduledHibernation: supportsScheduledHibernation,
             supportsBatteryKeepActive: supportsBatteryKeepActive,
             supportsConfigSettings: supportsApnConfig,
-            connected: connected,
           )),
         ],
-        if (isLibrescoot && (!connected || supportsAlarmControl != false)) ...[
+        if (isLibrescoot) ...[
           Header(FlutterI18n.translate(context, "ls_settings_section_alarm")),
           ..._connectionRequiredItems(alarmItems()),
         ],
@@ -1452,7 +1513,6 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           bool isLibrescoot,
           bool supportsScheduled,
           bool supportsBatteryKeepActive,
-          bool? supportsAlarmControl,
           bool supportsApn,
           UsbMode? usbMode,
           bool connected,
@@ -1470,7 +1530,6 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
         isLibrescoot: service.identity.isLibrescoot == true && !service.demoMode,
         supportsScheduled: service.identity.supportsScheduledHibernation == true,
         supportsBatteryKeepActive: service.identity.supportsBatteryKeepActive == true,
-        supportsAlarmControl: service.identity.supportsAlarmControl,
         supportsApn: service.identity.supportsApnConfig == true,
         usbMode: service.vehicle.usbMode,
         connected: service.connected && !service.demoMode,
@@ -1490,7 +1549,6 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
       isLibrescoot: ls.isLibrescoot,
       supportsScheduledHibernation: ls.supportsScheduled,
       supportsBatteryKeepActive: ls.supportsBatteryKeepActive,
-      supportsAlarmControl: ls.supportsAlarmControl,
       supportsApnConfig: ls.supportsApn,
       usbMode: ls.usbMode,
       connected: ls.connected,
