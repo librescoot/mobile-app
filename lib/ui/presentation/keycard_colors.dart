@@ -8,9 +8,14 @@ const keycardColors = <Color>[
   Color(0xFFFF7043),
   Color(0xFF009688),
   Color(0xFF7E57C2),
-  Color(0xFFA33B6B),
+  Color(0xFFE76F9A),
   Color(0xFF435A98),
-  Color(0xFF84642A),
-  Color(0xFF3E716E),
+  Color(0xFFFFD54F),
+  Color(0xFFF6F4EF),
   Color(0xFF6F4D45),
 ];
+
+Color keycardInkColor(Color color) {
+  final darkest = Color.lerp(color, Colors.black, 0.08)!;
+  return darkest.computeLuminance() > 0.179 ? Colors.black : Colors.white;
+}

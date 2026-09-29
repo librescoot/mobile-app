@@ -9,6 +9,7 @@ import 'package:scooter_flutter/scooter_actions.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:unustasis/feature_flags.dart';
 import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/ui/presentation/keycard_colors.dart';
 import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 
 import '../support/persistence_fakes.dart';
@@ -89,7 +90,7 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('keycard has an eight-pixel corner radius', (tester) async {
+  testWidgets('keycard has a twelve-pixel corner radius', (tester) async {
     final service = _Service();
     addTearDown(service.dispose);
     await _mount(tester, service);
@@ -102,7 +103,68 @@ void main() {
         .map((container) => container.decoration)
         .whereType<BoxDecoration>()
         .firstWhere((decoration) => decoration.gradient != null);
-    expect(card.borderRadius, BorderRadius.circular(8));
+    expect(card.borderRadius, BorderRadius.circular(12));
+  });
+
+  test('card palette covers common hues and keeps readable ink', () {
+    expect(keycardColors, hasLength(12));
+    expect(keycardColors[9], const Color(0xFFFFD54F));
+    expect(keycardColors[10], const Color(0xFFF6F4EF));
+    for (final color in keycardColors) {
+      final ink = keycardInkColor(color);
+      for (final background in [color, Color.lerp(color, Colors.black, 0.08)!]) {
+        final light = ink.computeLuminance() > background.computeLuminance() ? ink : background;
+        final dark = ink == light ? background : ink;
+        final contrast = (light.computeLuminance() + 0.05) / (dark.computeLuminance() + 0.05);
+        expect(contrast, greaterThanOrEqualTo(4.5), reason: 'Color $color on $background');
+      }
+    }
+  });
+
+  testWidgets('card places UID, icon and name on the left with a contrasting wordmark', (tester) async {
+    final service = _Service();
+    addTearDown(service.dispose);
+    await _mount(tester, service);
+
+    final card = find.byType(KeycardCard).first;
+    final uid = find.descendant(of: card, matching: find.byKey(const ValueKey('keycard-uid')));
+    final icon = find.descendant(of: card, matching: find.byKey(const ValueKey('keycard-icon')));
+    final name = find.descendant(of: card, matching: find.byKey(const ValueKey('keycard-name')));
+    final wordmark = find.descendant(of: card, matching: find.byKey(const ValueKey('keycard-wordmark')));
+    expect(tester.getTopLeft(uid).dy, lessThan(tester.getTopLeft(icon).dy));
+    expect(tester.getTopLeft(icon).dy, lessThan(tester.getTopLeft(name).dy));
+    expect(tester.getTopLeft(uid).dx, closeTo(tester.getTopLeft(icon).dx, 1));
+    expect(tester.getTopLeft(icon).dx, closeTo(tester.getTopLeft(name).dx, 1));
+    expect(tester.getTopLeft(wordmark).dx, greaterThan(tester.getTopRight(name).dx));
+    expect(tester.widget<Text>(uid).style!.fontSize, 14);
+    expect(tester.widget<Text>(name).style!.fontSize, 26);
+
+    await tester.tap(find.descendant(of: card, matching: find.byType(PopupMenuButton<String>)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Card color'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('keycard-color-10')));
+    await tester.pumpAndSettle();
+
+    final logo = tester.widget<Image>(wordmark);
+    expect((logo.image as AssetImage).assetName, 'assets/icons/librescoot-wordmark.png');
+    expect(logo.color, Colors.black);
+    expect(tester.widget<Text>(uid).style!.color, Colors.black);
+    final decoration = tester
+        .widgetList<Container>(find.descendant(of: card, matching: find.byType(Container)))
+        .map((container) => container.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere((decoration) => decoration.gradient != null);
+    final gradient = decoration.gradient! as LinearGradient;
+    expect(gradient.colors, [keycardColors[10], Color.lerp(keycardColors[10], Colors.black, 0.08)]);
+
+    await tester.tap(find.descendant(of: card, matching: find.byType(PopupMenuButton<String>)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Card color'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('keycard-color-3')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Image>(wordmark).color, Colors.white);
   });
 
   testWidgets('card colour choice persists for its UID', (tester) async {
@@ -146,12 +208,19 @@ void main() {
     for (final id in ['contactless', 'flame', 'scooter', 'bolt', 'star', 'heart']) {
       expect(find.byKey(ValueKey('keycard-icon-$id')), findsOneWidget);
     }
-    await tester.tap(find.byKey(const ValueKey('keycard-icon-flame')));
+    expect(find.text('Librescoot flame'), findsNothing);
+    final flameOption = find.byKey(const ValueKey('keycard-icon-flame'));
+    final semantics = tester.widget<Semantics>(find.ancestor(of: flameOption, matching: find.byType(Semantics)).first);
+    expect(semantics.properties.label, 'Librescoot flame');
+    await tester.tap(flameOption);
     await tester.pumpAndSettle();
 
     expect(jsonDecode(preferences.values['keycard_icons']!), {'AABBCCDD': 'flame'});
     expect(tester.widget<KeycardCard>(card).iconId, 'flame');
-    final flame = tester.widget<Image>(find.descendant(of: card, matching: find.byType(Image)));
+    final flame = tester.widget<Image>(find.descendant(
+      of: find.descendant(of: card, matching: find.byKey(const ValueKey('keycard-icon'))),
+      matching: find.byType(Image),
+    ));
     expect((flame.image as AssetImage).assetName, 'assets/icons/librescoot-flame.png');
 
     await tester.pumpWidget(const SizedBox.shrink());

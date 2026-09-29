@@ -938,6 +938,7 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     final color = keycardColors[widget.colorIndex ?? widget.index % keycardColors.length];
+    final ink = keycardInkColor(color);
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) => Container(
@@ -949,12 +950,9 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
               blurRadius: 16,
             ),
           ],
-          borderRadius: const BorderRadius.all(Radius.circular(8)),
+          borderRadius: const BorderRadius.all(Radius.circular(12)),
           gradient: LinearGradient(
-            colors: [
-              HSLColor.fromColor(color).withLightness(0.4).toColor(),
-              HSLColor.fromColor(color).withLightness(0.2).toColor(),
-            ],
+            colors: [color, Color.lerp(color, Colors.black, 0.08)!],
             begin: Alignment.topRight,
             end: Alignment.topLeft,
           ),
@@ -963,21 +961,29 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
         child: child,
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.max,
         children: [
           Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              keycardIcon(widget.iconId ?? 'contactless'),
-              PopupMenuButton<String>(
-                icon: const Icon(
-                  Icons.more_vert,
-                  color: Colors.white,
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    List.generate(
+                        (widget.uid.length / 4).ceil(),
+                        (i) => widget.uid.substring(
+                            i * 4, (i + 1) * 4 > widget.uid.length ? widget.uid.length : (i + 1) * 4)).join(' '),
+                    key: const ValueKey('keycard-uid'),
+                    style: TextStyle(fontFamily: 'KodeMono', color: ink, fontSize: 14),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textDirection: TextDirection.ltr,
+                  ),
                 ),
+              ),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, color: ink),
                 onSelected: (value) {
                   if (value == 'rename') _showRenameDialog(context);
                   if (value == 'color') _showColorPicker(context);
@@ -994,37 +1000,38 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
               ),
             ],
           ),
-          Spacer(),
-          Text(
-            // split the UID into groups of 4 characters to match the credit card style design
-            List.generate(
-                    (widget.uid.length / 4).ceil(),
-                    (i) =>
-                        widget.uid.substring(i * 4, (i + 1) * 4 > widget.uid.length ? widget.uid.length : (i + 1) * 4))
-                .join(' '),
-            style: const TextStyle(
-              fontFamily: 'KodeMono',
-              color: Colors.white,
-              fontSize: 28,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.left,
-            textDirection: TextDirection.rtl,
+          const Spacer(),
+          Align(
+            key: const ValueKey('keycard-icon'),
+            alignment: Alignment.centerLeft,
+            child: keycardIcon(widget.iconId ?? 'contactless', color: ink),
           ),
-          SizedBox(height: 16),
-          Text(
-            widget.alias?.isNotEmpty == true
-                ? widget.alias!
-                : FlutterI18n.translate(context, "ls_keycard_default_name",
-                    translationParams: {"number": (widget.index + 1).toString()}),
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+          const Spacer(),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Text(
+                  widget.alias?.isNotEmpty == true
+                      ? widget.alias!
+                      : FlutterI18n.translate(context, "ls_keycard_default_name",
+                          translationParams: {"number": (widget.index + 1).toString()}),
+                  key: const ValueKey('keycard-name'),
+                  style: TextStyle(color: ink, fontSize: 26, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Image.asset(
+                'assets/icons/librescoot-wordmark.png',
+                key: const ValueKey('keycard-wordmark'),
+                width: 96,
+                height: 24,
+                color: ink,
+              ),
+            ],
           ),
-          SizedBox(height: 12),
         ],
       ),
     );
@@ -1061,7 +1068,7 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
                         child: DecoratedBox(
                           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                           child: index == (widget.colorIndex ?? widget.index % keycardColors.length)
-                              ? const Icon(Icons.check, color: Colors.white)
+                              ? Icon(Icons.check, color: keycardInkColor(color))
                               : null,
                         ),
                       ),
@@ -1091,7 +1098,7 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
               GridView.count(
                 shrinkWrap: true,
                 crossAxisCount: 3,
-                childAspectRatio: 0.8,
+                childAspectRatio: 1.5,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
                 children: [
@@ -1112,17 +1119,7 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
                                 ? Border.all(color: Theme.of(sheetContext).colorScheme.primary, width: 3)
                                 : null,
                           ),
-                          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            keycardIcon(id, size: 32),
-                            const SizedBox(height: 8),
-                            Text(
-                              FlutterI18n.translate(sheetContext, 'ls_keycard_icon_$id'),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ]),
+                          child: Center(child: keycardIcon(id, size: 32)),
                         ),
                       ),
                     ),
