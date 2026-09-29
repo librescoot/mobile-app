@@ -1092,7 +1092,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           ),
           value: autoUnlock,
           onChanged: (value) async {
-            if (value == true) {
+            if (value == true && !context.read<ScooterService>().demoMode) {
               // Check location permission (required for Bluetooth proximity detection)
               bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
               if (!serviceEnabled && mounted) {
@@ -1586,17 +1586,17 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           bool demoMode
         })>(
       (service) => (
-        isLibrescoot: service.identity.isLibrescoot == true && !service.demoMode,
+        isLibrescoot: service.identity.isLibrescoot == true,
         supportsScheduled: service.identity.supportsScheduledHibernation == true,
         supportsBatteryKeepActive: service.identity.supportsBatteryKeepActive == true,
         supportsApn: service.identity.supportsApnConfig == true,
         usbMode: service.vehicle.usbMode,
-        connected: service.connected && !service.demoMode,
+        connected: service.connected,
         otaAvailable: service.connected && !service.demoMode && service.otaAvailable,
         autoUnlock: service.autoUnlock,
         openSeatOnUnlock: service.openSeatOnUnlock,
         hazardLocking: service.hazardLocking,
-        showTripSettings: service.connected && !service.demoMode && service.tripCounterSupported == true,
+        showTripSettings: service.connected && service.tripCounterSupported == true,
         supportsServiceMode: service.identity.supportsServiceMode,
         supportsClockSync: service.identity.supportsClockSync,
         supportsUsbMode: service.identity.supportsUsbMode,

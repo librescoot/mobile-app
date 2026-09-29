@@ -26,6 +26,8 @@ class _Service extends ChangeNotifier implements ScooterService {
   @override
   bool get connected => false;
   @override
+  bool get demoMode => false;
+  @override
   String? get currentScooterId => null;
   @override
   bool? get phoneKeyManagementSupported => false;

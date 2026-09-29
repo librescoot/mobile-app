@@ -162,7 +162,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     _localAliasLoad = _loadAliases();
     _cardColorsLoad = _loadCardColors();
     _cardIconsLoad = _loadCardIcons();
-    if (phoneKeyFeatureEnabled) {
+    if (phoneKeyFeatureEnabled && !context.read<ScooterService>().demoMode) {
       _restorePhoneKey();
       _loadPhoneKeyService();
     }
@@ -221,7 +221,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: wideContentPadding(context, base: const EdgeInsets.only(top: 16, bottom: 32)),
           children: [
-            if (phoneKeyFeatureEnabled)
+            if (phoneKeyFeatureEnabled && !scooter.demoMode)
               Card(
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: ExpansionTile(
@@ -372,7 +372,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
       Logger('LsKeycardScreen').info('Loaded keycards: $loadedKeycards');
       if (!mounted || service.currentScooterId != scooterId) return;
       setState(() {
-        keycards = loadedKeycards;
+        keycards = List<String>.of(loadedKeycards);
       });
       _startBackgroundNfcScan();
     } catch (e) {
@@ -497,6 +497,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   }
 
   void _startBackgroundNfcScan() async {
+    if (context.read<ScooterService>().demoMode) return;
     // Android reader mode prevents our HostApduService from handling a scooter
     // tap. Leave NFC card emulation available when a phone key is configured.
     if (!Platform.isAndroid || _phoneFingerprint != null || _creatingPhoneKey || _phoneKeyServiceEnabled == true) {
@@ -544,6 +545,17 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   }
 
   void _showAddKeycardDialog() async {
+    final service = context.read<ScooterService>();
+    if (service.demoMode) {
+      service.addDemoKeycard();
+      await _loadKeycards();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(FlutterI18n.translate(context, 'ls_keycard_add_success'))),
+        );
+      }
+      return;
+    }
     _stopBackgroundNfcScan();
     // Check NFC availability before showing the dialog
     final nfcAvailability = await FlutterNfcKit.nfcAvailability;
@@ -652,6 +664,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     await _cardColorsLoad;
     if (!mounted) return;
     setState(() => _cardColors[uid] = index);
+    if (context.read<ScooterService>().demoMode) return;
     final snapshot = jsonEncode(_cardColors);
     _cardColorSaveQueue = _cardColorSaveQueue
         .then((_) => SharedPreferencesAsync().setString('keycard_colors', snapshot))
@@ -679,6 +692,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     await _cardIconsLoad;
     if (!mounted) return;
     setState(() => _cardIcons[uid] = iconId);
+    if (context.read<ScooterService>().demoMode) return;
     final snapshot = jsonEncode(_cardIcons);
     _cardIconSaveQueue = _cardIconSaveQueue
         .then((_) => SharedPreferencesAsync().setString('keycard_icons', snapshot))
@@ -709,7 +723,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
       final masters = await service.actions.listMasterKeys();
       final names = await service.actions.listKeyAliases();
       if (!mounted || service.currentScooterId != scooterId || !service.connected) return;
-      final plan = planKeyAliasImport([...keycards, ...masters], names, _localAliases);
+      final plan = planKeyAliasImport([...keycards, ...masters], names, service.demoMode ? const {} : _localAliases);
       var syncFailed = plan.invalidLocalNames;
       for (final entry in plan.names.entries) {
         try {
@@ -792,7 +806,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
           }
         });
       }
-      if (kind == 'card') {
+      if (kind == 'card' && !service.demoMode) {
         if (!mounted || (synced && service.currentScooterId != scooterId)) return;
         final localAliases = Map<String, String>.of(_localAliases);
         if (cleaned.isEmpty) {
@@ -820,19 +834,18 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   Future<void> _renameKeycard(String uid, String alias) => _renameCredential('card', uid, alias);
 
   Future<void> _showCredentialRenameDialog(String kind, String id) async {
-    final controller = TextEditingController(
-      text: _aliases['$kind:$id'] ?? (kind == 'card' ? _localAliases[id] : null) ?? '',
-    );
+    var enteredName = _aliases['$kind:$id'] ?? (kind == 'card' ? _localAliases[id] : null) ?? '';
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(FlutterI18n.translate(dialogContext, 'ls_key_alias_rename')),
-        content: TextField(
-          controller: controller,
+        content: TextFormField(
+          initialValue: enteredName,
+          onChanged: (value) => enteredName = value,
           autofocus: true,
           maxLength: maxKeyAliasBytes,
           decoration: InputDecoration(hintText: FlutterI18n.translate(dialogContext, 'ls_keycard_alias_hint')),
-          onSubmitted: (value) => Navigator.pop(dialogContext, value),
+          onFieldSubmitted: (value) => Navigator.pop(dialogContext, value),
         ),
         actions: [
           TextButton(
@@ -840,13 +853,12 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
             child: Text(FlutterI18n.translate(dialogContext, 'cancel')),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            onPressed: () => Navigator.pop(dialogContext, enteredName),
             child: Text(FlutterI18n.translate(dialogContext, 'ls_keycard_save')),
           ),
         ],
       ),
     );
-    controller.dispose();
     if (name != null && mounted) await _renameCredential(kind, id, name);
   }
 
@@ -1134,17 +1146,18 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
   }
 
   void _showRenameDialog(BuildContext context) async {
-    final controller = TextEditingController(text: widget.alias ?? '');
+    var enteredAlias = widget.alias ?? '';
     final alias = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(FlutterI18n.translate(context, "ls_keycard_rename_title")),
-        content: TextField(
-          controller: controller,
+        content: TextFormField(
+          initialValue: enteredAlias,
+          onChanged: (value) => enteredAlias = value,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
           decoration: InputDecoration(hintText: FlutterI18n.translate(context, "ls_keycard_alias_hint")),
-          onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
+          onFieldSubmitted: (v) => Navigator.of(context).pop(v.trim()),
         ),
         actions: [
           TextButton(
@@ -1152,13 +1165,12 @@ class _KeycardCardState extends State<KeycardCard> with SingleTickerProviderStat
             child: Text(FlutterI18n.translate(context, "cancel")),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            onPressed: () => Navigator.of(context).pop(enteredAlias.trim()),
             child: Text(FlutterI18n.translate(context, "ls_keycard_save")),
           ),
         ],
       ),
     );
-    controller.dispose();
     if (alias != null) await widget.onRename(widget.uid, alias);
   }
 

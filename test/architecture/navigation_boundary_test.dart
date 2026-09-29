@@ -10,7 +10,8 @@ void main() {
       'service.navigation.invalidate()',
       'service.navigation.firmwareIdentified(connection, firmware)',
       'service.navigation.navigationChanged(active)',
-      'navigation.dispose()'
+      '_liveNavigation.dispose()',
+      '_demoNavigation?.dispose()'
     ]) {
       expect(source, contains(delegate));
     }

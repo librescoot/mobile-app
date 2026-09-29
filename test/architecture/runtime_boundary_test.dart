@@ -43,7 +43,7 @@ void main() {
     }
     expect(source, isNot(matches(RegExp(r'await\s+(?:runtime\.)?getMostRecentScooter\s*\('))));
     for (final operation in ['rename', 'recolor']) {
-      expect(source, contains('=> runtime.${operation}SavedScooter('));
+      expect(source, contains('runtime.${operation}SavedScooter('));
     }
     // The only direct store operations left are compatibility map/ID views,
     // ping's concrete model effect and demo persistence; none select/publish
