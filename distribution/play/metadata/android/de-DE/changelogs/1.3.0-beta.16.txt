@@ -1,0 +1,6 @@
+Neu in 1.3.0-beta.16:
+
+• Farbe und dauerhaftes Symbol für jede Schlüsselkarte wählen.
+• Rollereinstellungen zeigen die benötigte Librescoot-Version und erklären nicht unterstützte Optionen.
+• Android-Anleitung für den Telefonschlüssel lässt sich bei Bedarf aufklappen.
+• Standardfarben des Rollers verfeinert.

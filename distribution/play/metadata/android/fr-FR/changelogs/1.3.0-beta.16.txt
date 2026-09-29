@@ -1,0 +1,6 @@
+Nouveautés de la 1.3.0-beta.16 :
+
+• Choisissez une couleur et une icône persistante pour chaque carte-clé.
+• Les réglages indiquent la version minimale de Librescoot et expliquent les options indisponibles.
+• Les instructions de clé sur téléphone Android se déplient au besoin.
+• Couleurs standard du scooter affinées.

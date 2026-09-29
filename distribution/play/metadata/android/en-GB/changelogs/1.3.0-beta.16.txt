@@ -1,0 +1,6 @@
+What's new in 1.3.0-beta.16:
+
+• Choose a colour and persistent icon for each keycard.
+• Scooter settings show minimum Librescoot versions and explain unsupported options.
+• Android phone-key instructions can be expanded when needed.
+• Refined the standard scooter paint colours.

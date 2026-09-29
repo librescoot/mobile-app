@@ -1,0 +1,6 @@
+Nieuw in 1.3.0-beta.16:
+
+• Kies een kleur en blijvend pictogram voor elke sleutelkaart.
+• Scooterinstellingen tonen de vereiste Librescoot-versie en verklaren niet-ondersteunde opties.
+• Android-instructies voor de telefoonsleutel zijn naar wens uit te klappen.
+• Standaardkleuren van de scooter verfijnd.
