@@ -11,6 +11,7 @@ import 'package:scooter_core/trip_expunge.dart';
 import 'package:scooter_flutter/scooter_actions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+import 'package:unustasis/domain/alarm_status.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/state/scooter_identity.dart';
@@ -210,6 +211,22 @@ class _TripService extends _Service {
   Future<TripExpunge?> refreshTripExpunge() async => null;
 }
 
+class _AlarmService extends _Service {
+  int disarms = 0;
+  Object? disarmError;
+  Completer<void>? disarmGate;
+  @override
+  bool get alarmAvailable => true;
+  @override
+  Future<bool?> getAlarmEnabled() async => true;
+  @override
+  Future<void> disarmAlarm() async {
+    disarms++;
+    await disarmGate?.future;
+    if (disarmError != null) throw disarmError!;
+  }
+}
+
 class _FailingService extends _Service {
   final _FailingActions _failingActions = _FailingActions();
   @override
@@ -382,6 +399,70 @@ void main() {
     final alarmHeader = find.text(FlutterI18n.translate(context, 'ls_settings_section_alarm'));
     await _show(tester, alarmHeader);
     expect(alarmHeader, findsOneWidget, reason: 'unknown is not unsupported, so the section is offered');
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final version in [null, 1, 2]) {
+    testWidgets('temporary disarm settings require alarm v2 ($version)', (tester) async {
+      final service = _AlarmService()..vehicle.alarmStatus = AlarmStatus.armed;
+      service.identity.alarmCapabilityVersion = version;
+      addTearDown(service.dispose);
+      await tester.pumpWidget(_screen(service));
+      await tester.pumpAndSettle();
+      final row = find.text('Disarm alarm');
+      await _show(tester, find.text('Alarm'));
+      if (version != 2) {
+        expect(row, findsNothing);
+        return;
+      }
+      await _show(tester, row);
+      expect(find.textContaining('8 hours'), findsOneWidget);
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(service.disarms, 1);
+      expect(find.text('Alarm disarmed temporarily.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('temporary disarm is unavailable offline or already disarmed', (tester) async {
+    final service = _AlarmService()..vehicle.alarmStatus = AlarmStatus.disarmed;
+    service.identity.alarmCapabilityVersion = 2;
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    final row = find.text('Disarm alarm');
+    await _show(tester, row);
+    await tester.tap(row);
+    await tester.pump();
+    expect(service.disarms, 0);
+    service.vehicle.alarmStatus = AlarmStatus.armed;
+    service.setConnection(false);
+    await tester.pumpAndSettle();
+    await tester.tap(row);
+    await tester.pump();
+    expect(service.disarms, 0);
+  });
+
+  testWidgets('temporary disarm reports failure and prevents duplicate requests', (tester) async {
+    final service = _AlarmService()
+      ..disarmGate = Completer<void>()
+      ..disarmError = StateError('rejected')
+      ..vehicle.alarmStatus = AlarmStatus.armed;
+    service.identity.alarmCapabilityVersion = 2;
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    final row = find.text('Disarm alarm');
+    await _show(tester, row);
+    await tester.tap(row);
+    await tester.pump();
+    await tester.tap(row);
+    await tester.pump();
+    expect(service.disarms, 1);
+    service.disarmGate!.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('Could not stop the alarm'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

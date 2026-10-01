@@ -182,6 +182,7 @@ class ScooterTelemetry {
     identity.supportsApnConfig = groups.containsKey('config');
     identity.supportsBondForget = groups.containsKey('ble');
     identity.supportsAlarmControl = groups.containsKey('alarm');
+    identity.alarmCapabilityVersion = groups['alarm'];
     identity.supportsServiceMode = groups.containsKey('service-mode');
     identity.supportsNavigation = groups.containsKey('nav');
     identity.navigationCapabilityVersion = groups['nav'];

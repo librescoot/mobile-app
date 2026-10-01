@@ -77,6 +77,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   bool _batteryKeepActiveLoaded = false;
   bool _isSendingAlarmEnabled = false;
   bool? _alarmEnabled;
+  bool _isSendingAlarmDisarm = false;
   bool _isSendingAlarmHonk = false;
   bool? _alarmHonk;
   bool _alarmSettingsLoaded = false;
@@ -466,6 +467,24 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     return "${loc.formatMediumDate(local)} $time";
   }
 
+  Future<void> _disarmAlarm() async {
+    setState(() => _isSendingAlarmDisarm = true);
+    try {
+      await context.read<ScooterService>().disarmAlarm();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(FlutterI18n.translate(context, 'alarm_disarm_success'))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(FlutterI18n.translate(context, 'alarm_stop_failed'))),
+      );
+    } finally {
+      if (mounted) setState(() => _isSendingAlarmDisarm = false);
+    }
+  }
+
   List<Widget> alarmItems() {
     // Unknown is not "unsupported": the probe may not have answered yet, and the
     // switches below ride the extended settings channel either way.
@@ -507,6 +526,20 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                 onChanged: _alarmHonk == null || _isSendingAlarmHonk ? null : _setAlarmHonk,
               ),
       ),
+      if (service.identity.supportsTemporaryAlarmDisarm)
+        ListTile(
+          leading: const Icon(Icons.notifications_off_outlined),
+          title: Text(FlutterI18n.translate(context, 'alarm_disarm')),
+          subtitle: Text(FlutterI18n.translate(context, 'alarm_disarm_subtitle')),
+          trailing: _isSendingAlarmDisarm
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : null,
+          onTap: !_isSendingAlarmDisarm &&
+                  live &&
+                  (status == AlarmStatus.armed || status == AlarmStatus.delayArmed || status?.isTriggered == true)
+              ? _disarmAlarm
+              : null,
+        ),
       _firmwareItem(
         ListTile(
           leading: Icon(Icons.visibility_outlined),

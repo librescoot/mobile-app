@@ -112,10 +112,8 @@ Future<void> setServiceModeCommand(
   }
 }
 
-/// Runtime command that silences a sounding alarm and leaves the alarm service
-/// idle. `alarm:stop` is deliberately not used: it only ends the current siren,
-/// while the triggered state keeps re-arming the siren on its own check cycle.
-/// Disarming leaves `alarm.enabled` alone, so the alarm re-arms as usual.
+/// Leaves `alarm.enabled` alone. With alarm=2, holds disarmed until the next
+/// park cycle, hibernation, or eight hours; older firmware only silences it.
 const String alarmDisarmCommand = "alarm:disarm";
 const String alarmAcknowledgement = "alarm:ok";
 

@@ -289,10 +289,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
     final scooterColor = scooterAppearance.color ?? identityColor ?? 1;
     // Resolved once per build: provider forbids select() from nested builders.
-    final ({AlarmStatus? status, bool unsupported}) alarm =
-        context.select<ScooterService, ({AlarmStatus? status, bool unsupported})>((service) => (
+    final ({AlarmStatus? status, bool unsupported, bool temporaryDisarm}) alarm =
+        context.select<ScooterService, ({AlarmStatus? status, bool unsupported, bool temporaryDisarm})>((service) => (
               status: service.vehicle.alarmStatus,
               unsupported: service.identity.supportsAlarmControl == false,
+              temporaryDisarm: service.identity.supportsTemporaryAlarmDisarm,
             ));
     final triggeredAlarm = alarm.status != null && alarm.status!.isTriggered ? alarm.status : null;
     final eclipseBackdrop = triggeredAlarm == null &&
@@ -302,6 +303,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // the button must not pretend. Unknown counts as available: the alarm is
     // sounding now, and a rejected command reports itself on the button.
     final stoppableAlarm = alarm.unsupported ? null : triggeredAlarm;
+    final alarmActionLabel = FlutterI18n.translate(context, alarm.temporaryDisarm ? 'alarm_disarm' : 'alarm_stop');
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -631,12 +633,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                             ? Icons.lock_outline
                                             : Icons.lock_open,
                                     label: alarm != null
-                                        ? FlutterI18n.translate(context, "alarm_stop")
+                                        ? alarmActionLabel
                                         : state != null && state.isOn
                                             ? FlutterI18n.translate(context, "home_lock_button")
                                             : FlutterI18n.translate(context, "home_unlock_button"),
                                     instruction: alarm != null
-                                        ? FlutterI18n.translate(context, "alarm_stop")
+                                        ? alarmActionLabel
                                         : state != null && state.isOn
                                             ? FlutterI18n.translate(context, "home_hold_to_lock")
                                             : FlutterI18n.translate(context, "home_hold_to_unlock"),

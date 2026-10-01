@@ -104,6 +104,15 @@ void main() {
     expect(groups.usedFallback, isFalse);
   });
 
+  test('alarm v2 is parsed without losing legacy alarm support', () async {
+    channel.replies = ['cap:ext:alarm=2'];
+    final groups = await discoverLsCapabilityGroupsCommand(device, repo);
+    expect(groups.versions['alarm'], 2);
+    expect(groups.versions.containsKey('alarm'), isTrue);
+    expect(groups.usedFallback, isFalse);
+    expect(channel.writes, ['cap:ext']);
+  });
+
   test('key name list decodes cards and phones', () async {
     const fingerprint = '0123456789ABCDEF0123456789ABCDEF';
     final encoded =

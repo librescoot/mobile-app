@@ -215,6 +215,19 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('alarm v2 names the sounding alarm action disarm', (tester) async {
+    final service = _Service()..vehicle.alarmStatus = AlarmStatus.level2Triggered;
+    service.identity.alarmCapabilityVersion = 2;
+    addTearDown(service.dispose);
+    await _mountHome(tester, service);
+    expect(find.text('Disarm alarm'), findsOneWidget);
+    expect(find.text('Stop alarm'), findsNothing);
+    await tester.tapAt(tester.getCenter(find.byType(ScooterPowerButton)));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(service.stops, 1);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('tapping the stop control silences the alarm', (tester) async {
     final service = _Service()..vehicle.alarmStatus = AlarmStatus.level2Triggered;
     addTearDown(service.dispose);

@@ -42,6 +42,7 @@ class FirmwareIdentity {
   bool? supportsBondForget;
   bool? supportsBatteryKeepActive;
   bool? supportsAlarmControl;
+  int? alarmCapabilityVersion;
   bool? supportsTripCounter;
   bool? supportsTripExpunge;
 
@@ -67,6 +68,7 @@ class FirmwareIdentity {
     supportsBondForget = null;
     supportsBatteryKeepActive = null;
     supportsAlarmControl = null;
+    alarmCapabilityVersion = null;
     supportsTripCounter = null;
     supportsTripExpunge = null;
     supportsServiceMode = null;
@@ -78,6 +80,9 @@ class FirmwareIdentity {
     supportsKeyAliases = null;
     bluetoothTableOutOfDate = null;
   }
+
+  bool get supportsTemporaryAlarmDisarm =>
+      supportsAlarmControl == true && (alarmCapabilityVersion ?? 0) >= 2;
 
   bool get supportsRoutePlans =>
       supportsNavigation == true && (navigationCapabilityVersion ?? 0) >= 2;

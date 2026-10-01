@@ -769,7 +769,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   void autoUnlockCooldown() => actions.autoUnlockCooldown();
   Future<void> openSeat({EventSource source = EventSource.app}) => actions.openSeat(source: source);
 
-  /// Silences a sounding alarm without changing the alarm setting. The alarm
+  /// Disarms without changing the alarm setting. The alarm
   /// service re-arms it as usual once the scooter is parked again.
   Future<void> disarmAlarm() => actions.disarmAlarm();
   Future<void> blink({required bool left, required bool right}) async {

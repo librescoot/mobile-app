@@ -923,6 +923,33 @@ void main() {
     expect(h.telemetry.identity.bluetoothTableOutOfDate, isFalse);
   });
 
+  for (final version in [null, 1, 2, 3]) {
+    test('alarm capability $version gates temporary disarm and is cached', () async {
+      final h = _Harness(
+          capabilityGroups: () async =>
+              LsCapabilityGroups({'alarm': version}, usedFallback: false));
+      addTearDown(h.dispose);
+      final r = await h.connect('A');
+      _wireExtended(r);
+      _firmware(r);
+      await _flush();
+      final identity = h.telemetry.identity;
+      expect(identity.supportsAlarmControl, isTrue);
+      expect(identity.alarmCapabilityVersion, version);
+      expect(identity.supportsTemporaryAlarmDisarm, (version ?? 0) >= 2);
+      final groups = h.effects.patches
+          .map((p) => p.$2.capabilityGroups)
+          .whereType<Map<String, int?>>()
+          .single;
+      identity.resetLsCapabilities();
+      expect(identity.alarmCapabilityVersion, isNull);
+      expect(identity.supportsTemporaryAlarmDisarm, isFalse);
+      h.telemetry.seed(CachedTelemetry(capabilityGroups: groups));
+      expect(identity.alarmCapabilityVersion, version);
+      expect(identity.supportsTemporaryAlarmDisarm, (version ?? 0) >= 2);
+    });
+  }
+
   test('keycard v2 gates phones and names together and resets per session',
       () async {
     final h = _Harness(

@@ -16,6 +16,15 @@ The app works over BLE with the unu Scooter Pro; it does not require a cloud acc
 
 Features that change vehicle settings, route plans or firmware require a connected scooter with the corresponding Librescoot software and advertised capabilities. Platform-specific integrations require a supported Android or iOS device.
 
+### Temporary alarm disarm
+
+Firmware advertising `alarm=2` adds **Disarm alarm** in alarm settings, even
+before the alarm sounds. It keeps the alarm disarmed until the next lock cycle,
+hibernation starts, or eight hours pass, whichever comes first, without changing
+**Enable on lock**. A sounding alarm also offers **Disarm alarm** on the home
+screen. Older firmware retains the existing **Stop alarm** control and does not
+show the temporary-disarm settings action.
+
 ### What this app adds
 
 - **Over [Unustasis](https://github.com/reunu/unustasis):** Capability-gated multi-stop route planning, a ride counter with reset and retention settings, Android Tasker actions and a redesigned multi-scooter interface.

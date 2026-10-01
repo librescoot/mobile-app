@@ -831,8 +831,8 @@ void main() {
 
     await h.actions.disarmAlarm();
     expect(h.trace.where((s) => s.startsWith('A:')), ['A:alarm:disarm'],
-        reason: 'stop only ends the current siren, so it must be a disarm; the '
-            'alarm setting itself is left alone');
+        reason: 'disarm holds the alarm off with alarm=2 instead of starting '
+            'the stop cooldown; the alarm setting itself is left alone');
 
     h.trace.clear();
     h.wire.onWrite = (c) async => h.wire.reply('alarm:error:unknown command');
