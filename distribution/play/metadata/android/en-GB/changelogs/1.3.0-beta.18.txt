@@ -1,6 +1,6 @@
 What's new in 1.3.0-beta.18:
 
-• Fixed keycard ID groups appearing in the wrong order. Stored IDs and keycard authentication are unchanged.
+• Fixed keycard ID groups appearing in the wrong order. Stored IDs and authentication are unchanged.
 • Refined keycard layout, colours and text contrast.
 • Demo mode now simulates Librescoot capabilities and controls.
 • More compact firmware requirement badges in Settings.

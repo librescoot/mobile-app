@@ -1,0 +1,6 @@
+Nouveautés de 1.3.0-beta.18 :
+
+• Ordre des groupes d’identifiant des cartes-clés corrigé. Les identifiants enregistrés et l’authentification restent inchangés.
+• Présentation, couleurs et contraste des cartes-clés améliorés.
+• Le mode démo simule les fonctions et commandes Librescoot.
+• Indications de version requise plus compactes dans les réglages.

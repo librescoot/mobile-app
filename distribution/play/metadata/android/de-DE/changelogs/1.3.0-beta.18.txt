@@ -1,0 +1,6 @@
+Neu in 1.3.0-beta.18:
+
+• Falsche Reihenfolge der Schlüsselkarten-ID-Gruppen behoben. Gespeicherte IDs und Authentifizierung bleiben unverändert.
+• Layout, Farben und Textkontrast der Schlüsselkarten verbessert.
+• Demo-Modus simuliert jetzt Librescoot-Funktionen und Bedienelemente.
+• Kompaktere Hinweise zur benötigten Firmware in den Einstellungen.
