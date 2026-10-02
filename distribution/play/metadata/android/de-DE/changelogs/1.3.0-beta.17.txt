@@ -1,0 +1,5 @@
+Neu in 1.3.0-beta.17:
+
+• Mit kompatibler Librescoot-1.4-Firmware den Alarm in den Einstellungen entschärfen, ohne Alarm beim Verriegeln zu deaktivieren.
+• Die Entschärfung endet beim nächsten Verriegeln, beim Ruhezustand oder nach spätestens 8 Stunden.
+• Auf unterstützter Firmware heißt die Alarmaktion auf der Startseite Alarm entschärfen; ältere Firmware behält Alarm stoppen.

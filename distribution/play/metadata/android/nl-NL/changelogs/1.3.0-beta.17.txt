@@ -1,0 +1,5 @@
+Nieuw in 1.3.0-beta.17:
+
+• Schakel het alarm tijdelijk uit via Instellingen met compatibele Librescoot 1.4-firmware, zonder alarm bij vergrendelen uit te zetten.
+• Het alarm wordt weer actief bij de volgende vergrendeling, slaapstand of na maximaal 8 uur.
+• Op ondersteunde firmware toont het startscherm Alarm tijdelijk uitschakelen; oudere firmware behoudt Alarm stoppen.

@@ -1,0 +1,5 @@
+Nouveautés de 1.3.0-beta.17 :
+
+• Avec un micrologiciel Librescoot 1.4 compatible, désarmez l’alarme dans les réglages sans désactiver l’alarme au verrouillage.
+• Le désarmement prend fin au prochain verrouillage, à l’hibernation ou après 8 heures maximum.
+• L’action d’alarme de l’accueil devient Désarmer l’alarme sur les versions compatibles ; les anciennes gardent Arrêter l’alarme.

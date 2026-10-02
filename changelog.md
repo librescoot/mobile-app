@@ -1,6 +1,5 @@
-What's new in 1.3.0-beta.16:
+What's new in 1.3.0-beta.17:
 
-• Choose a colour and icon for each keycard; the icon stays the same across app sessions.
-• Firmware-dependent scooter settings remain visible when unavailable and show their minimum Librescoot version.
-• Android phone-key instructions take up less space until expanded.
-• Refined the standard scooter paint colours.
+• On compatible Librescoot 1.4 firmware, disarm the alarm from Settings without disabling alarm on lock.
+• Temporary disarm ends at the next lock cycle, when hibernation starts, or after 8 hours, whichever comes first.
+• The home-screen alarm action is labelled Disarm alarm on supported firmware. Older firmware keeps Stop alarm.

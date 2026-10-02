@@ -1,0 +1,5 @@
+What's new in 1.3.0-beta.17:
+
+• Disarm the alarm from Settings on compatible Librescoot 1.4 firmware without disabling alarm on lock.
+• Temporary disarm ends at the next lock cycle, hibernation, or after 8 hours, whichever comes first.
+• The home-screen alarm action says Disarm alarm on supported firmware; older firmware keeps Stop alarm.
