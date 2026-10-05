@@ -16,6 +16,11 @@ The app works over BLE with the unu Scooter Pro; it does not require a cloud acc
 
 Features that change vehicle settings, route plans or firmware require a connected scooter with the corresponding Librescoot software and advertised capabilities. Platform-specific integrations require a supported Android or iOS device.
 
+Bluetooth firmware updates are shown only when the connected MDB reports
+Librescoot 1.2.0 or newer, or a nightly/testing build dated 2026-08-03 or later,
+and the BLE update service is available. An unknown MDB version does not enable
+the option; the DBC and Bluetooth-controller versions do not qualify it.
+
 ### Temporary alarm disarm
 
 Firmware advertising `alarm=2` adds **Disarm alarm** in alarm settings, even

@@ -956,7 +956,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           supported: supportsClockSync == true,
           minimumVersion: LibrescootFirmwareRequirements.base,
         ),
-        _firmwareItem(
+        if (otaAvailable)
           ListTile(
             leading: const Icon(Icons.system_update_alt_outlined),
             title: Text(FlutterI18n.translate(context, "ls_settings_ota_title")),
@@ -964,9 +964,6 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LsOtaScreen())),
           ),
-          supported: otaAvailable,
-          minimumVersion: LibrescootFirmwareRequirements.ota,
-        ),
         _firmwareItem(
           ListTile(
             leading: const Icon(Icons.usb_outlined),

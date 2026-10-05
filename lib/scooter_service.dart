@@ -88,7 +88,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   String? get selectedScooterId => _session.manualTargetId ?? currentScooterId ?? mostRecentSavedScooterId;
   void disconnectAndClearDevice() => _session.disconnectAndClearDevice();
   bool get alarmAvailable => demoMode || _telemetry.alarmAvailable;
-  bool get otaAvailable => _telemetry.otaAvailable;
+  bool get otaAvailable =>
+      connected && !demoMode && _telemetry.otaAvailable && supportsBluetoothFirmwareUpdates(identity.imxVersion);
   String? get connectingScooterId => _session.connectingScooterId;
   late final UpdateController updateController;
   String? updateTargetName;

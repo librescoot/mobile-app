@@ -339,6 +339,36 @@ void main() {
     expect(storage.scooters[device.remoteId.toString()]?.cachedOdometerMeters, 123);
   }
 
+  test('Bluetooth updates require eligible MDB version and live OTA characteristics', () async {
+    repository.otaDataCharacteristic = repository.characteristic([]);
+    repository.otaControlCharacteristic = repository.characteristic([]);
+    repository.otaStatusCharacteristic = repository.characteristic([]);
+    createService();
+    expect(service.otaAvailable, isFalse);
+    final attempt = connect('A');
+    await drain();
+    await finishConnection(attempt, devices['A']!);
+    service.identity.nrfVersion = 'v2.14.0-ls';
+    expect(service.otaAvailable, isFalse, reason: 'nRF version does not qualify the MDB');
+    for (final (version, eligible) in [
+      ('v1.1.9', false),
+      ('nightly-20260802T235959', false),
+      ('v1.2.0', true),
+      ('testing-20260803T000000', true),
+    ]) {
+      service.identity.imxVersion = version;
+      expect(service.otaAvailable, eligible, reason: version);
+    }
+    final data = repository.otaDataCharacteristic;
+    repository.otaDataCharacteristic = null;
+    expect(service.otaAvailable, isFalse);
+    repository.otaDataCharacteristic = data;
+    expect(service.otaAvailable, isTrue);
+    devices['A']!.emitDisconnected();
+    await drain();
+    expect(service.otaAvailable, isFalse);
+  });
+
   test('production adapter never restores cached protection and resets before B linking', () async {
     storage.scooters['A']!.handlebarsLocked = true;
     storage.scooters['B']!.handlebarsLocked = true;

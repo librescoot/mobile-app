@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:scooter_core/firmware_requirements.dart';
 import 'package:scooter_core/trip_counter.dart';
 import 'package:scooter_core/trip_expunge.dart';
 import 'package:scooter_flutter/scooter_actions.dart';
@@ -209,6 +210,18 @@ class _TripService extends _Service {
   Future<TripCounterSnapshot?> refreshTripCounter() async => null;
   @override
   Future<TripExpunge?> refreshTripExpunge() async => null;
+}
+
+class _OtaService extends _Service {
+  bool hasOtaCharacteristics = true;
+  @override
+  bool get otaAvailable => connected && !demoMode && hasOtaCharacteristics &&
+      supportsBluetoothFirmwareUpdates(identity.imxVersion);
+
+  void setMdbVersion(String? version) {
+    identity.imxVersion = version;
+    notifyListeners();
+  }
 }
 
 class _AlarmService extends _Service {
@@ -498,6 +511,45 @@ void main() {
     );
   });
 
+  for (final version in <String?>[null, 'v1.1.9', 'v1.2.0', 'nightly-20260802T235959', 'testing-20260803T000000']) {
+    testWidgets('Bluetooth update option follows MDB eligibility ($version)', (tester) async {
+      final service = _OtaService()..identity.imxVersion = version;
+      service.identity.nrfVersion = 'v2.14.0-ls';
+      addTearDown(service.dispose);
+      await tester.pumpWidget(_screen(service));
+      await tester.pumpAndSettle();
+      final eligible = supportsBluetoothFirmwareUpdates(version);
+      await _show(tester, find.text(eligible ? 'Firmware updates' : 'Update mode'));
+      expect(find.text('Firmware updates'), eligible ? findsOneWidget : findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('Bluetooth updates appear after MDB identification and hide offline', (tester) async {
+    final service = _OtaService();
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    await _show(tester, find.text('Update mode'));
+    expect(find.text('Firmware updates'), findsNothing);
+    service.setMdbVersion('v1.2.0');
+    await tester.pumpAndSettle();
+    expect(find.text('Firmware updates'), findsOneWidget);
+    service.setConnection(false);
+    await tester.pumpAndSettle();
+    expect(find.text('Firmware updates'), findsNothing);
+    service.setConnection(true);
+    service.hasOtaCharacteristics = false;
+    service.setMdbVersion('v1.2.0');
+    await tester.pumpAndSettle();
+    expect(find.text('Firmware updates'), findsNothing);
+    service.hasOtaCharacteristics = true;
+    service.demoMode = true;
+    service.setMdbVersion('v1.2.0');
+    await tester.pumpAndSettle();
+    expect(find.text('Firmware updates'), findsNothing);
+  });
+
   testWidgets('offline scooter settings remain visible, disabled and never loading', (tester) async {
     final service = _Service()..connected = false;
     addTearDown(service.dispose);
@@ -511,7 +563,6 @@ void main() {
       'ls_scheduled_hibernation_title',
       'ls_settings_battery_keep_active_title',
       'ls_settings_apn_title',
-      'ls_settings_ota_title',
       'ls_settings_update_mode_title',
       'ls_settings_service_mode_title'
     ]) {
@@ -527,7 +578,6 @@ void main() {
     for (final (title, version) in [
       ('Auto-standby', '1.0'),
       ('Scheduled hibernation', '1.1'),
-      ('Firmware updates', '1.2'),
       ('Service mode', '1.4'),
     ]) {
       final rowTitle = find.text(title);
