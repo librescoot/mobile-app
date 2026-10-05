@@ -1,0 +1,5 @@
+What's new in 1.3.0-beta.19:
+
+• Bluetooth firmware updates require MDB software 1.2.0 or newer, or a nightly/testing build dated August 3, 2026 or later.
+• The option is hidden for older or unknown MDB versions, offline, in demo mode, or without BLE update support.
+• USB update controls are unchanged.

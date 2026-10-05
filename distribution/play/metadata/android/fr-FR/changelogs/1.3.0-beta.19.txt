@@ -1,0 +1,5 @@
+Nouveautés de 1.3.0-beta.19 :
+
+• Les mises à jour Bluetooth nécessitent un logiciel MDB 1.2.0 ou ultérieur, ou une version nightly/testing du 3 août 2026 ou ultérieure.
+• L’option est masquée pour les anciennes versions MDB ou celles inconnues, hors connexion, en mode démo ou sans prise en charge des mises à jour BLE.
+• Les commandes de mise à jour USB restent inchangées.

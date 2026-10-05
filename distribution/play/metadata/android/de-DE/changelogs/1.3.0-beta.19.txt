@@ -1,0 +1,5 @@
+Neu in 1.3.0-beta.19:
+
+• Bluetooth-Firmwareupdates benötigen MDB-Software ab 1.2.0 oder einen Nightly-/Testing-Build ab dem 3. August 2026.
+• Die Option bleibt bei älteren oder unbekannten MDB-Versionen, offline, im Demo-Modus oder ohne BLE-Update-Unterstützung ausgeblendet.
+• USB-Updatefunktionen bleiben unverändert.
