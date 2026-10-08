@@ -12,6 +12,16 @@ class WearableBridge {
   static const _channel = MethodChannel('org.librescoot.mobile/companion');
   final Future<String> Function(Map<String, dynamic>) execute;
   bool _disposed = false;
+  Timer? _publishTimer;
+
+  void scheduleSnapshot(Map<String, dynamic>? Function() snapshot) {
+    if (_disposed) return;
+    _publishTimer ??= Timer(const Duration(milliseconds: 500), () {
+      _publishTimer = null;
+      final value = snapshot();
+      if (value != null) unawaited(publish(value));
+    });
+  }
 
   Future<void> publish(Map<String, dynamic> snapshot) async {
     if (_disposed) return;
@@ -26,6 +36,7 @@ class WearableBridge {
 
   void dispose() {
     _disposed = true;
+    _publishTimer?.cancel();
     _channel.setMethodCallHandler(null);
     unawaited(_channel.invokeMethod<void>('detach').catchError((Object _) {}));
   }

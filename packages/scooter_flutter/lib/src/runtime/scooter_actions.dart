@@ -146,11 +146,21 @@ class ScooterActions {
 
   /// A watch request uses one captured session and no automatic side actions.
   Future<String> executeCompanion(CompanionRequest request) async {
+    if (!request.validAt(DateTime.now().millisecondsSinceEpoch)) {
+      return 'expired';
+    }
     final target = _capture(
         budget: Duration(
             milliseconds:
                 (request.expiresAt - DateTime.now().millisecondsSinceEpoch)
                     .clamp(0, 15000)));
+    if (target.connection.id != request.scooterId) return 'unavailable';
+    if (target.settings.optionalAuth && request.action != 'refresh') {
+      return 'phoneAuthRequired';
+    }
+    if (request.action != 'refresh') cancelAutoUnlock();
+    if (request.action == 'lock') autoUnlockCooldown();
+    var issued = false;
     String decode(List<int> bytes) =>
         String.fromCharCodes(bytes).replaceAll('\u0000', '').trim();
     final executor = CompanionExecutor(
@@ -180,11 +190,23 @@ class ScooterActions {
                 'openSeat' => seatCommand,
                 _ => throw StateError('Unsupported companion action'),
               },
+              onWriteIssued: () => issued = true,
               isCurrent: () =>
                   current() &&
+                  !settings().optionalAuth &&
                   request.validAt(DateTime.now().millisecondsSinceEpoch))),
     );
-    return executor.execute(request);
+    final result = await executor.execute(request);
+    if (issued && result == 'confirmed' && _current(target)) {
+      effects.acknowledged(target.event(
+          switch (request.action) {
+            'lock' => EventType.lock,
+            'unlock' => EventType.unlock,
+            _ => EventType.openSeat,
+          },
+          EventSource.background));
+    }
+    return result;
   }
 
   void invalidate() {

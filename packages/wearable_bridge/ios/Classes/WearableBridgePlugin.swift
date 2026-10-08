@@ -81,7 +81,7 @@ private final class PhoneCompanion: NSObject, WCSessionDelegate {
             seen = seen.filter { $0.value > now }
             seen[id] = expires
             defaults.set(seen, forKey: "companion.requests")
-            defaults.synchronize()
+            guard defaults.synchronize() else { reply("unavailable"); return }
             guard !self.busy else { reply("busy"); return }
             guard let owner = self.owners.values.first(where: {
                 $0.snapshot["connected"] as? Bool == true && $0.snapshot["scooterId"] as? String == scooterId

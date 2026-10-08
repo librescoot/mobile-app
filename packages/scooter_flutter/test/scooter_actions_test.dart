@@ -7,6 +7,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scooter_flutter/scooter_flutter.dart';
 import 'package:scooter_core/scooter_core.dart';
+import 'package:scooter_core/companion.dart';
 
 class Device extends Fake implements BluetoothDevice {
   Device(String id, this.trace) : remoteId = DeviceIdentifier(id);
@@ -71,6 +72,7 @@ class Characteristic extends Fake implements BluetoothCharacteristic {
   final responses =
       StreamController<List<int>>.broadcast(sync: true, onCancel: () {});
   Future<void> Function(String)? onWrite;
+  Future<List<int>> Function()? onRead;
   Completer<void>? notifyGate;
   @override
   bool isNotifying = true;
@@ -87,7 +89,7 @@ class Characteristic extends Fake implements BluetoothCharacteristic {
   @override
   Future<List<int>> read({int timeout = 15}) async {
     trace.add('$id:read');
-    return [];
+    return await onRead?.call() ?? [];
   }
 
   @override
@@ -264,6 +266,80 @@ Future<void> settleTransport() async {
 }
 
 void main() {
+  CompanionRequest companionRequest(String action, {String id = 'A'}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return CompanionRequest.fromJson({
+      'version': 1,
+      'id': '00000000-0000-0000-0000-000000000001',
+      'scooterId': id,
+      'action': action,
+      'issuedAt': now,
+      'expiresAt': now + 15000
+    });
+  }
+
+  test(
+      'companion lock confirms live state and starts keyless cooldown without side actions',
+      () async {
+    final h = Harness(FakeAsync());
+    await settleTransport();
+    h.settings = const ActionSettings(
+        autoUnlock: true, hazardLocking: true, openSeatOnUnlock: true);
+    var state = 'parked';
+    var read = 0;
+    h.wire.onRead =
+        () async => ascii.encode(read++ % 2 == 0 ? state : 'closed');
+    h.wire.onWrite = (_) async => state = 'stand-by';
+    expect(await h.actions.executeCompanion(companionRequest('lock')),
+        'confirmed');
+    expect(h.actions.coolingDown, isTrue);
+    expect(h.trace.where((line) => line.contains('scooter:')),
+        ['A:scooter:state lock']);
+    expect(h.effects.events.single.kind, EventType.lock);
+    h.dispose();
+  });
+  test('companion respects phone authentication and exact target', () async {
+    final h = Harness(FakeAsync());
+    await settleTransport();
+    h.trace.clear();
+    h.settings = const ActionSettings(optionalAuth: true);
+    expect(await h.actions.executeCompanion(companionRequest('unlock')),
+        'phoneAuthRequired');
+    h.settings = const ActionSettings();
+    expect(
+        await h.actions.executeCompanion(companionRequest('unlock', id: 'B')),
+        'unavailable');
+    expect(h.trace, isEmpty);
+    h.dispose();
+  });
+  test('companion does not retarget after an encrypted preflight read',
+      () async {
+    final h = Harness(FakeAsync());
+    await settleTransport();
+    h.wire.onRead = () async {
+      h.device.drop();
+      return ascii.encode('stand-by');
+    };
+    expect(await h.actions.executeCompanion(companionRequest('unlock')),
+        'unavailable');
+    expect(h.trace.where((line) => line.contains('scooter:')), isEmpty);
+    h.dispose();
+  });
+  test('companion write followed by disconnect is unknown and never retried',
+      () async {
+    final h = Harness(FakeAsync());
+    await settleTransport();
+    var read = 0;
+    h.wire.onRead =
+        () async => ascii.encode(read++ % 2 == 0 ? 'stand-by' : 'closed');
+    h.wire.onWrite = (_) async => h.device.drop();
+    expect(await h.actions.executeCompanion(companionRequest('unlock')),
+        'unknown');
+    expect(h.trace.where((line) => line.contains('scooter:')),
+        ['A:scooter:state unlock']);
+    expect(h.effects.events, isEmpty);
+    h.dispose();
+  });
   test(
       'version snapshot uses only sequential read queries and no action effects',
       () async {

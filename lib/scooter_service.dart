@@ -51,7 +51,6 @@ const connectionPausedPreferenceKey = 'connectionPaused';
 class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final log = Logger('ScooterService');
   WearableBridge? _companion;
-  Timer? _companionPublishTimer;
   bool _companionBusy = false;
 
   // Composed modules
@@ -291,11 +290,10 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   void _scheduleCompanionSnapshot() {
-    _companionPublishTimer ??= Timer(const Duration(milliseconds: 500), () {
-      _companionPublishTimer = null;
-      if (demoMode) return;
+    _companion?.scheduleSnapshot(() {
+      if (demoMode) return null;
       final id = currentScooterId ?? selectedScooterId;
-      if (id == null) return;
+      if (id == null) return null;
       final wireState = switch (vehicle.vehicleState) {
         ScooterVehicleState.standby => 'stand-by',
         ScooterVehicleState.parked => 'parked',
@@ -305,7 +303,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         ScooterVehicleState.updating => 'updating',
         _ => 'unknown',
       };
-      unawaited(_companion?.publish({
+      return {
         'version': 1,
         'scooterId': id,
         'name': identity.name ?? 'Scooter',
@@ -318,7 +316,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         'updatedAt': identity.lastPing?.millisecondsSinceEpoch,
         'latitude': identity.lastLocation?.latitude,
         'longitude': identity.lastLocation?.longitude,
-      }));
+      };
     });
   }
 
@@ -1174,7 +1172,6 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   @override
   void dispose() {
-    _companionPublishTimer?.cancel();
     _companion?.dispose();
     removeListener(_scheduleCompanionSnapshot);
     runtime.dispose();
