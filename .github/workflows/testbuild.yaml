@@ -5,6 +5,11 @@ name: Test build
 
 on:
   workflow_dispatch:
+    inputs:
+      inspect_wear_testing:
+        description: Inspect Play Wear OS tracks and tester configuration instead of building
+        type: boolean
+        default: false
 
 concurrency:
   group: testbuild-${{ github.ref }}
@@ -13,6 +18,7 @@ concurrency:
 jobs:
   build:
     name: Build APK
+    if: ${{ !inputs.inspect_wear_testing }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -53,3 +59,47 @@ jobs:
           name: apk-${{ github.ref_name }}
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
+
+  inspect-wear:
+    name: Inspect Wear OS testing setup
+    if: inputs.inspect_wear_testing
+    runs-on: ubuntu-latest
+    concurrency:
+      group: google-play-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/47940350172/locations/global/workloadIdentityPools/github-actions/providers/mobile-app
+          audience: https://github.com/librescoot
+          service_account: librescoot-play-publisher@android-apps-508215.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+      - name: Read tracks and tester configuration without committing an edit
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, urllib.request
+          sys.path.insert(0, '.github/scripts')
+          from publish_play import BASE, request
+          token = os.environ['GOOGLE_OAUTH_ACCESS_TOKEN']
+          edit = request(token, 'POST', f'{BASE}/edits', b'{}')['id']
+          try:
+              tracks = request(token, 'GET', f'{BASE}/edits/{edit}/tracks').get('tracks', [])
+              print(json.dumps(tracks, indent=2))
+              for track in tracks:
+                  name = track['track']
+                  if name == 'alpha' or name.startswith('wear:'):
+                      testers = request(token, 'GET', f'{BASE}/edits/{edit}/testers/{name}')
+                      print(f"{name}: tester fields {list(testers)}, Google groups {len(testers.get('googleGroups', []))}")
+          finally:
+              req = urllib.request.Request(f'{BASE}/edits/{edit}', method='DELETE', headers={'Authorization': f'Bearer {token}'})
+              with urllib.request.urlopen(req, timeout=30):
+                  pass
+          PY
