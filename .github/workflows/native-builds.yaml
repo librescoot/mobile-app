@@ -37,11 +37,15 @@ jobs:
         run: ./gradlew :wear:assembleDebug :wear:testDebugUnitTest :wear:lintDebug
       - name: Configure disposable signing for the release build check
         run: |
+          keytool -genkeypair -noprompt -storetype JKS \
+            -keystore "$RUNNER_TEMP/build-check.jks" -alias build-check \
+            -storepass android -keypass android -keyalg RSA -keysize 2048 \
+            -validity 1 -dname 'CN=CI build check'
           cat > android/key.properties <<EOF
           storePassword=android
           keyPassword=android
-          keyAlias=androiddebugkey
-          storeFile=$HOME/.android/debug.keystore
+          keyAlias=build-check
+          storeFile=$RUNNER_TEMP/build-check.jks
           EOF
       - run: flutter build appbundle --release
 

@@ -158,8 +158,8 @@ Implementations live in:
 ## Build and test
 
 The **Native builds** GitHub Actions workflow compiles Android phone/Wear OS
-apps, checks the phone's release App Bundle with a disposable debug signing
-identity, archives iOS with its embedded watch targets without signing, and
+apps, checks the phone's release App Bundle with a disposable signing identity,
+archives iOS with its embedded watch targets without signing, and
 builds the watchOS simulator app and complications. It also runs Wear OS
 protocol tests/lint and Swift protocol tests. Trusted repository pushes also
 verify a signed IPA export using the same signing setup as Nightly and Release.
