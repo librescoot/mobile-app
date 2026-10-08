@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "commands": {
+    "lock": "scooter:state lock",
+    "unlock": "scooter:state unlock",
+    "openSeat": "scooter:seatbox open"
+  },
+  "stateCases": [
+    {"state":"stand-by","seatClosed":true,"action":"unlock","allowed":true,"confirmed":false},
+    {"state":"parked","seatClosed":true,"action":"unlock","allowed":true,"confirmed":true},
+    {"state":"stand-by","seatClosed":true,"action":"lock","allowed":true,"confirmed":true},
+    {"state":"parked","seatClosed":true,"action":"lock","allowed":true,"confirmed":false},
+    {"state":"ready-to-drive","seatClosed":true,"action":"lock","allowed":false,"confirmed":false},
+    {"state":"ready-to-drive","seatClosed":true,"action":"unlock","allowed":false,"confirmed":false},
+    {"state":"stand-by","seatClosed":true,"action":"openSeat","allowed":false,"confirmed":false},
+    {"state":"parked","seatClosed":true,"action":"openSeat","allowed":true,"confirmed":false},
+    {"state":"parked","seatClosed":false,"action":"openSeat","allowed":true,"confirmed":true},
+    {"state":"parked","seatClosed":null,"action":"openSeat","allowed":true,"confirmed":false},
+    {"state":"off","seatClosed":true,"action":"unlock","allowed":false,"confirmed":false},
+    {"state":"updating","seatClosed":true,"action":"lock","allowed":false,"confirmed":false},
+    {"state":null,"seatClosed":null,"action":"unlock","allowed":false,"confirmed":false},
+    {"state":"parked","seatClosed":true,"action":"refresh","allowed":true,"confirmed":true}
+  ]
+}

@@ -146,7 +146,11 @@ class ScooterActions {
 
   /// A watch request uses one captured session and no automatic side actions.
   Future<String> executeCompanion(CompanionRequest request) async {
-    final target = _capture();
+    final target = _capture(
+        budget: Duration(
+            milliseconds:
+                (request.expiresAt - DateTime.now().millisecondsSinceEpoch)
+                    .clamp(0, 15000)));
     String decode(List<int> bytes) =>
         String.fromCharCodes(bytes).replaceAll('\u0000', '').trim();
     final executor = CompanionExecutor(

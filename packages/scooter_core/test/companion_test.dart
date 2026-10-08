@@ -1,8 +1,20 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:scooter_core/companion.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('matches the cross-platform state contract', () {
+    final contract = jsonDecode(
+        File('../../test/fixtures/companion_contract.json').readAsStringSync());
+    for (final item in contract['stateCases']) {
+      final observation =
+          CompanionObservation(item['state'], item['seatClosed']);
+      expect(observation.allows(item['action']), item['allowed']);
+      expect(observation.confirms(item['action']), item['confirmed']);
+    }
+  });
   var now = 100000;
   CompanionRequest request(
           {String action = 'unlock',

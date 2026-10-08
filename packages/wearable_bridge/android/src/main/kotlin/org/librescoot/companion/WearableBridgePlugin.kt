@@ -68,7 +68,7 @@ internal object PhoneRouter {
         if (request.optInt("version") != 1 || !id.matches(Regex("[a-zA-Z0-9-]{16,64}")) ||
             request.optString("scooterId").length !in 1..128 ||
             request.optString("action") !in listOf("refresh", "lock", "unlock", "openSeat") ||
-            expires <= issued || expires - issued > 15000) {
+            issued < 0 || expires <= issued || expires - issued > 15000) {
             reply("invalid"); return@post
         }
         if (issued > now + 2000 || expires <= now) { reply("expired"); return@post }

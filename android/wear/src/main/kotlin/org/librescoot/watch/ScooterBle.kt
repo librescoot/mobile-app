@@ -6,6 +6,7 @@ import android.bluetooth.le.*
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.util.UUID
@@ -53,6 +54,7 @@ class ScooterBle(private val context: Context) {
                         snapshot: (JSONObject) -> Unit): String {
         check(link == null) { "Bluetooth operation already active" }
         writeIssued = false
+        val deadline = SystemClock.elapsedRealtime() + if (pair) 60000 else 15000
         try {
             return withTimeout(if (pair) 60000 else 15000) {
                 val device = adapter.getRemoteDevice(id)
@@ -77,6 +79,7 @@ class ScooterBle(private val context: Context) {
                 if (!CompanionProtocol.allows(observed.first, action)) return@withTimeout "unsafeState"
                 if (!CompanionProtocol.confirms(observed.first, observed.second, action)) {
                     currentCoroutineContext().ensureActive()
+                    check(SystemClock.elapsedRealtime() < deadline) { "Request expired" }
                     writeIssued = true
                     write(CompanionProtocol.wire(action))
                     do {

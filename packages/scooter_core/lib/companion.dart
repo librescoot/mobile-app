@@ -13,6 +13,7 @@ class CompanionRequest {
         scooterId.isEmpty ||
         scooterId.length > 128 ||
         !const ['refresh', 'lock', 'unlock', 'openSeat'].contains(action) ||
+        issuedAt < 0 ||
         expiresAt <= issuedAt ||
         expiresAt - issuedAt > 15000) {
       throw const FormatException('Invalid companion request');

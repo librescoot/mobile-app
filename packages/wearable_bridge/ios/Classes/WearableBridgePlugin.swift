@@ -72,7 +72,7 @@ private final class PhoneCompanion: NSObject, WCSessionDelegate {
                   ["refresh", "lock", "unlock", "openSeat"].contains(action),
                   let issued = message["issuedAt"] as? Int,
                   let expires = message["expiresAt"] as? Int,
-                  expires > issued, expires - issued <= 15000 else { reply("invalid"); return }
+                  issued >= 0, expires > issued, expires - issued <= 15000 else { reply("invalid"); return }
             let now = Int(Date().timeIntervalSince1970 * 1000)
             guard issued <= now + 2000, expires > now else { reply("expired"); return }
             let defaults = UserDefaults.standard

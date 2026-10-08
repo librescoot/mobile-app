@@ -2,8 +2,23 @@ package org.librescoot.watch
 
 import org.junit.Assert.*
 import org.junit.Test
+import org.json.JSONObject
+import java.io.File
 
 class CompanionProtocolTest {
+    @Test fun matchesCrossPlatformContract() {
+        val contract = JSONObject(File(System.getProperty("companionContract")).readText())
+        val cases = contract.getJSONArray("stateCases")
+        for (index in 0 until cases.length()) {
+            val item = cases.getJSONObject(index)
+            val state = if (item.isNull("state")) null else item.getString("state")
+            val seat = if (item.isNull("seatClosed")) null else item.getBoolean("seatClosed")
+            assertEquals(item.getBoolean("allowed"), CompanionProtocol.allows(state, item.getString("action")))
+            assertEquals(item.getBoolean("confirmed"), CompanionProtocol.confirms(state, seat, item.getString("action")))
+        }
+        val commands = contract.getJSONObject("commands")
+        commands.keys().forEach { assertEquals(commands.getString(it), CompanionProtocol.wire(it)) }
+    }
     @Test fun requestsAreExplicitBoundedAndTargeted() {
         val request = CompanionProtocol.request("scooter-a", "unlock", 100000)
         assertEquals(1, request.getInt("version"))
