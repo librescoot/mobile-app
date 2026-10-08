@@ -219,6 +219,15 @@ the phone/widget profiles. It does not register bundle IDs, create App Groups,
 or issue provisioning profiles. Configure those in the Apple developer account
 before merging changes that embed the watch targets into a publishing branch.
 
+Authorized maintainers can explicitly dispatch **Native builds** with
+`signing_setup=register` to register the two watch IDs and enable App Groups.
+In the Apple developer portal, create `group.org.librescoot.mobile.unu.watch`
+and associate it with both IDs. Then dispatch with `signing_setup=profiles` to
+create the named profiles using the existing phone CI distribution certificate.
+Neither setup phase builds or uploads apps. Existing profiles and certificates
+are never revoked; an invalid profile created by the current run is discarded.
+Use the default `signing_setup=none` to run the build checks.
+
 ### Hardware-free checks
 
 ```sh

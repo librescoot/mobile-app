@@ -6,6 +6,12 @@ on:
       - '**'
   pull_request:
   workflow_dispatch:
+    inputs:
+      signing_setup:
+        description: Explicit Apple account setup only; associate the App Group in the developer portal between phases
+        type: choice
+        options: [none, register, profiles]
+        default: none
 
 permissions:
   contents: read
@@ -15,8 +21,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  configure-signing:
+    name: Configure watch signing resources
+    if: github.event_name == 'workflow_dispatch' && inputs.signing_setup != 'none' && github.repository == 'librescoot/mobile-app'
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Import existing CI distribution identity
+        if: inputs.signing_setup == 'profiles'
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.IOS_DIST_CERT_P12 }}
+          p12-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+      - name: Apply the requested setup phase
+        env:
+          SETUP_PHASE: ${{ inputs.signing_setup }}
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: python3 .github/scripts/configure_watch_signing.py --phase "$SETUP_PHASE" --apply
+
   android:
     name: Android phone and Wear OS
+    if: github.event_name != 'workflow_dispatch' || inputs.signing_setup == 'none'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -51,6 +79,7 @@ jobs:
 
   apple:
     name: iOS archive and watchOS simulator
+    if: github.event_name != 'workflow_dispatch' || inputs.signing_setup == 'none'
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
