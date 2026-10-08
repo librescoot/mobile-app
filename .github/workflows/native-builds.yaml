@@ -75,6 +75,8 @@ jobs:
           keyAlias=build-check
           storeFile=$RUNNER_TEMP/build-check.jks
           EOF
+      - name: Build release Wear OS bundle
+        run: android/gradlew -p android :wear:bundleRelease -PwearVersionCode=1 -PwearVersionName=0.1.0
       - run: flutter build appbundle --release
 
   apple:
@@ -119,3 +121,5 @@ jobs:
           flutter build ipa --release --build-name="${VERSION%%-*}" \
             --export-options-plist=ios/ExportOptions.plist
           compgen -G 'build/ios/ipa/*.ipa' > /dev/null
+      - name: Verify phone simulator launch
+        run: bash .github/scripts/smoke_ios_simulator.sh

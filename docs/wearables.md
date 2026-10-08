@@ -39,6 +39,8 @@ blocks watch-relayed actuation and directs the user to the phone.
 
 Wear Data Layer requires matching application IDs and signing certificates on
 phone and watch. Debug builds use `org.librescoot.mobile.unu.debug` on both.
+Phone-relayed controls require a phone build containing the companion bridge;
+install the matching testing phone app as well as the watch app.
 Wear commands require the source node to be reported as nearby on both ends.
 Status synchronization can use Google's Data Layer network transport.
 WatchConnectivity reachability is not a cryptographic proximity check. Neither
@@ -185,8 +187,19 @@ Outputs relative to the repository root:
 - Watch: `build/wear/outputs/apk/debug/wear-debug.apk`
 
 Install each APK on its respective emulator/device. The watch supports Wear OS
-3+ (Android API 30+). Release distribution requires explicit signing and version
-code configuration; the watch and phone must use the same signing identity.
+3+ (Android API 30+). Release builds read the phone's `android/key.properties`
+signing configuration. Pass `-PwearVersionCode=<unique-store-code>` and
+`-PwearVersionName=<version>` when building release artifacts. The watch and
+phone must share the Play application and signing identity.
+
+The **Test build** workflow with `wear=true` produces signed watch APK/AAB
+artifacts, using a fresh seconds-since-2020 version code. With
+`publish_wear=true`, it publishes the AAB to `wear:alpha` and verifies that phone
+tracks stay unchanged. First enable Wear OS in Play Console, create the closed
+`alpha` track for that form factor, and assign the existing tester list. Tester
+email lists require Console configuration; the Publisher API exposes Google
+groups, not those lists. `inspect_wear_testing=true` checks tracks without
+publishing or building. These workflows do not publish Wear OS to production.
 
 ### watchOS
 
@@ -227,6 +240,17 @@ create the named profiles using the existing phone CI distribution certificate.
 Neither setup phase builds or uploads apps. Existing profiles and certificates
 are never revoked; an invalid profile created by the current run is discarded.
 Use the default `signing_setup=none` to run the build checks.
+
+### External testers
+
+The watchOS app is embedded in the phone IPA. Distribute the phone's TestFlight
+build to the existing external group; Apple may require beta review before
+installation. The **Distribute existing TestFlight beta** workflow supports
+`notes_source=wearables` for the watch testing checklist. Its optional
+`play_version_code` promotes only the explicitly selected completed internal
+phone build to Play `alpha`, so Android external testers have the phone bridge.
+Production and internal tracks are verified unchanged. Wear OS itself uses the
+separate `wear:alpha` upload described above.
 
 ### Hardware-free checks
 

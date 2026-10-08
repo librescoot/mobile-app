@@ -34,7 +34,7 @@ def track_state(token, edit_id, track):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--aab", required=True)
-    parser.add_argument("--track", required=True, choices=("internal", "alpha", "beta", "production"))
+    parser.add_argument("--track", required=True, choices=("internal", "alpha", "beta", "production", "wear:alpha"))
     parser.add_argument("--name", required=True)
     parser.add_argument("--version-code", required=True, type=int)
     parser.add_argument(
@@ -86,6 +86,12 @@ def main():
     edit = request(token, "POST", f"{BASE}/edits", b"{}")
     edit_id = edit["id"]
     production_before = track_state(token, edit_id, "production")
+    phone_before = {}
+    if args.track == "wear:alpha":
+        tracks = request(token, "GET", f"{BASE}/edits/{edit_id}/tracks").get("tracks", [])
+        if not any(track["track"] == args.track for track in tracks):
+            raise RuntimeError("configure Wear OS closed track alpha and its tester list in Play Console first")
+        phone_before = {track["track"]: track for track in tracks if not track["track"].startswith("wear:")}
 
     uploaded = request(
         token,
@@ -136,6 +142,12 @@ def main():
         raise RuntimeError("committed bundle digest does not match the uploaded AAB")
     if args.track != "production" and production_after != production_before:
         raise RuntimeError("production track changed while publishing a testing build")
+
+    if phone_before:
+        tracks = request(token, "GET", f"{BASE}/edits/{verify_id}/tracks").get("tracks", [])
+        phone_after = {track["track"]: track for track in tracks if not track["track"].startswith("wear:")}
+        if phone_after != phone_before:
+            raise RuntimeError("phone tracks changed while publishing the Wear OS build")
 
     print(f"Published {args.name} ({args.version_code}) to {args.track}")
     print(f"AAB SHA-256: {digest}")

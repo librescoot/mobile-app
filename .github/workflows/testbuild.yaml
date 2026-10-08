@@ -1,13 +1,21 @@
 name: Test build
 
-# On-demand signed APK for any branch. Artifact only, no GitHub release, so
-# feature builds do not muddy the nightly list.
+# On-demand signed phone/watch artifacts, with explicit optional Wear OS
+# closed-testing publication. No GitHub release is created.
 
 on:
   workflow_dispatch:
     inputs:
       inspect_wear_testing:
         description: Inspect Play Wear OS tracks and tester configuration instead of building
+        type: boolean
+        default: false
+      wear:
+        description: Build signed Wear OS APK and App Bundle instead of the phone APK
+        type: boolean
+        default: false
+      publish_wear:
+        description: Publish Wear OS to wear:alpha (requires wear=true and the Console tester list configured)
         type: boolean
         default: false
 
@@ -17,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build APK
+    name: Build test artifacts
     if: ${{ !inputs.inspect_wear_testing }}
     runs-on: ubuntu-latest
     steps:
@@ -52,13 +60,71 @@ jobs:
           storeFile=upload-keystore.jks
           KEY
 
-      - run: flutter build apk --release
+      - if: ${{ !inputs.wear }}
+        run: flutter build apk --release
+
+      - name: Build signed Wear OS artifacts
+        if: inputs.wear
+        run: |
+          VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)"
+          CODE="$(( $(date -u +%s) - 1577836800 ))"
+          flutter build apk --config-only --release --build-name="$VERSION" --build-number="$CODE"
+          android/gradlew -p android :wear:assembleRelease :wear:bundleRelease \
+            -PwearVersionName="$VERSION" -PwearVersionCode="$CODE"
+          echo "$CODE" > build/wear/version-code.txt
+          echo "$VERSION" > build/wear/version-name.txt
 
       - uses: actions/upload-artifact@v6
         with:
-          name: apk-${{ github.ref_name }}
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: ${{ inputs.wear && 'wear-testing' || 'apk' }}
+          path: ${{ inputs.wear && 'build/wear/outputs/apk/release/*.apk' || 'build/app/outputs/flutter-apk/app-release.apk' }}
           retention-days: 14
+
+      - if: inputs.wear
+        uses: actions/upload-artifact@v6
+        with:
+          name: wear-bundle
+          path: |
+            build/wear/outputs/bundle/release/*.aab
+            build/wear/version-code.txt
+            build/wear/version-name.txt
+          retention-days: 14
+
+  publish-wear:
+    name: Publish Wear OS closed testing
+    if: inputs.wear && inputs.publish_wear && !inputs.inspect_wear_testing
+    needs: build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: google-play-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v7
+        with:
+          name: wear-bundle
+          path: wear-artifacts
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/47940350172/locations/global/workloadIdentityPools/github-actions/providers/mobile-app
+          audience: https://github.com/librescoot
+          service_account: librescoot-play-publisher@android-apps-508215.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+      - name: Publish verified watch bundle without changing the phone track
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          CODE="$(<wear-artifacts/version-code.txt)"
+          VERSION="$(<wear-artifacts/version-name.txt)"
+          python3 .github/scripts/publish_play.py \
+            --aab wear-artifacts/outputs/bundle/release/wear-release.aab \
+            --track wear:alpha --name "Wear OS $VERSION" --version-code "$CODE" \
+            --notes-file distribution/wearable-testing.txt
 
   inspect-wear:
     name: Inspect Wear OS testing setup

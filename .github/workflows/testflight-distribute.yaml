@@ -8,8 +8,17 @@ on:
         required: true
         type: string
       notes_version:
-        description: Prerelease tag for the localized notes (e.g. 1.3.0-beta.12)
-        required: true
+        description: Prerelease tag for localized release notes (unused for wearable notes)
+        required: false
+        type: string
+      notes_source:
+        description: What to Test notes
+        type: choice
+        options: [release, wearables]
+        default: release
+      play_version_code:
+        description: Optional existing internal phone version code to promote to Play closed testing
+        required: false
         type: string
 
 permissions:
@@ -26,14 +35,46 @@ jobs:
         env:
           BUILD_NUMBER: ${{ inputs.build_number }}
           NOTES_VERSION: ${{ inputs.notes_version }}
+          NOTES_SOURCE: ${{ inputs.notes_source }}
           APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
           APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
           APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
         run: |
           [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]]
-          [[ "$NOTES_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]
+          if [ "$NOTES_SOURCE" = wearables ]; then
+            NOTES=(--notes-file distribution/wearable-testing.txt)
+          else
+            [[ "$NOTES_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]
+            NOTES=(--notes-dir distribution/play/metadata/android --notes-version "$NOTES_VERSION")
+          fi
           python3 .github/scripts/testflight_notes.py \
-            --build-number "$BUILD_NUMBER" \
-            --notes-dir distribution/play/metadata/android \
-            --notes-version "$NOTES_VERSION" \
+            --build-number "$BUILD_NUMBER" "${NOTES[@]}" \
             --external-group "External Testing"
+
+  promote-phone:
+    name: Promote phone companion to Play closed testing
+    if: inputs.play_version_code != ''
+    runs-on: ubuntu-latest
+    concurrency:
+      group: google-play-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/47940350172/locations/global/workloadIdentityPools/github-actions/providers/mobile-app
+          audience: https://github.com/librescoot
+          service_account: librescoot-play-publisher@android-apps-508215.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+      - name: Promote the exact selected internal build
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          VERSION_CODE: ${{ inputs.play_version_code }}
+        run: |
+          [[ "$VERSION_CODE" =~ ^[0-9]+$ ]]
+          python3 .github/scripts/promote_play_testing.py --version-code "$VERSION_CODE"
