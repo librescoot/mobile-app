@@ -41,6 +41,10 @@ class CharacteristicRepository {
   BluetoothCharacteristic? otaControlCharacteristic;
   BluetoothCharacteristic? otaStatusCharacteristic;
 
+  BluetoothCharacteristic? fileDataCharacteristic;
+  BluetoothCharacteristic? fileControlCharacteristic;
+  BluetoothCharacteristic? fileStatusCharacteristic;
+
   // Alarm state (librescoot firmware with the 0x0220 service only)
   BluetoothCharacteristic? alarmStatusCharacteristic;
   BluetoothCharacteristic? alarmLastTriggerCharacteristic;
@@ -184,6 +188,18 @@ class CharacteristicRepository {
           'ota-status',
           "9a590500-6e67-5d0d-aab9-ad9126b66f91",
           "9a590503-6e67-5d0d-aab9-ad9126b66f91");
+      fileDataCharacteristic = _expect(
+          'file-data',
+          "9a590600-6e67-5d0d-aab9-ad9126b66f91",
+          "9a590601-6e67-5d0d-aab9-ad9126b66f91");
+      fileControlCharacteristic = _expect(
+          'file-control',
+          "9a590600-6e67-5d0d-aab9-ad9126b66f91",
+          "9a590602-6e67-5d0d-aab9-ad9126b66f91");
+      fileStatusCharacteristic = _expect(
+          'file-status',
+          "9a590600-6e67-5d0d-aab9-ad9126b66f91",
+          "9a590603-6e67-5d0d-aab9-ad9126b66f91");
       alarmStatusCharacteristic = _expect(
           'alarm-status',
           "9a590220-6e67-5d0d-aab9-ad9126b66f91",
@@ -199,6 +215,12 @@ class CharacteristicRepository {
     }
     return;
   }
+
+  bool get filesAvailable =>
+      fileDataCharacteristic?.properties.writeWithoutResponse == true &&
+      fileDataCharacteristic?.properties.notify == true &&
+      fileControlCharacteristic?.properties.write == true &&
+      fileStatusCharacteristic?.properties.notify == true;
 
   /// Whether the connected firmware exposes the OTA transfer service.
   bool get otaAvailable =>

@@ -192,6 +192,7 @@ class ScooterTelemetry {
     identity.supportsPhoneKeyManagement = supportsKeycardV2;
     identity.supportsKeyAliases = supportsKeycardV2;
     identity.supportsTripCounter = groups.containsKey('trip');
+    identity.supportsFileTransfer = (groups['files'] ?? 0) >= 1;
   }
 
   void refreshOdometer() {
@@ -454,6 +455,7 @@ class ScooterTelemetry {
     identity.supportsAlarmControl = false;
     identity.supportsTripCounter = false;
     identity.supportsTripExpunge = false;
+    identity.supportsFileTransfer = false;
     identity.supportsServiceMode = false;
     identity.supportsNavigation = false;
     identity.navigationCapabilityVersion = null;

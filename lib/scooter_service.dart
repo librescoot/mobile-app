@@ -5,6 +5,7 @@ import 'domain/widget_range.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:scooter_flutter/update_controller.dart';
+import 'package:scooter_flutter/file_transfer_controller.dart';
 import 'service/update_release_provider.dart';
 import 'package:scooter_core/scooter_core.dart';
 import 'package:scooter_flutter/scooter_session.dart';
@@ -97,6 +98,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
       connected && !demoMode && _telemetry.otaAvailable && supportsBluetoothFirmwareUpdates(identity.imxVersion);
   String? get connectingScooterId => _session.connectingScooterId;
   late final UpdateController updateController;
+  late final FileTransferController fileTransfers;
   String? updateTargetName;
   late final NavigationRuntime _liveNavigation;
   DemoNavigationRuntime? _demoNavigation;
@@ -211,6 +213,10 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         channel: 'stable',
         cacheDirectory: () async => Directory('${(await getApplicationSupportDirectory()).path}/ota'),
         onTargetCaptured: (id) => updateTargetName = savedScooters[id]?.name ?? id);
+    fileTransfers = FileTransferController(
+      cacheDirectory: () async => Directory('${(await getApplicationCacheDirectory()).path}/ble-files'),
+      supportsFirmware: () => identity.supportsFileTransfer == true,
+    )..addListener(notifyListeners);
     _liveActions = ScooterActions(
         session: _session,
         telemetry: _telemetry,
@@ -1176,6 +1182,8 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     removeListener(_scheduleCompanionSnapshot);
     runtime.dispose();
     updateController.dispose();
+    fileTransfers.removeListener(notifyListeners);
+    fileTransfers.dispose();
     _demoNavigation?.dispose();
     _liveNavigation.dispose();
     _demoActions?.dispose();
@@ -1228,6 +1236,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
   @override
   void invalidateTelemetry() {
     service.updateController.invalidate();
+    service.fileTransfers.unbind();
     service.navigation.invalidate();
     service.actions.invalidate();
     service._telemetry.invalidate();
@@ -1258,6 +1267,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
   @override
   void wireTelemetry(SessionConnection connection, CharacteristicRepository repository) {
     service.updateController.bind(connection, repository);
+    service.fileTransfers.bind(connection, repository);
     service.navigation.bind(connection, repository);
     service.actions.bind(connection, repository);
     service._telemetry.bind(connection, repository);
@@ -1284,6 +1294,7 @@ class _ServiceSessionEffects implements ScooterSessionEffects {
   @override
   void disconnected(String? id) {
     service.updateController.invalidate();
+    service.fileTransfers.unbind();
     service.navigation.invalidate();
     service.actions.invalidate();
     service._telemetry.invalidate();

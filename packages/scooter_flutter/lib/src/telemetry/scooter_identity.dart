@@ -45,6 +45,7 @@ class FirmwareIdentity {
   int? alarmCapabilityVersion;
   bool? supportsTripCounter;
   bool? supportsTripExpunge;
+  bool? supportsFileTransfer;
 
   /// Group capabilities come from one complete `cap:ext` answer. The runtime
   /// seeds them from that last confirmed answer until a newer answer replaces
@@ -71,6 +72,7 @@ class FirmwareIdentity {
     alarmCapabilityVersion = null;
     supportsTripCounter = null;
     supportsTripExpunge = null;
+    supportsFileTransfer = null;
     supportsServiceMode = null;
     supportsNavigation = null;
     navigationCapabilityVersion = null;
