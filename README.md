@@ -30,6 +30,14 @@ hibernation starts, or eight hours pass, whichever comes first, without changing
 screen. Older firmware retains the existing **Stop alarm** control and does not
 show the temporary-disarm settings action.
 
+### Wearable companions (experimental)
+
+Native Wear OS and watchOS companions provide explicit scooter controls, status,
+range and watch-face shortcuts, with independent BLE-key enrollment. Wear OS
+also includes an opt-in NFC key for devices supporting third-party HCE.
+Physical key behavior requires device validation; watchOS also requires an
+Apple SDK build before release. See [wearable setup, builds and limitations](docs/wearables.md).
+
 ### What this app adds
 
 - **Over [Unustasis](https://github.com/reunu/unustasis):** Capability-gated multi-stop route planning, a ride counter with reset and retention settings, Android Tasker actions and a redesigned multi-scooter interface.
