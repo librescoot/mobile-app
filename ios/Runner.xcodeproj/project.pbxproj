@@ -405,10 +405,10 @@
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				B311E3482DE99F15009FCEBD /* Embed Foundation Extensions */,
+				13D106A499682F5AF9ACE827 /* Embed Watch Content */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				3F25E0D94310DA4558A19FD0 /* [CP] Embed Pods Frameworks */,
 				82F37BE91E9277C4A581F552 /* [CP] Copy Pods Resources */,
-				13D106A499682F5AF9ACE827 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
