@@ -42,6 +42,7 @@ final class WatchBluetooth: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     }
     func execute(id: UUID, name: String, action: CompanionAction, pairing: Bool,
                  publish: @escaping (CompanionSnapshot) -> Void, completion: @escaping (String) -> Void) {
+        guard !pairing || action == .refresh else { completion("invalid"); return }
         targetID = id
         self.name = name
         self.action = action
@@ -156,6 +157,7 @@ final class WatchBluetooth: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     }
     private func readNext() {
         guard completion != nil else { return }
+        guard ProcessInfo.processInfo.systemUptime < deadline else { fail(); return }
         guard !reads.isEmpty else { observed(); return }
         let id = reads.removeFirst()
         guard let characteristic = chars[id] else { fail(); return }

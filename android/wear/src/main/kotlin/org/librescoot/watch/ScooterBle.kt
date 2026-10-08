@@ -52,6 +52,7 @@ class ScooterBle(private val context: Context) {
 
     suspend fun execute(id: String, name: String, action: String, pair: Boolean = false,
                         snapshot: (JSONObject) -> Unit): String {
+        require(!pair || action == "refresh") { "Enrollment is read-only" }
         check(link == null) { "Bluetooth operation already active" }
         writeIssued = false
         val deadline = SystemClock.elapsedRealtime() + if (pair) 60000 else 15000
@@ -73,6 +74,7 @@ class ScooterBle(private val context: Context) {
                         "closed" -> true
                         else -> null
                     }
+                    check(SystemClock.elapsedRealtime() < deadline) { "Request expired" }
                     return state to seat
                 }
                 var observed = observe()
