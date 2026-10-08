@@ -157,6 +157,14 @@ Implementations live in:
 
 ## Build and test
 
+The **Native builds** GitHub Actions workflow compiles Android phone/Wear OS
+apps, checks the phone's release App Bundle with a disposable debug signing
+identity, archives iOS with its embedded watch targets without signing, and
+builds the watchOS simulator app and complications. It also runs Wear OS
+protocol tests/lint and Swift protocol tests. It does not publish artifacts to
+stores or establish distribution signing or physical-device compatibility.
+The separate **CI** workflow analyzes and tests Dart/Flutter.
+
 ### Wear OS
 
 Use the repository's Android SDK and a Java version supported by its Gradle/AGP

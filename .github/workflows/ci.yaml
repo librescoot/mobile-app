@@ -1,8 +1,7 @@
 name: CI
 
-# Analyze and test on every push and PR. Builds live in nightly.yaml (main)
-# and release.yaml (tags); this job only has to be fast enough that nobody
-# minds waiting for it.
+# Analyze and test on every push and PR. Native build checks live in
+# native-builds.yaml; nightly.yaml (main) and release.yaml (tags) publish builds.
 
 on:
   push:

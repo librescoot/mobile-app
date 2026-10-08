@@ -1,0 +1,71 @@
+name: Native builds
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-builds-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android phone and Wear OS
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --debug
+      - name: Build and test Wear OS
+        working-directory: android
+        run: ./gradlew :wear:assembleDebug :wear:testDebugUnitTest :wear:lintDebug
+      - name: Configure disposable signing for the release build check
+        run: |
+          cat > android/key.properties <<EOF
+          storePassword=android
+          keyPassword=android
+          keyAlias=androiddebugkey
+          storeFile=$HOME/.android/debug.keystore
+          EOF
+      - run: flutter build appbundle --release
+
+  apple:
+    name: iOS archive and watchOS simulator
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: swift test --package-path ios/WatchSupport
+      - name: Archive iOS and embedded watch targets without signing
+        run: |
+          VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)"
+          flutter build ipa --release --no-codesign --build-name="${VERSION%%-*}"
+          test -d build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app/Watch/ScooterWatch.app/PlugIns/ScooterWatchWidget.appex
+      - name: Build watchOS simulator app and complications
+        run: |
+          xcodebuild -project ios/Runner.xcodeproj -scheme ScooterWatch \
+            -configuration Debug -sdk watchsimulator \
+            -destination 'generic/platform=watchOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build
