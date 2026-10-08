@@ -161,9 +161,11 @@ The **Native builds** GitHub Actions workflow compiles Android phone/Wear OS
 apps, checks the phone's release App Bundle with a disposable debug signing
 identity, archives iOS with its embedded watch targets without signing, and
 builds the watchOS simulator app and complications. It also runs Wear OS
-protocol tests/lint and Swift protocol tests. It does not publish artifacts to
-stores or establish distribution signing or physical-device compatibility.
-The separate **CI** workflow analyzes and tests Dart/Flutter.
+protocol tests/lint and Swift protocol tests. Trusted repository pushes also
+verify a signed IPA export using the same signing setup as Nightly and Release.
+Pull requests and forks use unsigned Apple builds. The workflow does not upload
+to stores or establish physical-device compatibility. The separate **CI**
+workflow analyzes and tests Dart/Flutter.
 
 ### Wear OS
 
@@ -205,6 +207,17 @@ configure signing for both watch targets and register/enable the shared app
 group `group.org.librescoot.mobile.unu.watch`. Watch versions come from Flutter's
 generated build configuration. Run `pod install` to resolve the local phone
 bridge and update CocoaPods integration on macOS.
+
+Distribution builds require App Store profiles containing the CI distribution
+certificate and the watch App Group entitlement:
+
+- `org.librescoot.mobile.unu.watch`: `Librescoot Watch App Store CI`
+- `org.librescoot.mobile.unu.watch.widget`: `Librescoot Watch Widget App Store CI`
+
+The shared `.github/actions/ios-signing` action downloads and checks these and
+the phone/widget profiles. It does not register bundle IDs, create App Groups,
+or issue provisioning profiles. Configure those in the Apple developer account
+before merging changes that embed the watch targets into a publishing branch.
 
 ### Hardware-free checks
 

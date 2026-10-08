@@ -69,3 +69,20 @@ jobs:
             -configuration Debug -sdk watchsimulator \
             -destination 'generic/platform=watchOS Simulator' \
             CODE_SIGNING_ALLOWED=NO build
+      - name: Prepare distribution signing on trusted pushes
+        if: github.repository == 'librescoot/mobile-app' && github.event_name != 'pull_request'
+        uses: ./.github/actions/ios-signing
+        with:
+          certificate: ${{ secrets.IOS_DIST_CERT_P12 }}
+          certificate-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          team-id: ${{ secrets.APPLE_TEAM_ID }}
+          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+          key-id: ${{ secrets.APPSTORE_KEY_ID }}
+          private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+      - name: Verify signed IPA export without uploading
+        if: github.repository == 'librescoot/mobile-app' && github.event_name != 'pull_request'
+        run: |
+          VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)"
+          flutter build ipa --release --build-name="${VERSION%%-*}" \
+            --export-options-plist=ios/ExportOptions.plist
+          compgen -G 'build/ios/ipa/*.ipa' > /dev/null

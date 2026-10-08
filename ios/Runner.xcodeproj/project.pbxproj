@@ -1387,6 +1387,9 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = CFE800E4BCFF1F91B3EC8343 /* Watch.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				PROVISIONING_PROFILE_SPECIFIER = "Librescoot Watch App Store CI";
 				PRODUCT_BUNDLE_IDENTIFIER = org.librescoot.mobile.unu.watch;
 				SDKROOT = watchos;
 				WATCHOS_DEPLOYMENT_TARGET = 10.0;
@@ -1429,6 +1432,9 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = CFE800E4BCFF1F91B3EC8343 /* Watch.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				PROVISIONING_PROFILE_SPECIFIER = "Librescoot Watch Widget App Store CI";
 				PRODUCT_BUNDLE_IDENTIFIER = org.librescoot.mobile.unu.watch.widget;
 				SDKROOT = watchos;
 				WATCHOS_DEPLOYMENT_TARGET = 10.0;

@@ -145,63 +145,15 @@ jobs:
 
       - run: flutter pub get
 
-      - name: Import signing certificate
-        uses: apple-actions/import-codesign-certs@v3
+      - name: Prepare iOS and watchOS signing
+        uses: ./.github/actions/ios-signing
         with:
-          p12-file-base64: ${{ secrets.IOS_DIST_CERT_P12 }}
-          p12-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
-
-      - name: Fetch app provisioning profile
-        uses: apple-actions/download-provisioning-profiles@v3
-        with:
-          bundle-id: org.librescoot.mobile.unu
+          certificate: ${{ secrets.IOS_DIST_CERT_P12 }}
+          certificate-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          team-id: ${{ secrets.APPLE_TEAM_ID }}
           issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
-          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
-          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
-
-      - name: Fetch widget extension profile
-        uses: apple-actions/download-provisioning-profiles@v3
-        with:
-          bundle-id: org.librescoot.mobile.unu.ScooterWidget
-          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
-          api-key-id: ${{ secrets.APPSTORE_KEY_ID }}
-          api-private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
-
-      # The profile names below are pinned in project.pbxproj and
-      # ExportOptions.plist, so a rotated certificate would otherwise surface as
-      # a confusing signing failure after the archive has already run.
-      - name: Verify signing profiles
-        run: |
-          python3 .github/scripts/verify_signing_profiles.py \
-            --require "org.librescoot.mobile.unu=Librescoot App Store CI" \
-            --require "org.librescoot.mobile.unu.ScooterWidget=Librescoot Widget App Store CI"
-
-      - name: Write export options
-        env:
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          cat > ios/ExportOptions.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>export</string>
-            <key>teamID</key><string>${TEAM_ID}</string>
-            <key>uploadSymbols</key><true/>
-            <key>manageAppVersionAndBuildNumber</key><false/>
-            <key>signingStyle</key><string>manual</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>org.librescoot.mobile.unu</key>
-              <string>Librescoot App Store CI</string>
-              <key>org.librescoot.mobile.unu.ScooterWidget</key>
-              <string>Librescoot Widget App Store CI</string>
-            </dict>
-          </dict>
-          </plist>
-          EOF
-          plutil -lint ios/ExportOptions.plist
+          key-id: ${{ secrets.APPSTORE_KEY_ID }}
+          private-key: ${{ secrets.APPSTORE_PRIVATE_KEY }}
 
       - name: Build iOS IPA
         run: |

@@ -1,0 +1,94 @@
+name: Prepare iOS and watchOS signing
+description: Import the distribution certificate, download profiles, and configure local IPA export.
+inputs:
+  certificate:
+    description: Base64-encoded distribution certificate
+    required: true
+  certificate-password:
+    description: Distribution certificate password
+    required: true
+  team-id:
+    description: Apple developer team ID
+    required: true
+  issuer-id:
+    description: App Store Connect API issuer ID
+    required: true
+  key-id:
+    description: App Store Connect API key ID
+    required: true
+  private-key:
+    description: App Store Connect API private key
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: apple-actions/import-codesign-certs@v3
+      with:
+        p12-file-base64: ${{ inputs.certificate }}
+        p12-password: ${{ inputs.certificate-password }}
+    - name: Fetch phone profile
+      uses: apple-actions/download-provisioning-profiles@v3
+      with:
+        bundle-id: org.librescoot.mobile.unu
+        profile-type: IOS_APP_STORE
+        issuer-id: ${{ inputs.issuer-id }}
+        api-key-id: ${{ inputs.key-id }}
+        api-private-key: ${{ inputs.private-key }}
+    - name: Fetch phone widget profile
+      uses: apple-actions/download-provisioning-profiles@v3
+      with:
+        bundle-id: org.librescoot.mobile.unu.ScooterWidget
+        profile-type: IOS_APP_STORE
+        issuer-id: ${{ inputs.issuer-id }}
+        api-key-id: ${{ inputs.key-id }}
+        api-private-key: ${{ inputs.private-key }}
+    - name: Fetch watch profile
+      uses: apple-actions/download-provisioning-profiles@v3
+      with:
+        bundle-id: org.librescoot.mobile.unu.watch
+        profile-type: IOS_APP_STORE
+        issuer-id: ${{ inputs.issuer-id }}
+        api-key-id: ${{ inputs.key-id }}
+        api-private-key: ${{ inputs.private-key }}
+    - name: Fetch watch complication profile
+      uses: apple-actions/download-provisioning-profiles@v3
+      with:
+        bundle-id: org.librescoot.mobile.unu.watch.widget
+        profile-type: IOS_APP_STORE
+        issuer-id: ${{ inputs.issuer-id }}
+        api-key-id: ${{ inputs.key-id }}
+        api-private-key: ${{ inputs.private-key }}
+    - name: Verify signing profiles
+      shell: bash
+      run: |
+        python3 .github/scripts/verify_signing_profiles.py \
+          --require "org.librescoot.mobile.unu=Librescoot App Store CI" \
+          --require "org.librescoot.mobile.unu.ScooterWidget=Librescoot Widget App Store CI" \
+          --require "org.librescoot.mobile.unu.watch=Librescoot Watch App Store CI" \
+          --require "org.librescoot.mobile.unu.watch.widget=Librescoot Watch Widget App Store CI"
+    - name: Write export options
+      shell: bash
+      env:
+        TEAM_ID: ${{ inputs.team-id }}
+      run: |
+        python3 - <<'PY'
+        import os
+        import plistlib
+        options = {
+            "method": "app-store-connect",
+            "destination": "export",
+            "teamID": os.environ["TEAM_ID"],
+            "uploadSymbols": True,
+            "manageAppVersionAndBuildNumber": False,
+            "signingStyle": "manual",
+            "provisioningProfiles": {
+                "org.librescoot.mobile.unu": "Librescoot App Store CI",
+                "org.librescoot.mobile.unu.ScooterWidget": "Librescoot Widget App Store CI",
+                "org.librescoot.mobile.unu.watch": "Librescoot Watch App Store CI",
+                "org.librescoot.mobile.unu.watch.widget": "Librescoot Watch Widget App Store CI",
+            },
+        }
+        with open("ios/ExportOptions.plist", "wb") as stream:
+            plistlib.dump(options, stream)
+        PY
+        plutil -lint ios/ExportOptions.plist
