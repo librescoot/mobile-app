@@ -5,6 +5,7 @@ import plistlib
 import sys
 import unittest
 from unittest.mock import Mock, patch
+from urllib.parse import parse_qs, urlsplit
 
 SCRIPTS = pathlib.Path(__file__).resolve().parents[1] / ".github" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -14,10 +15,34 @@ CERT = b"CI distribution certificate"
 FINGERPRINT = hashlib.sha1(CERT).hexdigest().upper()
 
 
+def resource(path, identifier):
+    return {"id": identifier, "attributes": {
+        key[7:-1]: values[0]
+        for key, values in parse_qs(urlsplit(path).query).items()
+        if key.startswith("filter[")
+    }}
+
+
 class WatchSigningTests(unittest.TestCase):
+    def test_bundle_lookup_excludes_widget_prefix_match(self):
+        identifier = "org.librescoot.mobile.unu.watch"
+        api = Mock(return_value={"data": [
+            {"id": "watch", "attributes": {"identifier": identifier}},
+            {"id": "widget", "attributes": {"identifier": identifier + ".widget"}},
+        ]})
+        self.assertEqual(signing.bundle(api, identifier)["id"], "watch")
+
+    def test_profile_lookup_requires_exact_name(self):
+        api = Mock(return_value={"data": [
+            {"id": "exact", "attributes": {"name": "Watch CI"}},
+            {"id": "prefix", "attributes": {"name": "Watch CI Backup"}},
+        ]})
+        self.assertEqual(signing.listing(api, "profiles", name="Watch CI")[0]["id"], "exact")
+        self.assertEqual(len(signing.listing(api, "profiles", name="Watch CI")), 1)
+
     def test_registration_is_idempotent(self):
         api = Mock(side_effect=lambda method, path, body=None: {"data": (
-            [{"id": "bundle"}] if path.startswith("/bundleIds?") else
+            [resource(path, "bundle")] if path.startswith("/bundleIds?") else
             [{"attributes": {"capabilityType": "APP_GROUPS"}}]
         )})
         signing.register(api)
@@ -41,15 +66,15 @@ class WatchSigningTests(unittest.TestCase):
     def api(self, existing=False):
         def respond(method, path, body=None):
             if path.startswith("/profiles?") and "Librescoot+App+Store+CI" in path:
-                return {"data": [{"id": "phone-profile"}]}
+                return {"data": [resource(path, "phone-profile")]}
             if path == "/profiles/phone-profile/certificates":
                 return {"data": [{"id": "ci-cert", "attributes": {
                     "certificateContent": base64.b64encode(CERT).decode(),
                 }}]}
             if path.startswith("/bundleIds?"):
-                return {"data": [{"id": "watch-bundle"}]}
+                return {"data": [resource(path, "watch-bundle")]}
             if path.startswith("/profiles?"):
-                return {"data": [{"id": "existing-profile"}] if existing else []}
+                return {"data": [resource(path, "existing-profile")] if existing else []}
             if method == "POST" and path == "/profiles":
                 self.assertEqual(body["data"]["relationships"]["certificates"]["data"], [{"type": "certificates", "id": "ci-cert"}])
                 return {"data": {"id": "created-profile"}}

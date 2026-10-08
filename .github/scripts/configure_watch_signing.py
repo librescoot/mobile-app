@@ -24,7 +24,11 @@ TARGETS = {
 
 def listing(api, resource, **filters):
     query = urllib.parse.urlencode({f"filter[{key}]": value for key, value in filters.items()})
-    return api("GET", f"/{resource}?{query}&limit=200")["data"]
+    data = api("GET", f"/{resource}?{query}&limit=200")["data"]
+    # Apple's identifier/name filters can include prefix matches.
+    return [item for item in data if all(
+        item["attributes"].get(key) == value for key, value in filters.items()
+    )]
 
 
 def bundle(api, identifier):
