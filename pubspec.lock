@@ -1394,6 +1394,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.2.1"
+  wearable_bridge:
+    dependency: "direct main"
+    description:
+      path: "packages/wearable_bridge"
+      relative: true
+    source: path
+    version: "0.1.0"
   web:
     dependency: transitive
     description:

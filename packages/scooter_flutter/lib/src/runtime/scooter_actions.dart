@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:scooter_core/companion.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:scooter_core/actions.dart';
@@ -141,6 +142,45 @@ class ScooterActions {
       if (!issued) return false;
       rethrow;
     }
+  }
+
+  /// A watch request uses one captured session and no automatic side actions.
+  Future<String> executeCompanion(CompanionRequest request) async {
+    final target = _capture();
+    String decode(List<int> bytes) =>
+        String.fromCharCodes(bytes).replaceAll('\u0000', '').trim();
+    final executor = CompanionExecutor(
+      current: (id) => id == target.connection.id && _current(target),
+      read: () async {
+        _check(target);
+        final state = await target.repository.stateCharacteristic!.read();
+        _check(target);
+        final seat = await target.repository.seatCharacteristic!.read();
+        _check(target);
+        return CompanionObservation(
+            decode(state),
+            switch (decode(seat)) {
+              'open' => false,
+              'closed' => true,
+              _ => null,
+            });
+      },
+      write: (action) => _command(
+          target,
+          (device, repo, current) => transport.sendCommand(
+              device,
+              repo,
+              switch (action) {
+                'lock' => lockCommand,
+                'unlock' => unlockCommand,
+                'openSeat' => seatCommand,
+                _ => throw StateError('Unsupported companion action'),
+              },
+              isCurrent: () =>
+                  current() &&
+                  request.validAt(DateTime.now().millisecondsSinceEpoch))),
+    );
+    return executor.execute(request);
   }
 
   void invalidate() {

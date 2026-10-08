@@ -1,4 +1,7 @@
 import 'package:scooter_flutter/scooter_runtime.dart';
+import 'package:scooter_core/companion.dart';
+import 'package:wearable_bridge/wearable_bridge.dart';
+import 'domain/widget_range.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:scooter_flutter/update_controller.dart';
@@ -47,6 +50,9 @@ const connectionPausedPreferenceKey = 'connectionPaused';
 
 class ScooterService with ChangeNotifier, WidgetsBindingObserver {
   final log = Logger('ScooterService');
+  WearableBridge? _companion;
+  Timer? _companionPublishTimer;
+  bool _companionBusy = false;
 
   // Composed modules
   final ScooterStorage store;
@@ -258,6 +264,62 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     runtime.initialize().then((_) => unawaited(migrateKeylessSettings()));
     if (!isInBackgroundService) WidgetsBinding.instance.addObserver(this);
     rssiTimer = _liveActions.rssiTimer;
+    if (Platform.isAndroid || Platform.isIOS) {
+      _companion = WearableBridge(_executeCompanion);
+      addListener(_scheduleCompanionSnapshot);
+      _scheduleCompanionSnapshot();
+    }
+  }
+
+  Future<String> _executeCompanion(Map<String, dynamic> json) async {
+    if (_companionBusy) return 'busy';
+    _companionBusy = true;
+    try {
+      final request = CompanionRequest.fromJson(json);
+      if (!request.validAt(DateTime.now().millisecondsSinceEpoch)) return 'expired';
+      if (demoMode || !connected || currentScooterId != request.scooterId) return 'unavailable';
+      if (optionalAuth && request.action != 'refresh') return 'phoneAuthRequired';
+      return await _liveActions.executeCompanion(request);
+    } on FormatException {
+      return 'invalid';
+    } catch (_) {
+      return 'unavailable';
+    } finally {
+      _companionBusy = false;
+      _scheduleCompanionSnapshot();
+    }
+  }
+
+  void _scheduleCompanionSnapshot() {
+    _companionPublishTimer ??= Timer(const Duration(milliseconds: 500), () {
+      _companionPublishTimer = null;
+      if (demoMode) return;
+      final id = currentScooterId ?? selectedScooterId;
+      if (id == null) return;
+      final wireState = switch (vehicle.vehicleState) {
+        ScooterVehicleState.standby => 'stand-by',
+        ScooterVehicleState.parked => 'parked',
+        ScooterVehicleState.ready => 'ready-to-drive',
+        ScooterVehicleState.off => 'off',
+        ScooterVehicleState.shuttingDown => 'shutting-down',
+        ScooterVehicleState.updating => 'updating',
+        _ => 'unknown',
+      };
+      unawaited(_companion?.publish({
+        'version': 1,
+        'scooterId': id,
+        'name': identity.name ?? 'Scooter',
+        'state': wireState,
+        'connected': connected,
+        'battery1': battery.primarySOC,
+        'battery2': battery.secondarySOC,
+        'rangeKm': estimatedWidgetRangeKm(battery.primarySOC, battery.secondarySOC),
+        'seatClosed': vehicle.seatClosed,
+        'updatedAt': identity.lastPing?.millisecondsSinceEpoch,
+        'latitude': identity.lastLocation?.latitude,
+        'longitude': identity.lastLocation?.longitude,
+      }));
+    });
   }
 
   Future<SavedScooter?> getMostRecentScooter() => runtime.getMostRecentScooter();
@@ -1112,6 +1174,9 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _companionPublishTimer?.cancel();
+    _companion?.dispose();
+    removeListener(_scheduleCompanionSnapshot);
     runtime.dispose();
     updateController.dispose();
     _demoNavigation?.dispose();
