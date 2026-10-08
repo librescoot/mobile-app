@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-flutter build ios --simulator --debug --no-codesign
 RUNTIME="$(xcrun simctl list runtimes --json | python3 -c '
 import json, sys
 runtimes = [item for item in json.load(sys.stdin)["runtimes"] if item.get("isAvailable") and ".iOS-" in item["identifier"]]
@@ -17,6 +16,7 @@ cleanup() {
 trap cleanup EXIT
 xcrun simctl boot "$DEVICE"
 xcrun simctl bootstatus "$DEVICE" -b
+flutter build ios --simulator --debug --no-codesign -d "$DEVICE"
 xcrun simctl install "$DEVICE" build/ios/iphonesimulator/Runner.app
 xcrun simctl launch --terminate-running-process "$DEVICE" org.librescoot.mobile.unu
 sleep 15
