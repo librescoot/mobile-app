@@ -1,32 +1,38 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:scooter_core/companion.dart';
 import 'package:test/test.dart';
 
 void main() {
   test('matches the cross-platform state contract', () {
     final contract = jsonDecode(
-        File('../../test/fixtures/companion_contract.json').readAsStringSync());
-    for (final item in contract['stateCases']) {
-      final observation =
-          CompanionObservation(item['state'], item['seatClosed']);
-      expect(observation.allows(item['action']), item['allowed']);
-      expect(observation.confirms(item['action']), item['confirmed']);
+      File('../../test/fixtures/companion_contract.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
+    for (final value in contract['stateCases'] as List<dynamic>) {
+      final item = value as Map<String, dynamic>;
+      final observation = CompanionObservation(
+        item['state'] as String?,
+        item['seatClosed'] as bool?,
+      );
+      final action = item['action'] as String;
+      expect(observation.allows(action), item['allowed'] as bool);
+      expect(observation.confirms(action), item['confirmed'] as bool);
     }
   });
   var now = 100000;
-  CompanionRequest request(
-          {String action = 'unlock',
-          String id = '00000000-0000-0000-0000-000000000001'}) =>
-      CompanionRequest.fromJson({
-        'version': 1,
-        'id': id,
-        'scooterId': 'scooter-a',
-        'action': action,
-        'issuedAt': 100000,
-        'expiresAt': 115000
-      });
+  CompanionRequest request({
+    String action = 'unlock',
+    String id = '00000000-0000-0000-0000-000000000001',
+  }) => CompanionRequest.fromJson({
+    'version': 1,
+    'id': id,
+    'scooterId': 'scooter-a',
+    'action': action,
+    'issuedAt': 100000,
+    'expiresAt': 115000,
+  });
   late CompanionObservation observed;
   late CompanionExecutor executor;
   late List<String> writes;
@@ -88,53 +94,59 @@ void main() {
   });
   test('expiry during preparation prevents a write', () async {
     executor = CompanionExecutor(
-        current: (_) => true,
-        now: () => now,
-        read: () async {
-          now = 115000;
-          return observed;
-        },
-        write: (action) async => writes.add(action));
+      current: (_) => true,
+      now: () => now,
+      read: () async {
+        now = 115000;
+        return observed;
+      },
+      write: (action) async => writes.add(action),
+    );
     expect(await executor.execute(request()), 'expired');
     expect(writes, isEmpty);
   });
   test('uncertain write is not retried', () async {
     executor = CompanionExecutor(
-        current: (_) => true,
-        now: () => now,
-        read: () async => observed,
-        write: (action) async {
-          writes.add(action);
-          throw StateError('lost link');
-        });
+      current: (_) => true,
+      now: () => now,
+      read: () async => observed,
+      write: (action) async {
+        writes.add(action);
+        throw StateError('lost link');
+      },
+    );
     expect(await executor.execute(request()), 'unknown');
     expect(await executor.execute(request()), 'duplicate');
     expect(writes, ['unlock']);
   });
   test('acknowledged write without state change is unknown', () async {
     executor = CompanionExecutor(
-        current: (_) => true,
-        now: () => now,
-        read: () async => observed,
-        write: (action) async => writes.add(action),
-        delay: (duration) async {
-          now += duration.inMilliseconds;
-        });
+      current: (_) => true,
+      now: () => now,
+      read: () async => observed,
+      write: (action) async => writes.add(action),
+      delay: (duration) async {
+        now += duration.inMilliseconds;
+      },
+    );
     expect(await executor.execute(request()), 'unknown');
     expect(writes, ['unlock']);
   });
   test('simultaneous actions are not queued', () async {
     final gate = Completer<CompanionObservation>();
     executor = CompanionExecutor(
-        current: (_) => true,
-        now: () => now,
-        read: () => gate.future,
-        write: (action) async => writes.add(action));
+      current: (_) => true,
+      now: () => now,
+      read: () => gate.future,
+      write: (action) async => writes.add(action),
+    );
     final first = executor.execute(request());
     expect(
-        await executor
-            .execute(request(id: '00000000-0000-0000-0000-000000000002')),
-        'busy');
+      await executor.execute(
+        request(id: '00000000-0000-0000-0000-000000000002'),
+      ),
+      'busy',
+    );
     gate.complete(const CompanionObservation('parked', true));
     expect(await first, 'confirmed');
     expect(writes, isEmpty);
@@ -147,16 +159,17 @@ void main() {
       {'id': 'x'},
     ]) {
       expect(
-          () => CompanionRequest.fromJson({
-                'version': 1,
-                'id': '00000000-0000-0000-0000-000000000001',
-                'scooterId': 'a',
-                'action': 'unlock',
-                'issuedAt': 100000,
-                'expiresAt': 115000,
-                ...override
-              }),
-          throwsFormatException);
+        () => CompanionRequest.fromJson({
+          'version': 1,
+          'id': '00000000-0000-0000-0000-000000000001',
+          'scooterId': 'a',
+          'action': 'unlock',
+          'issuedAt': 100000,
+          'expiresAt': 115000,
+          ...override,
+        }),
+        throwsFormatException,
+      );
     }
   });
 }
