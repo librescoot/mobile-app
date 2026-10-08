@@ -42,7 +42,7 @@ def register(api):
                 "type": "bundleIds",
                 "attributes": {"name": name, "identifier": identifier, "platform": "IOS"},
             }})["data"]
-        capabilities = api("GET", f"/bundleIds/{item['id']}/bundleIdCapabilities?limit=200")["data"]
+        capabilities = api("GET", f"/bundleIds/{item['id']}/bundleIdCapabilities")["data"]
         if not any(cap["attributes"]["capabilityType"] == "APP_GROUPS" for cap in capabilities):
             api("POST", "/bundleIdCapabilities", {"data": {
                 "type": "bundleIdCapabilities",

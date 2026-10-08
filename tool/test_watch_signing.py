@@ -25,6 +25,8 @@ class WatchSigningTests(unittest.TestCase):
 
     def test_registration_creates_only_watch_ids_and_group_capabilities(self):
         def respond(method, path, body=None):
+            if "/bundleIdCapabilities" in path:
+                self.assertNotIn("?", path)
             if method == "GET":
                 return {"data": []}
             return {"data": {"id": "created-bundle"}}

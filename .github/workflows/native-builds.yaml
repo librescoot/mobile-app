@@ -17,14 +17,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: native-builds-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'workflow_dispatch' && inputs.signing_setup != 'none' && 'watch-signing-setup' || format('native-builds-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || inputs.signing_setup == 'none' }}
 
 jobs:
   configure-signing:
     name: Configure watch signing resources
     if: github.event_name == 'workflow_dispatch' && inputs.signing_setup != 'none' && github.repository == 'librescoot/mobile-app'
-    runs-on: macos-latest
+    runs-on: ${{ inputs.signing_setup == 'register' && 'ubuntu-latest' || 'macos-latest' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
