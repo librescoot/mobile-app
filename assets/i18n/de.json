@@ -847,7 +847,7 @@
     "file_browser_upload": "Datei hochladen",
     "file_browser_upload_name": "Dateiname auf dem Roller",
     "file_browser_replace_title": "Datei ersetzen?",
-    "file_browser_replace_body": "{name} ({size}) ersetzen? Die Datei wird nur ersetzt, wenn sie unverändert ist.",
+    "file_browser_replace_body": "{name} ({size}) ersetzen? Nur eine unveränderte Datei wird ersetzt. Hochgeladene Dateien können Dienste beeinflussen, die sie verwenden.",
     "file_browser_replace": "Ersetzen",
     "file_browser_debug_only": "Der Bluetooth-Dateibrowser ist nur in Debug- und Profil-Builds verfügbar.",
     "file_browser_logs_unavailable": "Zum Anzeigen der Protokolle mit einem Roller mit Bluetooth-Dateitunnel verbinden.",
@@ -856,5 +856,7 @@
     "file_browser_data_opt_in": "Der Zugriff auf /data ist nicht verfügbar. Er erfordert die administrative Freigabe --enable-data-browser auf dem Roller. Protokolle bleiben oben verfügbar.",
     "file_browser_open_data": "/data öffnen",
     "file_browser_folder": "Ordner",
-    "file_browser_download_share": "Herunterladen und teilen"
+    "file_browser_download_share": "Herunterladen und teilen",
+    "file_browser_previous_page": "Vorherige Seite",
+    "file_browser_next_page": "Nächste Seite"
 }

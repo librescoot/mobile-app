@@ -8,6 +8,8 @@ import 'package:unustasis/ui/widgets/color_picker_dialog.dart';
 import 'package:unustasis/ui/widgets/rendered_scooter_artwork.dart';
 import 'package:unustasis/ui/widgets/scooter_visual.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 void main() {
   Future<void> mount(
     WidgetTester tester, {
@@ -24,7 +26,7 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: [
             FlutterI18nDelegate(
-              translationLoader: FileTranslationLoader(
+              translationLoader: InlineFileTranslationLoader(
                 basePath: 'assets/i18n',
                 fallbackFile: 'en',
                 forcedLocale: const Locale('en'),

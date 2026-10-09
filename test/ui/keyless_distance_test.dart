@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:scooter_core/scooter_core.dart' as core;
 import 'package:unustasis/domain/scooter_keyless_distance.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 void main() {
   test('legacy export forwards the core enum and formatting extension', () {
     expect(identical(ScooterKeylessDistance.values, core.ScooterKeylessDistance.values), isTrue);
@@ -20,7 +22,7 @@ void main() {
     late BuildContext context;
     await tester.pumpWidget(MaterialApp(
       localizationsDelegates: [
-        FlutterI18nDelegate(translationLoader: FileTranslationLoader(basePath: 'assets/i18n', fallbackFile: 'en')),
+        FlutterI18nDelegate(translationLoader: InlineFileTranslationLoader(basePath: 'assets/i18n', fallbackFile: 'en')),
       ],
       home: Builder(builder: (value) {
         context = value;

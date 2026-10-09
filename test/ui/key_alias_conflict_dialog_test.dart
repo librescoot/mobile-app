@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:unustasis/ui/key_alias_sync.dart';
 import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 void main() {
   testWidgets('name conflict shows both sources and returns the selected one', (tester) async {
     KeyAliasChoice? choice;
@@ -16,7 +18,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       localizationsDelegates: [
         FlutterI18nDelegate(
-          translationLoader: FileTranslationLoader(
+          translationLoader: InlineFileTranslationLoader(
             basePath: 'assets/i18n',
             fallbackFile: 'en',
             forcedLocale: const Locale('en'),

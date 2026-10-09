@@ -12,6 +12,8 @@ import 'package:unustasis/service/onboarding_preferences.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
 import 'package:unustasis/ui/widgets/scooter_visual.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 class _Service extends ChangeNotifier implements ScooterService {
   @override
   bool scanning = false;
@@ -107,7 +109,7 @@ Future<void> _mount(
           ),
           localizationsDelegates: [
             FlutterI18nDelegate(
-              translationLoader: FileTranslationLoader(
+              translationLoader: InlineFileTranslationLoader(
                 basePath: 'assets/i18n',
                 fallbackFile: 'en',
                 forcedLocale: const Locale('en'),

@@ -3,6 +3,8 @@ import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:unustasis/ui/screens/home_screen.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 Future<void> _pump(
   WidgetTester tester, {
   required bool? locked,
@@ -12,7 +14,7 @@ Future<void> _pump(
     MaterialApp(
       localizationsDelegates: [
         FlutterI18nDelegate(
-          translationLoader: FileTranslationLoader(
+          translationLoader: InlineFileTranslationLoader(
             basePath: 'assets/i18n',
             fallbackFile: 'en',
             forcedLocale: const Locale('en'),

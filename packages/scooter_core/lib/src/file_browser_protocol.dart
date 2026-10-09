@@ -81,6 +81,14 @@ class FileBrowserRequest {
   static void _handle(List<int> value) => _fileBrowserHandle(value);
 }
 
+class FileBrowserDirectoryPage {
+  const FileBrowserDirectoryPage(
+      {required this.entries, required this.nextCursor, required this.hasMore});
+  final List<FileBrowserEntry> entries;
+  final int nextCursor;
+  final bool hasMore;
+}
+
 class FileBrowserEntry {
   const FileBrowserEntry(
       {required this.name,
@@ -124,10 +132,12 @@ FileBrowserEntry decodeFileBrowserEntry(List<int> body) {
   final total = data.getUint16(23, Endian.little);
   final offset = data.getUint16(25, Endian.little);
   final length = body[27];
-  if (total < 1 ||
+  if ((kind != 1 && kind != 2 && kind != 3) ||
+      total < 1 ||
       total > 255 ||
       offset > total ||
       length > 84 ||
+      length == 0 ||
       body.length != 28 + length ||
       offset + length > total) {
     throw const FormatException('Invalid directory entry bounds');

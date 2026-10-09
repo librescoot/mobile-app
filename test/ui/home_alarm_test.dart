@@ -15,6 +15,8 @@ import 'package:unustasis/ui/screens/home_screen.dart';
 import 'package:unustasis/ui/screens/navigation_screen.dart';
 import 'package:unustasis/ui/widgets/state_circle.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 class _Connection extends Fake implements SessionConnection {
   @override
   bool isCurrent = true;
@@ -108,7 +110,7 @@ Future<void> _mountHome(WidgetTester tester, _Service service) async {
       child: MaterialApp(
         localizationsDelegates: [
           FlutterI18nDelegate(
-            translationLoader: FileTranslationLoader(
+            translationLoader: InlineFileTranslationLoader(
               basePath: 'assets/i18n',
               fallbackFile: 'en',
               forcedLocale: const Locale('en'),

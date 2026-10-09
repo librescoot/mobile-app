@@ -15,6 +15,8 @@ import 'package:unustasis/ui/screens/bluetooth_file_browser_screen.dart';
 import 'package:scooter_core/file_transfer_protocol.dart';
 import 'package:scooter_flutter/file_transfer_controller.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 class _BrowserController extends FileTransferController {
   _BrowserController()
       : super(
@@ -26,7 +28,7 @@ class _BrowserController extends FileTransferController {
   @override
   bool get dataBrowserAvailable => false;
   @override
-  Future<List<RemoteFile>> list(int store) async =>
+  Future<List<RemoteFile>> list(int store, {Object? owner}) async =>
       store == FileWire.logs ? [RemoteFile(name: 'logs-test.tar.gz', size: 10, hash: Uint8List(32))] : [];
 }
 
@@ -82,7 +84,7 @@ Future<void> _mount(WidgetTester tester, _Service service,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
         FlutterI18nDelegate(
-            translationLoader: FileTranslationLoader(
+            translationLoader: InlineFileTranslationLoader(
           basePath: 'assets/i18n',
           fallbackFile: 'en',
           forcedLocale: locale,
@@ -105,7 +107,7 @@ Future<void> _mountBrowser(WidgetTester tester, _Service service) async {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
         FlutterI18nDelegate(
-            translationLoader: FileTranslationLoader(
+            translationLoader: InlineFileTranslationLoader(
           basePath: 'assets/i18n',
           fallbackFile: 'en',
           forcedLocale: const Locale('en'),

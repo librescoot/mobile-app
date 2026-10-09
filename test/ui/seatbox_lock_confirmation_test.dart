@@ -13,6 +13,8 @@ import 'package:unustasis/ui/screens/home_screen.dart';
 // only native BLE and the app facade's unrelated plugin/storage dependencies.
 import '../../packages/scooter_flutter/test/scooter_actions_test.dart' as runtime;
 
+import '../support/inline_asset_bundle.dart';
+
 class _Service extends Fake implements ScooterService {
   _Service(this.h, this.transportZone);
   final Zone transportZone;
@@ -65,7 +67,7 @@ void main() {
         }
       };
       await tester.pumpWidget(MaterialApp(
-        localizationsDelegates: [FlutterI18nDelegate(translationLoader: FileTranslationLoader(
+        localizationsDelegates: [FlutterI18nDelegate(translationLoader: InlineFileTranslationLoader(
           basePath: 'assets/i18n', fallbackFile: 'en', forcedLocale: const Locale('en')))],
         home: Scaffold(body: Builder(builder: (context) => Center(child: ScooterPowerButton(
           action: () async { await lockWithSeatConfirmation(context, service); },

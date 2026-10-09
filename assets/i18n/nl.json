@@ -832,7 +832,7 @@
     "file_browser_upload": "Bestand uploaden",
     "file_browser_upload_name": "Bestandsnaam op scooter",
     "file_browser_replace_title": "Bestand op scooter vervangen?",
-    "file_browser_replace_body": "{name} ({size}) vervangen? Het huidige bestand wordt alleen vervangen als het niet is gewijzigd.",
+    "file_browser_replace_body": "{name} ({size}) vervangen? Alleen een ongewijzigd bestand wordt vervangen. Uploads kunnen services beïnvloeden die deze bestanden gebruiken.",
     "file_browser_replace": "Vervangen",
     "file_browser_debug_only": "De Bluetooth-bestandsbrowser is alleen beschikbaar in debug- en profile-builds.",
     "file_browser_logs_unavailable": "Verbind met een scooter met de Bluetooth-bestandstunnel om logboeken te bekijken.",
@@ -841,5 +841,7 @@
     "file_browser_data_opt_in": "Bladeren door heel /data is niet beschikbaar. Hiervoor is de administratieve optie --enable-data-browser op de scooter nodig. Logboeken blijven hierboven beschikbaar.",
     "file_browser_open_data": "/data openen",
     "file_browser_folder": "Map",
-    "file_browser_download_share": "Downloaden en delen"
+    "file_browser_download_share": "Downloaden en delen",
+    "file_browser_previous_page": "Vorige pagina",
+    "file_browser_next_page": "Volgende pagina"
 }

@@ -10,32 +10,63 @@ import 'package:share_plus/share_plus.dart';
 import 'package:scooter_core/file_transfer_protocol.dart';
 
 import '../../scooter_service.dart';
+import 'package:scooter_flutter/file_transfer_controller.dart';
 import '../wide_layout.dart';
 
 class BluetoothFileBrowserScreen extends StatefulWidget {
-  const BluetoothFileBrowserScreen({super.key});
+  const BluetoothFileBrowserScreen({super.key, this.pickFile, this.shareFile});
+
+  final Future<FilePickerResult?> Function()? pickFile;
+  final Future<void> Function(File file)? shareFile;
+
   @override
   State<BluetoothFileBrowserScreen> createState() => _BluetoothFileBrowserScreenState();
 }
 
 class _DataDirectory {
-  const _DataDirectory(this.name, this.handle);
+  _DataDirectory(this.name, this.handle) : cursors = [0];
   final String name;
   final List<int> handle;
+  final List<int> cursors;
+}
+
+class _BrowserOperation {
+  _BrowserOperation({
+    required this.generation,
+    required this.service,
+    required this.controller,
+    required this.connectionScope,
+    required this.tab,
+    required this.owner,
+    required this.directory,
+  });
+
+  final int generation;
+  final ScooterService service;
+  final FileTransferController controller;
+  final Object? connectionScope;
+  final int tab;
+  final Object owner;
+  List<int>? directory;
 }
 
 class _BluetoothFileBrowserScreenState extends State<BluetoothFileBrowserScreen> with SingleTickerProviderStateMixin {
+  static const _pageSize = 64;
+
   late final TabController _tabs = TabController(length: 2, vsync: this);
+  final Object _operationOwner = Object();
   final List<_DataDirectory> _stack = [];
   final Map<String, List<int>> _nodes = {};
   List<RemoteFile> _logs = const [];
   List<FileBrowserEntry> _entries = const [];
+  FileBrowserDirectoryPage? _dataPage;
   bool _loadedLogs = false, _loadedData = false, _screenBusy = false;
+  bool? _lastAvailable;
+  Object? _lastConnectionScope;
   Object? _error;
   int _generation = 0;
+  int _lastTabIndex = 0;
   ScooterService? _service;
-
-  String _t(BuildContext context, String key) => FlutterI18n.translate(context, key);
 
   @override
   void initState() {
@@ -43,139 +74,256 @@ class _BluetoothFileBrowserScreenState extends State<BluetoothFileBrowserScreen>
     _tabs.addListener(_tabChanged);
   }
 
+  void _invalidateOperation() {
+    _generation++;
+    _service?.fileTransfers.cancelOwnedOperation(_operationOwner);
+    _screenBusy = false;
+    _error = null;
+  }
+
+  void _cancelOperation() {
+    if (!_screenBusy) return;
+    _invalidateOperation();
+    setState(() {});
+  }
+
   void _tabChanged() {
-    if (!mounted) return;
+    if (!mounted || _tabs.index == _lastTabIndex) return;
+    _lastTabIndex = _tabs.index;
     if (_screenBusy) {
-      _generation++;
-      _service?.fileTransfers.cancel();
-      _screenBusy = false;
+      _invalidateOperation();
     }
     setState(() {});
+    if (_tabs.index == 0 && !_loadedLogs) {
+      _refreshLogs();
+    } else if (_tabs.index == 1 && !_loadedData && _service?.fileTransfers.dataBrowserAvailable == true) {
+      _refreshData();
+    }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final service = context.read<ScooterService>();
-    if (!identical(_service, service)) {
-      _service?.fileTransfers.removeListener(_changed);
-      _service = service;
-      service.fileTransfers.addListener(_changed);
+    if (identical(_service, service)) return;
+    _invalidateOperation();
+    _service?.fileTransfers.removeListener(_changed);
+    _service = service;
+    service.fileTransfers.addListener(_changed);
+    _observeController(service.fileTransfers);
+    if (service.fileTransfers.available) _loadActiveTab();
+  }
+
+  void _loadActiveTab() {
+    if (_tabs.index == 0) {
       _refreshLogs();
-      if (service.fileTransfers.dataBrowserAvailable) _refreshData();
+    } else if (_service?.fileTransfers.dataBrowserAvailable == true) {
+      _refreshData();
     }
+  }
+
+  void _observeController(FileTransferController controller) {
+    _lastConnectionScope = controller.connectionScope;
+    _lastAvailable = controller.available;
+  }
+
+  void _resetRemoteState() {
+    _logs = const [];
+    _entries = const [];
+    _dataPage = null;
+    _stack.clear();
+    _nodes.clear();
+    _loadedLogs = false;
+    _loadedData = false;
   }
 
   void _changed() {
     if (!mounted) return;
-    if (!_service!.fileTransfers.available) {
-      _generation++;
-      setState(() {
-        _logs = const [];
-        _entries = const [];
-        _stack.clear();
-        _nodes.clear();
-        _loadedLogs = false;
-        _loadedData = false;
-      });
+    final controller = _service!.fileTransfers;
+    final scope = controller.connectionScope;
+    final available = controller.available;
+    final connectionChanged = !identical(scope, _lastConnectionScope);
+    final availabilityChanged = available != _lastAvailable;
+    if (connectionChanged || availabilityChanged) {
+      _invalidateOperation();
+      _resetRemoteState();
+      _observeController(controller);
+      setState(() {});
+      if (available) _loadActiveTab();
+      return;
     }
+    setState(() {});
   }
 
-  Future<void> _run(Future<void> Function(int generation) action) async {
-    if (_screenBusy) return;
-    final generation = ++_generation;
+  _BrowserOperation _captureOperation() {
+    final service = _service!;
+    final controller = service.fileTransfers;
+    return _BrowserOperation(
+      generation: ++_generation,
+      service: service,
+      controller: controller,
+      connectionScope: controller.connectionScope,
+      tab: _tabs.index,
+      owner: _operationOwner,
+      directory: _stack.isEmpty ? null : List<int>.of(_stack.last.handle),
+    );
+  }
+
+  bool _isCurrent(_BrowserOperation operation, {bool checkPath = true}) {
+    if (!mounted ||
+        operation.generation != _generation ||
+        !identical(_service, operation.service) ||
+        !identical(operation.service.fileTransfers, operation.controller) ||
+        !identical(operation.connectionScope, operation.controller.connectionScope) ||
+        !operation.controller.available ||
+        _tabs.index != operation.tab) {
+      return false;
+    }
+    if (!checkPath) return true;
+    if (operation.directory == null) return _stack.isEmpty;
+    return _stack.isNotEmpty && _sameHandle(operation.directory!, _stack.last.handle);
+  }
+
+  bool _sameHandle(List<int> a, List<int> b) => listEquals(a, b);
+
+  Future<void> _run(Future<void> Function(_BrowserOperation operation) action) async {
+    if (_screenBusy || _service?.fileTransfers.available != true) return;
+    final operation = _captureOperation();
     setState(() {
       _screenBusy = true;
       _error = null;
     });
     try {
-      await action(generation);
+      await action(operation);
     } catch (error) {
-      if (mounted && generation == _generation) setState(() => _error = error);
+      if (_isCurrent(operation, checkPath: false)) setState(() => _error = error);
     } finally {
-      if (mounted && generation == _generation) setState(() => _screenBusy = false);
+      if (_isCurrent(operation, checkPath: false)) setState(() => _screenBusy = false);
     }
   }
 
-  Future<void> _refreshLogs() => _run((generation) async {
-        final values = await _service!.fileTransfers.list(0);
-        if (!mounted || generation != _generation) return;
+  Future<void> _refreshLogs() => _run((operation) async {
+        final values = await operation.controller.list(0, owner: operation.owner);
+        if (!_isCurrent(operation)) return;
         setState(() {
           _logs = values;
           _loadedLogs = true;
         });
       });
 
-  Future<void> _refreshData() => _run((generation) async {
-        final controller = _service!.fileTransfers;
-        if (!controller.dataBrowserAvailable) return;
-        if (_stack.isEmpty) _stack.add(_DataDirectory('data', await controller.openDataRoot()));
-        final entries = await controller.listDataDirectory(_stack.last.handle);
-        if (!mounted || generation != _generation) return;
-        setState(() {
-          _entries = entries.where((e) => e.isSupported).toList()
-            ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-          _loadedData = true;
-          _nodes.clear();
-        });
+  Future<void> _refreshData() => _run((operation) async {
+        await _loadDataPage(operation);
       });
 
-  Future<void> _openDirectory(FileBrowserEntry entry) => _run((generation) async {
-        final parent = _stack.last.handle;
-        final resolved = await _service!.fileTransfers.resolveDataName(parent, entry.name);
-        if (resolved.kind != 2) throw StateError('Remote item is not a directory');
-        final handle = await _service!.fileTransfers.openDataDirectory(resolved.id);
-        if (!mounted || generation != _generation) return;
+  Future<void> _loadDataPage(_BrowserOperation operation) async {
+    final controller = operation.controller;
+    if (!controller.dataBrowserAvailable) return;
+    if (_stack.isEmpty) {
+      final root = await controller.openDataRoot(owner: operation.owner);
+      if (!_isCurrent(operation, checkPath: false) || _stack.isNotEmpty) return;
+      setState(() {
+        _stack.add(_DataDirectory('data', root));
+        _nodes.clear();
+      });
+      operation.directory = List<int>.of(root);
+    }
+    if (!_isCurrent(operation)) return;
+    final directory = _stack.last;
+    final cursor = directory.cursors.last;
+    final page =
+        await controller.listDataDirectory(directory.handle, cursor: cursor, limit: _pageSize, owner: operation.owner);
+    if (!_isCurrent(operation)) return;
+    setState(() {
+      _dataPage = page;
+      _entries = page.entries.where((entry) => entry.isSupported).toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      _loadedData = true;
+      _nodes.clear();
+    });
+  }
+
+  Future<void> _openDirectory(FileBrowserEntry entry) => _run((operation) async {
+        final parent = operation.directory!;
+        final resolved = await operation.controller.resolveDataName(parent, entry.name, owner: operation.owner);
+        if (!_isCurrent(operation) || resolved.kind != 2) return;
+        final handle = await operation.controller.openDataDirectory(resolved.id, owner: operation.owner);
+        if (!_isCurrent(operation)) return;
         setState(() {
           _stack.add(_DataDirectory(entry.name, handle));
           _entries = const [];
+          _dataPage = null;
           _nodes.clear();
         });
-        final entries = await _service!.fileTransfers.listDataDirectory(handle);
-        if (!mounted || generation != _generation) return;
+        operation.directory = List<int>.of(handle);
+        final page = await operation.controller.listDataDirectory(handle, limit: _pageSize, owner: operation.owner);
+        if (!_isCurrent(operation)) return;
         setState(() {
-          _entries = entries.where((e) => e.isSupported).toList();
-          _nodes.clear();
+          _dataPage = page;
+          _entries = page.entries.where((item) => item.isSupported).toList();
+          _loadedData = true;
         });
       });
 
-  Future<void> _showAncestor(int index) => _run((generation) async {
+  Future<void> _showAncestor(int index) => _run((operation) async {
+        if (index < 0 || index >= _stack.length - 1) return;
         final closing = _stack.skip(index + 1).map((item) => item.handle).toList();
+        final parent = List<int>.of(_stack[index].handle);
         setState(() {
           _stack.removeRange(index + 1, _stack.length);
           _entries = const [];
+          _dataPage = null;
           _nodes.clear();
         });
-        await _service!.fileTransfers.closeDataDirectories(closing);
-        final entries = await _service!.fileTransfers.listDataDirectory(_stack.last.handle);
-        if (!mounted || generation != _generation) return;
-        setState(() => _entries = entries.where((entry) => entry.isSupported).toList());
+        operation.directory = parent;
+        await operation.controller.closeDataDirectories(closing, owner: operation.owner);
+        if (!_isCurrent(operation)) return;
+        await _loadDataPage(operation);
       });
 
-  Future<List<int>> _resolve(String name) async {
-    final key = '${_stack.length}:${_stack.last.name}/$name';
+  Future<List<int>> _resolve(_BrowserOperation operation, String name) async {
+    final directory = operation.directory!;
+    final key = '${directory.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join()}:$name';
     final cached = _nodes[key];
     if (cached != null) return cached;
-    final node = await _service!.fileTransfers.resolveDataName(_stack.last.handle, name);
-    _nodes[key] = node.id;
-    return node.id;
+    final result = await operation.controller.resolveDataName(directory, name, owner: operation.owner);
+    if (!_isCurrent(operation)) throw StateError('The browser operation is no longer current');
+    _nodes[key] = result.id;
+    return result.id;
   }
 
-  Future<void> _downloadData(FileBrowserEntry entry) => _run((generation) async {
-        final node = await _resolve(entry.name);
-        final file = await _service!.fileTransfers.downloadDataNode(entry.name, node);
-        if (!mounted || generation != _generation) return;
-        await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
+  Future<void> _downloadData(FileBrowserEntry entry) => _run((operation) async {
+        final node = await _resolve(operation, entry.name);
+        if (!_isCurrent(operation)) return;
+        final file = await operation.controller.downloadDataNode(entry.name, node, owner: operation.owner);
+        if (!_isCurrent(operation)) return;
+        await _share(file);
       });
 
-  Future<void> _upload() async {
-    final picked = await FilePicker.platform.pickFiles(withData: false, allowMultiple: false);
-    if (picked == null || picked.files.single.path == null || !mounted) return;
-    final source = File(picked.files.single.path!);
-    final nameController = TextEditingController(text: picked.files.single.name);
-    final name = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
+  Future<void> _shareLog(RemoteFile remote) => _run((operation) async {
+        final local = await operation.controller.download(0, remote.name, owner: operation.owner);
+        if (!_isCurrent(operation)) return;
+        await _share(local);
+      });
+
+  Future<void> _share(File file) async {
+    if (widget.shareFile != null) {
+      await widget.shareFile!(file);
+    } else {
+      await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
+    }
+  }
+
+  Future<void> _upload() => _run((operation) async {
+        final picked =
+            await (widget.pickFile?.call() ?? FilePicker.platform.pickFiles(withData: false, allowMultiple: false));
+        if (!mounted || !_isCurrent(operation) || picked == null || picked.files.single.path == null) return;
+        final source = File(picked.files.single.path!);
+        final nameController = TextEditingController(text: picked.files.single.name);
+        String? name;
+        try {
+          name = await showDialog<String>(
+            context: context,
+            builder: (context) => AlertDialog(
               title: Text(_t(context, 'file_browser_upload_name')),
               content: TextField(controller: nameController, autofocus: true),
               actions: [
@@ -184,39 +332,77 @@ class _BluetoothFileBrowserScreenState extends State<BluetoothFileBrowserScreen>
                     onPressed: () => Navigator.pop(context, nameController.text),
                     child: Text(_t(context, 'file_browser_upload'))),
               ],
-            ));
-    nameController.dispose();
-    if (name == null || !mounted) return;
-    await _run((generation) async {
-      final resolved = await _service!.fileTransfers.resolveDataName(_stack.last.handle, name);
-      RemoteFile? replacement;
-      if (resolved.kind == 1) {
-        final old = await _service!.fileTransfers.statDataNode(name, resolved.id);
-        if (!mounted || generation != _generation) return;
-        final accepted = await showDialog<bool>(
+            ),
+          );
+        } finally {
+          await WidgetsBinding.instance.endOfFrame;
+          nameController.dispose();
+        }
+        final uploadName = name;
+        if (!mounted || !_isCurrent(operation) || uploadName == null) return;
+        final directory = operation.directory!;
+        final resolved = await operation.controller.resolveDataName(directory, uploadName, owner: operation.owner);
+        if (!_isCurrent(operation)) return;
+        RemoteFile? replacement;
+        if (resolved.kind == 1) {
+          final old = await operation.controller.statDataNode(uploadName, resolved.id, owner: operation.owner);
+          if (!mounted || !_isCurrent(operation)) return;
+          final accepted = await showDialog<bool>(
             context: context,
             builder: (context) => AlertDialog(
-                  title: Text(_t(context, 'file_browser_replace_title')),
-                  content: Text(_t(context, 'file_browser_replace_body')
-                      .replaceAll('{name}', name)
-                      .replaceAll('{size}', _formatSize(old.size))),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(context, false), child: Text(_t(context, 'cancel'))),
-                    FilledButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: Text(_t(context, 'file_browser_replace'))),
-                  ],
-                ));
-        if (accepted != true) return;
-        replacement = old;
-      } else if (resolved.kind != 0) {
-        throw StateError('Remote destination is not a regular file');
-      }
-      await _service!.fileTransfers.uploadDataNode(name, resolved.id, source, replace: replacement);
-      if (!mounted || generation != _generation) return;
-    });
-    if (mounted) await _refreshData();
-  }
+              title: Text(_t(context, 'file_browser_replace_title')),
+              content: Text(_t(context, 'file_browser_replace_body')
+                  .replaceAll('{name}', uploadName)
+                  .replaceAll('{size}', _formatSize(old.size))),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context, false), child: Text(_t(context, 'cancel'))),
+                FilledButton(
+                    onPressed: () => Navigator.pop(context, true), child: Text(_t(context, 'file_browser_replace'))),
+              ],
+            ),
+          );
+          if (!_isCurrent(operation) || accepted != true) return;
+          replacement = old;
+        } else if (resolved.kind != 0) {
+          throw StateError('Remote destination is not a regular file');
+        }
+        if (!_isCurrent(operation)) return;
+        await operation.controller
+            .uploadDataNode(uploadName, resolved.id, source, replace: replacement, owner: operation.owner);
+        if (!_isCurrent(operation)) return;
+        await _loadDataPage(operation);
+      });
+
+  Future<void> _nextPage() => _run((operation) async {
+        final page = _dataPage;
+        if (page == null || !page.hasMore || !_isCurrent(operation)) return;
+        final directory = _stack.last;
+        final cursor = page.nextCursor;
+        final next = await operation.controller
+            .listDataDirectory(directory.handle, cursor: cursor, limit: _pageSize, owner: operation.owner);
+        if (!_isCurrent(operation)) return;
+        setState(() {
+          directory.cursors.add(cursor);
+          _dataPage = next;
+          _entries = next.entries.where((entry) => entry.isSupported).toList();
+          _nodes.clear();
+        });
+      });
+
+  Future<void> _previousPage() => _run((operation) async {
+        final directory = _stack.last;
+        if (directory.cursors.length < 2) return;
+        final cursor = directory.cursors[directory.cursors.length - 2];
+        final previous = await operation.controller
+            .listDataDirectory(directory.handle, cursor: cursor, limit: _pageSize, owner: operation.owner);
+        if (!_isCurrent(operation)) return;
+        setState(() {
+          directory.cursors.removeLast();
+          _dataPage = previous;
+          _entries = previous.entries.where((entry) => entry.isSupported).toList();
+          _nodes.clear();
+        });
+      });
 
   String _formatSize(int size) {
     if (size < 1024) return '$size B';
@@ -225,20 +411,17 @@ class _BluetoothFileBrowserScreenState extends State<BluetoothFileBrowserScreen>
     return '${(size / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
-  Future<void> _shareLog(RemoteFile file) => _run((generation) async {
-        final local = await _service!.fileTransfers.download(0, file.name);
-        if (!mounted || generation != _generation) return;
-        await SharePlus.instance.share(ShareParams(files: [XFile(local.path)]));
-      });
+  String _t(BuildContext context, String key) => FlutterI18n.translate(context, key);
 
   @override
   void dispose() {
     _generation++;
     if (_screenBusy) {
-      _service?.fileTransfers.cancel();
+      _service?.fileTransfers.cancelOwnedOperation(_operationOwner);
     } else if (_stack.isNotEmpty && _service?.fileTransfers.dataBrowserAvailable == true) {
-      unawaited(
-          _service!.fileTransfers.closeDataDirectories(_stack.map((item) => item.handle).toList()).catchError((_) {}));
+      unawaited(_service!.fileTransfers
+          .closeDataDirectories(_stack.map((item) => item.handle).toList(), owner: _operationOwner)
+          .catchError((_) {}));
     }
     _tabs.removeListener(_tabChanged);
     _service?.fileTransfers.removeListener(_changed);
@@ -263,8 +446,7 @@ class _BluetoothFileBrowserScreenState extends State<BluetoothFileBrowserScreen>
               icon: const Icon(Icons.refresh),
               onPressed: _screenBusy ? null : () => _tabs.index == 0 ? _refreshLogs() : _refreshData()),
           if (_screenBusy)
-            IconButton(
-                tooltip: _t(context, 'cancel'), icon: const Icon(Icons.close), onPressed: () => controller?.cancel()),
+            IconButton(tooltip: _t(context, 'cancel'), icon: const Icon(Icons.close), onPressed: _cancelOperation),
           if (_tabs.index == 1 && controller?.dataBrowserAvailable == true)
             IconButton(
                 tooltip: _t(context, 'file_browser_upload'),
@@ -278,39 +460,39 @@ class _BluetoothFileBrowserScreenState extends State<BluetoothFileBrowserScreen>
               if (_screenBusy) const LinearProgressIndicator(),
               if (controller?.progress case final progress?) LinearProgressIndicator(value: progress.fraction),
               if (_error != null) Padding(padding: const EdgeInsets.all(12), child: Text('$_error')),
-              Expanded(
-                  child: TabBarView(controller: _tabs, children: [
-                _logsView(controller),
-                _dataView(controller),
-              ])),
+              Expanded(child: TabBarView(controller: _tabs, children: [_logsView(controller), _dataView(controller)])),
             ]),
     );
   }
 
-  Widget _logsView(controller) {
+  Widget _logsView(FileTransferController? controller) {
     if (controller?.available != true) return Center(child: Text(_t(context, 'file_browser_logs_unavailable')));
     if (!_loadedLogs) {
       return Center(child: FilledButton(onPressed: _refreshLogs, child: Text(_t(context, 'file_browser_load_logs'))));
     }
     if (_logs.isEmpty) return Center(child: Text(_t(context, 'file_browser_empty')));
     return RefreshIndicator(
-        onRefresh: _refreshLogs,
-        child: ListView.builder(
-          padding: wideContentPadding(context),
-          itemCount: _logs.length,
-          itemBuilder: (context, index) {
-            final file = _logs[index];
-            return ListTile(
-                leading: const Icon(Icons.description_outlined),
-                title: Text(file.name),
-                subtitle: Text(_formatSize(file.size)),
-                trailing: IconButton(
-                    icon: const Icon(Icons.share_outlined), onPressed: _screenBusy ? null : () => _shareLog(file)));
-          },
-        ));
+      onRefresh: _refreshLogs,
+      child: ListView.builder(
+        padding: wideContentPadding(context),
+        itemCount: _logs.length,
+        itemBuilder: (context, index) {
+          final file = _logs[index];
+          return ListTile(
+            leading: const Icon(Icons.description_outlined),
+            title: Text(file.name),
+            subtitle: Text(_formatSize(file.size)),
+            trailing: IconButton(
+              icon: const Icon(Icons.share_outlined),
+              onPressed: _screenBusy ? null : () => _shareLog(file),
+            ),
+          );
+        },
+      ),
+    );
   }
 
-  Widget _dataView(controller) {
+  Widget _dataView(FileTransferController? controller) {
     if (controller?.available != true) return Center(child: Text(_t(context, 'file_browser_logs_unavailable')));
     if (controller?.dataBrowserAvailable != true) {
       return Center(
@@ -319,38 +501,56 @@ class _BluetoothFileBrowserScreenState extends State<BluetoothFileBrowserScreen>
     if (!_loadedData) {
       return Center(child: FilledButton(onPressed: _refreshData, child: Text(_t(context, 'file_browser_open_data'))));
     }
+    final currentPage = _stack.isEmpty ? 1 : _stack.last.cursors.length;
     return Column(children: [
       SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(children: [
-            for (var i = 0; i < _stack.length; i++) ...[
-              if (i > 0) const Icon(Icons.chevron_right, size: 18),
-              TextButton(
-                  onPressed: i == _stack.length - 1 || _screenBusy ? null : () => _showAncestor(i),
-                  child: Text(_stack[i].name)),
-            ],
-          ])),
+        scrollDirection: Axis.horizontal,
+        child: Row(children: [
+          for (var i = 0; i < _stack.length; i++) ...[
+            if (i > 0) const Icon(Icons.chevron_right, size: 18),
+            TextButton(
+                onPressed: i == _stack.length - 1 || _screenBusy ? null : () => _showAncestor(i),
+                child: Text(_stack[i].name)),
+          ],
+        ]),
+      ),
       Expanded(
-          child: _entries.isEmpty
-              ? Center(child: Text(_t(context, 'file_browser_empty')))
-              : ListView.builder(
-                  padding: wideContentPadding(context),
-                  itemCount: _entries.length,
-                  itemBuilder: (context, index) {
-                    final entry = _entries[index];
-                    return ListTile(
-                      leading: Icon(entry.isDirectory ? Icons.folder_outlined : Icons.insert_drive_file_outlined),
-                      title: Text(entry.name),
-                      subtitle: Text(entry.isFile ? _formatSize(entry.size) : _t(context, 'file_browser_folder')),
-                      onTap: entry.isDirectory ? (_screenBusy ? null : () => _openDirectory(entry)) : null,
-                      trailing: entry.isFile
-                          ? IconButton(
-                              tooltip: _t(context, 'file_browser_download_share'),
-                              icon: const Icon(Icons.share_outlined),
-                              onPressed: _screenBusy ? null : () => _downloadData(entry))
-                          : null,
-                    );
-                  })),
+        child: _entries.isEmpty
+            ? Center(child: Text(_t(context, 'file_browser_empty')))
+            : ListView.builder(
+                padding: wideContentPadding(context),
+                itemCount: _entries.length,
+                itemBuilder: (context, index) {
+                  final entry = _entries[index];
+                  return ListTile(
+                    leading: Icon(entry.isDirectory ? Icons.folder_outlined : Icons.insert_drive_file_outlined),
+                    title: Text(entry.name),
+                    subtitle: Text(entry.isFile ? _formatSize(entry.size) : _t(context, 'file_browser_folder')),
+                    onTap: entry.isDirectory ? (_screenBusy ? null : () => _openDirectory(entry)) : null,
+                    trailing: entry.isFile
+                        ? IconButton(
+                            tooltip: _t(context, 'file_browser_download_share'),
+                            icon: const Icon(Icons.share_outlined),
+                            onPressed: _screenBusy ? null : () => _downloadData(entry),
+                          )
+                        : null,
+                  );
+                },
+              ),
+      ),
+      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        TextButton.icon(
+          onPressed: _screenBusy || _stack.isEmpty || _stack.last.cursors.length < 2 ? null : _previousPage,
+          icon: const Icon(Icons.chevron_left),
+          label: Text(_t(context, 'file_browser_previous_page')),
+        ),
+        Text('$currentPage'),
+        TextButton.icon(
+          onPressed: _screenBusy || _dataPage?.hasMore != true ? null : _nextPage,
+          icon: const Icon(Icons.chevron_right),
+          label: Text(_t(context, 'file_browser_next_page')),
+        ),
+      ]),
     ]);
   }
 }

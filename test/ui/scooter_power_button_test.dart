@@ -8,6 +8,8 @@ import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:unustasis/ui/dialogs/seat_warning.dart';
 import 'package:unustasis/ui/screens/home_screen.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 Future<void> pumpButton(
   WidgetTester tester,
   Future<void> Function()? action, {
@@ -102,7 +104,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         localizationsDelegates: [
           FlutterI18nDelegate(
-              translationLoader: FileTranslationLoader(
+              translationLoader: InlineFileTranslationLoader(
             basePath: 'assets/i18n',
             fallbackFile: 'en',
             forcedLocale: const Locale('en'),

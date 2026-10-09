@@ -5,6 +5,8 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 import 'package:shared_preferences_platform_interface/types.dart';
 import 'package:unustasis/ui/dialogs/librescoot_notice.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 final class _Preferences extends SharedPreferencesAsyncPlatform {
   final values = <String, bool>{};
   @override
@@ -29,7 +31,7 @@ Future<void> _open(WidgetTester tester, {bool fromStockScooter = false}) async {
   await tester.pumpWidget(MaterialApp(
     localizationsDelegates: [
       FlutterI18nDelegate(
-        translationLoader: FileTranslationLoader(
+        translationLoader: InlineFileTranslationLoader(
           basePath: 'assets/i18n',
           fallbackFile: 'en',
           forcedLocale: const Locale('en'),

@@ -10,6 +10,8 @@ import 'package:unustasis/ui/widgets/header.dart';
 
 import 'settings_help_row_theme_test.dart' show renderedStyle, rowTestTheme;
 
+import '../support/inline_asset_bundle.dart';
+
 class _FaqBundle extends CachingAssetBundle {
   _FaqBundle(this.faq);
   final String faq;
@@ -45,7 +47,7 @@ void main() {
         theme: rowTestTheme(brightness),
         localizationsDelegates: [
           FlutterI18nDelegate(
-              translationLoader: FileTranslationLoader(
+              translationLoader: InlineFileTranslationLoader(
             basePath: 'assets/i18n',
             fallbackFile: 'en',
             forcedLocale: const Locale('en'),

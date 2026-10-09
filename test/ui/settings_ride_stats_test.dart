@@ -8,6 +8,8 @@ import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/screens/settings_screen.dart';
 import 'package:unustasis/ui/widgets/settings_help_row_theme.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 /// Reset policy and history retention live in Settings; resetting the counter
 /// itself is a control and is covered by control_sheet_reset_trip_test.dart.
 class _Service extends ChangeNotifier implements ScooterService {
@@ -74,7 +76,7 @@ Future<void> _mount(WidgetTester tester, _Service service) async {
       child: MaterialApp(
         localizationsDelegates: [
           FlutterI18nDelegate(
-            translationLoader: FileTranslationLoader(
+            translationLoader: InlineFileTranslationLoader(
               basePath: 'assets/i18n',
               fallbackFile: 'en',
               forcedLocale: const Locale('en'),

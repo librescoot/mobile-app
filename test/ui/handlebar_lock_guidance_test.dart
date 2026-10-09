@@ -8,6 +8,8 @@ import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/dialogs/handlebar_lock_guidance.dart';
 import 'package:unustasis/ui/dialogs/handlebar_warning.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 class _Connection extends Fake implements SessionConnection {
   @override
   bool isCurrent = true;
@@ -67,7 +69,7 @@ void main() {
           child: MaterialApp(
             localizationsDelegates: [
               FlutterI18nDelegate(
-                  translationLoader: FileTranslationLoader(
+                  translationLoader: InlineFileTranslationLoader(
                       basePath: 'assets/i18n', fallbackFile: 'en', forcedLocale: const Locale('en')))
             ],
             home: Scaffold(
@@ -111,7 +113,7 @@ void main() {
         localizationsDelegates: [
           FlutterI18nDelegate(
               translationLoader:
-                  FileTranslationLoader(basePath: 'assets/i18n', fallbackFile: 'en', forcedLocale: const Locale('en')))
+                  InlineFileTranslationLoader(basePath: 'assets/i18n', fallbackFile: 'en', forcedLocale: const Locale('en')))
         ],
         home: Scaffold(
             body: HandlebarLockGuidance(
@@ -137,7 +139,7 @@ void main() {
         child: MaterialApp(localizationsDelegates: [
           FlutterI18nDelegate(
               translationLoader:
-                  FileTranslationLoader(basePath: 'assets/i18n', fallbackFile: 'en', forcedLocale: const Locale('en')))
+                  InlineFileTranslationLoader(basePath: 'assets/i18n', fallbackFile: 'en', forcedLocale: const Locale('en')))
         ], home: const Scaffold(body: HandlebarWarning()))));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));

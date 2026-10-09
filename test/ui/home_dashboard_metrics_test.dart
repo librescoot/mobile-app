@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:scooter_core/trip_counter.dart';
 import 'package:unustasis/ui/screens/home_screen.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 TripCounterSnapshot _trip() => TripCounterSnapshot(
       distanceMeters: 98765,
       ridingSeconds: 45240,
@@ -19,7 +21,7 @@ TripCounterSnapshot _trip() => TripCounterSnapshot(
 Widget _summary({VoidCallback? onRideTap, VoidCallback? onRangeTap}) => MaterialApp(
       localizationsDelegates: [
         FlutterI18nDelegate(
-          translationLoader: FileTranslationLoader(
+          translationLoader: InlineFileTranslationLoader(
             basePath: 'assets/i18n',
             fallbackFile: 'en',
             forcedLocale: const Locale('en'),
@@ -90,7 +92,7 @@ void main() {
       MaterialApp(
         localizationsDelegates: [
           FlutterI18nDelegate(
-            translationLoader: FileTranslationLoader(
+            translationLoader: InlineFileTranslationLoader(
               basePath: 'assets/i18n',
               fallbackFile: 'en',
               forcedLocale: const Locale('en'),
@@ -162,7 +164,7 @@ void main() {
       MaterialApp(
         localizationsDelegates: [
           FlutterI18nDelegate(
-            translationLoader: FileTranslationLoader(
+            translationLoader: InlineFileTranslationLoader(
               basePath: 'assets/i18n',
               fallbackFile: 'en',
               forcedLocale: const Locale('en'),

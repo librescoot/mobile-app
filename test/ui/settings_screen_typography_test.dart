@@ -264,7 +264,7 @@ Widget _screen(_Service service, {String locale = 'en', double scale = 1, Bright
           theme: rowTestTheme(brightness),
           localizationsDelegates: [
             FlutterI18nDelegate(
-                translationLoader: FileTranslationLoader(
+                translationLoader: InlineFileTranslationLoader(
               basePath: 'assets/i18n',
               fallbackFile: 'en',
               forcedLocale: Locale(locale),

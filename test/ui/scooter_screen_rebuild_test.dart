@@ -14,6 +14,8 @@ import 'package:unustasis/ui/widgets/scooter_side_visual.dart';
 
 import '../support/persistence_fakes.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 /// Counts how often the card reads a field, which is a proxy for how often the
 /// card rebuilt. Used to show that telemetry notifications no longer reach it.
 class _CountingScooter extends SavedScooter {
@@ -99,7 +101,7 @@ Future<void> _mount(
         theme: ThemeData(brightness: brightness),
         localizationsDelegates: [
           FlutterI18nDelegate(
-            translationLoader: FileTranslationLoader(
+            translationLoader: InlineFileTranslationLoader(
               basePath: 'assets/i18n',
               fallbackFile: 'en',
               forcedLocale: const Locale('en'),

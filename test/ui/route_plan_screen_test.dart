@@ -17,6 +17,8 @@ import 'package:unustasis/ui/widgets/photon_autocomplete.dart';
 
 import '../support/persistence_fakes.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 class _PlanService extends ChangeNotifier implements ScooterService {
   @override
   bool connected = true;
@@ -131,7 +133,7 @@ Future<void> _mount(WidgetTester tester, _PlanService service,
       child: MaterialApp(
         localizationsDelegates: [
           FlutterI18nDelegate(
-            translationLoader: FileTranslationLoader(
+            translationLoader: InlineFileTranslationLoader(
               basePath: 'assets/i18n',
               fallbackFile: 'en',
               forcedLocale: const Locale('en'),

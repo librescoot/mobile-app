@@ -13,6 +13,8 @@ import 'package:unustasis/ui/screens/settings_screen.dart';
 
 import '../support/persistence_fakes.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 class _Ble extends Fake implements FlutterBluePlusMockable {
   @override
   Stream<bool> get isScanning => const Stream.empty();
@@ -30,7 +32,7 @@ Future<void> _mount(WidgetTester tester, ScooterService service) async {
       child: MaterialApp(
         localizationsDelegates: [
           FlutterI18nDelegate(
-            translationLoader: FileTranslationLoader(
+            translationLoader: InlineFileTranslationLoader(
               basePath: 'assets/i18n',
               fallbackFile: 'en',
               forcedLocale: const Locale('en'),

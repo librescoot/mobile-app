@@ -105,6 +105,28 @@ void main() {
     expect(metadata.hash, List<int>.generate(32, (i) => i));
   });
 
+  test('non-end directory entries reject empty and unsafe fragments', () {
+    final emptyFragment = [
+      0xa1,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
+      ...List<int>.filled(8, 0),
+      ...List<int>.filled(8, 0),
+      1,
+      0,
+      0,
+      0,
+      0
+    ];
+    expect(() => decodeFileBrowserEntry(emptyFragment), throwsFormatException);
+    final badKind = [...emptyFragment]..[6] = 9;
+    expect(() => decodeFileBrowserEntry(badKind), throwsFormatException);
+  });
+
   test('directory handle and component bounds reject unsafe values', () {
     expect(
         () => FileBrowserRequest.nodeOperation(

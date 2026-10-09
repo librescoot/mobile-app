@@ -9,6 +9,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:scooter_core/file_transfer_protocol.dart';
 import 'package:scooter_flutter/file_transfer_client.dart';
 
+List<int> _directoryEntry(
+        {required int cursor,
+        required int total,
+        required int offset,
+        required List<int> bytes}) =>
+    [
+      FileBrowserOp.listDirectoryResponse,
+      0,
+      ...(ByteData(4)..setUint32(0, cursor, Endian.little))
+          .buffer
+          .asUint8List(),
+      1,
+      ...(ByteData(8)..setUint64(0, 7, Endian.little)).buffer.asUint8List(),
+      ...(ByteData(8)..setUint64(0, 0, Endian.little)).buffer.asUint8List(),
+      ...(ByteData(2)..setUint16(0, total, Endian.little)).buffer.asUint8List(),
+      ...(ByteData(2)..setUint16(0, offset, Endian.little))
+          .buffer
+          .asUint8List(),
+      bytes.length,
+      ...bytes,
+    ];
+
 class _Storage {
   final files = <String, Uint8List>{};
   Uint8List? partial, expectedHash;
@@ -21,13 +43,16 @@ class _Port implements FileTransferTransport {
       {this.payloadBudget = 244,
       this.dropDownloadOffset,
       this.delayStart = false,
-      this.dataEnabled = true});
+      this.dataEnabled = true,
+      this.dataDirectoryReplies});
   final _Storage storage;
   @override
   final int payloadBudget;
   int? dropDownloadOffset;
   final bool delayStart;
   final bool dataEnabled;
+  final List<List<int>>? dataDirectoryReplies;
+  int _dataDirectoryReply = 0;
   final _responses = StreamController<List<int>>.broadcast(sync: true),
       _data = StreamController<List<int>>.broadcast(sync: true);
   @override
@@ -96,6 +121,14 @@ class _Port implements FileTransferTransport {
     final b = ByteData.sublistView(value), op = value[0];
     request = b.getUint32(2, Endian.little);
     switch (op) {
+      case FileBrowserOp.listDirectory:
+        final replies = dataDirectoryReplies;
+        if (replies == null || replies.isEmpty) {
+          _error(2);
+        } else {
+          final index = min(_dataDirectoryReply++, replies.length - 1);
+          _reply(replies[index]);
+        }
       case FileBrowserOp.openRoot:
         if (!dataEnabled) {
           _error(4);
@@ -264,6 +297,43 @@ void main() {
     await expectLater(client.openDataRoot(),
         throwsA(isA<FileTransferException>().having((e) => e.code, 'code', 4)));
     expect((await client.list(FileWire.logs)).single.name, 'logs-test.tar.gz');
+  });
+
+  test('directory enumeration rejects malformed initial fragments', () async {
+    final client = FileTransferClient(_Port(storage, dataDirectoryReplies: [
+      _directoryEntry(cursor: 1, total: 2, offset: 1, bytes: [0x78])
+    ]));
+    addTearDown(client.close);
+    await expectLater(
+        client.listDataDirectory(List<int>.filled(16, 0), limit: 1),
+        throwsFormatException);
+  });
+
+  test(
+      'directory enumeration rejects a zero-length continuation without looping',
+      () async {
+    final client = FileTransferClient(_Port(storage, dataDirectoryReplies: [
+      _directoryEntry(
+          cursor: 1, total: 85, offset: 0, bytes: List<int>.filled(84, 0x78)),
+      _directoryEntry(cursor: 1, total: 85, offset: 84, bytes: []),
+    ]));
+    addTearDown(client.close);
+    await expectLater(
+        client.listDataDirectory(List<int>.filled(16, 0), limit: 1),
+        throwsFormatException);
+  });
+
+  test('directory enumeration rejects a continuation with a changed cursor',
+      () async {
+    final client = FileTransferClient(_Port(storage, dataDirectoryReplies: [
+      _directoryEntry(
+          cursor: 1, total: 85, offset: 0, bytes: List<int>.filled(84, 0x78)),
+      _directoryEntry(cursor: 2, total: 85, offset: 84, bytes: [0x78]),
+    ]));
+    addTearDown(client.close);
+    await expectLater(
+        client.listDataDirectory(List<int>.filled(16, 0), limit: 1),
+        throwsFormatException);
   });
 
   test('list and verified download with a missing chunk and small MTU',

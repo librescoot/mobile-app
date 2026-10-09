@@ -4,13 +4,15 @@ import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 void main() {
   for (final direction in TextDirection.values) {
     testWidgets('keycard hex groups retain wire order in $direction', (tester) async {
       await tester.pumpWidget(MaterialApp(
         localizationsDelegates: [
           FlutterI18nDelegate(
-            translationLoader: FileTranslationLoader(
+            translationLoader: InlineFileTranslationLoader(
               basePath: 'assets/i18n',
               fallbackFile: 'en',
               forcedLocale: const Locale('en'),

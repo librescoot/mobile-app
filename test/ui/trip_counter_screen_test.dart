@@ -8,6 +8,8 @@ import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/screens/trip_counter_screen.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 class _Service extends ChangeNotifier implements ScooterService {
   @override
   bool connected = true;
@@ -72,7 +74,7 @@ Future<void> _mount(WidgetTester tester, _Service service) async {
     child: MaterialApp(
       localizationsDelegates: [
         FlutterI18nDelegate(
-          translationLoader: FileTranslationLoader(
+          translationLoader: InlineFileTranslationLoader(
             basePath: 'assets/i18n',
             fallbackFile: 'en',
             forcedLocale: const Locale('en'),

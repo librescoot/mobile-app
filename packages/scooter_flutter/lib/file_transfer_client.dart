@@ -222,40 +222,57 @@ class FileTransferClient {
         return response.body.sublist(2);
       });
 
-  Future<List<FileBrowserEntry>> listDataDirectory(List<int> directory) =>
+  Future<FileBrowserDirectoryPage> listDataDirectory(List<int> directory,
+          {int cursor = 0, int limit = 64}) =>
       _operation(() async {
+        if (cursor < 0 || cursor > 0xffffffff || limit < 1 || limit > 200) {
+          throw const FormatException('Invalid directory page bounds');
+        }
         final entries = <FileBrowserEntry>[];
-        var cursor = 0;
-        for (var page = 0; page < 4096; page++) {
+        var nextCursor = cursor;
+        while (entries.length < limit) {
           final response = await _browserRpc(
               FileBrowserRequest(FileBrowserOp.listDirectory, _request, _budget,
-                  _directoryBody(directory, cursor, 0)),
+                  _directoryBody(directory, nextCursor, 0)),
               FileBrowserOp.listDirectoryResponse);
-          final data = response.body;
-          if (data.length < 7) {
-            throw const FormatException('Invalid directory response');
+          final entry = decodeFileBrowserEntry(response.body);
+          if (entry.kind == 0) {
+            if (entry.cursor != nextCursor) {
+              throw const FormatException('End-of-directory cursor changed');
+            }
+            return FileBrowserDirectoryPage(
+                entries: entries, nextCursor: nextCursor, hasMore: false);
           }
-          final entry = decodeFileBrowserEntry(data);
-          if (entry.kind == 0) return entries;
-          if (entry.cursor <= cursor) {
-            throw const FormatException('Directory cursor did not advance');
+          if (entry.cursor != nextCursor + 1 ||
+              entry.nameOffset != 0 ||
+              entry.nameChunk.isEmpty) {
+            throw const FormatException(
+                'Invalid first directory name fragment');
           }
           final name = BytesBuilder(copy: false)..add(entry.nameChunk);
-          var offset = entry.nameOffset + entry.nameChunk.length;
+          var offset = entry.nameChunk.length;
           while (offset < entry.nameTotal) {
             final chunk = await _browserRpc(
                 FileBrowserRequest(FileBrowserOp.listDirectory, _request,
-                    _budget, _directoryBody(directory, cursor, offset)),
+                    _budget, _directoryBody(directory, nextCursor, offset)),
                 FileBrowserOp.listDirectoryResponse);
-            final next = decodeFileBrowserEntry(chunk.body);
-            if (next.cursor != entry.cursor ||
-                next.nameOffset != offset ||
-                next.nameTotal != entry.nameTotal ||
-                next.kind != entry.kind) {
+            final part = decodeFileBrowserEntry(chunk.body);
+            if (part.cursor != entry.cursor ||
+                part.nameOffset != offset ||
+                part.nameTotal != entry.nameTotal ||
+                part.kind != entry.kind ||
+                part.size != entry.size ||
+                part.modifiedSeconds != entry.modifiedSeconds ||
+                part.nameChunk.isEmpty) {
               throw const FormatException('Directory name chunk changed');
             }
-            name.add(next.nameChunk);
-            offset += next.nameChunk.length;
+            final advanced = offset + part.nameChunk.length;
+            if (advanced <= offset || advanced > entry.nameTotal) {
+              throw const FormatException(
+                  'Directory name offset did not advance');
+            }
+            name.add(part.nameChunk);
+            offset = advanced;
           }
           entries.add(FileBrowserEntry(
               name: decodeFileBrowserName(name.takeBytes()),
@@ -263,9 +280,10 @@ class FileTransferClient {
               size: entry.size,
               modifiedSeconds: entry.modifiedSeconds,
               cursor: entry.cursor));
-          cursor = entry.cursor;
+          nextCursor = entry.cursor;
         }
-        throw const FormatException('Directory exceeds limit');
+        return FileBrowserDirectoryPage(
+            entries: entries, nextCursor: nextCursor, hasMore: true);
       });
 
   Future<({List<int> id, int kind})> resolveDataName(

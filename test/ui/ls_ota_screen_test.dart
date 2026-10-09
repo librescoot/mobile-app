@@ -28,7 +28,7 @@ Widget screen(ScreenService service, {String locale = 'en'}) => ChangeNotifierPr
       child: MaterialApp(localizationsDelegates: [
         FlutterI18nDelegate(
             translationLoader:
-                FileTranslationLoader(fallbackFile: 'en', basePath: 'assets/i18n', forcedLocale: Locale(locale))
+                InlineFileTranslationLoader(fallbackFile: 'en', basePath: 'assets/i18n', forcedLocale: Locale(locale))
                   ..assetBundle = InlineStringBundle())
       ], home: const LsOtaScreen()),
     );

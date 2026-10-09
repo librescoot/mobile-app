@@ -7,6 +7,8 @@ import 'package:unustasis/domain/scooter_power_state.dart';
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/domain/scooter_vehicle_state.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 void main() {
   test('legacy exports are identical core types and retain pure getters', () {
     expect(identical(ScooterState.values, core.ScooterState.values), isTrue);
@@ -25,7 +27,7 @@ void main() {
     late BuildContext context;
     await tester.pumpWidget(MaterialApp(
       localizationsDelegates: [
-        FlutterI18nDelegate(translationLoader: FileTranslationLoader(basePath: 'assets/i18n', fallbackFile: 'en')),
+        FlutterI18nDelegate(translationLoader: InlineFileTranslationLoader(basePath: 'assets/i18n', fallbackFile: 'en')),
       ],
       home: Builder(builder: (value) {
         context = value;

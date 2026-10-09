@@ -11,6 +11,8 @@ import 'package:unustasis/state/scooter_identity.dart';
 import 'package:unustasis/ui/sheets/control_sheet.dart';
 import 'package:unustasis/ui/widgets/header.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 class _Service extends ChangeNotifier implements ScooterService {
   @override
   final identity = ScooterIdentity();
@@ -64,7 +66,7 @@ Future<void> _pumpSheet(WidgetTester tester, _Service service, {double textScale
     child: MaterialApp(
       localizationsDelegates: [
         FlutterI18nDelegate(
-          translationLoader: FileTranslationLoader(
+          translationLoader: InlineFileTranslationLoader(
             basePath: 'assets/i18n',
             fallbackFile: 'en',
             forcedLocale: const Locale('en'),

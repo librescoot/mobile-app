@@ -14,6 +14,8 @@ import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 
 import '../support/persistence_fakes.dart';
 
+import '../support/inline_asset_bundle.dart';
+
 class _Actions implements ScooterActions {
   @override
   Future<List<String>> listKeycards() async => ['AABBCCDD', '11223344'];
@@ -45,7 +47,7 @@ Widget _screen(_Service service) => ChangeNotifierProvider<ScooterService>.value
       child: MaterialApp(
         localizationsDelegates: [
           FlutterI18nDelegate(
-            translationLoader: FileTranslationLoader(
+            translationLoader: InlineFileTranslationLoader(
               basePath: 'assets/i18n',
               fallbackFile: 'en',
               forcedLocale: const Locale('en'),
