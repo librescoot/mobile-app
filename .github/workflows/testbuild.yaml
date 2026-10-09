@@ -22,6 +22,14 @@ on:
         description: Upload the verified Wear OS screenshots to every existing localized Play listing
         type: boolean
         default: false
+      upload_wear_bundle:
+        description: Add an existing Wear AAB to Play's bundle library without releasing it
+        type: boolean
+        default: false
+      wear_bundle_run_id:
+        description: Successful Test build run ID containing the wear-bundle artifact
+        type: string
+        default: ''
 
 concurrency:
   group: testbuild-${{ github.ref }}
@@ -30,7 +38,7 @@ concurrency:
 jobs:
   build:
     name: Build test artifacts
-    if: ${{ !inputs.inspect_wear_testing && !inputs.upload_wear_screenshots }}
+    if: ${{ !inputs.inspect_wear_testing && !inputs.upload_wear_screenshots && !inputs.upload_wear_bundle }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -99,7 +107,7 @@ jobs:
 
   publish-wear:
     name: Publish Wear OS closed testing
-    if: inputs.wear && inputs.publish_wear && !inputs.inspect_wear_testing && !inputs.upload_wear_screenshots
+    if: inputs.wear && inputs.publish_wear && !inputs.inspect_wear_testing && !inputs.upload_wear_screenshots && !inputs.upload_wear_bundle
     needs: build
     runs-on: ubuntu-latest
     concurrency:
@@ -135,7 +143,7 @@ jobs:
 
   inspect-wear:
     name: Inspect Wear OS testing setup
-    if: inputs.inspect_wear_testing && !inputs.upload_wear_screenshots
+    if: inputs.inspect_wear_testing && !inputs.upload_wear_screenshots && !inputs.upload_wear_bundle
     runs-on: ubuntu-latest
     concurrency:
       group: google-play-publish
@@ -201,3 +209,42 @@ jobs:
         env:
           GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: python3 .github/scripts/upload_wear_screenshots.py
+
+  upload-wear-bundle-library:
+    name: Upload Wear AAB to Play bundle library only
+    if: inputs.upload_wear_bundle && !inputs.upload_wear_screenshots && !inputs.inspect_wear_testing && !inputs.publish_wear && !inputs.wear && inputs.wear_bundle_run_id != '' && github.repository == 'librescoot/mobile-app'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: google-play-publish
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v6
+        with:
+          name: wear-bundle
+          path: wear-bundle
+          run-id: ${{ inputs.wear_bundle_run_id }}
+          github-token: ${{ github.token }}
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/47940350172/locations/global/workloadIdentityPools/github-actions/providers/mobile-app
+          audience: https://github.com/librescoot
+          service_account: librescoot-play-publisher@android-apps-508215.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+      - name: Verify artifact metadata
+        env:
+          WEAR_BUNDLE_RUN_ID: ${{ inputs.wear_bundle_run_id }}
+        run: |
+          [[ "$WEAR_BUNDLE_RUN_ID" =~ ^[0-9]+$ ]]
+          test -s wear-bundle/outputs/bundle/release/wear-release.aab
+          test -s wear-bundle/version-code.txt
+      - name: Upload bundle without assigning it to a track
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: python3 .github/scripts/upload_play_bundle_library.py wear-bundle/outputs/bundle/release/wear-release.aab wear-bundle/version-code.txt

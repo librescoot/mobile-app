@@ -210,6 +210,9 @@ data, not vehicle measurements. Dispatch **Test build** with
 `upload_wear_screenshots=true` to add these images to every existing localized
 Play listing. The uploader checks Play's image limits, avoids duplicate images,
 never deletes existing listing images, and verifies the committed listing.
+Use `upload_wear_bundle=true` with `wear_bundle_run_id=<successful test-build run>`
+to add that run's AAB to Play's bundle library without assigning it to a test
+track or creating a release; the workflow verifies that all tracks remain unchanged.
 
 ### watchOS
 
