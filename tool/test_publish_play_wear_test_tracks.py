@@ -11,54 +11,63 @@ from publish_play import BASE
 
 
 class PublishWearTestTracksTests(unittest.TestCase):
-    def test_creates_closed_track_and_publishes_to_closed_and_open(self):
+    def test_creates_closed_track_separately_and_publishes_missing_channel(self):
         content = b'existing-wear-aab'
         digest = hashlib.sha256(content).hexdigest()
         code = 213723113
-        before = [
+        other_tracks = [
             {'track': 'production', 'releases': [{'versionCodes': ['213000000']}]},
             {'track': 'wear:internal', 'releases': [{'versionCodes': [str(code)]}]},
-            {'track': 'wear:beta'},
         ]
-        after = before + [{'track': 'wear:alpha', 'releases': []}]
+        before_create = other_tracks + [{'track': 'wear:beta'}]
+        after_create = before_create + [{'track': 'wear:alpha'}]
         with tempfile.NamedTemporaryFile() as bundle, tempfile.NamedTemporaryFile(mode='w+') as notes:
             bundle.write(content)
             bundle.flush()
             notes.write('Test the Wear app.')
             notes.flush()
             request = Mock(side_effect=[
-                {'id': 'edit'},
-                {'bundles': [{'versionCode': code, 'sha256': digest}]},
-                {'tracks': before},
+                {'id': 'create-edit'},
+                {'tracks': before_create},
                 {'track': 'wear:alpha'},
-                {'releases': [{'versionCodes': [str(code)]}]},
+                {},
+                {'id': 'verify-create'},
+                {'tracks': after_create},
+                {'id': 'publish-edit'},
+                {'bundles': [{'versionCode': code, 'sha256': digest}]},
+                {'tracks': after_create},
                 {'releases': [{'versionCodes': [str(code)]}]},
                 {},
-                {'id': 'verify'},
+                {'id': 'verify-publish'},
                 {'bundles': [{'versionCode': code, 'sha256': digest}]},
-                {'tracks': after},
+                {'tracks': other_tracks + [
+                    {'track': 'wear:alpha', 'releases': [{'versionCodes': [str(code)]}]},
+                    {'track': 'wear:beta', 'releases': [{'versionCodes': [str(code)]}]},
+                ]},
             ])
+            alpha_state = {'track': 'wear:alpha', 'releases': [{'versionCodes': [str(code)], 'status': 'completed'}]}
+            beta_state = {'track': 'wear:beta', 'releases': [{'versionCodes': [str(code)], 'status': 'completed'}]}
+            track_state = Mock(side_effect=[{'track': 'wear:alpha', 'releases': []}, beta_state, alpha_state, beta_state])
             response_context = Mock()
             response_context.__enter__ = Mock(return_value=None)
             response_context.__exit__ = Mock(return_value=False)
             urlopen = Mock(return_value=response_context)
             with patch.object(publisher, 'request', request), patch.object(
-                publisher, 'track_state', side_effect=[
-                    {'track': 'wear:alpha', 'releases': [{'versionCodes': [str(code)], 'status': 'completed'}]},
-                    {'track': 'wear:beta', 'releases': [{'versionCodes': [str(code)], 'status': 'completed'}]},
-                ]
+                publisher, 'track_state', track_state
             ), patch.object(publisher.urllib.request, 'urlopen', urlopen):
                 publisher.publish('token', bundle.name, code, notes.name)
 
-        self.assertEqual(request.call_args_list[3].args[1], 'POST')
-        self.assertEqual(request.call_args_list[3].args[2], f'{BASE}/edits/edit/tracks')
-        self.assertEqual(request.call_args_list[3].args[3],
+        self.assertEqual(request.call_args_list[2].args[1], 'POST')
+        self.assertEqual(request.call_args_list[2].args[2], f'{BASE}/edits/create-edit/tracks')
+        self.assertEqual(request.call_args_list[2].args[3],
                          b'{"track": "wear:alpha", "type": "CLOSED_TESTING", "formFactor": "WEAR"}')
-        self.assertEqual(request.call_args_list[4].args[2], f'{BASE}/edits/edit/tracks/wear:alpha')
-        self.assertEqual(request.call_args_list[5].args[2], f'{BASE}/edits/edit/tracks/wear:beta')
-        self.assertEqual(urlopen.call_args.args[0].full_url, f'{BASE}/edits/verify')
+        self.assertEqual(request.call_args_list[3].args[2], f'{BASE}/edits/create-edit:commit')
+        self.assertEqual(request.call_args_list[9].args[2], f'{BASE}/edits/publish-edit/tracks/wear:alpha')
+        self.assertFalse(any('/tracks/wear:beta' in call.args[2] and call.args[1] == 'PUT'
+                             for call in request.call_args_list))
+        self.assertEqual(urlopen.call_count, 2)
 
-    def test_refuses_to_continue_if_open_track_is_not_configured(self):
+    def test_refuses_if_open_track_is_missing(self):
         with tempfile.NamedTemporaryFile() as bundle, tempfile.NamedTemporaryFile(mode='w+') as notes:
             bundle.write(b'existing')
             bundle.flush()
@@ -67,13 +76,17 @@ class PublishWearTestTracksTests(unittest.TestCase):
             digest = hashlib.sha256(b'existing').hexdigest()
             request = Mock(side_effect=[
                 {'id': 'edit'},
+                {'tracks': [{'track': 'wear:alpha'}]},
+                {'id': 'publish-edit'},
                 {'bundles': [{'versionCode': 213723113, 'sha256': digest}]},
-                {'tracks': [{'track': 'wear:internal'}]},
-                {'track': 'wear:alpha'},
+                {'tracks': [{'track': 'wear:alpha'}]},
             ])
-            with patch.object(publisher, 'request', request), self.assertRaisesRegex(
-                RuntimeError, 'wear:beta is not configured'
-            ):
+            context = Mock()
+            context.__enter__ = Mock(return_value=None)
+            context.__exit__ = Mock(return_value=False)
+            with patch.object(publisher, 'request', request), patch.object(
+                publisher.urllib.request, 'urlopen', return_value=context
+            ), self.assertRaisesRegex(RuntimeError, 'missing: wear:beta'):
                 publisher.publish('token', bundle.name, 213723113, notes.name)
             self.assertFalse(any(':commit' in str(call) for call in request.call_args_list))
 
