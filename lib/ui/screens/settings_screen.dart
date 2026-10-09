@@ -175,7 +175,12 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     }).toList();
   }
 
-  Widget _firmwareItem(Widget item, {required bool supported, required String minimumVersion}) {
+  Widget _firmwareItem(
+    Widget item, {
+    required bool supported,
+    required String minimumVersion,
+    bool showMinimumVersionWhenDisconnected = true,
+  }) {
     if (_scooterConnected && supported) return item;
     final Widget? leading;
     final Widget? title;
@@ -200,25 +205,26 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
         runSpacing: 2,
         children: [
           if (title != null) title,
-          Semantics(
-            label: FlutterI18n.translate(context, 'ls_settings_min_version',
-                translationParams: {'version': minimumVersion}),
-            child: ExcludeSemantics(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                  child: Text(
-                    minimumVersion,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 10),
+          if (_scooterConnected || showMinimumVersionWhenDisconnected)
+            Semantics(
+              label: FlutterI18n.translate(context, 'ls_settings_min_version',
+                  translationParams: {'version': minimumVersion}),
+              child: ExcludeSemantics(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    child: Text(
+                      minimumVersion,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 10),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
         ],
       ),
       subtitle:
@@ -560,19 +566,18 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
               ? _disarmAlarm
               : null,
         ),
-      _firmwareItem(
-        ListTile(
-          leading: Icon(Icons.visibility_outlined),
-          title: Text(FlutterI18n.translate(context, "ls_settings_alarm_watch_title")),
-          subtitle: _scooterConnected ? Text(_alarmWatchSubtitle(context, service.vehicle)) : null,
-        ),
-        supported: live,
-        minimumVersion: LibrescootFirmwareRequirements.base,
+      ListTile(
+        leading: Icon(Icons.visibility_outlined),
+        title: Text(FlutterI18n.translate(context, "ls_settings_alarm_watch_title")),
+        subtitle: _scooterConnected ? Text(_alarmWatchSubtitle(context, service.vehicle)) : null,
       ),
     ]
-        .map((item) => _firmwareItem(item,
-            supported: service.identity.supportsAlarmControl != false,
-            minimumVersion: LibrescootFirmwareRequirements.base))
+        .map((item) => _firmwareItem(
+              item,
+              supported: service.identity.supportsAlarmControl != false,
+              minimumVersion: LibrescootFirmwareRequirements.base,
+              showMinimumVersionWhenDisconnected: false,
+            ))
         .toList();
   }
 

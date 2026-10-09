@@ -400,7 +400,7 @@ void main() {
   });
 
   testWidgets('an unprobed alarm capability still shows the alarm settings', (tester) async {
-    final service = _Service();
+    final service = _Service()..identity.supportsAlarmControl = null;
     addTearDown(service.dispose);
     await tester.pumpWidget(_screen(service));
     await tester.pumpAndSettle();
@@ -409,8 +409,46 @@ void main() {
     final alarmHeader = find.text(FlutterI18n.translate(context, 'ls_settings_section_alarm'));
     await _show(tester, alarmHeader);
     expect(alarmHeader, findsOneWidget, reason: 'unknown is not unsupported, so the section is offered');
+    final watchTitle = find.text(FlutterI18n.translate(context, 'ls_settings_alarm_watch_title'));
+    await _show(tester, watchTitle);
+    final watchRow = find.ancestor(of: watchTitle, matching: find.byType(ListTile)).first;
+    expect(find.descendant(of: watchRow, matching: find.text('1.0')), findsNothing);
+    expect(
+        find.descendant(of: watchRow, matching: find.text("Not available on this scooter's firmware.")), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  for (final (label, connected, supported, hasRequirement) in [
+    ('connected supported', true, true, false),
+    ('connected unsupported', true, false, true),
+    ('disconnected', false, true, false),
+    ('connected unknown', true, null, false),
+  ]) {
+    testWidgets('alarm watch row indication: $label', (tester) async {
+      final service = _Service()
+        ..connected = connected
+        ..identity.supportsAlarmControl = supported;
+      addTearDown(service.dispose);
+      await tester.pumpWidget(_screen(service));
+      await tester.pumpAndSettle();
+      final context = tester.element(find.byType(SettingsScreen));
+      final watchTitle = find.text(FlutterI18n.translate(context, 'ls_settings_alarm_watch_title'));
+      await _show(tester, watchTitle);
+      final row = find.ancestor(of: watchTitle, matching: find.byType(ListTile)).first;
+      final tile = tester.widget<ListTile>(row);
+      expect(tile.enabled, connected && supported != false);
+      expect(find.descendant(of: row, matching: find.text('1.0')), findsNWidgets(hasRequirement ? 1 : 0));
+      expect(
+        find.descendant(of: row, matching: find.text("Not available on this scooter's firmware.")),
+        findsNWidgets(connected && supported == false ? 1 : 0),
+      );
+      expect(
+        find.descendant(of: row, matching: find.byIcon(Icons.bluetooth_disabled)),
+        findsNWidgets(connected ? 0 : 1),
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   for (final version in [null, 1, 2]) {
     testWidgets('temporary disarm settings require alarm v2 ($version)', (tester) async {
