@@ -20,12 +20,14 @@ class _Port implements FileTransferTransport {
   _Port(this.storage,
       {this.payloadBudget = 244,
       this.dropDownloadOffset,
-      this.delayStart = false});
+      this.delayStart = false,
+      this.dataEnabled = true});
   final _Storage storage;
   @override
   final int payloadBudget;
   int? dropDownloadOffset;
   final bool delayStart;
+  final bool dataEnabled;
   final _responses = StreamController<List<int>>.broadcast(sync: true),
       _data = StreamController<List<int>>.broadcast(sync: true);
   @override
@@ -94,6 +96,12 @@ class _Port implements FileTransferTransport {
     final b = ByteData.sublistView(value), op = value[0];
     request = b.getUint32(2, Endian.little);
     switch (op) {
+      case FileBrowserOp.openRoot:
+        if (!dataEnabled) {
+          _error(4);
+        } else {
+          _reply([FileBrowserOp.openRootResponse, 0, ...List.filled(16, 0xa5)]);
+        }
       case FileWire.list:
         final entries = storage.files.entries.toList();
         final index = b.getUint32(9, Endian.little);
@@ -246,6 +254,18 @@ void main() {
   });
   Uint8List payload(int n) =>
       Uint8List.fromList(List.generate(n, (i) => (i * 7) & 255));
+  test(
+      'legacy Logs remain usable when administrative /data browsing is disabled',
+      () async {
+    storage.files['logs-test.tar.gz'] = payload(24);
+    final client = FileTransferClient(_Port(storage, dataEnabled: false));
+    addTearDown(client.close);
+    expect((await client.list(FileWire.logs)).single.name, 'logs-test.tar.gz');
+    await expectLater(client.openDataRoot(),
+        throwsA(isA<FileTransferException>().having((e) => e.code, 'code', 4)));
+    expect((await client.list(FileWire.logs)).single.name, 'logs-test.tar.gz');
+  });
+
   test('list and verified download with a missing chunk and small MTU',
       () async {
     final original = payload(1027);

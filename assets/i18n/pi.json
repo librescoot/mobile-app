@@ -802,5 +802,22 @@
     "trip_retention_value_size": "Bytes (0 or more)",
     "trip_retention_invalid_age": "Enter a positive duration, such as 168h or 365d.",
     "trip_retention_invalid_number": "Enter a whole number from 0 to 9223372036854775807.",
-    "trip_retention_unsupported": "This scooter does not support history retention."
+    "trip_retention_unsupported": "This scooter does not support history retention.",
+    "file_browser_title": "Bluetooth file browser",
+    "file_browser_logs": "Logs",
+    "file_browser_data": "/data",
+    "file_browser_refresh": "Refresh",
+    "file_browser_upload": "Upload file",
+    "file_browser_upload_name": "Remote filename",
+    "file_browser_replace_title": "Replace remote file?",
+    "file_browser_replace_body": "Replace {name} ({size})? The current file will be replaced only if it has not changed.",
+    "file_browser_replace": "Replace",
+    "file_browser_debug_only": "The Bluetooth file browser is available only in debug and profile builds.",
+    "file_browser_logs_unavailable": "Connect to a scooter with the Bluetooth file tunnel to browse Logs.",
+    "file_browser_load_logs": "Open Logs",
+    "file_browser_empty": "This folder is empty.",
+    "file_browser_data_opt_in": "Whole /data browsing is unavailable. It requires the scooter-side --enable-data-browser administrative opt-in. Logs remain available above.",
+    "file_browser_open_data": "Open /data",
+    "file_browser_folder": "Folder",
+    "file_browser_download_share": "Download and share"
 }

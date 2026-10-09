@@ -97,6 +97,15 @@ void main() {
     expect(channel.writes, ['cap:ext']);
   });
 
+  test(
+      'file tunnel and administrative data tokens remain independently versioned',
+      () async {
+    channel.replies = ['cap:ext:files=1:data=1'];
+    final groups = await discoverLsCapabilityGroupsCommand(device, repo);
+    expect(groups.versions, {'files': 1, 'data': 1});
+    expect(groups.answered, isTrue);
+  });
+
   test('keycard v2 is parsed in cap:ext', () async {
     channel.replies = ['cap:ext:keycard=2'];
     final groups = await discoverLsCapabilityGroupsCommand(device, repo);

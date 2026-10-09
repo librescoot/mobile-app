@@ -839,5 +839,22 @@
     "trip_retention_value_size": "Bytes (0 oder mehr)",
     "trip_retention_invalid_age": "Eine positive Dauer wie 168h oder 365d eingeben.",
     "trip_retention_invalid_number": "Eine ganze Zahl von 0 bis 9223372036854775807 eingeben.",
-    "trip_retention_unsupported": "Dieser Roller unterstützt keine Aufbewahrung des Fahrtverlaufs."
+    "trip_retention_unsupported": "Dieser Roller unterstützt keine Aufbewahrung des Fahrtverlaufs.",
+    "file_browser_title": "Bluetooth-Dateibrowser",
+    "file_browser_logs": "Protokolle",
+    "file_browser_data": "/data",
+    "file_browser_refresh": "Aktualisieren",
+    "file_browser_upload": "Datei hochladen",
+    "file_browser_upload_name": "Dateiname auf dem Roller",
+    "file_browser_replace_title": "Datei ersetzen?",
+    "file_browser_replace_body": "{name} ({size}) ersetzen? Die Datei wird nur ersetzt, wenn sie unverändert ist.",
+    "file_browser_replace": "Ersetzen",
+    "file_browser_debug_only": "Der Bluetooth-Dateibrowser ist nur in Debug- und Profil-Builds verfügbar.",
+    "file_browser_logs_unavailable": "Zum Anzeigen der Protokolle mit einem Roller mit Bluetooth-Dateitunnel verbinden.",
+    "file_browser_load_logs": "Protokolle öffnen",
+    "file_browser_empty": "Dieser Ordner ist leer.",
+    "file_browser_data_opt_in": "Der Zugriff auf /data ist nicht verfügbar. Er erfordert die administrative Freigabe --enable-data-browser auf dem Roller. Protokolle bleiben oben verfügbar.",
+    "file_browser_open_data": "/data öffnen",
+    "file_browser_folder": "Ordner",
+    "file_browser_download_share": "Herunterladen und teilen"
 }

@@ -13,9 +13,12 @@ import 'src/runtime/scooter_session.dart';
 
 class FileTransferController extends ChangeNotifier {
   FileTransferController(
-      {required this.cacheDirectory, required this.supportsFirmware});
+      {required this.cacheDirectory,
+      required this.supportsFirmware,
+      required this.supportsDataBrowser});
   final Future<Directory> Function() cacheDirectory;
   final bool Function() supportsFirmware;
+  final bool Function() supportsDataBrowser;
   SessionConnection? _connection;
   CharacteristicRepository? _repository;
   FileTransferClient? _client;
@@ -26,9 +29,11 @@ class FileTransferController extends ChangeNotifier {
   DateTime? _lastProgressNotification;
   bool get available =>
       !_disposed &&
+      (kDebugMode || kProfileMode) &&
       _connection?.isCurrent == true &&
       supportsFirmware() &&
       _repository?.filesAvailable == true;
+  bool get dataBrowserAvailable => available && supportsDataBrowser();
   bool get busy => _running || (_client?.busy ?? false);
   FileTransferProgress? get progress => _progress;
 
@@ -103,8 +108,74 @@ class FileTransferController extends ChangeNotifier {
 
   Future<List<RemoteFile>> list(int store) =>
       _run((client) => client.list(store));
+  Future<List<int>> openDataRoot() {
+    if (!dataBrowserAvailable) {
+      throw StateError('Administrative /data access unavailable');
+    }
+    return _run((client) => client.openDataRoot());
+  }
+
+  Future<List<FileBrowserEntry>> listDataDirectory(List<int> directory) {
+    if (!dataBrowserAvailable) {
+      throw StateError('Administrative /data access unavailable');
+    }
+    return _run((client) => client.listDataDirectory(directory));
+  }
+
+  Future<void> closeDataDirectories(List<List<int>> directories) {
+    if (!dataBrowserAvailable) return Future.value();
+    return _run((client) => client.closeDataDirectories(directories));
+  }
+
+  Future<List<int>> openDataDirectory(List<int> node) {
+    if (!dataBrowserAvailable) {
+      throw StateError('Administrative /data access unavailable');
+    }
+    return _run((client) => client.openDataDirectory(node));
+  }
+
   Future<RemoteFile> stat(int store, String name) =>
       _run((client) => client.stat(store, name));
+  Future<({List<int> id, int kind})> resolveDataName(
+      List<int> directory, String name) {
+    if (!dataBrowserAvailable) {
+      throw StateError('Administrative /data access unavailable');
+    }
+    return _run((client) => client.resolveDataName(directory, name));
+  }
+
+  Future<RemoteFile> statDataNode(String name, List<int> node) {
+    if (!dataBrowserAvailable) {
+      throw StateError('Administrative /data access unavailable');
+    }
+    return _run((client) => client.statNode(2, name, node));
+  }
+
+  Future<File> downloadDataNode(String name, List<int> node) {
+    if (!dataBrowserAvailable) {
+      throw StateError('Administrative /data access unavailable');
+    }
+    return _run((client) async {
+      final connection = _connection!;
+      final root = await cacheDirectory();
+      if (!identical(client, _client) || !connection.isCurrent) {
+        throw const FileTransferCancelled();
+      }
+      final scope = sha256.convert(utf8.encode(connection.id)).toString();
+      return client.download(2, name, Directory('${root.path}/$scope'),
+          nodeId: node);
+    });
+  }
+
+  Future<RemoteFile> uploadDataNode(String name, List<int> node, File source,
+      {RemoteFile? replace}) {
+    if (!dataBrowserAvailable) {
+      throw StateError('Administrative /data access unavailable');
+    }
+    return _run((client) =>
+        client.upload(2, name, source, nodeId: node, replace: replace));
+  }
+
   Future<File> download(int store, String name) => _run((client) async {
         final connection = _connection!;
         final root = await cacheDirectory();

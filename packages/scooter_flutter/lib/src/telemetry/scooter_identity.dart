@@ -45,6 +45,7 @@ class FirmwareIdentity {
   bool? supportsTripCounter;
   bool? supportsTripExpunge;
   bool? supportsFileTransfer;
+  bool? supportsDataBrowser;
   bool? supportsFirmwareUpdates;
 
   /// Group capabilities come from one complete `cap:ext` answer. The runtime
@@ -73,6 +74,7 @@ class FirmwareIdentity {
     supportsTripCounter = null;
     supportsTripExpunge = null;
     supportsFileTransfer = null;
+    supportsDataBrowser = null;
     supportsFirmwareUpdates = null;
     supportsServiceMode = null;
     supportsNavigation = null;

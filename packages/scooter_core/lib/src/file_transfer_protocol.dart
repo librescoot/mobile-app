@@ -9,8 +9,10 @@ abstract final class FileWire {
   static const logs = 0;
   static const inbox = 1;
   static const list = 1, stat = 2, put = 3, get = 4;
+  static const statNode = 0x24, getNode = 0x25, putNode = 0x26;
   static const complete = 5, cancel = 6, ack = 7, status = 8;
   static const listResponse = 0x81, statResponse = 0x82, startResponse = 0x83;
+  static const statNodeResponse = 0xa4;
   static const ackResponse = 0x84,
       completeResponse = 0x85,
       cancelResponse = 0x86,
@@ -32,8 +34,15 @@ class FileRequest {
       this.hash,
       this.chunk = 0,
       this.session = 0,
-      this.rewind = false});
+      this.rewind = false,
+      this.version = FileWire.version,
+      this.nodeId,
+      this.intent = 0,
+      this.expectedOldSize = 0,
+      this.expectedOldHash});
   final int op, id, budget, store, index, size, offset, chunk, session;
+  final int version, intent, expectedOldSize;
+  final Uint8List? nodeId, expectedOldHash;
   final String name;
   final Uint8List? hash;
   final bool rewind;
@@ -42,12 +51,13 @@ class FileRequest {
     if (id <= 0 ||
         id > 0xffffffff ||
         budget < 20 ||
-        budget > FileWire.maxPayload) {
+        budget > FileWire.maxPayload ||
+        (version != 1 && version != 2)) {
       throw const FormatException('Invalid file-transfer request');
     }
     final p = _Writer()
       ..u8(op)
-      ..u8(FileWire.version)
+      ..u8(version)
       ..u32(id)
       ..u16(budget);
     switch (op) {
@@ -58,22 +68,61 @@ class FileRequest {
       case FileWire.stat:
       case FileWire.put:
       case FileWire.get:
-        if (!FileWire.validName(name))
-          throw const FormatException('Invalid file name');
-        p
-          ..u8(store)
-          ..u8(name.length)
-          ..bytes(ascii.encode(name));
-        if (op != FileWire.stat) {
-          if (chunk <= 0 ||
-              chunk > budget - FileWire.header ||
-              hash?.length != 32) {
-            throw const FormatException('Invalid transfer parameters');
+      case FileWire.statNode:
+      case FileWire.putNode:
+      case FileWire.getNode:
+        if (version == 2) {
+          if (nodeId?.length != 16) {
+            throw const FormatException('Invalid node handle');
+          }
+          p.bytes(nodeId!);
+          if (op == FileWire.get || op == FileWire.getNode) {
+            if (chunk <= 0 ||
+                chunk > budget - FileWire.header ||
+                hash?.length != 32) {
+              throw const FormatException('Invalid transfer parameters');
+            }
+            p
+              ..u64(offset)
+              ..u16(chunk)
+              ..bytes(hash!);
+          } else if (op == FileWire.put || op == FileWire.putNode) {
+            final oldHash = expectedOldHash ?? Uint8List(32);
+            if (intent < 0 ||
+                intent > 1 ||
+                chunk <= 0 ||
+                chunk > 232 ||
+                hash?.length != 32 ||
+                oldHash.length != 32) {
+              throw const FormatException('Invalid upload parameters');
+            }
+            p
+              ..u8(intent)
+              ..u16(chunk)
+              ..u64(size)
+              ..bytes(hash!)
+              ..u64(expectedOldSize)
+              ..bytes(oldHash);
+          }
+        } else {
+          if (!FileWire.validName(name)) {
+            throw const FormatException('Invalid file name');
           }
           p
-            ..u16(chunk)
-            ..u64(op == FileWire.get ? offset : size)
-            ..bytes(hash!);
+            ..u8(store)
+            ..u8(name.length)
+            ..bytes(ascii.encode(name));
+          if (op != FileWire.stat && op != FileWire.statNode) {
+            if (chunk <= 0 ||
+                chunk > budget - FileWire.header ||
+                hash?.length != 32) {
+              throw const FormatException('Invalid transfer parameters');
+            }
+            p
+              ..u16(chunk)
+              ..u64(op == FileWire.get ? offset : size)
+              ..bytes(hash!);
+          }
         }
       case FileWire.complete:
       case FileWire.cancel:
@@ -141,22 +190,25 @@ class FileResponse {
   final Uint8List body;
   int get kind => body[0];
   void check() {
-    if (body.length < 2)
+    if (body.length < 2) {
       throw const FormatException('Incomplete file response');
+    }
     if (kind == FileWire.errorResponse) throw FileTransferException(body[1]);
   }
 
   (int, RemoteFile?) catalog() {
     check();
-    if (kind != FileWire.listResponse)
+    if (kind != FileWire.listResponse) {
       throw const FormatException('Unexpected catalog response');
+    }
     if (body.length == 2 && body[1] == 1) return (0, null);
     final p = _Reader(body)..u8();
     if (p.u8() != 0) throw const FormatException('Invalid catalog response');
     final next = p.u32(), size = p.u64(), modified = p.u64();
     final name = ascii.decode(p.take(p.u8()));
-    if (!FileWire.validName(name) || p.remaining != 0)
+    if (!FileWire.validName(name) || p.remaining != 0) {
       throw const FormatException('Invalid catalog entry');
+    }
     return (
       next,
       RemoteFile(name: name, size: size, modifiedSeconds: modified)
@@ -165,13 +217,17 @@ class FileResponse {
 
   RemoteFile metadata(String name) {
     check();
-    if (kind != FileWire.statResponse || body.length != 42 || body[1] != 0) {
-      throw const FormatException('Invalid metadata response');
+    if ((kind == FileWire.statResponse && body.length == 42 ||
+            kind == FileWire.statNodeResponse && body.length == 50) &&
+        body[1] == 0) {
+      final p = _Reader(body)
+        ..u8()
+        ..u8();
+      final size = p.u64();
+      if (kind == FileWire.statNodeResponse) p.take(8);
+      return RemoteFile(name: name, size: size, hash: p.take(32));
     }
-    final p = _Reader(body)
-      ..u8()
-      ..u8();
-    return RemoteFile(name: name, size: p.u64(), hash: p.take(32));
+    throw const FormatException('Invalid metadata response');
   }
 
   FileStart start() {
@@ -227,8 +283,9 @@ class FileResponseAssembler {
   int _total = 0;
   BytesBuilder _body = BytesBuilder(copy: false);
   FileResponse? add(List<int> value) {
-    if (value.length <= FileWire.header || value.length > 128)
+    if (value.length <= FileWire.header || value.length > 128) {
       throw const FormatException('Invalid response fragment');
+    }
     final p = _Reader(value);
     final request = p.u32(),
         sequence = p.u32(),
@@ -249,13 +306,16 @@ class FileResponseAssembler {
     if (_request != request ||
         _sequence != sequence ||
         _total != total ||
-        offset != _body.length) return null;
+        offset != _body.length) {
+      return null;
+    }
     _body.add(p.rest());
     if (_body.length != total) return null;
     final result = FileResponse(request, _body.takeBytes());
     _request = null;
-    if (result.body.length < 2)
+    if (result.body.length < 2) {
       throw const FormatException('Incomplete file response');
+    }
     return result;
   }
 }
@@ -298,8 +358,9 @@ class _Reader {
   int _offset = 0;
   int get remaining => _bytes.length - _offset;
   void _require(int n) {
-    if (n < 0 || n > remaining)
+    if (n < 0 || n > remaining) {
       throw const FormatException('Truncated file-transfer message');
+    }
   }
 
   int u8() {

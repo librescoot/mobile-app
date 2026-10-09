@@ -198,6 +198,7 @@ class ScooterTelemetry {
     identity.supportsKeyAliases = supportsKeycardV2;
     identity.supportsTripCounter = groups.containsKey('trip');
     identity.supportsFileTransfer = (groups['files'] ?? 0) >= 1;
+    identity.supportsDataBrowser = (groups['data'] ?? 0) >= 1;
     identity.supportsFirmwareUpdates = groups.containsKey('ota');
   }
 
@@ -455,6 +456,7 @@ class ScooterTelemetry {
     identity.supportsTripCounter = false;
     identity.supportsTripExpunge = false;
     identity.supportsFileTransfer = false;
+    identity.supportsDataBrowser = false;
     identity.supportsFirmwareUpdates = false;
     identity.supportsServiceMode = false;
     identity.supportsNavigation = false;

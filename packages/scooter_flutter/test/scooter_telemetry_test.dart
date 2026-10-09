@@ -922,6 +922,46 @@ void main() {
     expect(h.telemetry.identity.bluetoothTableOutOfDate, isFalse);
   });
 
+  test('always-on file tunnel and opted-in /data capability are independent',
+      () async {
+    final h = _Harness(
+        capabilityGroups: () async => const LsCapabilityGroups(
+              {'files': 1},
+              usedFallback: false,
+            ));
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _wireExtended(r);
+    _firmware(r);
+    await _flush();
+    expect(h.telemetry.identity.supportsFileTransfer, isTrue);
+    expect(h.telemetry.identity.supportsDataBrowser, isFalse);
+    final groups = h.effects.patches
+        .map((p) => p.$2.capabilityGroups)
+        .whereType<Map<String, int?>>()
+        .single;
+    h.telemetry.identity.resetLsCapabilities();
+    h.telemetry.seed(CachedTelemetry(capabilityGroups: groups));
+    expect(h.telemetry.identity.supportsFileTransfer, isTrue);
+    expect(h.telemetry.identity.supportsDataBrowser, isFalse);
+  });
+
+  test('administrative /data capability follows an explicit version token',
+      () async {
+    final h = _Harness(
+        capabilityGroups: () async => const LsCapabilityGroups(
+              {'files': 1, 'data': 1},
+              usedFallback: false,
+            ));
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _wireExtended(r);
+    _firmware(r);
+    await _flush();
+    expect(h.telemetry.identity.supportsFileTransfer, isTrue);
+    expect(h.telemetry.identity.supportsDataBrowser, isTrue);
+  });
+
   for (final version in [null, 1, 2, 3]) {
     test('alarm capability $version gates temporary disarm and is cached',
         () async {

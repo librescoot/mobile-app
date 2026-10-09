@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
@@ -7,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:unustasis/scooter_service.dart';
 import '../wide_layout.dart';
 import 'ls_ota_screen.dart';
+import 'bluetooth_file_browser_screen.dart';
 
 /// Opening the version snapshot does not start update planning.
 class SystemInformationScreen extends StatefulWidget {
@@ -116,6 +118,14 @@ class _SystemInformationScreenState extends State<SystemInformationScreen> {
                 : null,
             enabled: service.connected,
           ),
+          if (kDebugMode || kProfileMode)
+            ListTile(
+              leading: const Icon(Icons.folder_outlined),
+              title: Text(_text('file_browser_title')),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () =>
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const BluetoothFileBrowserScreen())),
+            ),
           ListTile(
             leading: const Icon(Icons.copy),
             title: Text(_text('system_info_copy')),

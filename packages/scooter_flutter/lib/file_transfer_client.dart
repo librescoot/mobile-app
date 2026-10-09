@@ -41,7 +41,7 @@ class FileTransferClient {
   void Function(FileData)? _onData;
   bool _busy = false, _cancelled = false, _closed = false;
   bool _transferRequested = false;
-  int _request = 0, _session = 0;
+  int _request = 0, _session = 0, _activeVersion = FileWire.version;
   int _nextId = Random.secure().nextInt(0x7ffffffe) + 1;
   Completer<void>? _interrupted;
   bool get busy => _busy;
@@ -84,10 +84,12 @@ class FileTransferClient {
     if (_budget < 20) throw StateError('Bluetooth MTU is too small');
   }
 
-  Future<T> _operation<T>(Future<T> Function() run) async {
+  Future<T> _operation<T>(Future<T> Function() run,
+      {int version = FileWire.version}) async {
     if (_busy) throw StateError('Another file operation is active');
     try {
       await _begin();
+      _activeVersion = version;
       return await run();
     } finally {
       _onData = null;
@@ -109,6 +111,7 @@ class FileTransferClient {
         await transport.idle().timeout(const Duration(seconds: 3));
       } catch (_) {}
       _session = 0;
+      _activeVersion = FileWire.version;
       _busy = false;
       _interrupted = null;
     }
@@ -168,7 +171,187 @@ class FileTransferClient {
           budget: _budget,
           session: _session,
           offset: offset,
+          version: _activeVersion,
           rewind: rewind);
+
+  Future<FileResponse> _browserRpc(FileBrowserRequest request, int expected,
+      {Duration timeout = const Duration(seconds: 10)}) async {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      _check();
+      final reply = Completer<FileResponse>();
+      final subscription = _messages.stream.listen((response) {
+        if (response.request == request.id &&
+            (response.kind == expected ||
+                response.kind == FileWire.errorResponse) &&
+            !reply.isCompleted) {
+          reply.complete(response);
+        }
+      }, onError: (Object error, StackTrace stack) {
+        if (!reply.isCompleted) reply.completeError(error, stack);
+      });
+      try {
+        final results = await Future.wait<Object?>([
+          _wait(
+              Future<void>.sync(() => transport.writeControl(request.encode())),
+              const Duration(seconds: 15)),
+          _wait(reply.future, timeout),
+        ], eagerError: true);
+        _check();
+        final response = results[1] as FileResponse;
+        response.check();
+        return response;
+      } on TimeoutException {
+        if (attempt == 2) rethrow;
+      } finally {
+        if (!reply.isCompleted) {
+          reply.completeError(const FileTransferCancelled());
+        }
+        await subscription.cancel();
+      }
+    }
+    throw StateError('No file-browser response');
+  }
+
+  Future<List<int>> openDataRoot() => _operation(() async {
+        final response = await _browserRpc(
+            FileBrowserRequest(FileBrowserOp.openRoot, _request, _budget),
+            FileBrowserOp.openRootResponse);
+        if (response.body.length != 18 || response.body[1] != 0) {
+          throw const FormatException('Invalid /data root response');
+        }
+        return response.body.sublist(2);
+      });
+
+  Future<List<FileBrowserEntry>> listDataDirectory(List<int> directory) =>
+      _operation(() async {
+        final entries = <FileBrowserEntry>[];
+        var cursor = 0;
+        for (var page = 0; page < 4096; page++) {
+          final response = await _browserRpc(
+              FileBrowserRequest(FileBrowserOp.listDirectory, _request, _budget,
+                  _directoryBody(directory, cursor, 0)),
+              FileBrowserOp.listDirectoryResponse);
+          final data = response.body;
+          if (data.length < 7) {
+            throw const FormatException('Invalid directory response');
+          }
+          final entry = decodeFileBrowserEntry(data);
+          if (entry.kind == 0) return entries;
+          if (entry.cursor <= cursor) {
+            throw const FormatException('Directory cursor did not advance');
+          }
+          final name = BytesBuilder(copy: false)..add(entry.nameChunk);
+          var offset = entry.nameOffset + entry.nameChunk.length;
+          while (offset < entry.nameTotal) {
+            final chunk = await _browserRpc(
+                FileBrowserRequest(FileBrowserOp.listDirectory, _request,
+                    _budget, _directoryBody(directory, cursor, offset)),
+                FileBrowserOp.listDirectoryResponse);
+            final next = decodeFileBrowserEntry(chunk.body);
+            if (next.cursor != entry.cursor ||
+                next.nameOffset != offset ||
+                next.nameTotal != entry.nameTotal ||
+                next.kind != entry.kind) {
+              throw const FormatException('Directory name chunk changed');
+            }
+            name.add(next.nameChunk);
+            offset += next.nameChunk.length;
+          }
+          entries.add(FileBrowserEntry(
+              name: decodeFileBrowserName(name.takeBytes()),
+              kind: entry.kind,
+              size: entry.size,
+              modifiedSeconds: entry.modifiedSeconds,
+              cursor: entry.cursor));
+          cursor = entry.cursor;
+        }
+        throw const FormatException('Directory exceeds limit');
+      });
+
+  Future<({List<int> id, int kind})> resolveDataName(
+          List<int> directory, String name) =>
+      _operation(() async {
+        final bytes = fileBrowserUtf8(name);
+        var offset = 0;
+        while (offset < bytes.length) {
+          final chunk = bytes.sublist(offset, min(offset + 100, bytes.length));
+          final request = FileBrowserRequest(
+              FileBrowserOp.resolveName,
+              _request,
+              _budget,
+              _resolveBody(directory, offset, bytes.length, chunk));
+          final response =
+              await _browserRpc(request, FileBrowserOp.resolveNameResponse);
+          final body = response.body;
+          if (body.length < 5) {
+            throw const FormatException('Invalid resolved name response');
+          }
+          final next = ByteData.sublistView(body).getUint16(2, Endian.little);
+          if (next != offset + chunk.length ||
+              body[4] != (next == bytes.length ? 1 : 0)) {
+            throw const FormatException('Resolved name offset mismatch');
+          }
+          offset = next;
+          if (offset == bytes.length) {
+            if (body.length != 22) {
+              throw const FormatException('Invalid resolved handle');
+            }
+            return (id: body.sublist(5, 21), kind: body[21]);
+          }
+          if (body.length != 5) {
+            throw const FormatException('Unexpected partial resolved handle');
+          }
+        }
+        throw const FormatException('Empty remote filename');
+      });
+
+  Uint8List _resolveBody(
+      List<int> directory, int offset, int total, List<int> chunk) {
+    if (directory.length != 16) {
+      throw const FormatException('Invalid directory handle');
+    }
+    final body = Uint8List(20 + chunk.length)..setRange(0, 16, directory);
+    final data = ByteData.sublistView(body);
+    data.setUint16(16, offset, Endian.little);
+    data.setUint16(18, total, Endian.little);
+    body.setRange(20, body.length, chunk);
+    return body;
+  }
+
+  Future<List<int>> openDataDirectory(List<int> node) => _operation(() async {
+        final response = await _browserRpc(
+            FileBrowserRequest(
+                FileBrowserOp.openDirectory, _request, _budget, node),
+            FileBrowserOp.openDirectoryResponse);
+        if (response.body.length != 18 || response.body[1] != 0) {
+          throw const FormatException('Invalid directory handle response');
+        }
+        return response.body.sublist(2);
+      });
+
+  Future<void> closeDataDirectories(List<List<int>> directories) =>
+      _operation(() async {
+        for (final directory in directories) {
+          if (directory.length != 16) {
+            throw const FormatException('Invalid directory handle');
+          }
+          await _browserRpc(
+              FileBrowserRequest(
+                  FileBrowserOp.closeDirectory, _request, _budget, directory),
+              FileBrowserOp.closeDirectoryResponse);
+        }
+      });
+
+  Uint8List _directoryBody(List<int> id, int cursor, int offset) {
+    if (id.length != 16) {
+      throw const FormatException('Invalid directory handle');
+    }
+    final body = Uint8List(22)..setRange(0, 16, id);
+    final data = ByteData.sublistView(body);
+    data.setUint32(16, cursor, Endian.little);
+    data.setUint16(20, offset, Endian.little);
+    return body;
+  }
 
   Future<List<RemoteFile>> list(int store) => _operation(() async {
         final files = <RemoteFile>[];
@@ -195,15 +378,19 @@ class FileTransferClient {
 
   Future<RemoteFile> stat(int store, String name) =>
       _operation(() => _stat(store, name));
-  Future<RemoteFile> _stat(int store, String name) async {
+  Future<RemoteFile> statNode(int store, String name, List<int> node) =>
+      _operation(() => _stat(store, name, nodeId: node), version: 2);
+  Future<RemoteFile> _stat(int store, String name, {List<int>? nodeId}) async {
     final response = await _rpc(
         FileRequest(
-            op: FileWire.stat,
+            op: nodeId == null ? FileWire.stat : FileWire.statNode,
             id: _request,
             budget: _budget,
             store: store,
-            name: name),
-        FileWire.statResponse,
+            name: name,
+            version: nodeId == null ? FileWire.version : 2,
+            nodeId: nodeId == null ? null : Uint8List.fromList(nodeId)),
+        nodeId == null ? FileWire.statResponse : FileWire.statNodeResponse,
         timeout: const Duration(minutes: 2));
     final metadata = response.metadata(name);
     if (metadata.size > 4 * 1024 * 1024 * 1024) {
@@ -212,9 +399,10 @@ class FileTransferClient {
     return metadata;
   }
 
-  Future<File> download(int store, String name, Directory cache) =>
+  Future<File> download(int store, String name, Directory cache,
+          {List<int>? nodeId}) =>
       _operation(() async {
-        final metadata = await _stat(store, name);
+        final metadata = await _stat(store, name, nodeId: nodeId);
         _check();
         final directory = Directory('${cache.path}/$store/${metadata.hashHex}');
         await directory.create(recursive: true);
@@ -294,11 +482,14 @@ class FileTransferClient {
           _transferRequested = true;
           start = (await _rpc(
                   FileRequest(
-                      op: FileWire.get,
+                      op: nodeId == null ? FileWire.get : FileWire.getNode,
                       id: _request,
                       budget: _budget,
                       store: store,
                       name: name,
+                      version: nodeId == null ? FileWire.version : 2,
+                      nodeId:
+                          nodeId == null ? null : Uint8List.fromList(nodeId),
                       offset: offset,
                       hash: metadata.hash,
                       chunk: chunk),
@@ -374,11 +565,14 @@ class FileTransferClient {
         _check();
         onProgress?.call(FileTransferProgress(metadata.size, metadata.size));
         return finalFile;
-      });
+      }, version: nodeId == null ? FileWire.version : 2);
 
-  Future<RemoteFile> upload(int store, String name, File source) =>
+  Future<RemoteFile> upload(int store, String name, File source,
+          {List<int>? nodeId, RemoteFile? replace}) =>
       _operation(() async {
-        if (!FileWire.validName(name)) {
+        if (nodeId == null
+            ? !FileWire.validName(name)
+            : fileBrowserUtf8(name).isEmpty) {
           throw const FormatException('Invalid file name');
         }
         final size = await source.length();
@@ -395,11 +589,17 @@ class FileTransferClient {
         try {
           start = (await _rpc(
                   FileRequest(
-                      op: FileWire.put,
+                      op: nodeId == null ? FileWire.put : FileWire.putNode,
                       id: _request,
                       budget: _budget,
                       store: store,
                       name: name,
+                      version: nodeId == null ? FileWire.version : 2,
+                      nodeId:
+                          nodeId == null ? null : Uint8List.fromList(nodeId),
+                      intent: replace == null ? 0 : 1,
+                      expectedOldSize: replace?.size ?? 0,
+                      expectedOldHash: replace?.hash,
                       size: size,
                       hash: hash,
                       chunk: chunk),
@@ -407,7 +607,7 @@ class FileTransferClient {
                   timeout: const Duration(minutes: 2)))
               .start();
         } on FileTransferException catch (error) {
-          if (error.code != 6) rethrow;
+          if (error.code != 6 || nodeId != null || replace != null) rethrow;
           final existing = await _stat(store, name);
           if (existing.size != size || existing.hashHex != digest.toString()) {
             rethrow;
@@ -504,7 +704,7 @@ class FileTransferClient {
           await listener.cancel();
           await input.close();
         }
-      });
+      }, version: nodeId == null ? FileWire.version : 2);
 
   void cancel() {
     _cancelled = true;

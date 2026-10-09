@@ -824,5 +824,22 @@
     "trip_retention_value_size": "Octets (0 ou plus)",
     "trip_retention_invalid_age": "Saisissez une durée positive, comme 168h ou 365d.",
     "trip_retention_invalid_number": "Saisissez un nombre entier de 0 à 9223372036854775807.",
-    "trip_retention_unsupported": "Ce scooter ne prend pas en charge la conservation de l’historique."
+    "trip_retention_unsupported": "Ce scooter ne prend pas en charge la conservation de l’historique.",
+    "file_browser_title": "Explorateur de fichiers Bluetooth",
+    "file_browser_logs": "Journaux",
+    "file_browser_data": "/data",
+    "file_browser_refresh": "Actualiser",
+    "file_browser_upload": "Envoyer un fichier",
+    "file_browser_upload_name": "Nom distant",
+    "file_browser_replace_title": "Remplacer le fichier distant ?",
+    "file_browser_replace_body": "Remplacer {name} ({size}) ? Le fichier actuel ne sera remplacé que s’il n’a pas changé.",
+    "file_browser_replace": "Remplacer",
+    "file_browser_debug_only": "L’explorateur Bluetooth est disponible uniquement dans les versions debug et profile.",
+    "file_browser_logs_unavailable": "Connectez un scooter avec le tunnel de fichiers Bluetooth pour afficher les journaux.",
+    "file_browser_load_logs": "Ouvrir les journaux",
+    "file_browser_empty": "Ce dossier est vide.",
+    "file_browser_data_opt_in": "L’accès complet à /data est indisponible. Il nécessite l’option administrative --enable-data-browser sur le scooter. Les journaux restent accessibles ci-dessus.",
+    "file_browser_open_data": "Ouvrir /data",
+    "file_browser_folder": "Dossier",
+    "file_browser_download_share": "Télécharger et partager"
 }

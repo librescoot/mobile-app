@@ -11,8 +11,28 @@ import 'package:provider/provider.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/screens/system_information_screen.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
+import 'package:unustasis/ui/screens/bluetooth_file_browser_screen.dart';
+import 'package:scooter_core/file_transfer_protocol.dart';
+import 'package:scooter_flutter/file_transfer_controller.dart';
+
+class _BrowserController extends FileTransferController {
+  _BrowserController()
+      : super(
+            cacheDirectory: () async => Directory.systemTemp,
+            supportsFirmware: () => true,
+            supportsDataBrowser: () => false);
+  @override
+  bool get available => true;
+  @override
+  bool get dataBrowserAvailable => false;
+  @override
+  Future<List<RemoteFile>> list(int store) async =>
+      store == FileWire.logs ? [RemoteFile(name: 'logs-test.tar.gz', size: 10, hash: Uint8List(32))] : [];
+}
 
 class _Service extends ChangeNotifier implements ScooterService {
+  @override
+  final FileTransferController fileTransfers = _BrowserController();
   @override
   bool connected = true;
   @override
@@ -76,6 +96,27 @@ Future<void> _mount(WidgetTester tester, _Service service,
   await tester.pump(const Duration(seconds: 1));
 }
 
+Future<void> _mountBrowser(WidgetTester tester, _Service service) async {
+  await tester.pumpWidget(ChangeNotifierProvider<ScooterService>.value(
+    value: service,
+    child: MaterialApp(
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        FlutterI18nDelegate(
+            translationLoader: FileTranslationLoader(
+          basePath: 'assets/i18n',
+          fallbackFile: 'en',
+          forcedLocale: const Locale('en'),
+        )),
+      ],
+      home: const BluetoothFileBrowserScreen(),
+    ),
+  ));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   test('System information follows all scooter service options before app settings', () {
     final source = File('lib/ui/screens/settings_screen.dart').readAsStringSync();
@@ -86,6 +127,17 @@ void main() {
     expect(information, greaterThan(serviceItems));
     expect(appSection, greaterThan(information));
   });
+  testWidgets('Logs stay usable while whole-/data administrative access is disabled', (tester) async {
+    await _mountBrowser(tester, _Service());
+    await tester.pumpAndSettle();
+    expect(find.text('logs-test.tar.gz'), findsOneWidget);
+    await tester.tap(find.text('/data'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Whole /data access requires'), findsOneWidget);
+    expect(find.text('Open Logs'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('shows only board versions without invoking update or action owners', (tester) async {
     final service = _Service();
     await _mount(tester, service);
@@ -106,6 +158,18 @@ void main() {
     await tester.scrollUntilVisible(updates, 250, scrollable: find.byType(Scrollable).first);
     expect(tester.widget<ListTile>(updates).onTap, isNotNull);
     expect(service.reads, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('debug/profile browser entry opens the hierarchical browser', (tester) async {
+    final navigation = _Navigation();
+    await _mount(tester, _Service(), observer: navigation);
+    final entry = find.text('File browser');
+    await tester.scrollUntilVisible(entry, 250, scrollable: find.byType(Scrollable).first);
+    await tester.tap(entry);
+    final route = navigation.pushed.last as MaterialPageRoute<dynamic>;
+    expect(route.builder(tester.element(find.byType(SystemInformationScreen))), isA<BluetoothFileBrowserScreen>());
+    await tester.pumpWidget(const SizedBox());
     expect(tester.takeException(), isNull);
   });
 

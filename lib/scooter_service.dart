@@ -216,6 +216,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
     fileTransfers = FileTransferController(
       cacheDirectory: () async => Directory('${(await getApplicationCacheDirectory()).path}/ble-files'),
       supportsFirmware: () => identity.supportsFileTransfer == true,
+      supportsDataBrowser: () => identity.supportsDataBrowser == true,
     )..addListener(notifyListeners);
     _liveActions = ScooterActions(
         session: _session,

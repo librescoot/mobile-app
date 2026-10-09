@@ -824,5 +824,22 @@
     "trip_retention_value_size": "Bytes (0 of meer)",
     "trip_retention_invalid_age": "Voer een positieve duur in, zoals 168h of 365d.",
     "trip_retention_invalid_number": "Voer een heel getal in van 0 tot 9223372036854775807.",
-    "trip_retention_unsupported": "Deze scooter ondersteunt het bewaren van ritgeschiedenis niet."
+    "trip_retention_unsupported": "Deze scooter ondersteunt het bewaren van ritgeschiedenis niet.",
+    "file_browser_title": "Bluetooth-bestandsbrowser",
+    "file_browser_logs": "Logboeken",
+    "file_browser_data": "/data",
+    "file_browser_refresh": "Vernieuwen",
+    "file_browser_upload": "Bestand uploaden",
+    "file_browser_upload_name": "Bestandsnaam op scooter",
+    "file_browser_replace_title": "Bestand op scooter vervangen?",
+    "file_browser_replace_body": "{name} ({size}) vervangen? Het huidige bestand wordt alleen vervangen als het niet is gewijzigd.",
+    "file_browser_replace": "Vervangen",
+    "file_browser_debug_only": "De Bluetooth-bestandsbrowser is alleen beschikbaar in debug- en profile-builds.",
+    "file_browser_logs_unavailable": "Verbind met een scooter met de Bluetooth-bestandstunnel om logboeken te bekijken.",
+    "file_browser_load_logs": "Logboeken openen",
+    "file_browser_empty": "Deze map is leeg.",
+    "file_browser_data_opt_in": "Bladeren door heel /data is niet beschikbaar. Hiervoor is de administratieve optie --enable-data-browser op de scooter nodig. Logboeken blijven hierboven beschikbaar.",
+    "file_browser_open_data": "/data openen",
+    "file_browser_folder": "Map",
+    "file_browser_download_share": "Downloaden en delen"
 }

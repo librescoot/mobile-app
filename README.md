@@ -21,6 +21,14 @@ Confirmed capability responses govern support; missing responses do not discard
 cached capabilities. Version strings do not determine update availability.
 System information provides a separate entry point to the Bluetooth updater.
 
+Debug and profile builds also provide a Bluetooth file browser from System
+information. The authenticated Logs view remains available whenever the scooter
+supports the file tunnel. Hierarchical `/data` access is separate and requires
+the service's local administrative `--enable-data-browser` opt-in; the app never
+enables it. Downloads are checksum-verified before sharing, and uploads stream
+from the selected local file. Replacing a remote file requires explicit
+confirmation and is rejected if the target has changed.
+
 ### Temporary alarm disarm
 
 Firmware advertising `alarm=2` adds **Disarm alarm** in alarm settings, even

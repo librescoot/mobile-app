@@ -840,5 +840,22 @@
 "ls_phone_enrolled_load_error": "Could not load phones. Pull to retry.",
 "ls_phone_enrolled_title": "Enrolled phones",
 "ls_key_master_title": "Master cards",
-"ls_phone_remove_title": "Remove phone"
+"ls_phone_remove_title": "Remove phone",
+    "file_browser_title": "File browser",
+    "file_browser_logs": "Logs",
+    "file_browser_data": "/data",
+    "file_browser_refresh": "Refresh",
+    "file_browser_upload": "Upload file",
+    "file_browser_upload_name": "Remote filename",
+    "file_browser_replace_title": "Replace remote file?",
+    "file_browser_replace_body": "Replace {name} ({size})? The current file will be replaced only if it has not changed.",
+    "file_browser_replace": "Replace",
+    "file_browser_debug_only": "The Bluetooth file browser is available only in debug and profile builds.",
+    "file_browser_logs_unavailable": "Connect to a scooter with the Bluetooth file tunnel to browse Logs.",
+    "file_browser_load_logs": "Open Logs",
+    "file_browser_empty": "This folder is empty.",
+    "file_browser_data_opt_in": "Whole /data access requires scooter-side --enable-data-browser. Logs remain available above.",
+    "file_browser_open_data": "Open /data",
+    "file_browser_folder": "Folder",
+    "file_browser_download_share": "Download and share"
 }
