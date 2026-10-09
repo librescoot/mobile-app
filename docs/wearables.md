@@ -213,8 +213,11 @@ never deletes existing listing images, and verifies the committed listing.
 Use `upload_wear_bundle=true` with `wear_bundle_run_id=<successful test-build run>`
 to add that run's AAB to Play's bundle library without assigning it to a test
 track or creating a release. Use `assign_wear_internal=true` with the same run ID
-to assign the already-uploaded AAB to Wear internal testing; the workflow verifies
-the bundle hash and confirms all other tracks remain unchanged.
+to assign the already-uploaded AAB to Wear internal testing. Use
+`publish_wear_test_tracks=true` with the run ID to publish that bundle to Wear
+closed alpha and open beta; the workflow creates the Wear closed track if needed,
+verifies the bundle hash, and confirms internal, phone, and production tracks
+remain unchanged. Closed-track tester email lists still need Play Console setup.
 
 ### watchOS
 
