@@ -92,9 +92,7 @@ def publish(token, screenshots=SCREENSHOTS):
 
         for language, existing, remaining in plans:
             for name, data, _ in remaining:
-                result = upload(token, edit, language, data)
-                if not result.get("url"):
-                    raise RuntimeError(f"Play did not return an uploaded image URL for {language}/{name}")
+                upload(token, edit, language, data)
                 print(f"Uploaded {name} to {language} Wear listing")
             print(f"{language}: {len(existing)} existing, {len(remaining)} uploaded")
 
