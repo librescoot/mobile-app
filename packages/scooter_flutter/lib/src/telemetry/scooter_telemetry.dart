@@ -80,12 +80,15 @@ class ScooterTelemetry {
   bool get tripLoading => _tripLoading;
   SessionConnection? _connection;
   CharacteristicRepository? _repository;
+  Map<String, int?>? _knownCapabilityGroups;
   int _revision = 0;
   bool _disposed = false;
   ScooterState? state = ScooterState.disconnected;
 
   bool get alarmAvailable => _repository?.alarmAvailable ?? false;
-  bool get otaAvailable => _repository?.otaAvailable ?? false;
+  bool get otaAvailable =>
+      (_repository?.otaAvailable ?? false) &&
+      identity.supportsFirmwareUpdates != false;
 
   TelemetrySnapshot get snapshot => TelemetrySnapshot(
       scooterId: _connection?.id,
@@ -174,10 +177,12 @@ class ScooterTelemetry {
     identity.supportsScheduledHibernation = cache.supportsScheduledHibernation;
     identity.supportsBatteryKeepActive = cache.supportsBatteryKeepActive;
     final groups = cache.capabilityGroups;
+    _knownCapabilityGroups = null;
     if (groups != null) _applyCapabilityGroups(groups);
   }
 
   void _applyCapabilityGroups(Map<String, int?> groups) {
+    _knownCapabilityGroups = Map.of(groups);
     identity.supportsHibernateFor = groups.containsKey('pm');
     identity.supportsApnConfig = groups.containsKey('config');
     identity.supportsBondForget = groups.containsKey('ble');
@@ -193,6 +198,7 @@ class ScooterTelemetry {
     identity.supportsKeyAliases = supportsKeycardV2;
     identity.supportsTripCounter = groups.containsKey('trip');
     identity.supportsFileTransfer = (groups['files'] ?? 0) >= 1;
+    identity.supportsFirmwareUpdates = groups.containsKey('ota');
   }
 
   void refreshOdometer() {
@@ -415,15 +421,9 @@ class ScooterTelemetry {
       if (imxVersion != null) {
         // Only a librescoot system answers with a version over usock.
         _log.info('nRF ${identity.nrfVersion} runs a $imxVersion system');
-      } else if (repository.imxVersionCharacteristic != null &&
-          vehicle.systemCanAnswer) {
-        _log.info(
-            'nRF ${identity.nrfVersion} reported no system version, so this is not a librescoot scooter');
-        // Everything gated on librescoot follows the system, not the nRF.
-        identity.isLibrescoot = false;
+      } else {
+        _log.info('No system version answer; keeping the firmware identity');
       }
-      // A firmware without the characteristic, or one that is powered down, is
-      // expected to stay silent, so the nRF verdict stands.
     }
     effects.cachePatch(connection.id,
         TelemetryCachePatch(isLibrescoot: identity.isLibrescoot));
@@ -443,10 +443,9 @@ class ScooterTelemetry {
     _notify(connection);
   }
 
-  /// Nothing on this scooter answered, so nothing is supported. Without this
-  /// the flags keep whatever the last successful probe cached and the settings
-  /// screen goes on offering controls the scooter cannot honour.
+  /// An explicit firmware identity without Librescoot support clears its cache.
   void _clearLsCapabilities(SessionConnection connection) {
+    _knownCapabilityGroups = const {};
     identity.supportsHibernateFor = false;
     identity.supportsScheduledHibernation = false;
     identity.supportsApnConfig = false;
@@ -456,6 +455,7 @@ class ScooterTelemetry {
     identity.supportsTripCounter = false;
     identity.supportsTripExpunge = false;
     identity.supportsFileTransfer = false;
+    identity.supportsFirmwareUpdates = false;
     identity.supportsServiceMode = false;
     identity.supportsNavigation = false;
     identity.navigationCapabilityVersion = null;
@@ -503,11 +503,18 @@ class ScooterTelemetry {
     // A listed group is its complete initial contract unless it supplies a
     // future version. Cache the complete answer before optional detail probes:
     // transient reads must not turn a confirmed capability into an absence.
-    _applyCapabilityGroups(groups.versions);
+    final previousBondForget = identity.supportsBondForget;
+    final confirmedGroups = groups.usedFallback
+        ? {
+            for (final entry in groups.versions.entries)
+              entry.key: entry.value ?? _knownCapabilityGroups?[entry.key],
+          }
+        : groups.versions;
+    _applyCapabilityGroups(confirmedGroups);
     effects.cachePatch(
       connection.id,
       TelemetryCachePatch(
-        capabilityGroups: Map<String, int?>.of(groups.versions),
+        capabilityGroups: Map<String, int?>.of(confirmedGroups),
         supportsHibernateFor: identity.supportsHibernateFor,
         supportsApnConfig: identity.supportsApnConfig,
         supportsAlarmControl: identity.supportsAlarmControl,
@@ -538,17 +545,18 @@ class ScooterTelemetry {
     }
     if (!_publishTableState(connection, repository)) return;
 
-    bool supportsBondForget = groups.contains('ble');
+    bool? supportsBondForget = groups.usedFallback && groups.contains('ble')
+        ? previousBondForget
+        : groups.contains('ble');
     // `ble` is complete in cap:ext. Legacy cap:list only reports categories,
     // so it still needs the one historically variable detail query.
-    if (groups.usedFallback && supportsBondForget) {
+    if (groups.usedFallback && groups.contains('ble')) {
       try {
         final caps =
             await _capabilities(scooter, repository, 'ble', isCurrent: current);
         supportsBondForget = caps.contains('forget');
       } catch (e, stack) {
         effects.probeFailed('ble capability probe failed', e, stack);
-        supportsBondForget = false;
       }
     }
     if (!current()) return;

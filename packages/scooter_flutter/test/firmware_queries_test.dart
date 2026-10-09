@@ -161,7 +161,8 @@ void main() {
     expect(channel.writes, ['cap:ext', 'cap:list']);
   });
 
-  test('cap:list fails closed for malformed counted categories', () async {
+  test('malformed counted categories do not establish capability absence',
+      () async {
     channel.repliesFor['cap:ext'] = ['error:unknown command'];
     channel.repliesFor['cap:list'] = [
       'cap:count:2',
@@ -171,7 +172,34 @@ void main() {
     final groups = await discoverLsCapabilityGroupsCommand(device, repo);
     expect(groups.versions, isEmpty);
     expect(groups.usedFallback, isTrue);
+    expect(groups.answered, isFalse);
+  });
+
+  test(
+      'unsupported cap:ext and a lost cap:list item leave capabilities unknown',
+      () async {
+    channel.repliesFor['cap:ext'] = ['error:unknown command'];
+    channel.repliesFor['cap:list'] = ['cap:count:2', 'cap:trip'];
+    final groups = await discoverLsCapabilityGroupsCommand(device, repo,
+        responseTimeout: const Duration(milliseconds: 1));
+    expect(groups.answered, isFalse);
+    expect(groups.versions, isEmpty);
+  });
+
+  test('a complete zero-count list establishes capability absence', () async {
+    channel.repliesFor['cap:ext'] = ['error:unknown command'];
+    channel.repliesFor['cap:list'] = ['cap:count:0'];
+    final groups = await discoverLsCapabilityGroupsCommand(device, repo);
     expect(groups.answered, isTrue);
+    expect(groups.versions, isEmpty);
+  });
+
+  test('missing extended characteristics do not establish capability absence',
+      () async {
+    repo.extendedChannelMissing = true;
+    final groups = await discoverLsCapabilityGroupsCommand(device, repo);
+    expect(groups.answered, isFalse);
+    expect(channel.writes, isEmpty);
   });
 
   test('a silent capability query reports no answer, not an empty list',
@@ -230,6 +258,33 @@ void main() {
   test('unsupported capability response yields an empty set', () async {
     channel.replies = ['error:unknown command'];
     expect(await getLsCapabilitiesCommand(device, repo, 'ble'), isEmpty);
+  });
+
+  test('lost capability notifications throw rather than reporting absence',
+      () async {
+    channel.replies = ['cap:ble:count:2', 'cap:ble:forget'];
+    await expectLater(
+      getLsCapabilitiesCommand(device, repo, 'ble',
+          responseTimeout: const Duration(milliseconds: 1)),
+      throwsA(isA<TimeoutException>()),
+    );
+  });
+
+  test('malformed capability replies do not report absence', () async {
+    channel.replies = ['cap:ble:count:1', 'cap:wrong:forget'];
+    await expectLater(
+        getLsCapabilitiesCommand(device, repo, 'ble',
+            responseTimeout: const Duration(milliseconds: 1)),
+        throwsA(isA<TimeoutException>()));
+    for (final replies in [
+      ['cap:wrong:count:0'],
+      ['cap:ble:count:not-a-number'],
+      ['cap:ble:count:2', 'cap:ble:forget', 'cap:ble:forget'],
+    ]) {
+      channel.replies = replies;
+      await expectLater(getLsCapabilitiesCommand(device, repo, 'ble'),
+          throwsA(isA<ExtendedResponseFormatException>()));
+    }
   });
 
   test('empty capability list is supported', () async {
@@ -294,6 +349,29 @@ void main() {
     channel.replies = ['get:example:'];
     expect(await getLsSettingCommand(device, repo, 'example'), '');
     channel.replies = ['get:error:unknown key'];
+    expect(await getLsSettingCommand(device, repo, 'example'), isNull);
+  });
+
+  test('setting silence is distinct from an unsupported key', () async {
+    await expectLater(
+      getLsSettingCommand(device, repo, 'example',
+          responseTimeout: const Duration(milliseconds: 1)),
+      throwsA(isA<TimeoutException>()),
+    );
+  });
+
+  test('temporary and malformed setting errors do not report absence',
+      () async {
+    for (final response in [
+      'get:error:schema unavailable',
+      'get:error:redis',
+      'get:other:value'
+    ]) {
+      channel.replies = [response];
+      await expectLater(getLsSettingCommand(device, repo, 'example'),
+          throwsA(isA<ExtendedResponseFormatException>()));
+    }
+    channel.replies = ['error:unknown command'];
     expect(await getLsSettingCommand(device, repo, 'example'), isNull);
   });
 

@@ -6,9 +6,9 @@ import 'package:provider/provider.dart';
 
 import 'package:unustasis/scooter_service.dart';
 import '../wide_layout.dart';
+import 'ls_ota_screen.dart';
 
-/// Read-only presentation of an explicitly sampled version snapshot. No OTA
-/// refresh is invoked: opening this screen must not start update planning.
+/// Opening the version snapshot does not start update planning.
 class SystemInformationScreen extends StatefulWidget {
   const SystemInformationScreen({super.key});
 
@@ -106,6 +106,15 @@ class _SystemInformationScreenState extends State<SystemInformationScreen> {
             title: Text(_text('system_info_refresh')),
             onTap: service.connected && !_loading ? _refresh : null,
             enabled: service.connected && !_loading,
+          ),
+          ListTile(
+            leading: const Icon(Icons.system_update_alt_outlined),
+            title: Text(_text('system_info_bluetooth_updates')),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: service.connected
+                ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LsOtaScreen()))
+                : null,
+            enabled: service.connected,
           ),
           ListTile(
             leading: const Icon(Icons.copy),

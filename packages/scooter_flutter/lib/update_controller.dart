@@ -36,6 +36,7 @@ class UpdateController extends ChangeNotifier {
       required this.cacheDirectory,
       required this.channel,
       this.onTargetCaptured,
+      this.supportsFirmware,
       OtaTransferService? transfer})
       : transfer = transfer ?? OtaTransferService() {
     this.transfer.addListener(_changed);
@@ -48,6 +49,7 @@ class UpdateController extends ChangeNotifier {
   /// App-owned name/identity presentation is captured once per fresh operation,
   /// before state publication. Reconnection recovery retains that capture.
   final void Function(String id)? onTargetCaptured;
+  final bool Function()? supportsFirmware;
   final _log = Logger('UpdateController');
   SessionConnection? _connection;
   CharacteristicRepository? _repository;
@@ -71,7 +73,9 @@ class UpdateController extends ChangeNotifier {
       phase == UpdatePlanPhase.fetchingIndex;
   bool get busy => _working || transfer.active;
   bool get otaAvailable =>
-      _connection?.isCurrent == true && _repository?.otaAvailable == true;
+      _connection?.isCurrent == true &&
+      _repository?.otaAvailable == true &&
+      (supportsFirmware?.call() ?? true);
 
   void _changed() {
     if (!_disposed) notifyListeners();
@@ -146,7 +150,7 @@ class UpdateController extends ChangeNotifier {
       if ((transfer.state == OtaTransferState.idle ||
               transfer.awaitingReconnect) &&
           connection != null &&
-          repo?.otaAvailable == true &&
+          otaAvailable &&
           current()) {
         try {
           final recovering = transfer.awaitingReconnect;
@@ -242,11 +246,12 @@ class UpdateController extends ChangeNotifier {
     if (_disposed || busy || transfer.awaitingReconnect) return;
     final connection = _connection;
     final repo = _repository;
-    if (connection == null || repo == null || !connection.isCurrent) return;
+    if (connection == null || repo == null || !otaAvailable) return;
     bool current() =>
         !_disposed &&
         identical(connection, _connection) &&
-        connection.isCurrent;
+        connection.isCurrent &&
+        otaAvailable;
     _working = true;
     _interruptedPlanning = null;
     downloading = true; // Includes cache lookup/checksum, not just HTTP bytes.

@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:scooter_core/firmware_requirements.dart';
 import 'package:scooter_core/trip_counter.dart';
 import 'package:scooter_core/trip_expunge.dart';
 import 'package:scooter_flutter/scooter_actions.dart';
@@ -138,10 +137,12 @@ class _Service extends ChangeNotifier implements ScooterService {
     identity.rssi = value;
     notifyListeners();
   }
+
   void updateName(String? value) {
     identity.name = value;
     notifyListeners();
   }
+
   @override
   void setAutoUnlock(bool value) {
     autoUnlock = value;
@@ -215,8 +216,7 @@ class _TripService extends _Service {
 class _OtaService extends _Service {
   bool hasOtaCharacteristics = true;
   @override
-  bool get otaAvailable => connected && !demoMode && hasOtaCharacteristics &&
-      supportsBluetoothFirmwareUpdates(identity.imxVersion);
+  bool get otaAvailable => connected && !demoMode && hasOtaCharacteristics && identity.supportsFirmwareUpdates != false;
 
   void setMdbVersion(String? version) {
     identity.imxVersion = version;
@@ -308,13 +308,12 @@ void main() {
     );
     expect(service.autoUnlock, isFalse);
     expect(seatSwitch.onChanged, isNotNull);
-    expect((seatSwitch.subtitle as Text).data,
-        FlutterI18n.translate(context, 'settings_open_seat_on_unlock_description'));
+    expect(
+        (seatSwitch.subtitle as Text).data, FlutterI18n.translate(context, 'settings_open_seat_on_unlock_description'));
     seatSwitch.onChanged!(true);
     await tester.pump();
     expect(service.openSeatOnUnlock, isTrue);
-    tester.widget<SwitchListTile>(find.ancestor(of: seat, matching: find.byType(SwitchListTile)))
-        .onChanged!(false);
+    tester.widget<SwitchListTile>(find.ancestor(of: seat, matching: find.byType(SwitchListTile))).onChanged!(false);
     await tester.pump();
     expect(service.openSeatOnUnlock, isFalse);
 
@@ -324,13 +323,11 @@ void main() {
       find.ancestor(of: hazards, matching: find.byType(SwitchListTile)),
     );
     expect(hazardSwitch.onChanged, isNotNull);
-    expect((hazardSwitch.subtitle as Text).data,
-        FlutterI18n.translate(context, 'settings_hazard_locking_description'));
+    expect((hazardSwitch.subtitle as Text).data, FlutterI18n.translate(context, 'settings_hazard_locking_description'));
     hazardSwitch.onChanged!(true);
     await tester.pump();
     expect(service.hazardLocking, isTrue);
-    tester.widget<SwitchListTile>(find.ancestor(of: hazards, matching: find.byType(SwitchListTile)))
-        .onChanged!(false);
+    tester.widget<SwitchListTile>(find.ancestor(of: hazards, matching: find.byType(SwitchListTile))).onChanged!(false);
     await tester.pump();
     expect(service.hazardLocking, isFalse);
   });
@@ -511,28 +508,32 @@ void main() {
     );
   });
 
-  for (final version in <String?>[null, 'v1.1.9', 'v1.2.0', 'nightly-20260802T235959', 'testing-20260803T000000']) {
-    testWidgets('Bluetooth update option follows MDB eligibility ($version)', (tester) async {
+  for (final version in <String?>[null, 'v1.1.9', 'v1.2.0', 'nightly-20260802T235959', 'testing-20261002t153559']) {
+    testWidgets('Bluetooth update option does not depend on MDB version spelling ($version)', (tester) async {
       final service = _OtaService()..identity.imxVersion = version;
       service.identity.nrfVersion = 'v2.14.0-ls';
       addTearDown(service.dispose);
       await tester.pumpWidget(_screen(service));
       await tester.pumpAndSettle();
-      final eligible = supportsBluetoothFirmwareUpdates(version);
-      await _show(tester, find.text(eligible ? 'Firmware updates' : 'Update mode'));
-      expect(find.text('Firmware updates'), eligible ? findsOneWidget : findsNothing);
+      await _show(tester, find.text('Firmware updates'));
+      expect(find.text('Firmware updates'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
 
-  testWidgets('Bluetooth updates appear after MDB identification and hide offline', (tester) async {
+  testWidgets('Bluetooth updates require live transport and respect explicit unsupported responses', (tester) async {
     final service = _OtaService();
     addTearDown(service.dispose);
     await tester.pumpWidget(_screen(service));
     await tester.pumpAndSettle();
-    await _show(tester, find.text('Update mode'));
-    expect(find.text('Firmware updates'), findsNothing);
+    await _show(tester, find.text('Firmware updates'));
+    expect(find.text('Firmware updates'), findsOneWidget);
+    service.identity.supportsFirmwareUpdates = false;
     service.setMdbVersion('v1.2.0');
+    await tester.pumpAndSettle();
+    expect(find.text('Firmware updates'), findsNothing);
+    service.identity.supportsFirmwareUpdates = true;
+    service.setMdbVersion(null);
     await tester.pumpAndSettle();
     expect(find.text('Firmware updates'), findsOneWidget);
     service.setConnection(false);
@@ -588,11 +589,14 @@ void main() {
       if (title == 'Service mode') {
         expect((tester.getTopLeft(badge).dy - tester.getTopLeft(rowTitle).dy).abs(), lessThan(16));
       }
-      expect(find.descendant(of: row, matching: find.text('Connect to the scooter to use this setting.')),
-          findsNothing);
+      expect(
+          find.descendant(of: row, matching: find.text('Connect to the scooter to use this setting.')), findsNothing);
     }
     final serviceMode = find.ancestor(of: find.text('Service mode'), matching: find.byType(ListTile)).first;
-    expect(find.descendant(of: serviceMode, matching: find.text('Keeps the scooter awake and USB active; alarm and automatic locking are disabled.')),
+    expect(
+        find.descendant(
+            of: serviceMode,
+            matching: find.text('Keeps the scooter awake and USB active; alarm and automatic locking are disabled.')),
         findsOneWidget);
     expect(find.text('Loading...'), findsNothing);
     expect(service.actions.reads, isEmpty);

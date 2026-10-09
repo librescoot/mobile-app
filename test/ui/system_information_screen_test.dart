@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/screens/system_information_screen.dart';
+import 'package:unustasis/ui/screens/ls_ota_screen.dart';
 
 class _Service extends ChangeNotifier implements ScooterService {
   @override
@@ -34,7 +36,14 @@ class _Service extends ChangeNotifier implements ScooterService {
   dynamic noSuchMethod(Invocation invocation) => throw StateError('Unexpected service use: ${invocation.memberName}');
 }
 
-Future<void> _mount(WidgetTester tester, _Service service) async {
+class _Navigation extends NavigatorObserver {
+  final pushed = <Route<dynamic>>[];
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) => pushed.add(route);
+}
+
+Future<void> _mount(WidgetTester tester, _Service service,
+    {Locale locale = const Locale('en'), NavigatorObserver? observer}) async {
   PackageInfo.setMockInitialValues(
       appName: 'Librescoot',
       packageName: 'org.librescoot.mobile.unu.debug',
@@ -44,17 +53,25 @@ Future<void> _mount(WidgetTester tester, _Service service) async {
   await tester.pumpWidget(ChangeNotifierProvider<ScooterService>.value(
     value: service,
     child: MaterialApp(
+      key: ValueKey(locale),
+      locale: locale,
+      supportedLocales: const [Locale('en'), Locale('de')],
+      navigatorObservers: [if (observer != null) observer],
       localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
         FlutterI18nDelegate(
             translationLoader: FileTranslationLoader(
           basePath: 'assets/i18n',
           fallbackFile: 'en',
-          forcedLocale: const Locale('en'),
+          forcedLocale: locale,
         ))
       ],
       home: const SystemInformationScreen(),
     ),
   ));
+  await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
   await tester.pump();
   await tester.pump(const Duration(seconds: 1));
 }
@@ -81,10 +98,47 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('shows reload wording and a connected Bluetooth update entry without planning', (tester) async {
+    final service = _Service();
+    await _mount(tester, service);
+    expect(find.text('Reload version info'), findsOneWidget);
+    final updates = find.widgetWithText(ListTile, 'Bluetooth firmware updates');
+    await tester.scrollUntilVisible(updates, 250, scrollable: find.byType(Scrollable).first);
+    expect(tester.widget<ListTile>(updates).onTap, isNotNull);
+    expect(service.reads, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Bluetooth update entry navigates to the existing updater', (tester) async {
+    final navigation = _Navigation();
+    final service = _Service();
+    await _mount(tester, service, observer: navigation);
+    final updates = find.text('Bluetooth firmware updates');
+    await tester.scrollUntilVisible(updates, 250, scrollable: find.byType(Scrollable).first);
+    await tester.tap(updates);
+    final route = navigation.pushed.last as MaterialPageRoute<dynamic>;
+    expect(route.builder(tester.element(find.byType(SystemInformationScreen))), isA<LsOtaScreen>());
+    expect(service.reads, 1);
+    await tester.pumpWidget(const SizedBox());
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('German reload wording distinguishes version numbers from updates', (tester) async {
+    await _mount(tester, _Service(), locale: const Locale('de'));
+    expect(find.text('Versionsnummern aktualisieren'), findsOneWidget);
+    final updates = find.text('Firmware-Updates über Bluetooth');
+    await tester.scrollUntilVisible(updates, 250, scrollable: find.byType(Scrollable).first);
+    expect(updates, findsOneWidget);
+  });
+
   testWidgets('offline opening does not query or invent installed versions', (tester) async {
     final service = _Service()..connected = false;
     await _mount(tester, service);
     expect(service.reads, 0);
+    final updates = find.widgetWithText(ListTile, 'Bluetooth firmware updates');
+    await tester.scrollUntilVisible(updates, 250, scrollable: find.byType(Scrollable).first);
+    expect(tester.widget<ListTile>(updates).onTap, isNull);
+    expect(tester.widget<ListTile>(updates).enabled, isFalse);
     expect(find.text('Unavailable'), findsWidgets);
     expect(find.text('2.0.5 (46)'), findsNothing);
     expect(find.text('vehicle-service'), findsNothing);

@@ -110,11 +110,9 @@ Future<LsCapabilityGroups> discoverLsCapabilityGroupsCommand(
   bool Function()? isCurrent,
   Duration responseTimeout = extendedResponseTimeout,
 }) async {
-  // A channel that was never discovered is a definite answer.
   if (repo.extendedChannelMissing) {
-    return const LsCapabilityGroups({}, usedFallback: true);
+    return const LsCapabilityGroups({}, usedFallback: true, answered: false);
   }
-  var answered = false;
   try {
     final response = await sendLsExtendedCommand(scooter, repo, 'cap:ext',
         isCurrent: isCurrent, responseTimeout: responseTimeout);
@@ -122,9 +120,6 @@ Future<LsCapabilityGroups> discoverLsCapabilityGroupsCommand(
       return LsCapabilityGroups(_parseCapabilityGroups(response, 'cap:ext'),
           usedFallback: false);
     }
-  } on ExtendedResponseFormatException {
-    // Firmware predating cap:ext responds with an error message.
-    answered = true;
   } catch (e) {
     _log.fine('cap:ext unavailable: $e');
   }
@@ -137,12 +132,11 @@ Future<LsCapabilityGroups> discoverLsCapabilityGroupsCommand(
   } on TimeoutException {
     repo.noteSilentExtendedCommand();
   } on ExtendedResponseFormatException catch (e) {
-    answered = true;
     _log.fine('cap:list unavailable: $e');
   } catch (e) {
     _log.fine('cap:list unavailable: $e');
   }
-  return LsCapabilityGroups(const {}, usedFallback: true, answered: answered);
+  return const LsCapabilityGroups({}, usedFallback: true, answered: false);
 }
 
 /// Queries the installed OS version of [component] ("mdb" or "dbc") via the
@@ -178,13 +172,14 @@ Future<Set<String>> getPmCapabilitiesCommand(
     getLsCapabilitiesCommand(scooter, repo, "pm", isCurrent: isCurrent);
 
 /// Queries which commands the scooter supports in [category] ("pm", "config",
-/// …). Returns an empty set on firmware that doesn't support the capability
-/// query (error response or timeout).
+/// …). An explicit unsupported response yields an empty set; transport and
+/// malformed-response failures throw without changing confirmed capabilities.
 Future<Set<String>> getLsCapabilitiesCommand(
   BluetoothDevice? scooter,
   CharacteristicRepository repo,
   String category, {
   bool Function()? isCurrent,
+  Duration responseTimeout = extendedResponseTimeout,
 }) =>
     withExtendedChannel(() async {
       checkCommandCurrent(isCurrent);
@@ -203,43 +198,62 @@ Future<Set<String>> getLsCapabilitiesCommand(
       try {
         await sendCommand(scooter, repo, "cap:$category",
             characteristic: cmd, isCurrent: isCurrent);
+        var first = true;
         final stream = listener.responses.map((response) {
           repo.noteExtendedResponse();
+          if (response == 'error:unknown command' ||
+              response == 'cap:error:unknown command') {
+            throw const _UnsupportedCapabilityQuery();
+          }
+          if (first) {
+            first = false;
+            if (!RegExp('^cap:${RegExp.escape(category)}:count:[0-9]+\$')
+                .hasMatch(response)) {
+              throw const ExtendedResponseFormatException(
+                  'invalid capability count');
+            }
+          }
           return response;
-        }).timeout(extendedResponseTimeout);
+        }).timeout(responseTimeout);
         final entries = await readExtendedList(
             stream, (msg) => parseCapabilityEntry(category, msg));
+        if (entries.toSet().length != entries.length) {
+          throw const ExtendedResponseFormatException(
+              'duplicate capability entry');
+        }
         return entries.toSet();
       } on TimeoutException {
         repo.noteSilentExtendedCommand();
-        _log.info(
-            "getLsCapabilitiesCommand: timeout, assuming no $category capabilities");
-        return <String>{};
-      } on ExtendedResponseFormatException catch (e) {
-        // Firmware without the capability query answers with an error string
-        // rather than a count. Treat that as "no capabilities", but log it.
-        _log.info(
-            "getLsCapabilitiesCommand: unparseable reply, assuming no $category capabilities ($e)");
+        rethrow;
+      } on _UnsupportedCapabilityQuery {
         return <String>{};
       } finally {
         await listener.cancel();
       }
     });
 
-/// Reads a librescoot settings key via the generic get command. Returns null
-/// if the key or the get command itself is unsupported (or on timeout), and
-/// "" if the key exists but is unset.
+class _UnsupportedCapabilityQuery implements Exception {
+  const _UnsupportedCapabilityQuery();
+}
+
+/// Returns null only when the key or command is explicitly unsupported, and
+/// "" if the key exists but is unset. Unknown outcomes throw.
 Future<String?> getLsSettingCommand(
     BluetoothDevice? scooter, CharacteristicRepository repo, String key,
-    {bool Function()? isCurrent}) async {
+    {bool Function()? isCurrent,
+    Duration responseTimeout = extendedResponseTimeout}) async {
   final response = await sendLsExtendedCommand(scooter, repo, "get:$key",
-      isCurrent: isCurrent);
-  final prefix = "get:$key:";
-  if (response == null || !response.startsWith(prefix)) {
-    // covers "get:error:unknown key", "error:unknown command" and timeouts
-    _log.info(
-        "getLsSettingCommand: '$key' unsupported or failed, response: $response");
+      isCurrent: isCurrent, responseTimeout: responseTimeout);
+  if (response == null) {
+    throw TimeoutException('No setting response for $key');
+  }
+  if (response == 'get:error:unknown key' ||
+      response == 'error:unknown command') {
     return null;
+  }
+  final prefix = "get:$key:";
+  if (!response.startsWith(prefix)) {
+    throw const ExtendedResponseFormatException('unexpected setting response');
   }
   // the value is everything after the first colon following the key; it may
   // itself contain spaces or colons (e.g. cron expressions)

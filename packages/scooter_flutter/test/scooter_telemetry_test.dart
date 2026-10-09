@@ -286,7 +286,8 @@ class _Harness {
                     usedFallback: false,
                   );
                 } catch (_) {
-                  return const LsCapabilityGroups({}, usedFallback: false);
+                  return const LsCapabilityGroups({},
+                      usedFallback: false, answered: false);
                 }
               });
     sessionEffects = _SessionEffects(telemetry);
@@ -836,17 +837,15 @@ void main() {
     await _flush();
 
     expect(h.telemetry.identity.imxVersion, isNull);
-    expect(h.telemetry.identity.isLibrescoot, false);
+    expect(h.telemetry.identity.isLibrescoot, true);
     final verdictPatch = h.effects.patches.lastWhere(
       (patch) => patch.$1 == 'B' && patch.$2.isLibrescoot != null,
     );
-    expect(verdictPatch.$2.isLibrescoot, false);
+    expect(verdictPatch.$2.isLibrescoot, true);
   });
 
-  test('a stock system behind a librescoot nRF clears the capabilities',
+  test('a missing system version does not discard confirmed capabilities',
       () async {
-    // The nRF is a librescoot build, and stays one after a stock image is
-    // flashed; stock firmware never answers the version query.
     final h = _Harness(imxVersion: '');
     addTearDown(h.dispose);
     final r = await h.connect('A');
@@ -857,10 +856,10 @@ void main() {
     _firmware(r);
     await _flush();
 
-    expect(_caps(h.telemetry.identity), List.filled(8, false));
-    expect(h.queries, isEmpty,
-        reason: 'a stock system is not probed for librescoot services');
-    expect(h.telemetry.identity.isLibrescoot, false);
+    expect(h.telemetry.identity.supportsAlarmControl, isTrue);
+    expect(h.telemetry.identity.supportsApnConfig, isTrue);
+    expect(h.queries, _queryOrder);
+    expect(h.telemetry.identity.isLibrescoot, isTrue);
   });
 
   test('a librescoot system behind the nRF is probed as usual', () async {
@@ -877,15 +876,15 @@ void main() {
     expect(h.telemetry.identity.isLibrescoot, true);
   });
 
-  test('a system that answers without a version is stock', () async {
+  test('an empty version cannot establish a non-Librescoot identity', () async {
     final h = _Harness(imxVersion: '');
     addTearDown(h.dispose);
     final r = await h.connect('A');
     _firmware(r);
     await _flush();
 
-    expect(h.queries, isEmpty);
-    expect(h.telemetry.identity.isLibrescoot, false);
+    expect(h.queries, _queryOrder);
+    expect(h.telemetry.identity.isLibrescoot, true);
   });
 
   test('a hibernating system keeps the cached capabilities', () async {
@@ -924,7 +923,8 @@ void main() {
   });
 
   for (final version in [null, 1, 2, 3]) {
-    test('alarm capability $version gates temporary disarm and is cached', () async {
+    test('alarm capability $version gates temporary disarm and is cached',
+        () async {
       final h = _Harness(
           capabilityGroups: () async =>
               LsCapabilityGroups({'alarm': version}, usedFallback: false));
@@ -1023,6 +1023,80 @@ void main() {
     expect(h.telemetry.identity.bluetoothTableOutOfDate, isFalse);
   });
 
+  test('a cached OTA answer survives silence and explicit absence disables it',
+      () async {
+    var groups =
+        const LsCapabilityGroups({}, usedFallback: true, answered: false);
+    final h = _Harness(capabilityGroups: () async => groups);
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _wireExtended(r);
+    r.otaDataCharacteristic = r['state'];
+    r.otaControlCharacteristic = r['state'];
+    r.otaStatusCharacteristic = r['state'];
+    h.telemetry.seed(const CachedTelemetry(
+        isLibrescoot: true, capabilityGroups: {'ota': null}));
+    _firmware(r);
+    await _flush();
+    expect(h.telemetry.otaAvailable, isTrue);
+    groups = const LsCapabilityGroups({}, usedFallback: false);
+    h.telemetry.bind(h.sessionEffects.tokens.single, r);
+    r['nrfVersion'].reads.last.complete(utf8.encode('v2.13.0-ls'));
+    await _flush();
+    expect(h.telemetry.otaAvailable, isFalse);
+  });
+
+  test('legacy group lists retain confirmed versions and failed detail probes',
+      () async {
+    final h = _Harness(
+      capabilityGroups: () async => const LsCapabilityGroups(
+          {'alarm': null, 'nav': null, 'ble': null, 'ota': null},
+          usedFallback: true),
+      caps: (_) async => throw TimeoutException('lost capability notification'),
+      setting: (_) async => throw TimeoutException('lost setting notification'),
+    );
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _wireExtended(r);
+    h.telemetry.seed(const CachedTelemetry(
+        isLibrescoot: true,
+        capabilityGroups: {'alarm': 2, 'nav': 2, 'ble': null, 'ota': null},
+        supportsScheduledHibernation: true,
+        supportsBatteryKeepActive: true));
+    _firmware(r);
+    await _flush();
+    final identity = h.telemetry.identity;
+    expect(identity.supportsTemporaryAlarmDisarm, isTrue);
+    expect(identity.supportsRoutePlans, isTrue);
+    expect(identity.supportsBondForget, isTrue);
+    expect(identity.supportsScheduledHibernation, isTrue);
+    expect(identity.supportsBatteryKeepActive, isTrue);
+    expect(identity.supportsFirmwareUpdates, isTrue);
+    expect(
+        h.effects.patches
+            .where((p) => p.$2.supportsScheduledHibernation == false),
+        isEmpty);
+    expect(
+        h.effects.patches.where((p) => p.$2.supportsBatteryKeepActive == false),
+        isEmpty);
+  });
+
+  test('failed same-session version refresh preserves its confirmed reading',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    final r = await h.connect('A');
+    _firmware(r);
+    await _flush();
+    expect(h.telemetry.identity.imxVersion, 'v1.15.0');
+    final failed = _Characteristic();
+    r.imxVersionCharacteristic = failed;
+    final refresh = h.telemetry.identity.refreshImxVersion(r);
+    failed.reads.single.completeError(StateError('transient read failure'));
+    await refresh;
+    expect(h.telemetry.identity.imxVersion, 'v1.15.0');
+  });
+
   test('an answered empty capability list clears the capabilities', () async {
     final h = _Harness(
         capabilityGroups: () async =>
@@ -1091,21 +1165,20 @@ void main() {
   });
 
   test(
-      'actual shared default queries fail closed when extended group is absent',
+      'missing extended characteristics leave unknown capabilities unconfirmed',
       () async {
     final h = _Harness(defaultQueries: true);
     addTearDown(h.dispose);
     final r = await h.connect('A');
     _firmware(r);
     await _flush();
-    expect(_caps(h.telemetry.identity),
-        [false, null, false, false, null, false, false, false]);
-    expect(h.effects.patches.length, 3);
-    expect(h.effects.patches[1].$2.capabilityGroups, isEmpty);
+    expect(_caps(h.telemetry.identity), List.filled(8, null));
+    expect(h.effects.patches.length, 1);
+    expect(h.effects.patches.single.$2.capabilityGroups, isNull);
   });
 
   test(
-      'failed or unsupported probes continue sequentially and replace cached true values with false',
+      'failed discovery preserves cached capabilities instead of declaring absence',
       () async {
     final h = _Harness(
         caps: (_) async => throw StateError('failed'),
@@ -1116,12 +1189,13 @@ void main() {
     h.telemetry.identity.supportsApnConfig = true;
     _firmware(r);
     await _flush();
-    expect(h.queries, _queryOrder);
-    expect(_caps(h.telemetry.identity), List.filled(8, false));
+    expect(h.queries, ['cap:ext']);
+    expect(h.telemetry.identity.supportsHibernateFor, isTrue);
+    expect(h.telemetry.identity.supportsApnConfig, isTrue);
     expect(h.effects.patches.map((p) => p.$2.supportsHibernateFor).nonNulls,
-        [false]);
+        isEmpty);
     expect(
-        h.effects.patches.map((p) => p.$2.supportsApnConfig).nonNulls, [false]);
+        h.effects.patches.map((p) => p.$2.supportsApnConfig).nonNulls, isEmpty);
   });
 
   for (final position in [0, 1, 2]) {

@@ -2,7 +2,6 @@
 library;
 
 export 'alarm_wake_sources.dart';
-export 'firmware_requirements.dart';
 export 'go_duration.dart';
 export 'hibernation_schedule.dart';
 export 'ota_protocol.dart';

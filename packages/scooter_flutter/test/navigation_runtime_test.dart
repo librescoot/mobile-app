@@ -512,7 +512,7 @@ void main() {
         h.wire.reply('keycard:count:1');
         h.wire.reply('keycard:card:ab');
       } else if (command.startsWith('cap:')) {
-        h.wire.reply('cap:count:1');
+        h.wire.reply('cap:nav:count:1');
         h.wire.reply('cap:nav:dest args');
       } else {
         h.wire.reply('nav:ok');

@@ -133,6 +133,7 @@ class UpdateHarness {
         session: session,
         provider: provider,
         onTargetCaptured: onTargetCaptured,
+        supportsFirmware: () => firmwareSupported,
         channel: 'stable',
         cacheDirectory: () async {
           await cacheGate?.future;
@@ -150,6 +151,7 @@ class UpdateHarness {
   late Directory dir;
   Completer<void>? cacheGate;
   bool autoReady = false;
+  bool firmwareSupported = true;
   UpdateRepository get repo => repos[session.device!.remoteId.str]!;
   Future<void> init() async {
     dir = await Directory.systemTemp.createTemp('update-controller');
@@ -199,6 +201,23 @@ void main() {
   tearDown(() async {
     await h.close();
   });
+  test('explicit unsupported capability blocks OTA status and installation',
+      () async {
+    h.firmwareSupported = false;
+    expect(h.controller.otaAvailable, isFalse);
+    await h.controller.refresh();
+    expect(h.repo.control.writes, isEmpty);
+    await h.controller.executeStep(stepFor(release('v2.0.0')));
+    expect(h.provider.urls, isEmpty);
+    expect(h.repo.data.writes, isEmpty);
+    h.firmwareSupported = true;
+    expect(h.controller.otaAvailable, isTrue);
+    await h.controller.refresh();
+    expect(h.repo.control.writes, [
+      [5]
+    ]);
+  });
+
   test('query index plan prune download exact asset URL transfer', () async {
     final old = await File('${h.dir.path}/old.delta').writeAsString('old');
     await h.controller.refresh();

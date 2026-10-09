@@ -89,6 +89,8 @@ dev_dependencies:
   shared_preferences_platform_interface: ^2.4.1
   flutter_test:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   mockito: ^5.4.4
   build_runner: ^2.4.9
   flutter_string_extractor: ^1.1.2

@@ -29,9 +29,8 @@ class FirmwareIdentity {
   bool? isLibrescoot;
   int? odometerMeters;
 
-  /// Software version the system behind the link reports, if it reports one.
-  /// Not cached: it belongs to the connection, and a stale value would be worse
-  /// than none.
+  /// Last confirmed system version on this connection. Session seeding clears
+  /// it; failed refreshes do not discard a successful read.
   String? imxVersion;
 
   // librescoot capability flags, probed after each connection.
@@ -46,6 +45,7 @@ class FirmwareIdentity {
   bool? supportsTripCounter;
   bool? supportsTripExpunge;
   bool? supportsFileTransfer;
+  bool? supportsFirmwareUpdates;
 
   /// Group capabilities come from one complete `cap:ext` answer. The runtime
   /// seeds them from that last confirmed answer until a newer answer replaces
@@ -73,6 +73,7 @@ class FirmwareIdentity {
     supportsTripCounter = null;
     supportsTripExpunge = null;
     supportsFileTransfer = null;
+    supportsFirmwareUpdates = null;
     supportsServiceMode = null;
     supportsNavigation = null;
     navigationCapabilityVersion = null;
@@ -115,14 +116,12 @@ class FirmwareIdentity {
     });
   }
 
-  /// One characteristic read. Failure or an empty value leaves [imxVersion]
-  /// null, which the caller reads as "no answer" rather than "stock".
+  /// Failure or an empty value preserves the last confirmed version.
   Future<void> refreshImxVersion(
     CharacteristicRepository chars, {
     bool Function()? isCurrent,
   }) async {
     if (isCurrent?.call() == false) return;
-    imxVersion = null;
     final characteristic = chars.imxVersionCharacteristic;
     if (characteristic == null) return;
     await readAnonImxVersion(characteristic, (version) {

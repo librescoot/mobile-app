@@ -339,7 +339,7 @@ void main() {
     expect(storage.scooters[device.remoteId.toString()]?.cachedOdometerMeters, 123);
   }
 
-  test('Bluetooth updates require eligible MDB version and live OTA characteristics', () async {
+  test('Bluetooth updates use confirmed support and live OTA characteristics, not version strings', () async {
     repository.otaDataCharacteristic = repository.characteristic([]);
     repository.otaControlCharacteristic = repository.characteristic([]);
     repository.otaStatusCharacteristic = repository.characteristic([]);
@@ -349,16 +349,22 @@ void main() {
     await drain();
     await finishConnection(attempt, devices['A']!);
     service.identity.nrfVersion = 'v2.14.0-ls';
-    expect(service.otaAvailable, isFalse, reason: 'nRF version does not qualify the MDB');
-    for (final (version, eligible) in [
-      ('v1.1.9', false),
-      ('nightly-20260802T235959', false),
-      ('v1.2.0', true),
-      ('testing-20260803T000000', true),
+    service.identity.supportsFirmwareUpdates = null;
+    for (final version in <String?>[
+      null,
+      'v1.1.9',
+      'nightly-20260802T235959',
+      'v1.2.0',
+      'testing-20261002t153559',
+      'custom-build',
     ]) {
       service.identity.imxVersion = version;
-      expect(service.otaAvailable, eligible, reason: version);
+      expect(service.otaAvailable, isTrue, reason: version);
     }
+    service.identity.supportsFirmwareUpdates = false;
+    expect(service.otaAvailable, isFalse);
+    service.identity.supportsFirmwareUpdates = true;
+    expect(service.otaAvailable, isTrue);
     final data = repository.otaDataCharacteristic;
     repository.otaDataCharacteristic = null;
     expect(service.otaAvailable, isFalse);
