@@ -1,0 +1,5 @@
+Nieuw in 1.3.0-beta.20:
+
+• Bluetooth-firmware-updates gebruiken bevestigde ondersteuning in plaats van versienamen.
+• Bevestigde functies blijven beschikbaar bij tijdelijke leesfouten.
+• Systeeminformatie biedt een duidelijkere versieknop en directe toegang tot Bluetooth-firmware-updates.

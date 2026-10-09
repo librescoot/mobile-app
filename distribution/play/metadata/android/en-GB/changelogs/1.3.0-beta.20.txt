@@ -1,0 +1,5 @@
+What’s new in 1.3.0-beta.20:
+
+• Bluetooth firmware updates use confirmed support instead of firmware version names.
+• Confirmed features stay available through temporary read failures.
+• System information offers “Reload version info” and a direct Bluetooth firmware update entry.

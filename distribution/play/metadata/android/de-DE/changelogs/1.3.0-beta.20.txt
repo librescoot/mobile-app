@@ -1,0 +1,5 @@
+Neu in 1.3.0-beta.20:
+
+• Bluetooth-Firmware-Updates richten sich nach bestätigter Unterstützung, nicht nach Versionsnamen.
+• Bestätigte Funktionen bleiben bei vorübergehenden Lesefehlern verfügbar.
+• Systeminformationen bieten „Versionsnummern aktualisieren“ und direkten Zugang zu Bluetooth-Firmware-Updates.

@@ -1,0 +1,5 @@
+Nouveautés de 1.3.0-beta.20 :
+
+• Les mises à jour du firmware Bluetooth reposent sur les fonctions confirmées, pas sur le nom de la version.
+• Les fonctions confirmées restent disponibles en cas d’erreurs de lecture temporaires.
+• Accès direct aux mises à jour Bluetooth depuis les informations système.
