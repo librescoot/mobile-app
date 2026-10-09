@@ -212,7 +212,9 @@ Play listing. The uploader checks Play's image limits, avoids duplicate images,
 never deletes existing listing images, and verifies the committed listing.
 Use `upload_wear_bundle=true` with `wear_bundle_run_id=<successful test-build run>`
 to add that run's AAB to Play's bundle library without assigning it to a test
-track or creating a release; the workflow verifies that all tracks remain unchanged.
+track or creating a release. Use `assign_wear_internal=true` with the same run ID
+to assign the already-uploaded AAB to Wear internal testing; the workflow verifies
+the bundle hash and confirms all other tracks remain unchanged.
 
 ### watchOS
 
