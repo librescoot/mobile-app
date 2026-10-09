@@ -15,7 +15,11 @@ on:
         type: boolean
         default: false
       publish_wear:
-        description: Publish Wear OS to wear:alpha (requires wear=true and the Console tester list configured)
+        description: Publish Wear OS to wear:alpha (requires wear=true and the Console closed track/testers configured)
+        type: boolean
+        default: false
+      upload_wear_screenshots:
+        description: Upload the verified Wear OS screenshots to every existing localized Play listing
         type: boolean
         default: false
 
@@ -26,7 +30,7 @@ concurrency:
 jobs:
   build:
     name: Build test artifacts
-    if: ${{ !inputs.inspect_wear_testing }}
+    if: ${{ !inputs.inspect_wear_testing && !inputs.upload_wear_screenshots }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -71,6 +75,9 @@ jobs:
           flutter build apk --config-only --release --build-name="$VERSION" --build-number="$CODE"
           android/gradlew -p android :wear:assembleRelease :wear:bundleRelease \
             -PwearVersionName="$VERSION" -PwearVersionCode="$CODE"
+          AAPT="$(ls "$ANDROID_HOME"/build-tools/*/aapt | sort -V | tail -1)"
+          "$AAPT" dump badging build/wear/outputs/apk/release/wear-release.apk | grep -F "uses-feature: name='android.hardware.type.watch'"
+          ! "$AAPT" dump badging build/wear/outputs/apk/release/wear-release.apk | grep -F "uses-feature-not-required: name='android.hardware.type.watch'"
           echo "$CODE" > build/wear/version-code.txt
           echo "$VERSION" > build/wear/version-name.txt
 
@@ -92,7 +99,7 @@ jobs:
 
   publish-wear:
     name: Publish Wear OS closed testing
-    if: inputs.wear && inputs.publish_wear && !inputs.inspect_wear_testing
+    if: inputs.wear && inputs.publish_wear && !inputs.inspect_wear_testing && !inputs.upload_wear_screenshots
     needs: build
     runs-on: ubuntu-latest
     concurrency:
@@ -128,7 +135,7 @@ jobs:
 
   inspect-wear:
     name: Inspect Wear OS testing setup
-    if: inputs.inspect_wear_testing
+    if: inputs.inspect_wear_testing && !inputs.upload_wear_screenshots
     runs-on: ubuntu-latest
     concurrency:
       group: google-play-publish
@@ -169,3 +176,28 @@ jobs:
               with urllib.request.urlopen(req, timeout=30):
                   pass
           PY
+
+  upload-wear-screenshots:
+    name: Upload Wear OS screenshots to Play listings
+    if: inputs.upload_wear_screenshots && !inputs.inspect_wear_testing && github.repository == 'librescoot/mobile-app'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: google-play-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/47940350172/locations/global/workloadIdentityPools/github-actions/providers/mobile-app
+          audience: https://github.com/librescoot
+          service_account: librescoot-play-publisher@android-apps-508215.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+      - name: Add verified screenshots without removing existing listing images
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: python3 .github/scripts/upload_wear_screenshots.py

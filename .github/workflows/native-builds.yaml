@@ -75,8 +75,13 @@ jobs:
           keyAlias=build-check
           storeFile=$RUNNER_TEMP/build-check.jks
           EOF
-      - name: Build release Wear OS bundle
-        run: android/gradlew -p android :wear:bundleRelease -PwearVersionCode=1 -PwearVersionName=0.1.0
+      - name: Build release Wear OS artifacts
+        run: android/gradlew -p android :wear:assembleRelease :wear:bundleRelease -PwearVersionCode=1 -PwearVersionName=0.1.0
+      - name: Verify Wear OS release metadata
+        run: |
+          AAPT="$(ls "$ANDROID_HOME"/build-tools/*/aapt | sort -V | tail -1)"
+          "$AAPT" dump badging build/wear/outputs/apk/release/wear-release.apk | grep -F "uses-feature: name='android.hardware.type.watch'"
+          ! "$AAPT" dump badging build/wear/outputs/apk/release/wear-release.apk | grep -F "uses-feature-not-required: name='android.hardware.type.watch'"
       - run: flutter build appbundle --release
 
   apple:

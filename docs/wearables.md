@@ -190,7 +190,9 @@ Install each APK on its respective emulator/device. The watch supports Wear OS
 3+ (Android API 30+). Release builds read the phone's `android/key.properties`
 signing configuration. Pass `-PwearVersionCode=<unique-store-code>` and
 `-PwearVersionName=<version>` when building release artifacts. The watch and
-phone must share the Play application and signing identity.
+phone must share the Play application and signing identity. The merged Wear
+release manifest marks `android.hardware.type.watch` as required so Play accepts
+the bundle on Wear OS tracks.
 
 The **Test build** workflow with `wear=true` produces signed watch APK/AAB
 artifacts, using a fresh seconds-since-2020 version code. With
@@ -200,6 +202,14 @@ tracks stay unchanged. First enable Wear OS in Play Console, create the closed
 email lists require Console configuration; the Publisher API exposes Google
 groups, not those lists. `inspect_wear_testing=true` checks tracks without
 publishing or building. These workflows do not publish Wear OS to production.
+
+Opaque 454×454 RGB screenshots for the Wear listing are in
+`distribution/wearable-screenshots/en-US/`. They are direct captures from a
+Wear OS 5.1 emulator; the visible “Demo scooter” telemetry is synthetic sample
+data, not vehicle measurements. Dispatch **Test build** with
+`upload_wear_screenshots=true` to add these images to every existing localized
+Play listing. The uploader checks Play's image limits, avoids duplicate images,
+never deletes existing listing images, and verifies the committed listing.
 
 ### watchOS
 
