@@ -1,6 +1,11 @@
 # Uncomment this line to define a global platform for your project
 platform :ios, '14.0'
 
+# Uploads use the document picker, not camera, photo-library or audio pickers.
+Pod::PICKER_MEDIA = false
+Pod::PICKER_AUDIO = false
+Pod::PICKER_DOCUMENT = true
+
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
