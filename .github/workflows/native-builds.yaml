@@ -96,6 +96,8 @@ jobs:
           VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)"
           flutter build ipa --release --no-codesign --build-name="${VERSION%%-*}"
           test -d build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app/Watch/ScooterWatch.app/PlugIns/ScooterWatchWidget.appex
+      - name: Verify document-only iOS picker
+        run: python3 .github/scripts/check_ios_picker.py
       - name: Build watchOS simulator app and complications
         run: |
           xcodebuild -project ios/Runner.xcodeproj -scheme ScooterWatch \

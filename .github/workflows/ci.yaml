@@ -20,10 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Test Apple publishing and signing tools
+      - name: Test Apple build, publishing and signing tools
         run: |
           python3 -m unittest discover -s tool -p 'test_testflight_notes.py'
           python3 -m unittest discover -s tool -p 'test_*signing*.py'
+          python3 -m unittest discover -s .github/scripts -p 'test_check_ios_picker.py'
 
       - uses: subosito/flutter-action@v2
         with:

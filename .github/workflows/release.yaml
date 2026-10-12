@@ -221,6 +221,9 @@ jobs:
             --build-number="$BUILD_NUMBER" \
             --export-options-plist=ios/ExportOptions.plist
 
+      - name: Verify document-only iOS picker
+        run: python3 .github/scripts/check_ios_picker.py
+
       - name: Locate iOS IPA
         id: ipa
         run: |
