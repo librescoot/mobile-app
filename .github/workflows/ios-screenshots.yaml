@@ -1,0 +1,38 @@
+name: Capture iOS listing screenshot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build iOS simulator app
+        run: flutter build ios --simulator --debug --no-codesign
+      - name: Launch on an iPhone simulator and capture
+        run: |
+          DEVICE="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for runtime, devices in sorted(d["devices"].items(), reverse=True) if "iOS" in runtime for v in devices if v["name"] == "iPhone 17 Pro"))')"
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl status_bar "$DEVICE" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
+          xcrun simctl install "$DEVICE" build/ios/iphonesimulator/Runner.app
+          xcrun simctl launch "$DEVICE" org.librescoot.mobile.unu
+          sleep 25
+          mkdir -p screenshots
+          xcrun simctl io "$DEVICE" screenshot screenshots/initial.png
+      - uses: actions/upload-artifact@v6
+        with:
+          name: ios-simulator-screenshot
+          path: screenshots/initial.png
+          retention-days: 7
