@@ -24,13 +24,12 @@ jobs:
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
-      - name: Enable the existing demo mode for screenshots
+      - name: Hide the debug banner for the screenshot
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('lib/app.dart')
           source = p.read_text()
-          source = source.replace('      _scooterService = service;', '      _scooterService = service;\n      WidgetsBinding.instance.addPostFrameCallback((_) => service.addDemoData());')
           source = source.replace('    return MaterialApp(\n', '    return MaterialApp(\n      debugShowCheckedModeBanner: false,\n')
           p.write_text(source)
           PY
@@ -41,7 +40,7 @@ jobs:
           xcrun simctl status_bar "$DEVICE" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
           xcrun simctl install "$DEVICE" build/ios/iphonesimulator/Runner.app
           xcrun simctl launch "$DEVICE" org.librescoot.mobile.unu
-          sleep 90
+          sleep 45
           mkdir -p screenshots
           xcrun simctl io "$DEVICE" screenshot screenshots/initial.png
       - uses: actions/upload-artifact@v6
