@@ -18,13 +18,16 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: Build iOS simulator app
-        run: flutter build ios --simulator --debug --no-codesign
-      - name: Launch on an iPhone simulator and capture
+      - name: Boot iPhone simulator
         run: |
           DEVICE="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for runtime, devices in sorted(d["devices"].items(), reverse=True) if "iOS" in runtime for v in devices if v["name"] == "iPhone 17 Pro"))')"
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
+      - name: Build iOS simulator app
+        run: flutter build ios --simulator --debug --no-codesign -d "$DEVICE"
+      - name: Launch on an iPhone simulator and capture
+        run: |
           xcrun simctl status_bar "$DEVICE" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
           xcrun simctl install "$DEVICE" build/ios/iphonesimulator/Runner.app
           xcrun simctl launch "$DEVICE" org.librescoot.mobile.unu
