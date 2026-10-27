@@ -38,6 +38,7 @@ import 'package:unustasis/ui/screens/ls_scheduled_hibernation_screen.dart';
 import 'package:unustasis/state/vehicle_status.dart';
 import 'package:unustasis/ui/screens/log_screen.dart';
 import '../wide_layout.dart';
+import 'battery_tracker_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({this.focusOnlineLocationServices = false, super.key});
@@ -1333,6 +1334,11 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           const RideStatsSettingsSection(),
         ],
         Header(FlutterI18n.translate(context, "stats_settings_section_app")),
+        ListTile(
+          leading: const Icon(Icons.battery_full),
+          title: Text(FlutterI18n.translate(context, 'battery_tracker_title')),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BatteryTrackerScreen())),
+        ),
         SwitchListTile(
           secondary: const Icon(Icons.science_outlined),
           title: Text(FlutterI18n.translate(context, 'settings_demo_mode')),

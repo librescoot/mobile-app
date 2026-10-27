@@ -25,6 +25,7 @@ import 'package:unustasis/service/onboarding_preferences.dart';
 import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/widgets/scooter_visual.dart';
 import 'package:unustasis/ui/screens/support_screen.dart';
+import 'battery_tracker_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({
@@ -440,6 +441,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
         systemOverlayStyle:
             SystemUiOverlayStyle(statusBarBrightness: context.isDarkMode ? Brightness.dark : Brightness.light),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.battery_full),
+            tooltip: FlutterI18n.translate(context, 'battery_tracker_title'),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BatteryTrackerScreen())),
+          ),
           Padding(
             padding: EdgeInsets.only(right: cornerInset),
             child: _cornerAction(

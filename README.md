@@ -38,6 +38,14 @@ hibernation starts, or eight hours pass, whichever comes first, without changing
 screen. Older firmware retains the existing **Stop alarm** control and does not
 show the temporary-disarm settings action.
 
+### Battery identification and registration
+
+Read pack serials over compatible scooter Bluetooth or supported battery NFC
+tags. Remembering checks on the phone is opt-in. Registration on rescoot.org
+requires a separate serial-verification and upload confirmation, followed by
+account consent in the browser. It records an unverified claim without changing
+ownership or theft status. See [battery identification and registration](docs/battery-registration.md).
+
 ### Wearable companions (experimental)
 
 Native Wear OS and watchOS companions provide explicit scooter controls, status,

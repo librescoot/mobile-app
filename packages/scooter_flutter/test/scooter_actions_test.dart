@@ -355,6 +355,61 @@ void main() {
     h.dispose();
     await settleTransport();
   });
+  test('battery identity uses capability-gated read-only slot snapshots',
+      () async {
+    final h = Harness(FakeAsync());
+    await settleTransport();
+    h.trace.clear();
+    h.wire.onWrite = (command) async {
+      h.wire.reply(switch (command) {
+        'cap:ext' => 'cap:ext:battery=1',
+        'battery:snapshot:0' =>
+          'battery:snapshot:0:{"present":true,"serial_number":"T-UNU22205090007"}',
+        _ => 'battery:snapshot:1:{"present":false}',
+      });
+    };
+    final result = await h.actions.readBatteryIdentities();
+    expect(result.single.serialNumber, 'T-UNU22205090007');
+    expect(
+        h.trace, ['A:cap:ext', 'A:battery:snapshot:0', 'A:battery:snapshot:1']);
+    expect(h.effects.events, isEmpty);
+    h.dispose();
+    await settleTransport();
+  });
+  test('battery identity rejects unsupported firmware without probing slots',
+      () async {
+    final h = Harness(FakeAsync());
+    await settleTransport();
+    h.trace.clear();
+    h.wire.onWrite = (_) async => h.wire.reply('cap:ext:status');
+    await expectLater(
+        h.actions.readBatteryIdentities(), throwsUnsupportedError);
+    expect(h.trace, ['A:cap:ext']);
+    h.dispose();
+    await settleTransport();
+  });
+  test(
+      'battery identity discards a response when the captured session disconnects',
+      () async {
+    final h = Harness(FakeAsync());
+    await settleTransport();
+    h.trace.clear();
+    final wire = h.wire;
+    wire.onWrite = (command) async {
+      if (command == 'cap:ext') {
+        wire.reply('cap:ext:battery=1');
+      } else {
+        wire.reply(
+            'battery:snapshot:0:{"present":true,"serial_number":"T-UNU22205090007"}');
+        h.device.drop();
+      }
+    };
+    await expectLater(h.actions.readBatteryIdentities(), throwsStateError);
+    expect(h.trace.where((line) => line.contains('battery:')),
+        ['A:battery:snapshot:0']);
+    h.dispose();
+    await settleTransport();
+  });
   test('nRF remains available without extended-command firmware', () async {
     final h = Harness(FakeAsync());
     await settleTransport();

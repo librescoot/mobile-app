@@ -14,6 +14,7 @@ import 'package:unustasis/domain/scooter_battery.dart';
 import 'package:unustasis/ui/widgets/header.dart';
 import 'package:unustasis/scooter_service.dart';
 import '../wide_layout.dart';
+import 'battery_tracker_screen.dart';
 
 typedef _BatteryScreenViewData = ({
   int? primarySOC,
@@ -65,6 +66,11 @@ class _BatteryScreenState extends State<BatteryScreen> {
         return Scaffold(
             appBar: AppBar(
               title: Text(FlutterI18n.translate(context, 'stats_title_battery')),
+              actions: [IconButton(
+                icon: const Icon(Icons.battery_full),
+                tooltip: FlutterI18n.translate(context, 'battery_tracker_title'),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BatteryTrackerScreen())),
+              )],
             ),
             body: ListView(
               padding: wideContentPadding(

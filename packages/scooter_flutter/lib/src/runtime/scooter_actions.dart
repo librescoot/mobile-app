@@ -1,4 +1,6 @@
 import 'dart:async';
+
+import 'package:scooter_core/battery_identity.dart';
 import 'package:scooter_core/companion.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -481,6 +483,33 @@ class ScooterActions {
     // The existing session-owned Device Info subscription already reads nRF.
     versions['nrf'] = telemetry.identity.nrfVersion;
     return Map.unmodifiable(versions);
+  }
+
+  Future<List<BatteryIdentity>> readBatteryIdentities() async {
+    final target = _capture();
+    final groups = await _command(
+        target,
+        (d, r, c) =>
+            queries.discoverLsCapabilityGroupsCommand(d, r, isCurrent: c));
+    if (!groups.answered || !groups.contains('battery')) {
+      throw UnsupportedError(
+          'Battery identity requires compatible scooter firmware');
+    }
+    final identities = <BatteryIdentity>[];
+    for (final slot in [0, 1]) {
+      final response = await _command(
+          target,
+          (d, r, c) => transport.sendLsExtendedCommand(
+              d, r, 'battery:snapshot:$slot',
+              isCurrent: c));
+      _check(target);
+      if (response == null) throw StateError('Battery identity unavailable');
+      final identity =
+          parseBatteryIdentitySnapshot(response, slot, DateTime.now());
+      if (identity != null) identities.add(identity);
+    }
+    _check(target);
+    return List.unmodifiable(identities);
   }
 
   Future<bool?> getBoolSetting(String key) async {
