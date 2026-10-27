@@ -1,0 +1,25 @@
+name: Prepare App Store listing
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: Processed iOS build number to attach to version 1.3.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Prepare initial listing and attach build
+        env:
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: python3 .github/scripts/prepare_app_store.py --build-number "$BUILD_NUMBER"
