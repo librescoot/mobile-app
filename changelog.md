@@ -1,5 +1,11 @@
-What's new in 1.3.0-beta.19:
+## Librescoot App for unu 1.3.0
 
-• Bluetooth firmware updates are now shown only when the MDB runs Librescoot 1.2.0 or newer, or a nightly/testing build dated 3 August 2026 or later.
-• The option stays hidden for older or unknown MDB versions, while offline, in demo mode, or when BLE update support is unavailable.
-• USB update controls are unchanged.
+First stable store release of the Librescoot companion app for unu Scooter Pro.
+
+- Direct Bluetooth controls for vehicle state, seatbox and indicators.
+- Battery status, estimated range and home-screen widgets.
+- Saved destinations, shared locations and navigation on compatible firmware.
+- Keycard, alarm, hibernation and firmware-update controls on compatible Librescoot firmware.
+- Capability-aware controls, reliable Bluetooth file transfers and document-only iOS file selection.
+
+Available features depend on the scooter hardware and installed firmware.

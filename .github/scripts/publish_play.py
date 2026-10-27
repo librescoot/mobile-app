@@ -121,6 +121,8 @@ def main():
     codes = staged["releases"][0]["versionCodes"]
     if codes != [str(args.version_code)]:
         raise RuntimeError(f"staged track has unexpected version codes: {codes}")
+    if staged["releases"][0].get("status") != args.status:
+        raise RuntimeError("staged release status does not match the requested rollout")
     request(token, "POST", f"{BASE}/edits/{edit_id}:commit")
 
     verify = request(token, "POST", f"{BASE}/edits", b"{}")
@@ -132,12 +134,14 @@ def main():
     production_after = track_state(token, verify_id, "production")
     if verified_codes != [str(args.version_code)]:
         raise RuntimeError(f"committed track has unexpected version codes: {verified_codes}")
+    if verified_track["releases"][0].get("status") != args.status:
+        raise RuntimeError("committed release status does not match the requested rollout")
     if verified_bundle is None or verified_bundle.get("sha256") != digest:
         raise RuntimeError("committed bundle digest does not match the uploaded AAB")
     if args.track != "production" and production_after != production_before:
         raise RuntimeError("production track changed while publishing a testing build")
 
-    print(f"Published {args.name} ({args.version_code}) to {args.track}")
+    print(f"Published {args.name} ({args.version_code}) to {args.track} ({args.status})")
     print(f"AAB SHA-256: {digest}")
     print(f"Release notes languages: {', '.join(n['language'] for n in release_notes)}")
 

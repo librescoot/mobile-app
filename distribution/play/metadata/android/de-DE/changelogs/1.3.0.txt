@@ -1,0 +1,1 @@
+Erste stabile Store-Version für den unu Scooter Pro. Steuere deinen Roller per Bluetooth, prüfe Akkus und Reichweite, speichere Ziele und nutze Startbildschirm-Widgets. Kompatible Librescoot-Firmware ergänzt Schlüsselkarten, Alarm, Ruhezustand, Navigation und Firmwareupdates. Verfügbare Funktionen hängen von Roller und Firmware ab.

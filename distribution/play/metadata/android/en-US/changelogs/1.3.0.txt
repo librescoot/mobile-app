@@ -1,0 +1,1 @@
+First stable store release for unu Scooter Pro. Control your scooter over Bluetooth, check batteries and range, save destinations and use home-screen widgets. Compatible Librescoot firmware adds keycard, alarm, hibernation, navigation and firmware-update controls. Available features depend on your scooter and firmware.

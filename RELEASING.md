@@ -35,9 +35,13 @@ A hyphen in the tag marks it as a GitHub prerelease. The workflow resolves an
 intended Play track (`alpha` for prereleases, a `production` draft otherwise),
 which can be overridden for a manual dispatch. Alpha is the closed-testing
 track holding the external testers; every push to main still reaches internal
-through nightly. Production uploads always land as drafts: start the rollout
-from the Play console when the release should reach users. It verifies the
-uploaded AAB's version code
+through nightly. Tagged production uploads and manual dispatches default to drafts.
+For an explicitly authorized public release, manually dispatch `release.yaml`
+with `play_track=production` and `production_status=completed`. This submits the
+production rollout to Google Play. App Store public submission is separate from
+TestFlight upload and requires the listing, screenshots and review information
+in App Store Connect. `store-status.yaml` checks current store readiness without
+committing Play changes. The publishing script verifies the uploaded AAB's version code
 and SHA-256 before committing the Play edit, then checks the committed track and
 bundle again. Every configured iOS build goes to TestFlight. Only tagged
 prereleases are assigned to the `External Testing` group; nightlies and stable

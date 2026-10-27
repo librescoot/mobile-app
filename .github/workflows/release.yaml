@@ -7,8 +7,8 @@ name: Release
 #
 # A tag carrying a hyphen is marked as a GitHub prerelease. Prereleases go to
 # the alpha track (external closed testing); releases without a suffix stage
-# a production draft whose rollout starts from the Play console. Any
-# production upload, dispatch included, lands as a draft.
+# a production draft. An explicitly selected manual dispatch can start
+# production rollout; tagged production releases remain drafts.
 
 permissions:
   contents: write
@@ -25,6 +25,11 @@ on:
         type: choice
         options: [internal, alpha, beta, production]
         default: internal
+      production_status:
+        description: Production rollout status (completed submits the public release)
+        type: choice
+        options: [draft, completed]
+        default: draft
 
 jobs:
   meta:
@@ -61,8 +66,13 @@ jobs:
           if [ -z "$TRACK" ]; then
             [ "$PRE" = "true" ] && TRACK=alpha || TRACK=production
           fi
-          # Production never goes live from CI; a human starts the rollout.
-          [ "$TRACK" = "production" ] && STATUS=draft || STATUS=completed
+          STATUS=completed
+          if [ "$TRACK" = "production" ]; then
+            STATUS=draft
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              STATUS="${{ inputs.production_status || 'draft' }}"
+            fi
+          fi
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRE" >> "$GITHUB_OUTPUT"

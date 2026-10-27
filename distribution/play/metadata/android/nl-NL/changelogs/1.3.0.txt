@@ -1,0 +1,1 @@
+Eerste stabiele winkelversie voor unu Scooter Pro. Bedien je scooter via Bluetooth, bekijk accu's en bereik, bewaar bestemmingen en gebruik startschermwidgets. Compatibele Librescoot-firmware biedt ook sleutelkaarten, alarm, slaapstand, navigatie en firmware-updates. Beschikbare functies hangen af van je scooter en firmware.

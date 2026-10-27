@@ -1,0 +1,1 @@
+Première version stable pour unu Scooter Pro. Contrôlez votre scooter en Bluetooth, consultez les batteries et l'autonomie, enregistrez des destinations et utilisez les widgets. Un micrologiciel Librescoot compatible ajoute les cartes-clés, l'alarme, la veille prolongée, la navigation et les mises à jour. Les fonctions dépendent du scooter et du micrologiciel.
