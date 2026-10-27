@@ -12,6 +12,12 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+      - run: flutter pub get
       - name: Boot Apple Watch simulator
         run: |
           DEVICE="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for runtime, devices in sorted(d["devices"].items(), reverse=True) if "watchOS" in runtime for v in devices if "Apple Watch Series 11" in v["name"] and "46mm" in v["name"]))')"
