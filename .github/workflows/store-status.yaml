@@ -1,0 +1,84 @@
+name: Store release readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apple:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Inspect App Store release readiness
+        env:
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, tempfile
+          sys.path.insert(0, '.github/scripts')
+          import testflight_notes as api
+          with tempfile.NamedTemporaryFile('w', suffix='.p8') as key:
+              os.chmod(key.name, 0o600)
+              key.write(os.environ['APPSTORE_PRIVATE_KEY'])
+              key.flush()
+              token = api.mint_token(key.name, os.environ['APPSTORE_KEY_ID'], os.environ['APPSTORE_ISSUER_ID'])
+              app = api.resolve_app(token, 'org.librescoot.mobile.unu')
+              versions = api.request(token, 'GET', f'{api.API}/apps/{app}/appStoreVersions?filter[platform]=IOS&limit=20')['data']
+              print('App Store versions:', json.dumps([{'id': v['id'], **{k: v['attributes'].get(k) for k in ('versionString', 'appStoreState', 'releaseType')}} for v in versions]))
+              for version in versions:
+                  base = f"{api.API}/appStoreVersions/{version['id']}"
+                  locales = api.request(token, 'GET', base + '/appStoreVersionLocalizations?limit=200')['data']
+                  for locale in locales:
+                      fields = locale['attributes']
+                      sets = api.request(token, 'GET', f"{api.API}/appStoreVersionLocalizations/{locale['id']}/appScreenshotSets?include=appScreenshots&limit=200")
+                      print('Version locale:', json.dumps({'version': version['attributes']['versionString'], 'locale': fields['locale'], 'fields_present': {k: bool(fields.get(k)) for k in ('description', 'keywords', 'supportUrl', 'whatsNew')}, 'screenshot_count': len(sets.get('included', []))}))
+                  review = api.request(token, 'GET', base + '/appStoreReviewDetail').get('data')
+                  if review:
+                      fields = review['attributes']
+                      print('Review fields present:', json.dumps({k: bool(fields.get(k)) for k in ('contactFirstName', 'contactLastName', 'contactPhone', 'contactEmail', 'demoAccountRequired', 'demoAccountName', 'demoAccountPassword', 'notes')}))
+              infos = api.request(token, 'GET', f'{api.API}/apps/{app}/appInfos?limit=20')['data']
+              for info in infos:
+                  locales = api.request(token, 'GET', f"{api.API}/appInfos/{info['id']}/appInfoLocalizations?limit=200")['data']
+                  print('App info:', json.dumps({'id': info['id'], 'state': info['attributes'].get('appStoreState'), 'locales': [{'locale': l['attributes']['locale'], 'privacy_url_present': bool(l['attributes'].get('privacyPolicyUrl'))} for l in locales]}))
+          PY
+
+  play:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: google-play-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/47940350172/locations/global/workloadIdentityPools/github-actions/providers/mobile-app
+          audience: https://github.com/librescoot
+          service_account: librescoot-play-publisher@android-apps-508215.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+      - name: Inspect Play tracks without committing changes
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, urllib.request
+          sys.path.insert(0, '.github/scripts')
+          import publish_play as api
+          token = os.environ['GOOGLE_OAUTH_ACCESS_TOKEN']
+          edit = api.request(token, 'POST', f'{api.BASE}/edits', b'{}')['id']
+          try:
+              tracks = api.request(token, 'GET', f'{api.BASE}/edits/{edit}/tracks')['tracks']
+              print('Play tracks:', json.dumps([{'track': t['track'], 'releases': [{k: r.get(k) for k in ('name', 'status', 'versionCodes')} for r in t.get('releases', [])]} for t in tracks]))
+          finally:
+              request = urllib.request.Request(f'{api.BASE}/edits/{edit}', headers={'Authorization': f'Bearer {token}'}, method='DELETE')
+              with urllib.request.urlopen(request) as response:
+                  response.read()
+          PY
