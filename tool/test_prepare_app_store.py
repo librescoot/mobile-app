@@ -46,6 +46,14 @@ class FreePriceTests(unittest.TestCase):
             subject.configure_free_price('token', 'app')
         self.assertEqual(request.call_count, 2)
 
+    def test_virtual_schedule_with_missing_prices_creates_schedule(self):
+        responses = [{'data': {'id': 'app'}}, RuntimeError('GET url: 404 {"code" : "NOT_FOUND"}'),
+                     {'data': [{'id': 'free', 'attributes': {'customerPrice': '0.00'}}]},
+                     {'data': {'id': 'app'}}, {'data': {'id': 'app'}}]
+        with patch.object(subject.asc, 'request', side_effect=responses) as request:
+            subject.configure_free_price('token', 'app')
+        self.assertEqual(request.call_args_list[3].args[1], 'POST')
+
     def test_missing_free_price_is_rejected(self):
         with patch.object(subject.asc, 'request', side_effect=[{'data': None}, {'data': []}]):
             with self.assertRaisesRegex(RuntimeError, 'Expected one free'):

@@ -29,12 +29,18 @@ def patch(token, resource, identifier, attributes=None, relationships=None):
 def configure_free_price(token, app):
     schedule = asc.request(token, 'GET', f'{asc.API}/apps/{app}/appPriceSchedule').get('data')
     if schedule:
-        prices = asc.request(token, 'GET', f"{asc.API}/appPriceSchedules/{schedule['id']}/manualPrices?include=appPricePoint&limit=200")
-        points = [p for p in prices.get('included', []) if p['type'] == 'appPricePoints']
-        if len(prices['data']) != 1 or len(points) != 1 or float(points[0]['attributes']['customerPrice']) != 0:
-            raise RuntimeError('Existing price schedule is not a single free base price; refusing to overwrite it')
-        print('Existing free base price schedule verified')
-        return
+        try:
+            prices = asc.request(token, 'GET', f"{asc.API}/appPriceSchedules/{schedule['id']}/manualPrices?include=appPricePoint&limit=200")
+        except RuntimeError as error:
+            if ': 404 ' not in str(error) or '"code" : "NOT_FOUND"' not in str(error):
+                raise
+            prices = None
+        if prices is not None:
+            points = [p for p in prices.get('included', []) if p['type'] == 'appPricePoints']
+            if len(prices['data']) != 1 or len(points) != 1 or float(points[0]['attributes']['customerPrice']) != 0:
+                raise RuntimeError('Existing price schedule is not a single free base price; refusing to overwrite it')
+            print('Existing free base price schedule verified')
+            return
     query = urllib.parse.urlencode({'filter[territory]': 'USA', 'limit': 200})
     url = f'{asc.API}/apps/{app}/appPricePoints?{query}'
     free = []
