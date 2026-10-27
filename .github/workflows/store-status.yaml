@@ -40,10 +40,15 @@ jobs:
                   if review:
                       fields = review['attributes']
                       print('Review fields present:', json.dumps({k: bool(fields.get(k)) for k in ('contactFirstName', 'contactLastName', 'contactPhone', 'contactEmail', 'demoAccountRequired', 'demoAccountName', 'demoAccountPassword', 'notes')}))
+              beta = api.request(token, 'GET', f'{api.API}/apps/{app}/betaAppReviewDetail').get('data')
+              if beta:
+                  print('TestFlight review contact fields present:', json.dumps({k: bool(beta['attributes'].get(k)) for k in ('contactFirstName', 'contactLastName', 'contactPhone', 'contactEmail', 'demoAccountRequired', 'demoAccountName', 'demoAccountPassword', 'notes')}))
               infos = api.request(token, 'GET', f'{api.API}/apps/{app}/appInfos?limit=20')['data']
               for info in infos:
                   locales = api.request(token, 'GET', f"{api.API}/appInfos/{info['id']}/appInfoLocalizations?limit=200")['data']
                   print('App info:', json.dumps({'id': info['id'], 'state': info['attributes'].get('appStoreState'), 'locales': [{'locale': l['attributes']['locale'], 'privacy_url_present': bool(l['attributes'].get('privacyPolicyUrl'))} for l in locales]}))
+                  rating = api.request(token, 'GET', f"{api.API}/appInfos/{info['id']}/ageRatingDeclaration").get('data')
+                  print('Age rating declaration:', json.dumps(rating['attributes'] if rating else None))
           PY
 
   play:
