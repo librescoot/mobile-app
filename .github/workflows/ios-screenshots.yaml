@@ -24,6 +24,16 @@ jobs:
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
+      - name: Enable the existing demo mode for screenshots
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('lib/app.dart')
+          source = p.read_text()
+          source = source.replace('      _scooterService = service;', '      _scooterService = service;\n      service.addDemoData();')
+          source = source.replace('    return MaterialApp(\n', '    return MaterialApp(\n      debugShowCheckedModeBanner: false,\n')
+          p.write_text(source)
+          PY
       - name: Build iOS simulator app
         run: flutter build ios --simulator --debug --no-codesign -d "$DEVICE"
       - name: Launch on an iPhone simulator and capture
