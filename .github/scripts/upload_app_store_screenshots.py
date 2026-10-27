@@ -73,8 +73,7 @@ def main():
         locales = [l for l in localizations if l['attributes']['locale'] == 'de-DE']
         if len(locales) != 1:
             raise RuntimeError('Expected one German listing')
-        upload(token, locales[0]['id'], 'APP_IPHONE_61', Path('screenshots/iphone.jpg'))
-        upload(token, locales[0]['id'], 'APP_IPAD_PRO_3GEN_129', Path('screenshots/ipad.jpg'))
+        upload(token, locales[0]['id'], 'WATCH_SERIES_3_PROFILE', Path('screenshots/watch.jpg'))
 
 
 if __name__ == '__main__':

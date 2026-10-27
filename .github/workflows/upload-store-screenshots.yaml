@@ -16,11 +16,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p screenshots/phone screenshots/tablet
-          gh run download 40496795523 -n ios-simulator-screenshot -D screenshots/phone
-          gh run download 40499148924 -n ios-simulator-screenshot -D screenshots/tablet
-          sips -s format jpeg screenshots/phone/initial.png --out screenshots/iphone.jpg >/dev/null
-          sips -s format jpeg screenshots/tablet/initial.png --out screenshots/ipad.jpg >/dev/null
+          mkdir -p screenshots/watch
+          gh run download 40502163656 -n watch-simulator-screenshot -D screenshots/watch
+          sips -s format jpeg screenshots/watch/watch.png --out screenshots/watch.jpg >/dev/null
       - name: Upload screenshots to App Store Connect
         env:
           APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
