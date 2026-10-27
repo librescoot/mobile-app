@@ -1,0 +1,29 @@
+name: Upload App Store screenshots
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  upload:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download reviewed simulator captures
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p screenshots/phone screenshots/tablet
+          gh run download 40496795523 -n ios-simulator-screenshot -D screenshots/phone
+          gh run download 40499148924 -n ios-simulator-screenshot -D screenshots/tablet
+          sips -s format jpeg screenshots/phone/initial.png --out screenshots/iphone.jpg >/dev/null
+          sips -s format jpeg screenshots/tablet/initial.png --out screenshots/ipad.jpg >/dev/null
+      - name: Upload screenshots to App Store Connect
+        env:
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: python3 .github/scripts/upload_app_store_screenshots.py
