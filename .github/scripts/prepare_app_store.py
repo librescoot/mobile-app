@@ -71,7 +71,22 @@ def prepare(token, build_number):
     linked = asc.request(token, 'GET', f'{asc.API}/appStoreVersions/{vid}/build')['data']
     if linked['id'] != build:
         raise RuntimeError('App Store version build link did not persist')
-    print(f'Prepared App Store version {VERSION}; linked valid build {build_number}; updated German listing and privacy URL')
+    review = asc.request(token, 'GET', f'{asc.API}/appStoreVersions/{vid}/appStoreReviewDetail').get('data')
+    if not review:
+        beta = asc.request(token, 'GET', f'{asc.API}/apps/{app}/betaAppReviewDetail').get('data')
+        if not beta:
+            raise RuntimeError('Existing TestFlight review contact is unavailable')
+        fields = beta['attributes']
+        names = ('contactFirstName', 'contactLastName', 'contactPhone', 'contactEmail', 'notes',
+                 'demoAccountRequired', 'demoAccountName', 'demoAccountPassword')
+        contact = {k: fields[k] for k in names if fields.get(k) is not None}
+        if not all(contact.get(k) for k in names[:4]):
+            raise RuntimeError('Existing TestFlight review contact is incomplete')
+        asc.request(token, 'POST', f'{asc.API}/appStoreReviewDetails', json.dumps({'data': {
+            'type': 'appStoreReviewDetails', 'attributes': contact,
+            'relationships': {'appStoreVersion': {'data': {'type': 'appStoreVersions', 'id': vid}}},
+        }}).encode())
+    print(f'Prepared App Store version {VERSION}; linked valid build {build_number}; updated German listing, privacy URL and review contact')
 
 
 def main():
