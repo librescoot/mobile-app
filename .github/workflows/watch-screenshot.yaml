@@ -1,0 +1,38 @@
+name: Capture watchOS listing screenshot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - name: Boot Apple Watch simulator
+        run: |
+          DEVICE="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for runtime, devices in sorted(d["devices"].items(), reverse=True) if "watchOS" in runtime for v in devices if "Apple Watch Series 11" in v["name"] and "46mm" in v["name"]))')"
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+      - name: Build watch app
+        run: |
+          xcodebuild -project ios/Runner.xcodeproj -scheme ScooterWatch \
+            -configuration Debug -sdk watchsimulator \
+            -destination "id=$DEVICE" -derivedDataPath "$RUNNER_TEMP/watch-build" \
+            CODE_SIGNING_ALLOWED=NO build
+      - name: Launch and capture watch app
+        run: |
+          xcrun simctl install "$DEVICE" "$RUNNER_TEMP/watch-build/Build/Products/Debug-watchsimulator/ScooterWatch.app"
+          xcrun simctl launch "$DEVICE" org.librescoot.mobile.unu.watch
+          sleep 15
+          mkdir screenshots
+          xcrun simctl io "$DEVICE" screenshot screenshots/watch.png
+      - uses: actions/upload-artifact@v6
+        with:
+          name: watch-simulator-screenshot
+          path: screenshots/watch.png
+          retention-days: 7
