@@ -24,6 +24,7 @@ jobs:
         run: |
           python3 -m unittest discover -s tool -p 'test_testflight_notes.py'
           python3 -m unittest discover -s tool -p 'test_publish_play.py'
+          python3 -m unittest discover -s tool -p 'test_prepare_app_store.py'
           python3 -m unittest discover -s tool -p 'test_*signing*.py'
           python3 -m unittest discover -s .github/scripts -p 'test_check_ios_picker.py'
 

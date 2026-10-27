@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import tempfile
+import urllib.parse
 from pathlib import Path
 
 import testflight_notes as asc
@@ -23,6 +24,39 @@ def patch(token, resource, identifier, attributes=None, relationships=None):
         data['relationships'] = relationships
     return asc.request(token, 'PATCH', f'{asc.API}/{resource}/{identifier}',
                        json.dumps({'data': data}).encode())['data']
+
+
+def configure_free_price(token, app):
+    schedule = asc.request(token, 'GET', f'{asc.API}/apps/{app}/appPriceSchedule').get('data')
+    if schedule:
+        prices = asc.request(token, 'GET', f"{asc.API}/appPriceSchedules/{schedule['id']}/manualPrices?include=appPricePoint&limit=200")
+        points = [p for p in prices.get('included', []) if p['type'] == 'appPricePoints']
+        if len(prices['data']) != 1 or len(points) != 1 or float(points[0]['attributes']['customerPrice']) != 0:
+            raise RuntimeError('Existing price schedule is not a single free base price; refusing to overwrite it')
+        print('Existing free base price schedule verified')
+        return
+    query = urllib.parse.urlencode({'filter[territory]': 'USA', 'limit': 200})
+    url = f'{asc.API}/apps/{app}/appPricePoints?{query}'
+    free = []
+    while url:
+        page = asc.request(token, 'GET', url)
+        free.extend(p for p in page['data'] if float(p['attributes']['customerPrice']) == 0)
+        url = page.get('links', {}).get('next')
+    if len(free) != 1:
+        raise RuntimeError(f'Expected one free US price point; found {len(free)}')
+    temporary_id = '${free-price}'
+    payload = {'data': {'type': 'appPriceSchedules', 'relationships': {
+        'app': {'data': {'type': 'apps', 'id': app}},
+        'baseTerritory': {'data': {'type': 'territories', 'id': 'USA'}},
+        'manualPrices': {'data': [{'type': 'appPrices', 'id': temporary_id}]} }},
+        'included': [{'type': 'appPrices', 'id': temporary_id,
+                      'attributes': {'startDate': None, 'endDate': None},
+                      'relationships': {'appPricePoint': {'data': {'type': 'appPricePoints', 'id': free[0]['id']}}}}]}
+    asc.request(token, 'POST', f'{asc.API}/appPriceSchedules', json.dumps(payload).encode())
+    schedule = asc.request(token, 'GET', f'{asc.API}/apps/{app}/appPriceSchedule').get('data')
+    if not schedule:
+        raise RuntimeError('Free price schedule did not persist')
+    print('Created free US base price schedule')
 
 
 def prepare(token, build_number):
@@ -66,6 +100,11 @@ def prepare(token, build_number):
     if len(info_matches) != 1:
         raise RuntimeError('Expected exactly one German app information localization')
     patch(token, 'appInfoLocalizations', info_matches[0]['id'], {'privacyPolicyUrl': PRIVACY})
+    patch(token, 'appInfos', editable[0]['id'], relationships={
+        'primaryCategory': {'data': {'type': 'appCategories', 'id': 'UTILITIES'}}})
+    patch(token, 'appStoreVersions', vid, {'copyright': '2026 Librescoot contributors'})
+    patch(token, 'apps', app, {'contentRightsDeclaration': 'USES_THIRD_PARTY_CONTENT'})
+    configure_free_price(token, app)
     asc.request(token, 'PATCH', f'{asc.API}/appStoreVersions/{vid}/relationships/build',
                 json.dumps({'data': {'type': 'builds', 'id': build}}).encode())
     linked = asc.request(token, 'GET', f'{asc.API}/appStoreVersions/{vid}/build')['data']
