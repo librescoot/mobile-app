@@ -34,6 +34,7 @@ import 'package:unustasis/service/battery_optimization.dart';
 import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
 import 'package:unustasis/ui/screens/system_information_screen.dart';
+import 'package:unustasis/ui/screens/sms_inbox_screen.dart';
 import 'package:unustasis/ui/screens/ls_scheduled_hibernation_screen.dart';
 import 'package:unustasis/state/vehicle_status.dart';
 import 'package:unustasis/ui/screens/log_screen.dart';
@@ -901,6 +902,13 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     required bool supportsApnConfig,
   }) =>
       [
+        ListTile(
+          leading: const Icon(Icons.sms_outlined),
+          title: const Text('Messages'),
+          subtitle: const Text('Inbox and SMS forwarding'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SmsInboxScreen())),
+        ),
         _firmwareItem(
           ListTile(
             leading: const Icon(Icons.cell_tower_outlined),

@@ -10,6 +10,7 @@ import 'package:scooter_core/telemetry.dart'
 import 'package:scooter_core/scooter_core.dart';
 import '../ble/action_commands.dart' as commands;
 import '../ble/firmware_queries.dart' as queries;
+import '../ble/sms_commands.dart' as sms;
 import '../ble/command_transport.dart' as transport;
 import '../ble/characteristic_repository.dart';
 import '../telemetry/scooter_telemetry.dart';
@@ -516,6 +517,13 @@ class ScooterActions {
     final value = await getSetting(key);
     return value == null ? null : value == 'true';
   }
+
+  Future<sms.SmsInbox> readSmsInbox() => _command(
+      _capture(), (d, r, c) => sms.readSmsInboxCommand(d, r, isCurrent: c));
+  Future<void> markSmsRead(String id) => _command(_capture(),
+      (d, r, c) => sms.changeSmsCommand(d, r, 'read', id, isCurrent: c));
+  Future<void> deleteSms(String id) => _command(_capture(),
+      (d, r, c) => sms.changeSmsCommand(d, r, 'delete', id, isCurrent: c));
 
   Future<String?> getSetting(String key) => _command(_capture(),
       (d, r, c) => queries.getLsSettingCommand(d, r, key, isCurrent: c));
