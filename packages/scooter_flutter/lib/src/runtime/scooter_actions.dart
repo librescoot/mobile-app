@@ -492,7 +492,10 @@ class ScooterActions {
         target,
         (d, r, c) =>
             queries.discoverLsCapabilityGroupsCommand(d, r, isCurrent: c));
-    if (!groups.answered || !groups.contains('battery')) {
+    if (!groups.answered ||
+        !groups.contains('battery') ||
+        (groups.versions['battery'] != null &&
+            groups.versions['battery'] != 1)) {
       throw UnsupportedError(
           'Battery identity requires compatible scooter firmware');
     }

@@ -40,11 +40,13 @@ show the temporary-disarm settings action.
 
 ### Battery identification and registration
 
-Read pack serials over compatible scooter Bluetooth or supported battery NFC
-tags. Remembering checks on the phone is opt-in. Registration on rescoot.org
-requires a separate serial-verification and upload confirmation, followed by
-account consent in the browser. It records an unverified claim without changing
-ownership or theft status. See [battery identification and registration](docs/battery-registration.md).
+Join the shared battery tracker to help identify stolen batteries by serial.
+The app reads serials through compatible scooter Bluetooth or battery NFC tags
+as transient registration input, without a separate phone inventory. Sharing
+requires label verification, an explicit upload confirmation and separate
+account consent on the website. Signup is available in the browser; shared
+registration remains release-gated until the backend is available.
+See [shared battery tracking and registration](docs/battery-registration.md).
 
 ### Wearable companions (experimental)
 

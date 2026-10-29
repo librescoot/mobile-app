@@ -95,8 +95,14 @@ String decodeNfcBatterySerial(List<int> status1, List<int> status2) {
   return canonicalBatterySerial(ascii.decode(bytes));
 }
 
+const sunshineAccountHost = 'sunshine.rescoot.org';
+
+Uri sunshineSignupUri() => Uri.https(sunshineAccountHost, '/users/sign_up');
+Uri sunshineBatteriesUri() =>
+    Uri.https(sunshineAccountHost, '/battery_registrations');
+
 Uri batteryRegistrationUri(BatteryIdentity identity) => Uri.https(
-      'rescoot.org',
+      sunshineAccountHost,
       '/battery_registrations/new',
       {'serial_number': identity.serialNumber, 'source': identity.source.name},
     );

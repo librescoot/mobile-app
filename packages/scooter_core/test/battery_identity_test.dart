@@ -83,11 +83,17 @@ void main() {
         checkedAt: time);
     final uri = batteryRegistrationUri(identity);
     expect(uri.scheme, 'https');
-    expect(uri.host, 'rescoot.org');
+    expect(uri.host, 'sunshine.rescoot.org');
     expect(uri.path, '/battery_registrations/new');
     expect(uri.queryParameters,
         {'serial_number': identity.serialNumber, 'source': 'nfc'});
     expect(BatteryIdentity.fromJson(identity.toJson()).serialNumber,
         identity.serialNumber);
+    expect(sunshineSignupUri().toString(),
+        'https://sunshine.rescoot.org/users/sign_up');
+    expect(sunshineBatteriesUri().toString(),
+        'https://sunshine.rescoot.org/battery_registrations');
+    expect(sunshineSignupUri().hasQuery, isFalse);
+    expect(sunshineBatteriesUri().hasQuery, isFalse);
   });
 }

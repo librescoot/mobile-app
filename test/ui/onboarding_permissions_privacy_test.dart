@@ -6,6 +6,7 @@ import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:scooter_core/battery_identity.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/service/onboarding_permissions.dart';
 import 'package:unustasis/service/onboarding_preferences.dart';
@@ -92,6 +93,7 @@ Future<void> _mount(
   Size size = const Size(800, 1200),
   double textScale = 1,
   int initialStep = 0,
+  Future<bool> Function(Uri)? launchBatteryAccount,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -120,6 +122,7 @@ Future<void> _mount(
             permissionController: permissions,
             onboardingPreferences: OnboardingPreferences(preferences: preferences),
             initialStep: initialStep,
+            launchBatteryAccount: launchBatteryAccount,
           ),
         ),
       ),
@@ -164,7 +167,13 @@ void main() {
       'osmConsent=false',
       '$firstRunOnboardingVersionKey=$currentFirstRunOnboardingVersion',
     ]);
+    expect(find.text('Join the shared battery tracker'), findsOneWidget);
+    expect(preferences.values[batteryFeatureOnboardingVersionKey], isNull);
+    await tester.ensureVisible(find.text('Continue scooter setup'));
+    await tester.tap(find.text('Continue scooter setup'));
+    await tester.pump(const Duration(seconds: 1));
     expect(find.text('Find scooter'), findsOneWidget);
+    expect(preferences.values[batteryFeatureOnboardingVersionKey], currentBatteryFeatureOnboardingVersion);
   });
 
   testWidgets('denied required access offers Settings and cannot advance', (tester) async {
@@ -266,7 +275,7 @@ void main() {
     gate.complete();
     await tester.pump(const Duration(seconds: 1));
     expect(preferences.values['osmConsent'], true);
-    expect(find.text('Find scooter'), findsOneWidget);
+    expect(find.text('Join the shared battery tracker'), findsOneWidget);
   });
 
   testWidgets('a failed completion write re-enables the choice controls', (tester) async {
@@ -297,6 +306,7 @@ void main() {
     final permissions = _PermissionController(_summary());
     final preferences = _Preferences()
       ..values[firstRunOnboardingVersionKey] = currentFirstRunOnboardingVersion
+      ..values[batteryFeatureOnboardingVersionKey] = currentBatteryFeatureOnboardingVersion
       ..values['osmConsent'] = true;
     addTearDown(service.dispose);
     await _mount(tester, service, permissions, preferences);
@@ -307,13 +317,50 @@ void main() {
     expect(preferences.writes, isEmpty);
   });
 
+  testWidgets('existing setup can learn about batteries without repeating permission prompts', (tester) async {
+    final service = _Service();
+    final permissions = _PermissionController(_summary());
+    final preferences = _Preferences()..values[firstRunOnboardingVersionKey] = currentFirstRunOnboardingVersion;
+    addTearDown(service.dispose);
+    await _mount(tester, service, permissions, preferences);
+    await tester.tap(find.byType(ElevatedButton));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Join the shared battery tracker'), findsOneWidget);
+    expect(permissions.requests, 0);
+    expect(preferences.writes, isEmpty);
+    await tester.ensureVisible(find.text('Continue scooter setup'));
+    await tester.tap(find.text('Continue scooter setup'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Find scooter'), findsOneWidget);
+    expect(preferences.writes, ['$batteryFeatureOnboardingVersionKey=$currentBatteryFeatureOnboardingVersion']);
+  });
+
+  testWidgets('battery onboarding invites account signup without submitting a serial', (tester) async {
+    final service = _Service();
+    final permissions = _PermissionController(_summary());
+    final preferences = _Preferences();
+    final opened = <Uri>[];
+    addTearDown(service.dispose);
+    await _mount(tester, service, permissions, preferences, initialStep: -3, launchBatteryAccount: (uri) async {
+      opened.add(uri);
+      return true;
+    });
+    await tester.ensureVisible(find.text('Join the shared tracker'));
+    await tester.pump();
+    await tester.tap(find.text('Join the shared tracker'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(opened, [sunshineSignupUri()]);
+    expect(opened.single.hasQuery, isFalse);
+    expect(preferences.writes, ['$batteryFeatureOnboardingVersionKey=$currentBatteryFeatureOnboardingVersion']);
+    expect(find.text('Find scooter'), findsOneWidget);
+  });
+
   testWidgets('personalization stays centered and makes the default name easy to replace on iPad', (tester) async {
     final service = _Service();
     final permissions = _PermissionController(_summary());
     final preferences = _Preferences();
     addTearDown(service.dispose);
-    await _mount(tester, service, permissions, preferences,
-        size: const Size(744, 1133), initialStep: 6);
+    await _mount(tester, service, permissions, preferences, size: const Size(744, 1133), initialStep: 6);
 
     expect(tester.widget<ScooterVisual>(find.byType(ScooterVisual)).color, 0);
     final palette = find.byWidgetPredicate(

@@ -946,6 +946,30 @@ void main() {
     expect(h.telemetry.identity.supportsDataBrowser, isFalse);
   });
 
+  for (final version in [null, 1, 2]) {
+    test(
+        'battery identity availability follows capability $version rather than a release number',
+        () async {
+      final h = _Harness(
+          capabilityGroups: () async =>
+              LsCapabilityGroups({'battery': version}, usedFallback: false));
+      addTearDown(h.dispose);
+      final r = await h.connect('A');
+      _wireExtended(r);
+      _firmware(r);
+      await _flush();
+      expect(h.telemetry.identity.supportsBatteryIdentity,
+          version == null || version == 1);
+      h.telemetry.identity.resetLsCapabilities();
+      expect(h.telemetry.identity.supportsBatteryIdentity, isNull);
+      h.telemetry.seed(CachedTelemetry(capabilityGroups: {'battery': version}));
+      expect(h.telemetry.identity.supportsBatteryIdentity,
+          version == null || version == 1);
+      h.telemetry.seed(CachedTelemetry(capabilityGroups: {}));
+      expect(h.telemetry.identity.supportsBatteryIdentity, isFalse);
+    });
+  }
+
   test('administrative /data capability follows an explicit version token',
       () async {
     final h = _Harness(

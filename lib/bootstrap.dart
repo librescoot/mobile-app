@@ -36,6 +36,7 @@ Future<void> bootstrap() async {
   await migrateSharedPrefs();
 
   final asyncPreferences = SharedPreferencesAsync();
+  await asyncPreferences.remove('batteryTracker.v1');
   await syncTaskerBackgroundScanSetting(await asyncPreferences.getBool('backgroundScan') ?? false);
   final String? localeString = await asyncPreferences.getString('savedLocale');
   if (localeString != null) {

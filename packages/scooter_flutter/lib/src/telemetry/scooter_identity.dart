@@ -40,6 +40,7 @@ class FirmwareIdentity {
   bool? supportsApnConfig;
   bool? supportsBondForget;
   bool? supportsBatteryKeepActive;
+  bool? supportsBatteryIdentity;
   bool? supportsAlarmControl;
   int? alarmCapabilityVersion;
   bool? supportsTripCounter;
@@ -69,6 +70,7 @@ class FirmwareIdentity {
     supportsApnConfig = null;
     supportsBondForget = null;
     supportsBatteryKeepActive = null;
+    supportsBatteryIdentity = null;
     supportsAlarmControl = null;
     alarmCapabilityVersion = null;
     supportsTripCounter = null;

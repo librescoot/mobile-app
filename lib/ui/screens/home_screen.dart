@@ -20,6 +20,7 @@ import 'package:unustasis/ui/dialogs/seat_warning.dart';
 import 'package:unustasis/ui/widgets/leaves.dart';
 import 'package:unustasis/ui/widgets/scooter_action_button.dart';
 import 'package:unustasis/ui/widgets/onboarding_popups.dart';
+import 'package:unustasis/ui/dialogs/battery_feature_announcement.dart';
 import 'package:unustasis/ui/dialogs/handlebar_warning.dart';
 import 'package:unustasis/ui/dialogs/handlebar_lock_guidance.dart';
 import 'package:unustasis/ui/widgets/home_action_row.dart';
@@ -152,6 +153,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     _lockGuidanceBackgrounded = lifecycle == AppLifecycleState.hidden || lifecycle == AppLifecycleState.paused;
     WidgetsBinding.instance.addObserver(this);
+    _startupNoticesReady = widget.forceOpen == true;
     if (widget.forceOpen != true) {
       log.fine("Redirecting or starting");
       redirectOrStart();
@@ -181,14 +183,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  bool _notificationFlowRunning = false;
+  bool _startupNoticesReady = false;
+
   Future<void> _showNotifications() async {
-    // for future reference, this is how to do non-server notifications:
-    // SharedPreferencesAsync prefs = SharedPreferencesAsync();
-    // if (Platform.isAndroid && await prefs.getBool("widgetOnboarded") != true && mounted) {
-    //   await showWidgetOnboarding(context);
-    //   await prefs.setBool("widgetOnboarded", true);
-    // }
-    if (mounted) await showServerNotifications(context);
+    if (_notificationFlowRunning || !mounted) return;
+    _notificationFlowRunning = true;
+    try {
+      await showBatteryFeatureAnnouncement(context);
+      if (mounted) await showServerNotifications(context);
+    } catch (error, stack) {
+      log.warning('Could not show startup announcements', error, stack);
+    } finally {
+      _notificationFlowRunning = false;
+      _startupNoticesReady = true;
+      if (mounted) await _maybeShowLibrescootNotice();
+    }
   }
 
   void _onScooterChanged() {
@@ -196,7 +206,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _maybeShowLibrescootNotice() async {
-    if (_librescootNoticeHandled || _librescootNoticeRunning || !mounted) return;
+    if (!_startupNoticesReady ||
+        _notificationFlowRunning ||
+        _librescootNoticeHandled ||
+        _librescootNoticeRunning ||
+        !mounted) {
+      return;
+    }
     _librescootNoticeRunning = true;
     try {
       final service = context.read<ScooterService>();
@@ -865,7 +881,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } else {
       // already onboarded, set up and proceed with home page
       _startSeasonal();
-      _showNotifications();
       // start the scooter service if we're not coming from onboarding
       if (mounted && context.read<ScooterService>().currentScooterId == null) {
         context.read<ScooterService>().start();
@@ -885,6 +900,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           );
           Navigator.of(context).pop();
           SystemNavigator.pop();
+          return;
         } else {
           context.read<ScooterService>().optionalAuth = true;
         }
@@ -897,10 +913,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         Navigator.of(context).pop();
 
         SystemNavigator.pop();
+        return;
       }
     } else {
       if (mounted) context.read<ScooterService>().optionalAuth = true;
     }
+    if (mounted && ids.isNotEmpty) await _showNotifications();
   }
 }
 
