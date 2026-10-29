@@ -39,7 +39,9 @@ independently, then its decoded byte length advances the offset. UTF8 decoding
 happens only after reassembly, so multibyte characters and JSON escapes may
 cross chunk boundaries. The app rejects malformed/noncanonical base64, wrong
 IDs or offsets, premature EOF, oversize packets, zero progress and overruns.
-Foreign IDs are ignored until the correlated reply or timeout.
+Raw reply headers are correlated before budget or ASCII validation. Foreign
+extended notifications and foreign/reserved IDs are ignored regardless of their
+payload size or encoding, until the correlated reply or timeout.
 
 After consuming exactly the announced byte length, the client requests that
 final offset to release the snapshot:
@@ -58,7 +60,9 @@ JSON escapes, are not normalized by the generic reader.
 Errors have the form `r:x:<id>:<code>`, with codes `command`, `denied`, `redis`,
 `large`, `utf8`, `busy`, `session`, `offset`, `budget` or `id`. They propagate as
 `HashReadException`, never missing values or absent batteries. Responses and
-writes have a five-second timeout; the complete read has a two-minute deadline.
+writes have a five-second timeout; the complete read has a five-minute deadline,
+matching the server's fixed TTL. This allows worst-case escaped-field snapshots
+at ATT MTU 23 with 100 ms notification pacing.
 Disconnects and superseded connection generations invalidate the read. There
 are no automatic retries. Listeners are removed on success and failure.
 

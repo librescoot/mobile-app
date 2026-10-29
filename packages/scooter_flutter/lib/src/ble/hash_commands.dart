@@ -8,6 +8,8 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'characteristic_repository.dart';
 import 'command_transport.dart';
 
+const hashReadTimeout = Duration(minutes: 5);
+
 class HashReadException implements Exception {
   const HashReadException(this.code);
   final String code;
@@ -39,7 +41,7 @@ Future<List<String?>> readHashFieldsCommand(
   List<String> fields, {
   required bool Function() isCurrent,
   Duration responseTimeout = extendedResponseTimeout,
-  Duration readTimeout = const Duration(minutes: 2),
+  Duration readTimeout = hashReadTimeout,
 }) {
   final name = RegExp(r'^[A-Za-z0-9:_-]+$');
   if (!name.hasMatch(hash) ||
@@ -203,18 +205,35 @@ class _HashReplies {
     if (pending != null && !pending.isCompleted) pending.completeError(error);
   }
 
+  bool _correlates(List<int> bytes) {
+    if (bytes.length < 4 || bytes[0] != 0x72 || bytes[1] != 0x3a) return false;
+    final kindEnd = bytes.indexOf(0x3a, 2);
+    if (kindEnd < 0) return false;
+    final idStart = kindEnd + 1;
+    final idEnd = idStart + id.length;
+    if (idEnd > bytes.length ||
+        (idEnd < bytes.length && bytes[idEnd] != 0x3a)) {
+      return false;
+    }
+    for (var i = 0; i < id.length; i++) {
+      if (bytes[idStart + i] != id.codeUnitAt(i)) return false;
+    }
+    return true;
+  }
+
   void _receive(List<int> bytes) {
     final pending = _pending;
     if (pending == null || pending.isCompleted) return;
     try {
       check();
+      // Other extended replies can have a different budget and encoding. Only
+      // inspect their raw header; validate the payload after exact correlation.
+      if (!_correlates(bytes)) return;
       if (bytes.length > budget || bytes.any((b) => b < 0x20 || b > 0x7e)) {
         throw const FormatException('Invalid hash notification');
       }
       final text = ascii.decode(bytes);
       final parts = text.split(':');
-      // 00000000 and replies from any other logical read are never ours.
-      if (parts.length < 3 || parts[0] != 'r' || parts[2] != id) return;
       if (parts[1] == 'x') {
         if (parts.length != 4 ||
             !const {

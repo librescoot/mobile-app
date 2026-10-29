@@ -150,6 +150,54 @@ void main() {
     };
     expect(await h.read(), ['true', 'T-UNU22205090007']);
   });
+  for (final foreign in [
+    'long capability',
+    'legacy Unicode',
+    'foreign oversize',
+    'foreign binary',
+    'reserved binary',
+    'ID suffix',
+    'headerless binary'
+  ]) {
+    test('ignores $foreign before validating the active reply', () async {
+      final h = _Harness();
+      h.wire.onWrite = (text) async {
+        final id = text.split(':')[2];
+        final otherId = id == 'ffffffff' ? 'fffffffe' : 'ffffffff';
+        final frame = switch (foreign) {
+          'long capability' => ascii.encode('cap:ext:${'status:' * 10}'),
+          'legacy Unicode' => utf8.encode('status:destination:Grüße 🛵'),
+          'foreign oversize' => ascii.encode('r:p:$otherId:0:${'A' * 100}'),
+          'foreign binary' => [...ascii.encode('r:p:$otherId:0:'), 0xff, 0],
+          'reserved binary' => [...ascii.encode('r:x:00000000:'), 0xff, 0],
+          'ID suffix' => ascii.encode('r:s:${id}0:${'A' * 100}'),
+          _ => [0xff],
+        };
+        h.wire.raw(frame);
+        h.wire.reply(h.server.answer(text));
+      };
+      expect(await h.read(), ['true', 'T-UNU22205090007']);
+    });
+  }
+  test('paced worst-case ATT23 snapshot fits the default five-minute deadline',
+      () async {
+    final h = _Harness();
+    h.server.hashes['battery:0'] = {
+      'present': '\u0000' * 256,
+      'serial-number': '\u0000' * 256,
+    };
+    expect(
+        await readHashFieldsCommand(
+            h.device, h.repo, 'battery:0', ['present', 'serial-number'],
+            isCurrent: () => h.current),
+        ['\u0000' * 256, '\u0000' * 256]);
+    final pacedDuration =
+        Duration(milliseconds: h.wire.notifications.length * 100);
+    expect(pacedDuration, greaterThan(const Duration(minutes: 2)));
+    expect(hashReadTimeout, const Duration(minutes: 5));
+    expect(pacedDuration, lessThan(hashReadTimeout));
+    expect(h.wire.notifications.every((v) => v.length <= 20), isTrue);
+  });
   test('old generation cannot use a reply after reconnecting the same device',
       () async {
     final h = _Harness();
@@ -205,6 +253,16 @@ void main() {
     h.wire.onWrite = (text) async => h.wire.reply(h.server.answer(text));
     expect(await h.read(), ['true', 'T-UNU22205090007']);
     expect(h.wire.writes[1].split(':')[2], isNot(first));
+  });
+  test('silent handler-overload drop times out once and removes listeners',
+      () async {
+    final h = _Harness();
+    h.wire.onWrite = (_) async {};
+    await expectLater(h.read(timeout: const Duration(milliseconds: 10)),
+        throwsA(isA<TimeoutException>()));
+    expect(h.wire.writes, hasLength(1));
+    expect(h.wire.values.hasListener, isFalse);
+    expect(h.device.states.hasListener, isFalse);
   });
   test('whole read has a bounded deadline', () async {
     final h = _Harness();
@@ -276,7 +334,10 @@ void main() {
     'wrong-type',
     'bad-error',
     'oversize',
-    'non-ascii'
+    'non-ascii',
+    'nul',
+    'unknown-kind',
+    'missing-colon'
   ]) {
     test('rejects adversarial $corrupt response', () async {
       final h = _Harness();
@@ -308,7 +369,13 @@ void main() {
             case 'oversize':
               h.wire.reply('r:p:$id:0:${'A' * 20}');
             case 'non-ascii':
-              h.wire.raw([0xff]);
+              h.wire.raw([...ascii.encode('r:p:$id:0:'), 0xff]);
+            case 'nul':
+              h.wire.raw([...ascii.encode('r:p:$id:0:'), 0]);
+            case 'unknown-kind':
+              h.wire.reply('r:q:$id:0:Ww');
+            case 'missing-colon':
+              h.wire.reply('r:p:$id');
           }
         }
       };
