@@ -16,7 +16,7 @@
     "battery_tracker_ble_checking": "Firmware-Unterstützung wird geprüft...",
     "battery_tracker_ble_ready": "Lies die gemeldeten Seriennummern und vergleiche sie mit den Akku-Etiketten.",
     "battery_tracker_ble_unsupported": "Diese Roller-Firmware meldet keine Akku-Identitätsunterstützung. Nutze stattdessen NFC.",
-    "battery_tracker_firmware_requirement": "Erfordert Librescoot-Firmware mit Akku-Identitätsunterstützung (battery=1). Die Verfügbarkeit wird am Roller geprüft.",
+    "battery_tracker_firmware_requirement": "Erfordert Librescoot-Firmware mit Akku-Identitätsunterstützung (hash=1). Die Verfügbarkeit wird am Roller geprüft.",
     "battery_tracker_nfc_short": "Halte dein Telefon an den Akku-Tag. Keine Rollerverbindung nötig.",
     "battery_tracker_nfc_unavailable": "Dieses Gerät kann keine Akku-NFC-Tags scannen.",
     "battery_tracker_check_privacy": "Das Lesen einer Seriennummer überträgt nichts und ändert keine Akku-Einstellungen.",

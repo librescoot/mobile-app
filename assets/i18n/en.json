@@ -16,7 +16,7 @@
 "battery_tracker_ble_checking": "Checking your scooter's firmware support...",
 "battery_tracker_ble_ready": "Read the reported serials, then check them against your battery labels.",
 "battery_tracker_ble_unsupported": "This scooter does not report battery identity support. Use NFC instead.",
-"battery_tracker_firmware_requirement": "Requires Librescoot firmware with battery identity support (battery=1). Availability is checked on your scooter.",
+"battery_tracker_firmware_requirement": "Requires Librescoot firmware with battery identity support (hash=1). Availability is checked on your scooter.",
 "battery_tracker_nfc_short": "Hold your phone near a battery tag. No scooter connection needed.",
 "battery_tracker_nfc_unavailable": "This device cannot scan battery NFC tags.",
 "battery_tracker_check_privacy": "Reading a serial never uploads it or changes battery settings.",

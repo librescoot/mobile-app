@@ -190,6 +190,22 @@ void main() {
   });
 
   for (final locale in [const Locale('en'), const Locale('de')]) {
+    testWidgets('firmware badge names hash capability ${locale.languageCode}', (tester) async {
+      await pump(tester, BatteryTrackerScreen(readBluetooth: () async => []), locale: locale);
+      final button = find.byKey(const ValueKey('add-battery'));
+      await visible(tester, button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.byWidgetPredicate((widget) => widget is Tooltip && (widget.message?.contains('(hash=1)') ?? false)),
+          findsOneWidget);
+      expect(
+          find.byWidgetPredicate(
+              (widget) => widget is Semantics && (widget.properties.label?.contains('(hash=1)') ?? false)),
+          findsOneWidget);
+      expect(find.byWidgetPredicate((widget) => widget is Tooltip && (widget.message?.contains('battery=1') ?? false)),
+          findsNothing);
+    });
+
     testWidgets('registration preparation fits narrow large text ${locale.languageCode}', (tester) async {
       await pump(tester, BatteryTrackerScreen(readBluetooth: () async => [], readNfc: () async => battery),
           size: const Size(320, 568), textScale: 2, locale: locale, brightness: Brightness.dark);
