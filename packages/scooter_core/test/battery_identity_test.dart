@@ -28,28 +28,38 @@ void main() {
     }
   });
 
-  test('snapshot binds presence and serial to the requested slot', () {
-    final identity = parseBatteryIdentitySnapshot(
-        'battery:snapshot:0:{"present":true,"serial_number":"T-UNU22205090007"}',
-        0,
-        time)!;
+  test('raw hash fields bind presence and serial to the requested slot', () {
+    final identity =
+        parseBatteryIdentityFields(['true', 'T-UNU22205090007'], 0, time)!;
     expect(identity.serialNumber, 'T-UNU22205090007');
     expect(identity.slot, 0);
+    expect(identity.checkedAt, time);
     expect(identity.source, BatteryIdentitySource.ble);
-    expect(
-        parseBatteryIdentitySnapshot(
-            'battery:snapshot:1:{"present":false}', 1, time),
-        isNull);
-    for (final invalid in [
-      'battery:snapshot:1:{"present":true,"serial_number":"OTHER"}',
-      'battery:snapshot:0:{"present":true}',
-      'battery:snapshot:0:{"present":"true","serial_number":"OTHER"}',
-      'battery:snapshot:0:{"present":true,"serial_number":"unknown"}',
-      'battery:error:unavailable',
+    for (final serial in [null, '', 'unknown', 'retained']) {
+      expect(parseBatteryIdentityFields(['false', serial], 1, time), isNull);
+    }
+    for (final invalid in <List<String?>>[
+      [],
+      [null, null],
+      ['', 'SERIAL'],
+      ['TRUE', 'SERIAL'],
+      ['1', 'SERIAL'],
+      ['unknown', 'SERIAL'],
+      ['true'],
+      ['true', null],
+      ['true', ''],
+      ['true', 'unknown'],
+      ['true', 'SERIAL', 'extra'],
     ]) {
-      expect(() => parseBatteryIdentitySnapshot(invalid, 0, time),
+      expect(() => parseBatteryIdentityFields(invalid, 0, time),
           throwsFormatException);
     }
+    expect(() => parseBatteryIdentityFields(['true', 'SERIAL'], 2, time),
+        throwsArgumentError);
+    expect(
+        parseBatteryIdentityFields(['true', '00000000000000ab'], 1, time)!
+            .serialNumber,
+        '00000000000000AB');
   });
 
   test('NFC serial comes from both complete status blocks, never tag UID', () {
@@ -69,8 +79,7 @@ void main() {
     final serial = ascii.encode('T-UNU22205090007');
     final nfc = decodeNfcBatterySerial([0, 0, 0, 0, ...serial.take(12)],
         [...serial.skip(12), ...List.filled(12, 0)]);
-    final ble = parseBatteryIdentitySnapshot(
-        'battery:snapshot:1:{"present":true,"serial_number":"$nfc"}', 1, time)!;
+    final ble = parseBatteryIdentityFields(['true', nfc], 1, time)!;
     expect(ble.serialNumber, nfc);
   });
 

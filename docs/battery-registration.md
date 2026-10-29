@@ -50,16 +50,18 @@ Conflicting ownership claims require separate review.
 The read-method sheet puts a usable method first. Only the scooter Bluetooth
 option carries the Librescoot marker; NFC and email verification have no Librescoot
 firmware requirement. The first stable firmware release with battery identity
-support is not established, so the UI uses the confirmed `battery=1` capability
+support is not established, so the UI uses the confirmed `hash=1` capability
 instead of inventing a minimum version.
 
-- Bluetooth discovers the battery capability, then reads `battery:snapshot:0`
-  and `battery:snapshot:1`. Each response uses one Redis hash snapshot, for
-  example `battery:snapshot:0:{"present":true,"serial_number":"T-UNU22205090007"}`.
-  An absent pack returns `{"present":false}` without a retained serial. Unknown
-  presence or invalid identity returns a `battery:error:...` response. Disconnect
-  or session replacement discards the entire phone-side read. Reported values
-  may be cached by the scooter; verify the label before registering them.
+- Bluetooth discovers `hash=1`, then uses the [generic hash reader](ble-hash-reads.md)
+  for `battery:0` and `battery:1`, selecting `present,serial-number` in that order.
+  Each atomic snapshot is an array of unchanged strings or missing-field nulls,
+  for example `["true","T-UNU22205090007"]`. Battery interpretation is entirely
+  client-side: presence must be exactly `"true"` or `"false"`. An absent pack's
+  retained serial is ignored. Missing or invalid presence and invalid present-pack
+  serials fail the read. Disconnect or session replacement discards the entire
+  phone-side read. Reported values may be cached by the scooter; verify the label
+  before registering them.
 - NFC uses read-only Type 2 READ commands at pages `0xc4` and `0xc8`, matching
   byte addresses `0x0310` and `0x0320` in the scooter-side reader. The serial is
   bytes 4-15 of the first block plus bytes 0-3 of the second. Blocks must be

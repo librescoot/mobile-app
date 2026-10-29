@@ -11,6 +11,7 @@ import 'package:scooter_core/scooter_core.dart';
 import '../ble/action_commands.dart' as commands;
 import '../ble/firmware_queries.dart' as queries;
 import '../ble/sms_commands.dart' as sms;
+import '../ble/hash_commands.dart' as hashes;
 import '../ble/command_transport.dart' as transport;
 import '../ble/characteristic_repository.dart';
 import '../telemetry/scooter_telemetry.dart';
@@ -486,30 +487,39 @@ class ScooterActions {
     return Map.unmodifiable(versions);
   }
 
-  Future<List<BatteryIdentity>> readBatteryIdentities() async {
-    final target = _capture();
+  Future<void> _requireHashRead(_Target target) async {
     final groups = await _command(
         target,
         (d, r, c) =>
             queries.discoverLsCapabilityGroupsCommand(d, r, isCurrent: c));
-    if (!groups.answered ||
-        !groups.contains('battery') ||
-        (groups.versions['battery'] != null &&
-            groups.versions['battery'] != 1)) {
-      throw UnsupportedError(
-          'Battery identity requires compatible scooter firmware');
+    if (!groups.answered || groups.versions['hash'] != 1) {
+      throw UnsupportedError('Hash reads require compatible scooter firmware');
     }
+  }
+
+  Future<List<String?>> _readHashFields(
+          _Target target, String hash, List<String> fields) =>
+      _command(
+          target,
+          (d, r, c) =>
+              hashes.readHashFieldsCommand(d, r, hash, fields, isCurrent: c));
+
+  Future<List<String?>> readHashFields(String hash, List<String> fields) async {
+    final target = _capture();
+    final selection = List<String>.unmodifiable(fields);
+    await _requireHashRead(target);
+    return _readHashFields(target, hash, selection);
+  }
+
+  Future<List<BatteryIdentity>> readBatteryIdentities() async {
+    final target = _capture();
+    await _requireHashRead(target);
     final identities = <BatteryIdentity>[];
     for (final slot in [0, 1]) {
-      final response = await _command(
-          target,
-          (d, r, c) => transport.sendLsExtendedCommand(
-              d, r, 'battery:snapshot:$slot',
-              isCurrent: c));
+      final fields = await _readHashFields(
+          target, 'battery:$slot', const ['present', 'serial-number']);
       _check(target);
-      if (response == null) throw StateError('Battery identity unavailable');
-      final identity =
-          parseBatteryIdentitySnapshot(response, slot, DateTime.now());
+      final identity = parseBatteryIdentityFields(fields, slot, DateTime.now());
       if (identity != null) identities.add(identity);
     }
     _check(target);

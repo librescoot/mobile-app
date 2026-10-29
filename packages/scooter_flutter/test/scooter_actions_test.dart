@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:scooter_flutter/scooter_flutter.dart';
 import 'package:scooter_core/scooter_core.dart';
 import 'package:scooter_core/companion.dart';
+import 'support/hash_test_server.dart';
 
 class Device extends Fake implements BluetoothDevice {
   Device(String id, this.trace) : remoteId = DeviceIdentifier(id);
@@ -22,6 +23,8 @@ class Device extends Fake implements BluetoothDevice {
   bool get isConnected => live;
   @override
   bool get isDisconnected => !live;
+  @override
+  int get mtuNow => 23;
   @override
   DisconnectReason? get disconnectReason => null;
   @override
@@ -355,36 +358,109 @@ void main() {
     h.dispose();
     await settleTransport();
   });
-  test('battery identity uses capability-gated read-only slot snapshots',
+  test('battery identity uses capability-gated generic hash slot reads',
+      () async {
+    final h = Harness(FakeAsync());
+    await settleTransport();
+    h.trace.clear();
+    final server = HashTestServer();
+    h.wire.onWrite = (command) async => h.wire.reply(
+        command == 'cap:ext' ? 'cap:ext:hash=1' : server.answer(command));
+    final result = await h.actions.readBatteryIdentities();
+    expect(result.single.serialNumber, 'T-UNU22205090007');
+    expect(h.trace.first, 'A:cap:ext');
+    expect(server.requests.where((s) => s.startsWith('hash:read:')), [
+      matches(r'^hash:read:[0-9a-f]{8}:20:battery:0/present,serial-number$'),
+      matches(r'^hash:read:[0-9a-f]{8}:20:battery:1/present,serial-number$')
+    ]);
+    expect(result.single.slot, 0);
+    expect(h.effects.events, isEmpty);
+    h.dispose();
+    await settleTransport();
+  });
+  for (final capability in ['status', 'hash', 'hash=2', 'battery=1']) {
+    test(
+        'battery identity rejects capability $capability without probing hashes',
+        () async {
+      final h = Harness(FakeAsync());
+      await settleTransport();
+      h.trace.clear();
+      h.wire.onWrite = (_) async => h.wire.reply('cap:ext:$capability');
+      await expectLater(
+          h.actions.readBatteryIdentities(), throwsUnsupportedError);
+      expect(h.trace, ['A:cap:ext']);
+      h.dispose();
+      await settleTransport();
+    });
+  }
+  test('old counted capability list cannot enable unversioned hash reads',
       () async {
     final h = Harness(FakeAsync());
     await settleTransport();
     h.trace.clear();
     h.wire.onWrite = (command) async {
-      h.wire.reply(switch (command) {
-        'cap:ext' => 'cap:ext:battery=1',
-        'battery:snapshot:0' =>
-          'battery:snapshot:0:{"present":true,"serial_number":"T-UNU22205090007"}',
-        _ => 'battery:snapshot:1:{"present":false}',
-      });
+      if (command == 'cap:ext') {
+        h.wire.reply('error:unknown-command');
+      } else if (command == 'cap:list') {
+        h.wire.reply('cap:count:1');
+        h.wire.reply('cap:hash');
+      }
     };
-    final result = await h.actions.readBatteryIdentities();
-    expect(result.single.serialNumber, 'T-UNU22205090007');
-    expect(
-        h.trace, ['A:cap:ext', 'A:battery:snapshot:0', 'A:battery:snapshot:1']);
-    expect(h.effects.events, isEmpty);
+    await expectLater(
+        h.actions.readBatteryIdentities(), throwsUnsupportedError);
+    expect(h.trace, ['A:cap:ext', 'A:cap:list']);
     h.dispose();
     await settleTransport();
   });
-  test('battery identity rejects unsupported firmware without probing slots',
+  test('generic public reader preserves field order and requires hash=1',
       () async {
     final h = Harness(FakeAsync());
     await settleTransport();
-    h.trace.clear();
-    h.wire.onWrite = (_) async => h.wire.reply('cap:ext:status');
-    await expectLater(
-        h.actions.readBatteryIdentities(), throwsUnsupportedError);
-    expect(h.trace, ['A:cap:ext']);
+    final server = HashTestServer();
+    h.wire.onWrite = (command) async => h.wire.reply(
+        command == 'cap:ext' ? 'cap:ext:hash=1' : server.answer(command));
+    expect(
+        await h.actions
+            .readHashFields('battery:1', ['serial-number', 'present']),
+        ['retained', 'false']);
+    h.wire.onWrite = (_) async => h.wire.reply('cap:ext:hash=2');
+    await expectLater(h.actions.readHashFields('battery:0', ['present']),
+        throwsUnsupportedError);
+    h.dispose();
+    await settleTransport();
+  });
+  test(
+      'both slots are interpreted on the client, ignoring absent retained serials',
+      () async {
+    final h = Harness(FakeAsync());
+    await settleTransport();
+    final server = HashTestServer();
+    server.hashes['battery:0'] = {
+      'present': 'false',
+      'serial-number': 'invalid retained'
+    };
+    server.hashes['battery:1'] = {
+      'present': 'true',
+      'serial-number': '00000000000000ab'
+    };
+    h.wire.onWrite = (command) async => h.wire.reply(
+        command == 'cap:ext' ? 'cap:ext:hash=1' : server.answer(command));
+    final result = await h.actions.readBatteryIdentities();
+    expect(result.single.slot, 1);
+    expect(result.single.serialNumber, '00000000000000AB');
+    h.dispose();
+    await settleTransport();
+  });
+  test(
+      'invalid second slot discards the complete read rather than returning a partial list',
+      () async {
+    final h = Harness(FakeAsync());
+    await settleTransport();
+    final server = HashTestServer();
+    server.hashes['battery:1'] = {'present': null, 'serial-number': ''};
+    h.wire.onWrite = (command) async => h.wire.reply(
+        command == 'cap:ext' ? 'cap:ext:hash=1' : server.answer(command));
+    await expectLater(h.actions.readBatteryIdentities(), throwsFormatException);
     h.dispose();
     await settleTransport();
   });
@@ -397,16 +473,15 @@ void main() {
     final wire = h.wire;
     wire.onWrite = (command) async {
       if (command == 'cap:ext') {
-        wire.reply('cap:ext:battery=1');
+        wire.reply('cap:ext:hash=1');
       } else {
-        wire.reply(
-            'battery:snapshot:0:{"present":true,"serial_number":"T-UNU22205090007"}');
+        wire.reply('r:s:${command.split(':')[2]}:2');
         h.device.drop();
       }
     };
     await expectLater(h.actions.readBatteryIdentities(), throwsStateError);
-    expect(h.trace.where((line) => line.contains('battery:')),
-        ['A:battery:snapshot:0']);
+    expect(h.trace.where((line) => line.contains('hash:read:')), hasLength(1));
+    expect(h.trace.where((line) => line.contains('hash:get:')), isEmpty);
     h.dispose();
     await settleTransport();
   });

@@ -47,6 +47,8 @@ requires label verification, an explicit upload confirmation and separate
 consent on the website after email confirmation with a verification code.
 No password or full account signup is required. Email verification and shared
 registration remain release-gated until the backend is available.
+Bluetooth reads use the reusable, permission-limited [BLE hash reader](docs/ble-hash-reads.md)
+when the scooter advertises `hash=1`.
 See [shared battery tracking and registration](docs/battery-registration.md).
 
 ### Wearable companions (experimental)

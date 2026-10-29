@@ -59,23 +59,17 @@ class BatteryIdentity {
       );
 }
 
-BatteryIdentity? parseBatteryIdentitySnapshot(
-    String response, int slot, DateTime checkedAt) {
+BatteryIdentity? parseBatteryIdentityFields(
+    List<String?> fields, int slot, DateTime checkedAt) {
   if (slot != 0 && slot != 1) throw ArgumentError.value(slot, 'slot');
-  final prefix = 'battery:snapshot:$slot:';
-  if (!response.startsWith(prefix)) {
-    throw const FormatException('Battery identity unavailable');
+  if (fields.length != 2 || (fields[0] != 'true' && fields[0] != 'false')) {
+    throw const FormatException('Invalid battery presence');
   }
-  final data = jsonDecode(response.substring(prefix.length));
-  if (data is! Map<String, dynamic> || data['present'] is! bool) {
-    throw const FormatException('Invalid battery snapshot');
-  }
-  if (data['present'] == false) return null;
-  if (data['serial_number'] is! String) {
-    throw const FormatException('Missing battery serial');
-  }
+  if (fields[0] == 'false') return null;
+  final serial = fields[1];
+  if (serial == null) throw const FormatException('Missing battery serial');
   return BatteryIdentity(
-    serialNumber: data['serial_number'] as String,
+    serialNumber: serial,
     source: BatteryIdentitySource.ble,
     checkedAt: checkedAt,
     slot: slot,
