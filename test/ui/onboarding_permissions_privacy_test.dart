@@ -93,7 +93,8 @@ Future<void> _mount(
   Size size = const Size(800, 1200),
   double textScale = 1,
   int initialStep = 0,
-  Future<bool> Function(Uri)? launchBatteryAccount,
+  Future<bool> Function(Uri)? launchBatteryVerification,
+  bool batteryTrackerEnabled = true,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -122,7 +123,8 @@ Future<void> _mount(
             permissionController: permissions,
             onboardingPreferences: OnboardingPreferences(preferences: preferences),
             initialStep: initialStep,
-            launchBatteryAccount: launchBatteryAccount,
+            launchBatteryVerification: launchBatteryVerification,
+            batteryTrackerEnabled: batteryTrackerEnabled,
           ),
         ),
       ),
@@ -335,13 +337,13 @@ void main() {
     expect(preferences.writes, ['$batteryFeatureOnboardingVersionKey=$currentBatteryFeatureOnboardingVersion']);
   });
 
-  testWidgets('battery onboarding invites account signup without submitting a serial', (tester) async {
+  testWidgets('battery onboarding opens email-code verification without submitting a serial', (tester) async {
     final service = _Service();
     final permissions = _PermissionController(_summary());
     final preferences = _Preferences();
     final opened = <Uri>[];
     addTearDown(service.dispose);
-    await _mount(tester, service, permissions, preferences, initialStep: -3, launchBatteryAccount: (uri) async {
+    await _mount(tester, service, permissions, preferences, initialStep: -3, launchBatteryVerification: (uri) async {
       opened.add(uri);
       return true;
     });
@@ -349,10 +351,23 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Join the shared tracker'));
     await tester.pump(const Duration(seconds: 1));
-    expect(opened, [sunshineSignupUri()]);
+    expect(opened, [batteryTrackerJoinUri()]);
     expect(opened.single.hasQuery, isFalse);
     expect(preferences.writes, ['$batteryFeatureOnboardingVersionKey=$currentBatteryFeatureOnboardingVersion']);
     expect(find.text('Find scooter'), findsOneWidget);
+  });
+
+  testWidgets('unavailable email verification is not promoted or marked seen during onboarding', (tester) async {
+    final service = _Service();
+    final permissions = _PermissionController(_summary());
+    final preferences = _Preferences()..values[firstRunOnboardingVersionKey] = currentFirstRunOnboardingVersion;
+    addTearDown(service.dispose);
+    await _mount(tester, service, permissions, preferences, batteryTrackerEnabled: false);
+    await tester.tap(find.byType(ElevatedButton));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Find scooter'), findsOneWidget);
+    expect(find.text('Join the shared battery tracker'), findsNothing);
+    expect(preferences.values[batteryFeatureOnboardingVersionKey], isNull);
   });
 
   testWidgets('personalization stays centered and makes the default name easy to replace on iPad', (tester) async {

@@ -4,13 +4,16 @@ import 'package:scooter_core/battery_identity.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../service/onboarding_preferences.dart';
+import '../../feature_flags.dart';
 import '../widgets/battery_tracking_intro.dart';
 
 Future<void> showBatteryFeatureAnnouncement(
   BuildContext context, {
   OnboardingPreferences? preferences,
   Future<bool> Function(Uri)? openBrowser,
+  bool enabled = sunshineBatteryRegistrationEnabled,
 }) async {
+  if (!enabled) return;
   final onboarding = preferences ?? OnboardingPreferences();
   if (await onboarding.hasSeenBatteryFeature() || !context.mounted) return;
   final joinTracker = await showDialog<bool>(
@@ -18,7 +21,7 @@ Future<void> showBatteryFeatureAnnouncement(
     builder: (context) => AlertDialog(
       scrollable: true,
       title: Text(FlutterI18n.translate(context, 'battery_tracker_announcement_title')),
-      content: const SizedBox(width: 380, child: BatteryTrackingIntro()),
+      content: SizedBox(width: 380, child: BatteryTrackingIntro(registrationEnabled: enabled)),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
@@ -33,7 +36,7 @@ Future<void> showBatteryFeatureAnnouncement(
   );
   await onboarding.markBatteryFeatureSeen();
   if (joinTracker == true && context.mounted) {
-    final uri = sunshineSignupUri();
+    final uri = batteryTrackerJoinUri();
     final opened = await (openBrowser?.call(uri) ?? launchUrl(uri, mode: LaunchMode.externalApplication));
     if (!opened && context.mounted) {
       ScaffoldMessenger.of(context)

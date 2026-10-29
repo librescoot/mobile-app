@@ -95,7 +95,7 @@ void main() {
     final proceed = find.byKey(const ValueKey('battery-register-continue'));
     expect(tester.widget<FilledButton>(proceed).onPressed, isNull);
     expect(tester.getTopLeft(find.byKey(const ValueKey('battery-label-verification'))).dy,
-        lessThan(tester.getTopLeft(find.textContaining('Continuing opens Sunshine')).dy));
+        lessThan(tester.getTopLeft(find.textContaining('Continuing opens the tracker')).dy));
     expect(tester.getTopLeft(find.text('Not now')).dy, greaterThan(tester.getTopLeft(proceed).dy));
     await tester.tap(find.text('Not now'));
     await tester.pumpAndSettle();
@@ -109,7 +109,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(opened.single, batteryRegistrationUri(battery));
     expect(opened.single.host, 'sunshine.rescoot.org');
-    expect(find.text('Finish signing in and confirm registration in your browser.'), findsOneWidget);
+    expect(find.text('Confirm your email and approve battery registration in your browser.'), findsOneWidget);
   });
 
   testWidgets('serial readings are transient, dismissible and never form a phone inventory', (tester) async {
@@ -143,7 +143,7 @@ void main() {
     expect(find.textContaining('1.4'), findsNothing);
   });
 
-  testWidgets('signup and account management never send a scanned serial', (tester) async {
+  testWidgets('email verification and management never send a scanned serial', (tester) async {
     final opened = <Uri>[];
     await pump(
         tester,
@@ -158,13 +158,14 @@ void main() {
     await visible(tester, find.byKey(const ValueKey('join-battery-tracker')));
     await tester.tap(find.byKey(const ValueKey('join-battery-tracker')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Sign in / manage registrations'));
+    await tester.tap(find.text('Verify email / manage registrations'));
     await tester.pumpAndSettle();
-    expect(opened, [sunshineSignupUri(), sunshineBatteriesUri()]);
+    expect(opened, [batteryTrackerJoinUri(), batteryTrackerRegistrationsUri()]);
     expect(opened.every((uri) => uri.host == 'sunshine.rescoot.org' && !uri.hasQuery), isTrue);
   });
 
-  testWidgets('a closed website release gate allows signup but not broken registration links', (tester) async {
+  testWidgets('a closed release gate blocks verification and registration until the service is deployed',
+      (tester) async {
     final opened = <Uri>[];
     await pump(
         tester,
@@ -182,11 +183,10 @@ void main() {
             matching: find.byWidgetPredicate((widget) => widget is FilledButton))
         .first;
     expect(tester.widget<FilledButton>(registration).onPressed, isNull);
-    expect(find.text('Sign in / manage registrations'), findsNothing);
-    await visible(tester, find.byKey(const ValueKey('join-battery-tracker')));
-    await tester.tap(find.byKey(const ValueKey('join-battery-tracker')));
-    await tester.pumpAndSettle();
-    expect(opened, [sunshineSignupUri()]);
+    expect(find.text('Verify email / manage registrations'), findsNothing);
+    final join = find.byKey(const ValueKey('join-battery-tracker'));
+    expect(tester.widget<FilledButton>(join).onPressed, isNull);
+    expect(opened, isEmpty);
   });
 
   for (final locale in [const Locale('en'), const Locale('de')]) {

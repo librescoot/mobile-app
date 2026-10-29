@@ -290,13 +290,13 @@ class _BatteryTrackerScreenState extends State<BatteryTrackerScreen> {
               const SizedBox(height: 20),
               FilledButton.icon(
                 key: const ValueKey('join-battery-tracker'),
-                onPressed: _busy ? null : () => _openBrowser(sunshineSignupUri()),
+                onPressed: _busy || !widget.registrationEnabled ? null : () => _openBrowser(batteryTrackerJoinUri()),
                 icon: const Icon(Icons.group_add_outlined),
                 label: Text(_text('join')),
               ),
               if (widget.registrationEnabled)
                 TextButton(
-                  onPressed: _busy ? null : () => _openBrowser(sunshineBatteriesUri()),
+                  onPressed: _busy ? null : () => _openBrowser(batteryTrackerRegistrationsUri()),
                   child: Text(_text('manage_account')),
                 ),
               const SizedBox(height: 12),
@@ -329,7 +329,7 @@ class _BatteryTrackerScreenState extends State<BatteryTrackerScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(_text('signup_requirements')),
+                  Text(_text('email_verification_notice')),
                   const SizedBox(height: 12),
                   Text(_text('delete_notice')),
                 ]),

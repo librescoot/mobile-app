@@ -27,6 +27,7 @@ import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/ui/widgets/scooter_visual.dart';
 import 'package:unustasis/ui/screens/support_screen.dart';
 import 'battery_tracker_screen.dart';
+import '../../feature_flags.dart';
 import '../widgets/battery_tracking_intro.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -35,7 +36,8 @@ class OnboardingScreen extends StatefulWidget {
     this.skipWelcome = false,
     this.permissionController,
     this.onboardingPreferences,
-    this.launchBatteryAccount,
+    this.launchBatteryVerification,
+    this.batteryTrackerEnabled = sunshineBatteryRegistrationEnabled,
     this.initialStep = 0,
     super.key,
   });
@@ -43,7 +45,8 @@ class OnboardingScreen extends StatefulWidget {
   final bool skipWelcome;
   final OnboardingPermissionController? permissionController;
   final OnboardingPreferences? onboardingPreferences;
-  final Future<bool> Function(Uri)? launchBatteryAccount;
+  final Future<bool> Function(Uri)? launchBatteryVerification;
+  final bool batteryTrackerEnabled;
   final int initialStep;
 
   @override
@@ -182,7 +185,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     final alreadyCompleted = await _onboardingPreferences.isCurrent();
     final batteryFeatureSeen = alreadyCompleted && await _onboardingPreferences.hasSeenBatteryFeature();
     if (!mounted) return;
-    setState(() => _step = alreadyCompleted ? (batteryFeatureSeen ? 1 : -3) : -2);
+    setState(() => _step = alreadyCompleted ? (!widget.batteryTrackerEnabled || batteryFeatureSeen ? 1 : -3) : -2);
   }
 
   Future<void> _requestOnboardingPermissions() async {
@@ -307,7 +310,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     setState(() => _savingOnlineServicesChoice = true);
     try {
       await _onboardingPreferences.complete(onlineServicesEnabled: choice);
-      if (mounted) setState(() => _step = -3);
+      if (mounted) setState(() => _step = widget.batteryTrackerEnabled ? -3 : 1);
     } catch (error, stack) {
       log.warning('Could not save the online-services choice', error, stack);
       if (mounted) {
@@ -381,10 +384,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     setState(() => _savingBatteryIntro = true);
     try {
       if (join) {
-        final uri = sunshineSignupUri();
+        final uri = batteryTrackerJoinUri();
         final opened =
-            await (widget.launchBatteryAccount?.call(uri) ?? launchUrl(uri, mode: LaunchMode.externalApplication));
-        if (!opened) throw StateError('Account signup unavailable');
+            await (widget.launchBatteryVerification?.call(uri) ?? launchUrl(uri, mode: LaunchMode.externalApplication));
+        if (!opened) throw StateError('Email verification unavailable');
       }
       await _onboardingPreferences.markBatteryFeatureSeen();
       if (mounted) setState(() => _step = 1);
@@ -399,7 +402,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
   }
 
   List<Widget> _batteryTrackingStep() => [
-        const BatteryTrackingIntro(),
+        BatteryTrackingIntro(registrationEnabled: widget.batteryTrackerEnabled),
         const SizedBox(height: 24),
         _primaryButton(
           text: FlutterI18n.translate(context, 'battery_tracker_join'),

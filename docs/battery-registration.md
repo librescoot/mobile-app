@@ -2,39 +2,45 @@
 
 The battery feature invites riders to join the shared tracker and register the
 batteries they use, so serial numbers can help identify stolen batteries when
-they are seen again. Account signup is the primary action in Your batteries,
-the first-run introduction and the once-only existing-user announcement.
+they are seen again. Joining requires confirming an email with a six-digit
+code, without a password, profile form or full Sunshine account. The invitation
+to join is the primary action in Your batteries and, when the service is
+available, first-run onboarding and the once-only existing-user announcement.
 
 The app has no phone-side battery inventory or history. Serial readings are
 transient input to registration and disappear when the page closes. A scan does
 not upload anything. The app also removes the `batteryTracker.v1` preference
 at startup so no phone-side inventory is retained.
 
-## Account and registration availability
+## Email verification and registration availability
 
-Signup opens `https://sunshine.rescoot.org/users/sign_up` without a serial or
-other battery data. The website controls account and invitation requirements.
-Opening signup does not mean an account or battery registration was completed.
+Joining opens `https://sunshine.rescoot.org/battery_tracker/join` without a
+serial or other battery data. The browser asks for an email, sends a code and
+verifies it. This grants tracker-only access and creates no Sunshine account or
+full-account login. Existing account data remains separate, even if its email
+matches. Opening the browser does not mean a battery was registered.
 
-Shared registration is separately release-gated. The default build leaves
-`SUNSHINE_BATTERY_REGISTRATION_ENABLED` off because the registration service
-must be deployed and its routes verified before users are sent there. Signup
-and serial reading remain available without exposing broken registration links.
-Only enable the build flag after the backend release is authorized and verified.
+The default build leaves `SUNSHINE_BATTERY_REGISTRATION_ENABLED` off until the
+email-verification and registration service is deployed and verified. Joining,
+registration and management links stay disabled while unavailable. First-run
+and existing-user invitations are deferred without marking them as seen.
+Only enable the build flag after an authorized backend release is verified.
 
-With registration enabled, account management opens
-`https://sunshine.rescoot.org/battery_registrations`. Registering a scanned pack
+With the service enabled, tracker management opens
+`https://sunshine.rescoot.org/battery_tracker/registrations`. Registering a scanned pack
 first shows its serial and read method, requires checking the physical label,
 and explains the exact upload and destination. Only explicit continuation opens
-`https://sunshine.rescoot.org/battery_registrations/new` with `serial_number`
+`https://sunshine.rescoot.org/battery_tracker/registrations/new` with `serial_number`
 and `source=ble|nfc`. No location, scooter identifier or history is included.
 No registration is queued or automatically retried.
 
-The website requires account login and separate consent before recording the
-claim. Browser launch is never presented as registration success. Users manage
-or delete shared registrations through their account.
+The website verifies the email with an expiring, browser-bound, single-use
+code, then requires separate consent before recording a claim. Codes have
+attempt and resend limits. Browser launch and email verification are never
+presented as successful battery registration. Users manage or delete their
+email-linked registrations in the tracker.
 
-A registration is an unverified account assertion, not proof of ownership or a
+A registration is an unverified email-linked assertion, not proof of ownership or a
 theft report. It does not grant ownership, create a scooter assignment, change
 a theft flag, or reveal another account's ownership or theft information.
 Conflicting ownership claims require separate review.
@@ -42,7 +48,7 @@ Conflicting ownership claims require separate review.
 ## Identity sources and firmware markers
 
 The read-method sheet puts a usable method first. Only the scooter Bluetooth
-option carries the Librescoot marker; NFC and account signup have no Librescoot
+option carries the Librescoot marker; NFC and email verification have no Librescoot
 firmware requirement. The first stable firmware release with battery identity
 support is not established, so the UI uses the confirmed `battery=1` capability
 instead of inventing a minimum version.

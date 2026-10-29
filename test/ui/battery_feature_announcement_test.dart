@@ -23,7 +23,8 @@ void main() {
   });
   tearDown(() => SharedPreferencesAsyncPlatform.instance = previous);
 
-  Future<void> mount(WidgetTester tester, {double scale = 1, Size size = const Size(800, 1200)}) async {
+  Future<void> mount(WidgetTester tester,
+      {double scale = 1, Size size = const Size(800, 1200), bool enabled = true}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -40,7 +41,7 @@ void main() {
               builder: (context) => TextButton(
                   onPressed: () async {
                     finished = false;
-                    await showBatteryFeatureAnnouncement(context, openBrowser: (uri) async {
+                    await showBatteryFeatureAnnouncement(context, enabled: enabled, openBrowser: (uri) async {
                       opened.add(uri);
                       return true;
                     });
@@ -70,16 +71,23 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
   });
 
-  testWidgets('joining opens only signup and never claims completed registration', (tester) async {
+  testWidgets('joining opens only email-code verification and never claims completed registration', (tester) async {
     await mount(tester);
     await tester.tap(find.text('Join the shared tracker'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
-    expect(opened, [sunshineSignupUri()]);
+    expect(opened, [batteryTrackerJoinUri()]);
     expect(opened.single.hasQuery, isFalse);
     expect(finished, isTrue);
     expect(preferences.values, isEmpty);
     expect(find.textContaining('registered successfully'), findsNothing);
+  });
+
+  testWidgets('unavailable email verification is not announced or marked seen', (tester) async {
+    await mount(tester, enabled: false);
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(preferences.ints[batteryFeatureOnboardingVersionKey], isNull);
+    expect(opened, isEmpty);
   });
 
   testWidgets('announcement remains scrollable at narrow width and large text', (tester) async {

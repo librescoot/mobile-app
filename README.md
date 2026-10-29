@@ -44,8 +44,9 @@ Join the shared battery tracker to help identify stolen batteries by serial.
 The app reads serials through compatible scooter Bluetooth or battery NFC tags
 as transient registration input, without a separate phone inventory. Sharing
 requires label verification, an explicit upload confirmation and separate
-account consent on the website. Signup is available in the browser; shared
-registration remains release-gated until the backend is available.
+consent on the website after email confirmation with a verification code.
+No password or full account signup is required. Email verification and shared
+registration remain release-gated until the backend is available.
 See [shared battery tracking and registration](docs/battery-registration.md).
 
 ### Wearable companions (experimental)
