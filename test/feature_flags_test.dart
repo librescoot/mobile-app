@@ -3,6 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:unustasis/feature_flags.dart';
 
 void main() {
+  test('battery registration matches the explicitly selected build gate', () {
+    const expected = bool.fromEnvironment('EXPECT_BATTERY_REGISTRATION_ENABLED');
+    expect(sunshineBatteryRegistrationEnabled, expected);
+  });
+
   test('phone keys are limited to Android debug and profile builds', () {
     expect(phoneKeyFeatureEnabledFor(platform: TargetPlatform.android, releaseMode: false), isTrue);
     expect(phoneKeyFeatureEnabledFor(platform: TargetPlatform.android, releaseMode: true), isFalse);

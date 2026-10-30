@@ -26,6 +26,15 @@ registration and management links stay disabled while unavailable. First-run
 and existing-user invitations are deferred without marking them as seen.
 Only enable the build flag after an authorized backend release is verified.
 
+For scoped Android acceptance, manually dispatch `.github/workflows/internal-android.yaml`
+on `main` with `battery_tracker=true`. The input defaults to false. The workflow
+checks the selected define, builds a signed AAB, records its commit/version/hash
+and publishes only to Play's internal track. It creates no GitHub release or tag
+and does not build or distribute iOS. General build defaults remain unchanged.
+Pushing `main` normally triggers the separate public Nightly workflow; use an
+explicit `[skip ci]` commit when only this manual internal delivery is authorized.
+The internal workflow runs the full analysis and test suites before building.
+
 With the service enabled, tracker management opens
 `https://sunshine.rescoot.org/battery_tracker/registrations`. Registering a scanned pack
 first shows its serial and read method, requires checking the physical label,

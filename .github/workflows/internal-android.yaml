@@ -1,0 +1,143 @@
+name: Internal Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      battery_tracker:
+        description: Enable the shared battery tracker after backend acceptance
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: internal-android
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.repository == 'librescoot/mobile-app' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.name }}
+      version_code: ${{ steps.version.outputs.code }}
+    env:
+      TRACKER_ENABLED: ${{ inputs.battery_tracker && 'true' || 'false' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Verify shared packages and app with default gates
+        run: |
+          (cd packages/scooter_core && dart pub get && dart analyze && dart test)
+          (cd packages/scooter_flutter && flutter pub get && flutter analyze && flutter test)
+          flutter pub get
+          flutter analyze
+          flutter test
+          python3 -m unittest discover -s tool -p 'test_publish_play.py'
+
+      - name: Verify the selected tracker define
+        run: |
+          flutter test test/feature_flags_test.dart \
+            --dart-define=SUNSHINE_BATTERY_REGISTRATION_ENABLED="$TRACKER_ENABLED" \
+            --dart-define=EXPECT_BATTERY_REGISTRATION_ENABLED="$TRACKER_ENABLED"
+
+      - name: Allocate Play version code
+        id: version
+        run: |
+          echo "name=$(grep '^version:' pubspec.yaml | cut -d' ' -f2 | cut -d+ -f1)" >> "$GITHUB_OUTPUT"
+          echo "code=$(( $(date -u +%s) - 1577836800 ))" >> "$GITHUB_OUTPUT"
+
+      - name: Write signing config
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'upload' }}
+        run: |
+          umask 077
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+
+      - name: Build internal Android bundle
+        run: |
+          flutter build appbundle --release \
+            --build-number=${{ steps.version.outputs.code }} \
+            --dart-define=SUNSHINE_BATTERY_REGISTRATION_ENABLED="$TRACKER_ENABLED"
+
+      - name: Record build provenance
+        env:
+          VERSION: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib
+          bundle = pathlib.Path('build/app/outputs/bundle/release/app-release.aab')
+          facts = {
+              'commit': os.environ['GITHUB_SHA'],
+              'version': os.environ['VERSION'],
+              'version_code': int(os.environ['VERSION_CODE']),
+              'track': 'internal',
+              'defines': {'SUNSHINE_BATTERY_REGISTRATION_ENABLED': os.environ['TRACKER_ENABLED']},
+              'aab_sha256': hashlib.sha256(bundle.read_bytes()).hexdigest(),
+          }
+          pathlib.Path('build-provenance.json').write_text(json.dumps(facts, indent=2) + '\n')
+          print(json.dumps(facts, indent=2))
+          PY
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: internal-android
+          path: |
+            build/app/outputs/bundle/release/app-release.aab
+            build-provenance.json
+          retention-days: 14
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: google-play-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v7
+        with:
+          name: internal-android
+          path: artifacts
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/47940350172/locations/global/workloadIdentityPools/github-actions/providers/mobile-app
+          audience: https://github.com/librescoot
+          service_account: librescoot-play-publisher@android-apps-508215.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+      - name: Publish and verify Play internal only
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          TRACKER_ENABLED: ${{ inputs.battery_tracker && 'true' || 'false' }}
+        run: |
+          printf 'Internal Android test build. Shared battery tracker enabled: %s. Verify BLE/NFC serials against physical labels before consenting to registration.\n' "$TRACKER_ENABLED" > internal-notes.txt
+          python3 .github/scripts/publish_play.py \
+            --aab artifacts/build/app/outputs/bundle/release/app-release.aab \
+            --track internal \
+            --name "Internal ${{ needs.build.outputs.version }}" \
+            --version-code "${{ needs.build.outputs.version_code }}" \
+            --notes-file internal-notes.txt
