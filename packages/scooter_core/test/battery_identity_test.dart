@@ -84,18 +84,12 @@ void main() {
   });
 
   test(
-      'browser handoff contains only serial and source on the fixed HTTPS origin',
+      'management links contain no identity data and identity roundtrips unchanged',
       () {
     final identity = BatteryIdentity(
         serialNumber: 'T-UNU22205090007',
         source: BatteryIdentitySource.nfc,
         checkedAt: time);
-    final uri = batteryRegistrationUri(identity);
-    expect(uri.scheme, 'https');
-    expect(uri.host, 'sunshine.rescoot.org');
-    expect(uri.path, '/battery_tracker/registrations/new');
-    expect(uri.queryParameters,
-        {'serial_number': identity.serialNumber, 'source': 'nfc'});
     expect(BatteryIdentity.fromJson(identity.toJson()).serialNumber,
         identity.serialNumber);
     expect(batteryTrackerJoinUri().toString(),

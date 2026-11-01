@@ -50,10 +50,42 @@ The internal workflow runs the full analysis and test suites before building.
 With the service enabled, tracker management opens
 `https://sunshine.rescoot.org/battery_tracker/registrations`. Registering a scanned pack
 first shows its serial and read method, requires checking the physical label,
-and explains the exact upload and destination. Only explicit continuation opens
-`https://sunshine.rescoot.org/battery_tracker/registrations/new` with `serial_number`
-and `source=ble|nfc`. No location, scooter identifier or history is included.
-No registration is queued or automatically retried.
+and explains the exact upload and destination. Only explicit continuation requests
+a challenge and submits the selected serial and `source=ble|nfc` to Sunshine.
+The browser opens `https://sunshine.rescoot.org/battery_tracker/handoff#code=...`.
+The opaque code is in the URL fragment, never the HTTP path, query or Referer;
+serial and source are not in the browser URL. No location, scooter identifier or
+history is included. No registration is queued or automatically retried.
+
+## Challenge and browser handoff
+
+Both API calls use fixed HTTPS endpoints, JSON bodies, no account authentication
+or cookies, and no redirects. The app has a 30-second total deadline and accepts
+at most 4 KiB of JSON response data.
+
+1. `POST /api/v1/battery_tracker/challenges` with `{}` returns HTTP 201,
+   `challenge` (32 random bytes encoded as 43 base64url characters) and
+   `expires_at` (UTC ISO8601). The challenge expires after ten minutes.
+2. `POST /api/v1/battery_tracker/claims` sends `challenge`, `serial_number` and
+   `source`. HTTP 201 returns `code` (43 base64url characters) and `expires_at`.
+   An identical retry returns HTTP 200 with the same code and expiration. A
+   changed payload cannot reuse the nonce. The code lasts ten minutes.
+3. The browser prepares its own session using a CSRF-protected POST, removes the
+   fragment, and continues through email verification and explicit consent.
+   Preparation does not consume the claim; final registration atomically binds
+   it once, using the server-stored payload rather than hidden form fields.
+
+The app retains an ambiguous claim request only in memory so an explicit retry
+can reuse the exact nonce and payload. Cancellation discards it and closes the
+client; a late challenge cannot start an upload or open the browser. Browser
+launch failure reuses the prepared code until it expires. HTTP 429 offers a wait
+and retry hint. Other failures stay on the sharing step without falling back to
+serial-bearing URLs. Nothing retries automatically.
+
+These endpoints authenticate the handoff and prevent mutation/reuse of a claim;
+they do not attest the reading hardware. No shared app signing secret, Play
+Integrity or App Attest is used. Older app links remain supported by the server
+as unverified serial/source handoffs, not as challenge-backed claims.
 
 The website verifies the email with an expiring, browser-bound, single-use
 code, then requires separate consent before recording a claim. Codes have

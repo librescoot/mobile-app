@@ -95,9 +95,3 @@ Uri batteryTrackerJoinUri() =>
     Uri.https(batteryTrackerHost, '/battery_tracker/join');
 Uri batteryTrackerRegistrationsUri() =>
     Uri.https(batteryTrackerHost, '/battery_tracker/registrations');
-
-Uri batteryRegistrationUri(BatteryIdentity identity) => Uri.https(
-      batteryTrackerHost,
-      '/battery_tracker/registrations/new',
-      {'serial_number': identity.serialNumber, 'source': identity.source.name},
-    );

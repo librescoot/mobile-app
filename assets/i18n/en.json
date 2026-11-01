@@ -25,6 +25,8 @@
 "battery_tracker_not_registered": "Serial read for registration. Nothing has been registered yet.",
 "battery_tracker_dismiss_reading": "Dismiss serial",
 "battery_tracker_account_open_error": "Could not open your browser. Please try again.",
+"battery_tracker_handoff_error": "Couldn't prepare registration. Check your connection and try again.",
+"battery_tracker_handoff_rate_limited": "Too many attempts. Please wait a few minutes and try again.",
 "battery_tracker_add": "Add a battery",
 "battery_tracker_serial": "Battery serial",
 "battery_tracker_battery_number": "Battery {number}",

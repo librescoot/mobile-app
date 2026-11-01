@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:scooter_core/battery_identity.dart';
 import 'package:unustasis/ui/screens/battery_tracker_screen.dart';
+import 'package:unustasis/service/battery_handoff_client.dart';
 import 'package:unustasis/ui/theme/librescoot_theme.dart';
 
 import '../support/inline_asset_bundle.dart';
@@ -19,10 +20,19 @@ void main() {
       source: BatteryIdentitySource.ble,
       checkedAt: DateTime.utc(2026, 10, 27),
       slot: 1);
+  final handoffUri =
+      Uri.https('sunshine.rescoot.org', '/battery_tracker/handoff').replace(fragment: 'code=${'a' * 43}');
+  late List<BatteryIdentity> shared;
+  Future<BatteryHandoff> prepareHandoff(BatteryIdentity identity) async {
+    shared.add(identity);
+    return BatteryHandoff(uri: handoffUri, expiresAt: DateTime.now().add(const Duration(minutes: 10)));
+  }
+
   late MemoryPreferences preferences;
   late SharedPreferencesAsyncPlatform? previous;
 
   setUp(() {
+    shared = [];
     previous = SharedPreferencesAsyncPlatform.instance;
     SharedPreferencesAsyncPlatform.instance = preferences = MemoryPreferences();
   });
@@ -48,7 +58,15 @@ void main() {
         FlutterI18nDelegate(
             translationLoader: InlineFileTranslationLoader(basePath: 'assets/i18n', forcedLocale: locale))
       ],
-      home: screen,
+      home: BatteryTrackerScreen(
+        readBluetooth: screen.readBluetooth,
+        readNfc: screen.readNfc,
+        openBrowser: screen.openBrowser,
+        prepareHandoff: screen.prepareHandoff ?? prepareHandoff,
+        bluetoothSupported: screen.bluetoothSupported,
+        startWithScan: screen.startWithScan,
+        registrationEnabled: screen.registrationEnabled,
+      ),
     ));
     await tester.pumpAndSettle();
   }
@@ -112,8 +130,13 @@ void main() {
     expect(find.byKey(const ValueKey('battery-sharing-disclosure')), findsOneWidget);
     expect(find.textContaining('sunshine.rescoot.org'), findsOneWidget);
     expect(opened, isEmpty);
+    expect(shared, isEmpty);
     await tap(tester, find.byKey(const ValueKey('battery-register-continue')));
-    expect(opened, [batteryRegistrationUri(battery)]);
+    expect(shared, [battery]);
+    expect(opened, [handoffUri]);
+    expect(opened.single.toString(), isNot(contains(battery.serialNumber)));
+    expect(opened.single.hasQuery, isFalse);
+    expect(opened.single.fragment, 'code=${'a' * 43}');
     expect(find.text('One last step in your browser.'), findsOneWidget);
     expect(find.textContaining('only registered after you confirm'), findsOneWidget);
     expect(find.textContaining('registered successfully'), findsNothing);
@@ -159,7 +182,8 @@ void main() {
     expect(find.text(other.serialNumber), findsOneWidget);
     expect(find.text(battery.serialNumber), findsNothing);
     await tap(tester, find.byKey(const ValueKey('battery-register-continue')));
-    expect(opened.single, batteryRegistrationUri(other));
+    expect(shared, [other]);
+    expect(opened.single, handoffUri);
   });
 
   testWidgets('mismatched serial restarts scanning, readings never become an inventory', (tester) async {
@@ -204,6 +228,7 @@ void main() {
     await tap(tester, find.byType(BackButton));
     await tap(tester, find.byType(BackButton));
     await tap(tester, find.byKey(const ValueKey('manage-battery-tracker')));
+    expect(shared, isEmpty);
     expect(opened, [batteryTrackerRegistrationsUri()]);
     expect(opened.single.hasQuery, isFalse);
   });
@@ -224,6 +249,7 @@ void main() {
     await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
     expect(tester.widget<FilledButton>(find.byKey(const ValueKey('battery-register-continue'))).onPressed, isNull);
     expect(opened, isEmpty);
+    expect(shared, isEmpty);
   });
 
   testWidgets('empty and failed reads retain the method choices for retry', (tester) async {
@@ -267,6 +293,134 @@ void main() {
     expect(find.byKey(const ValueKey('battery-register-continue')), findsOneWidget);
   });
 
+  testWidgets('failed browser launch reuses the prepared handoff on explicit retry', (tester) async {
+    var launches = 0;
+    await pump(
+        tester,
+        BatteryTrackerScreen(
+          readBluetooth: () async => [battery],
+          registrationEnabled: true,
+          openBrowser: (_) async => ++launches > 1,
+        ));
+    await read(tester, 'bluetooth');
+    await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
+    await tap(tester, find.byKey(const ValueKey('battery-register-continue')));
+    expect(shared, [battery]);
+    await tap(tester, find.byKey(const ValueKey('battery-register-continue')));
+    expect(shared, [battery]);
+    expect(launches, 2);
+    expect(find.text('One last step in your browser.'), findsOneWidget);
+    await tap(tester, find.text('Return to registration'));
+    expect(shared, [battery]);
+    expect(launches, 3);
+  });
+
+  testWidgets('cancelled handoff cannot launch the browser or restore sharing', (tester) async {
+    final handoff = Completer<BatteryHandoff>();
+    final opened = <Uri>[];
+    await pump(
+        tester,
+        BatteryTrackerScreen(
+          readBluetooth: () async => [battery],
+          registrationEnabled: true,
+          prepareHandoff: (_) => handoff.future,
+          openBrowser: (uri) async {
+            opened.add(uri);
+            return true;
+          },
+        ));
+    await read(tester, 'bluetooth');
+    await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
+    await tester.tap(find.byKey(const ValueKey('battery-register-continue')));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(tester.widget<FilledButton>(find.byKey(const ValueKey('battery-register-continue'))).onPressed, isNull);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    handoff.complete(await prepareHandoff(battery));
+    await tester.pumpAndSettle();
+    expect(opened, isEmpty);
+    expect(find.text('Is this your battery?'), findsOneWidget);
+  });
+
+  testWidgets('failed handoff never falls back to a serial URL or retries automatically', (tester) async {
+    var attempts = 0;
+    final opened = <Uri>[];
+    await pump(
+        tester,
+        BatteryTrackerScreen(
+          readBluetooth: () async => [battery],
+          registrationEnabled: true,
+          prepareHandoff: (_) async {
+            attempts++;
+            throw const BatteryHandoffException(BatteryHandoffFailure.rateLimited);
+          },
+          openBrowser: (uri) async {
+            opened.add(uri);
+            return true;
+          },
+        ));
+    await read(tester, 'bluetooth');
+    await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
+    await tap(tester, find.byKey(const ValueKey('battery-register-continue')));
+    expect(attempts, 1);
+    expect(opened, isEmpty);
+    expect(find.textContaining('Too many attempts'), findsOneWidget);
+    await tester.pump(const Duration(minutes: 1));
+    expect(attempts, 1);
+    await tap(tester, find.byKey(const ValueKey('battery-register-continue')));
+    expect(attempts, 2);
+  });
+
+  testWidgets('adding another battery cancels a pending browser return without leaving a busy screen', (tester) async {
+    final opening = Completer<bool>();
+    var launches = 0;
+    await pump(
+        tester,
+        BatteryTrackerScreen(
+          readBluetooth: () async => [battery],
+          registrationEnabled: true,
+          openBrowser: (_) => ++launches == 1 ? Future.value(true) : opening.future,
+        ));
+    await read(tester, 'bluetooth');
+    await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
+    await tap(tester, find.byKey(const ValueKey('battery-register-continue')));
+    await tester.tap(find.text('Return to registration'));
+    await tester.pump();
+    await tester.tap(find.text('Add another battery'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byKey(const ValueKey('battery-source-bluetooth')), findsOneWidget);
+    opening.complete(true);
+    await tester.pumpAndSettle();
+    expect(find.text('One last step in your browser.'), findsNothing);
+  });
+
+  testWidgets('disposed screen ignores a completed handoff', (tester) async {
+    final handoff = Completer<BatteryHandoff>();
+    var launches = 0;
+    await pump(
+        tester,
+        BatteryTrackerScreen(
+          readBluetooth: () async => [battery],
+          registrationEnabled: true,
+          prepareHandoff: (_) => handoff.future,
+          openBrowser: (_) async {
+            launches++;
+            return true;
+          },
+        ));
+    await read(tester, 'bluetooth');
+    await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
+    await tester.tap(find.byKey(const ValueKey('battery-register-continue')));
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox());
+    handoff.complete(await prepareHandoff(battery));
+    await tester.pumpAndSettle();
+    expect(launches, 0);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('late browser completion cannot resurrect a dismissed sharing step', (tester) async {
     final opening = Completer<bool>();
     await pump(
@@ -277,7 +431,8 @@ void main() {
     await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
     await tester.tap(find.byKey(const ValueKey('battery-register-continue')));
     await tester.pump();
-    await tap(tester, find.byType(BackButton));
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
     await tap(tester, find.byType(BackButton));
     opening.complete(true);
     await tester.pumpAndSettle();

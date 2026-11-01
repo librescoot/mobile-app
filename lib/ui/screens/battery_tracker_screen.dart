@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../feature_flags.dart';
 import '../../scooter_service.dart';
 import '../../service/battery_nfc_reader.dart';
+import '../../service/battery_handoff_client.dart';
 import '../../service/battery_read_failure.dart';
 import '../widgets/battery_tracking_intro.dart';
 
@@ -22,6 +23,7 @@ class BatteryTrackerScreen extends StatefulWidget {
     this.readBluetooth,
     this.readNfc,
     this.openBrowser,
+    this.prepareHandoff,
     this.bluetoothSupported,
     this.startWithScan = false,
     this.registrationEnabled = sunshineBatteryRegistrationEnabled,
@@ -30,6 +32,7 @@ class BatteryTrackerScreen extends StatefulWidget {
   final Future<List<BatteryIdentity>> Function()? readBluetooth;
   final Future<BatteryIdentity> Function()? readNfc;
   final Future<bool> Function(Uri)? openBrowser;
+  final Future<BatteryHandoff> Function(BatteryIdentity)? prepareHandoff;
   final bool? bluetoothSupported;
   final bool startWithScan;
   final bool registrationEnabled;
@@ -40,6 +43,8 @@ class BatteryTrackerScreen extends StatefulWidget {
 
 class _BatteryTrackerScreenState extends State<BatteryTrackerScreen> {
   final _nfc = BatteryNfcReader();
+  final _handoffs = BatteryHandoffClient();
+  BatteryHandoff? _handoff;
   late _TrackerStep _step = widget.startWithScan ? _TrackerStep.read : _TrackerStep.welcome;
   List<BatteryIdentity> _readings = [];
   BatteryIdentity? _selected;
@@ -53,13 +58,19 @@ class _BatteryTrackerScreenState extends State<BatteryTrackerScreen> {
   @override
   void dispose() {
     _readGeneration++;
+    _handoffs.cancel();
     unawaited(_nfc.cancel().catchError((Object _) {}));
     super.dispose();
   }
 
   void _startReading() {
+    _readGeneration++;
+    _handoffs.cancel();
+    _handoff = null;
     setState(() {
       _step = _TrackerStep.read;
+      _busy = false;
+      _scanningNfc = false;
       _readings = [];
       _selected = null;
       _error = null;
@@ -68,6 +79,8 @@ class _BatteryTrackerScreenState extends State<BatteryTrackerScreen> {
 
   void _back() {
     _readGeneration++;
+    _handoffs.cancel();
+    _handoff = null;
     if (_scanningNfc) unawaited(_nfc.cancel().catchError((Object _) {}));
     setState(() {
       _busy = false;
@@ -88,6 +101,7 @@ class _BatteryTrackerScreenState extends State<BatteryTrackerScreen> {
   Future<void> _read({required bool nfc}) async {
     if (_busy) return;
     final generation = ++_readGeneration;
+    _handoff = null;
     setState(() {
       _busy = true;
       _scanningNfc = nfc;
@@ -126,7 +140,7 @@ class _BatteryTrackerScreenState extends State<BatteryTrackerScreen> {
     }
   }
 
-  Future<void> _openBrowser(Uri uri, {bool registration = false}) async {
+  Future<void> _openBrowser(Uri uri) async {
     if (_busy || !widget.registrationEnabled) return;
     final generation = _readGeneration;
     setState(() {
@@ -136,7 +150,6 @@ class _BatteryTrackerScreenState extends State<BatteryTrackerScreen> {
     try {
       final opened = await (widget.openBrowser?.call(uri) ?? launchUrl(uri, mode: LaunchMode.externalApplication));
       if (!opened) throw StateError('Browser unavailable');
-      if (mounted && generation == _readGeneration && registration) setState(() => _step = _TrackerStep.browser);
     } catch (_) {
       if (mounted && generation == _readGeneration) setState(() => _error = 'account_open_error');
     } finally {
@@ -144,11 +157,48 @@ class _BatteryTrackerScreenState extends State<BatteryTrackerScreen> {
     }
   }
 
+  Future<void> _continueRegistration() async {
+    if (_busy || !widget.registrationEnabled || _selected == null) return;
+    final generation = _readGeneration;
+    final battery = _selected!;
+    var openingBrowser = false;
+    bool isCurrent() => mounted && generation == _readGeneration;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      var handoff = _handoff;
+      if (handoff == null || !handoff.expiresAt.isAfter(DateTime.now())) {
+        handoff = await (widget.prepareHandoff?.call(battery) ?? _handoffs.prepare(battery));
+      }
+      if (!isCurrent()) return;
+      _handoff = handoff;
+      openingBrowser = true;
+      final opened =
+          await (widget.openBrowser?.call(handoff.uri) ?? launchUrl(handoff.uri, mode: LaunchMode.externalApplication));
+      if (!opened) throw StateError('Browser unavailable');
+      if (isCurrent()) setState(() => _step = _TrackerStep.browser);
+    } catch (error) {
+      if (isCurrent()) {
+        setState(() => _error = openingBrowser
+            ? 'account_open_error'
+            : error is BatteryHandoffException && error.reason == BatteryHandoffFailure.rateLimited
+                ? 'handoff_rate_limited'
+                : 'handoff_error');
+      }
+    } finally {
+      if (isCurrent()) setState(() => _busy = false);
+    }
+  }
+
   Widget _primary(String label, VoidCallback? action, {Key? key, IconData icon = Icons.arrow_forward}) =>
       FilledButton.icon(
         key: key,
         onPressed: _busy ? null : action,
-        icon: Icon(icon, size: 20),
+        icon: _busy
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            : Icon(icon, size: 20),
         label: Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(_text(label))),
       );
 
@@ -335,13 +385,8 @@ class _BatteryTrackerScreenState extends State<BatteryTrackerScreen> {
         const SizedBox(height: 24),
         Text(_text('upload_consent'), key: const ValueKey('battery-sharing-disclosure')),
         const SizedBox(height: 24),
-        _primary(
-            'continue',
-            widget.registrationEnabled
-                ? () => _openBrowser(batteryRegistrationUri(_selected!), registration: true)
-                : null,
-            key: const ValueKey('battery-register-continue'),
-            icon: Icons.open_in_browser),
+        _primary('continue', widget.registrationEnabled ? _continueRegistration : null,
+            key: const ValueKey('battery-register-continue'), icon: Icons.open_in_browser),
         if (!widget.registrationEnabled) ...[
           const SizedBox(height: 12),
           Text(_text('account_unavailable')),
@@ -358,8 +403,7 @@ class _BatteryTrackerScreenState extends State<BatteryTrackerScreen> {
         _heading('finish_title', 'finish_browser'),
         _serialPanel(_selected!),
         const SizedBox(height: 24),
-        _primary('return_browser', () => _openBrowser(batteryRegistrationUri(_selected!), registration: true),
-            icon: Icons.open_in_browser),
+        _primary('return_browser', _continueRegistration, icon: Icons.open_in_browser),
         const SizedBox(height: 8),
         TextButton(onPressed: _startReading, child: Text(_text('add_another'))),
         const SizedBox(height: 12),

@@ -25,6 +25,8 @@
     "battery_tracker_not_registered": "Seriennummer zur Registrierung gelesen. Es wurde noch nichts registriert.",
     "battery_tracker_dismiss_reading": "Seriennummer verwerfen",
     "battery_tracker_account_open_error": "Der Browser konnte nicht geöffnet werden. Bitte versuche es erneut.",
+    "battery_tracker_handoff_error": "Die Registrierung konnte nicht vorbereitet werden. Prüfe deine Verbindung und versuche es erneut.",
+    "battery_tracker_handoff_rate_limited": "Zu viele Versuche. Bitte warte ein paar Minuten und versuche es erneut.",
     "battery_tracker_add": "Akku hinzufügen",
     "battery_tracker_serial": "Akku-Seriennummer",
     "battery_tracker_battery_number": "Akku {number}",
