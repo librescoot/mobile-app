@@ -297,7 +297,7 @@ class _TripDetailScreenState extends State<_TripDetailScreen> {
           ListTile(
               title: Text(_error is TripHistoryException && (_error as TripHistoryException).code == 'not-found'
                   ? _text(context, 'Diese Fahrt ist nicht mehr gespeichert', 'This trip is no longer stored',
-                      'Deze rit is niet meer opgeslagen', 'Ce trajet n’est plus enregistré')
+                      'Deze rit is niet meer opgeslagen', "Ce trajet n'est plus enregistré")
                   : _text(context, 'Fahrt nicht verfügbar', 'Trip unavailable', 'Rit niet beschikbaar',
                       'Trajet indisponible')),
               onTap: _loadDetail),
