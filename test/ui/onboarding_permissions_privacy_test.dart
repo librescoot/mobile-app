@@ -6,11 +6,12 @@ import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:scooter_core/battery_identity.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/service/onboarding_permissions.dart';
 import 'package:unustasis/service/onboarding_preferences.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
+import 'package:unustasis/ui/screens/battery_tracker_screen.dart';
+import 'package:unustasis/state/scooter_identity.dart';
 import 'package:unustasis/ui/widgets/scooter_visual.dart';
 
 import '../support/inline_asset_bundle.dart';
@@ -20,6 +21,8 @@ class _Service extends ChangeNotifier implements ScooterService {
   bool scanning = false;
   @override
   bool connected = false;
+  @override
+  final identity = ScooterIdentity();
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -93,7 +96,7 @@ Future<void> _mount(
   Size size = const Size(800, 1200),
   double textScale = 1,
   int initialStep = 0,
-  Future<bool> Function(Uri)? launchBatteryVerification,
+  Future<void> Function()? openBatteryTracker,
   bool batteryTrackerEnabled = true,
 }) async {
   tester.view.physicalSize = size;
@@ -123,7 +126,7 @@ Future<void> _mount(
             permissionController: permissions,
             onboardingPreferences: OnboardingPreferences(preferences: preferences),
             initialStep: initialStep,
-            launchBatteryVerification: launchBatteryVerification,
+            openBatteryTracker: openBatteryTracker,
             batteryTrackerEnabled: batteryTrackerEnabled,
           ),
         ),
@@ -169,7 +172,7 @@ void main() {
       'osmConsent=false',
       '$firstRunOnboardingVersionKey=$currentFirstRunOnboardingVersion',
     ]);
-    expect(find.text('Join the shared battery tracker'), findsOneWidget);
+    expect(find.text('Your batteries.\nNot gone without a trace.'), findsOneWidget);
     expect(preferences.values[batteryFeatureOnboardingVersionKey], isNull);
     await tester.ensureVisible(find.text('Continue scooter setup'));
     await tester.tap(find.text('Continue scooter setup'));
@@ -277,7 +280,7 @@ void main() {
     gate.complete();
     await tester.pump(const Duration(seconds: 1));
     expect(preferences.values['osmConsent'], true);
-    expect(find.text('Join the shared battery tracker'), findsOneWidget);
+    expect(find.text('Your batteries.\nNot gone without a trace.'), findsOneWidget);
   });
 
   testWidgets('a failed completion write re-enables the choice controls', (tester) async {
@@ -327,7 +330,7 @@ void main() {
     await _mount(tester, service, permissions, preferences);
     await tester.tap(find.byType(ElevatedButton));
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Join the shared battery tracker'), findsOneWidget);
+    expect(find.text('Your batteries.\nNot gone without a trace.'), findsOneWidget);
     expect(permissions.requests, 0);
     expect(preferences.writes, isEmpty);
     await tester.ensureVisible(find.text('Continue scooter setup'));
@@ -337,24 +340,45 @@ void main() {
     expect(preferences.writes, ['$batteryFeatureOnboardingVersionKey=$currentBatteryFeatureOnboardingVersion']);
   });
 
-  testWidgets('battery onboarding opens email-code verification without submitting a serial', (tester) async {
+  testWidgets('battery onboarding opens the native add flow before email verification', (tester) async {
     final service = _Service();
     final permissions = _PermissionController(_summary());
     final preferences = _Preferences();
-    final opened = <Uri>[];
+    var opened = 0;
     addTearDown(service.dispose);
-    await _mount(tester, service, permissions, preferences, initialStep: -3, launchBatteryVerification: (uri) async {
-      opened.add(uri);
-      return true;
+    await _mount(tester, service, permissions, preferences, initialStep: -3, openBatteryTracker: () async {
+      opened++;
     });
-    await tester.ensureVisible(find.text('Join the shared tracker'));
+    await tester.ensureVisible(find.text('Add a battery'));
     await tester.pump();
-    await tester.tap(find.text('Join the shared tracker'));
+    await tester.tap(find.text('Add a battery'));
     await tester.pump(const Duration(seconds: 1));
-    expect(opened, [batteryTrackerJoinUri()]);
-    expect(opened.single.hasQuery, isFalse);
+    expect(opened, 1);
     expect(preferences.writes, ['$batteryFeatureOnboardingVersionKey=$currentBatteryFeatureOnboardingVersion']);
     expect(find.text('Find scooter'), findsOneWidget);
+  });
+
+  testWidgets('native battery flow returns to scooter setup after dismissal', (tester) async {
+    final service = _Service();
+    final permissions = _PermissionController(_summary());
+    final preferences = _Preferences();
+    addTearDown(service.dispose);
+    await _mount(tester, service, permissions, preferences, initialStep: -3);
+    await tester.ensureVisible(find.text('Add a battery'));
+    await tester.tap(find.text('Add a battery'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(BatteryTrackerScreen), findsOneWidget);
+    expect(find.byKey(const ValueKey('battery-source-nfc')), findsOneWidget);
+    await tester.tap(find.byType(BackButton));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.byType(BackButton));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    expect(find.byType(BatteryTrackerScreen), findsNothing);
+    expect(find.text('Find scooter'), findsOneWidget);
+    expect(preferences.writes, ['$batteryFeatureOnboardingVersionKey=$currentBatteryFeatureOnboardingVersion']);
   });
 
   testWidgets('unavailable email verification is not promoted or marked seen during onboarding', (tester) async {
@@ -366,7 +390,7 @@ void main() {
     await tester.tap(find.byType(ElevatedButton));
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('Find scooter'), findsOneWidget);
-    expect(find.text('Join the shared battery tracker'), findsNothing);
+    expect(find.text('Your batteries.\nNot gone without a trace.'), findsNothing);
     expect(preferences.values[batteryFeatureOnboardingVersionKey], isNull);
   });
 

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
-import 'package:scooter_core/battery_identity.dart';
 import 'package:unustasis/service/onboarding_preferences.dart';
 import 'package:unustasis/ui/dialogs/battery_feature_announcement.dart';
 
@@ -12,14 +11,14 @@ import '../support/persistence_fakes.dart';
 void main() {
   late MemoryPreferences preferences;
   late SharedPreferencesAsyncPlatform? previous;
-  final opened = <Uri>[];
+  var opened = 0;
   var finished = false;
 
   setUp(() {
     previous = SharedPreferencesAsyncPlatform.instance;
     SharedPreferencesAsyncPlatform.instance = preferences = MemoryPreferences();
     finished = false;
-    opened.clear();
+    opened = 0;
   });
   tearDown(() => SharedPreferencesAsyncPlatform.instance = previous);
 
@@ -41,9 +40,8 @@ void main() {
               builder: (context) => TextButton(
                   onPressed: () async {
                     finished = false;
-                    await showBatteryFeatureAnnouncement(context, enabled: enabled, openBrowser: (uri) async {
-                      opened.add(uri);
-                      return true;
+                    await showBatteryFeatureAnnouncement(context, enabled: enabled, openTracker: () async {
+                      opened++;
                     });
                     finished = true;
                   },
@@ -56,10 +54,10 @@ void main() {
 
   testWidgets('existing-user introduction is shown once without any battery collection or upload', (tester) async {
     await mount(tester);
-    expect(find.text('New: Shared battery tracker'), findsOneWidget);
+    expect(find.text('New for your batteries'), findsOneWidget);
     expect(preferences.values, isEmpty);
     expect(preferences.bools, isEmpty);
-    expect(opened, isEmpty);
+    expect(opened, 0);
     await tester.tap(find.text('Not now'));
     await tester.pumpAndSettle();
     expect(finished, isTrue);
@@ -71,13 +69,12 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
   });
 
-  testWidgets('joining opens only email-code verification and never claims completed registration', (tester) async {
+  testWidgets('adding starts the native flow instead of opening email signup', (tester) async {
     await mount(tester);
-    await tester.tap(find.text('Join the shared tracker'));
+    await tester.tap(find.text('Add a battery'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
-    expect(opened, [batteryTrackerJoinUri()]);
-    expect(opened.single.hasQuery, isFalse);
+    expect(opened, 1);
     expect(finished, isTrue);
     expect(preferences.values, isEmpty);
     expect(find.textContaining('registered successfully'), findsNothing);
@@ -87,7 +84,7 @@ void main() {
     await mount(tester, enabled: false);
     expect(find.byType(AlertDialog), findsNothing);
     expect(preferences.ints[batteryFeatureOnboardingVersionKey], isNull);
-    expect(opened, isEmpty);
+    expect(opened, 0);
   });
 
   testWidgets('announcement remains scrollable at narrow width and large text', (tester) async {

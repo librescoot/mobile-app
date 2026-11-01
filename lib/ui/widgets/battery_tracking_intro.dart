@@ -11,25 +11,44 @@ class BatteryTrackingIntro extends StatelessWidget {
   Widget build(BuildContext context) {
     String text(String key) => FlutterI18n.translate(context, 'battery_tracker_$key');
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Center(child: Image.asset('images/battery/batt_full.webp', height: 128, excludeFromSemantics: true)),
-        const SizedBox(height: 24),
-        Text(text('intro_title'), style: theme.textTheme.headlineMedium, textAlign: TextAlign.center),
-        const SizedBox(height: 12),
-        Text(text('intro_body'), style: theme.textTheme.bodyLarge, textAlign: TextAlign.center),
-        const SizedBox(height: 16),
-        for (final item in [
-          (Icons.nfc, 'intro_identify'),
-          (Icons.group_outlined, 'intro_shared'),
-          (Icons.wb_sunny_outlined, registrationEnabled ? 'intro_sunshine' : 'intro_sunshine_pending'),
-        ])
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(item.$1, color: theme.colorScheme.primary),
-            title: Text(text(item.$2)),
+        ExcludeSemantics(
+          child: SizedBox(
+            width: 104,
+            height: 104,
+            child: Stack(children: [
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(28)),
+                child: Icon(Icons.battery_5_bar, size: 48, color: colors.primary),
+              ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                      color: colors.surface, shape: BoxShape.circle, border: Border.all(color: colors.outlineVariant)),
+                  child: Icon(Icons.search, size: 24, color: colors.primary),
+                ),
+              ),
+            ]),
           ),
+        ),
+        const SizedBox(height: 28),
+        Text(text('intro_title'),
+            style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.w600, height: 1.15)),
+        const SizedBox(height: 16),
+        Text(text('intro_body'), style: theme.textTheme.bodyLarge?.copyWith(height: 1.5)),
+        if (!registrationEnabled) ...[
+          const SizedBox(height: 16),
+          Text(text('account_unavailable'), style: theme.textTheme.bodySmall),
+        ],
       ],
     );
   }

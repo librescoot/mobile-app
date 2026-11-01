@@ -1,11 +1,10 @@
 # Shared battery tracker
 
-The battery feature invites riders to join the shared tracker and register the
-batteries they use, so serial numbers can help identify stolen batteries when
-they are seen again. Joining requires confirming an email with a six-digit
-code, without a password, profile form or full Sunshine account. The invitation
-to join is the primary action in Your batteries and, when the service is
-available, first-run onboarding and the once-only existing-user announcement.
+The battery feature starts with the rider's own batteries: record their serial
+numbers so they can be recognised after a theft. "Add a battery" is the single
+primary entry in Your batteries, first-run onboarding and the once-only
+existing-user announcement. The shared matching benefit is explained in an
+expandable section, rather than competing with that first action.
 
 The app has no phone-side battery inventory or history. Serial readings are
 transient input to registration and disappear when the page closes. A scan does
@@ -14,15 +13,25 @@ at startup so no phone-side inventory is retained.
 
 ## Email verification and registration availability
 
-Joining opens `https://sunshine.rescoot.org/battery_tracker/join` without a
-serial or other battery data. The browser asks for an email, sends a code and
-verifies it. This grants tracker-only access and creates no Sunshine account or
-full-account login. Existing account data remains separate, even if its email
-matches. Opening the browser does not mean a battery was registered.
+The app guides the rider through three steps:
+
+1. Read a battery using Bluetooth or NFC. A usable method is listed first.
+2. Compare the serial with the physical label and explicitly confirm it matches.
+   Multiple readings require choosing a battery; a mismatch returns to scanning.
+3. Review the selected serial and sharing disclosure, then explicitly continue
+   to the browser. The website verifies the email with a six-digit code if needed
+   and separately asks for registration consent.
+
+Onboarding and the feature announcement enter this native flow directly, without
+an email-signup detour. Email verification creates tracker-only access, not a
+Sunshine account or full-account login. Existing account data remains separate,
+even if its email matches. The phone shows a browser-completion reminder, never
+registration success based only on launching the browser.
 
 The default build leaves `SUNSHINE_BATTERY_REGISTRATION_ENABLED` off until the
-email-verification and registration service is deployed and verified. Joining,
-registration and management links stay disabled while unavailable. First-run
+email-verification and registration service is deployed and verified.
+Registration and management links stay disabled while unavailable; local reads
+and label checks remain available. First-run
 and existing-user invitations are deferred without marking them as seen.
 Only enable the build flag after an authorized backend release is verified.
 

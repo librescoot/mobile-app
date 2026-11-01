@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +14,11 @@ import '../support/persistence_fakes.dart';
 void main() {
   final battery = BatteryIdentity(
       serialNumber: 'T-UNU22205090007', source: BatteryIdentitySource.nfc, checkedAt: DateTime.utc(2026, 10, 27));
+  final other = BatteryIdentity(
+      serialNumber: '00000000000000AB',
+      source: BatteryIdentitySource.ble,
+      checkedAt: DateTime.utc(2026, 10, 27),
+      slot: 1);
   late MemoryPreferences preferences;
   late SharedPreferencesAsyncPlatform? previous;
 
@@ -39,111 +46,82 @@ void main() {
           MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)), child: child!),
       localizationsDelegates: [
         FlutterI18nDelegate(
-            translationLoader: InlineFileTranslationLoader(basePath: 'assets/i18n', forcedLocale: locale)),
+            translationLoader: InlineFileTranslationLoader(basePath: 'assets/i18n', forcedLocale: locale))
       ],
       home: screen,
     ));
     await tester.pumpAndSettle();
   }
 
-  Future<void> visible(WidgetTester tester, Finder finder) async {
+  Future<void> tap(WidgetTester tester, Finder finder) async {
     if (finder.evaluate().isEmpty) {
-      final scrollable = find.descendant(of: find.byType(ListView).first, matching: find.byType(Scrollable)).first;
-      await tester.scrollUntilVisible(finder, 250, scrollable: scrollable);
+      await tester.scrollUntilVisible(finder, 200,
+          scrollable: find.descendant(of: find.byType(ListView).first, matching: find.byType(Scrollable)).first);
     }
     await tester.ensureVisible(finder);
+    await tester.pumpAndSettle();
+    await tester.tap(finder);
     await tester.pumpAndSettle();
   }
 
   Future<void> read(WidgetTester tester, String source) async {
-    final button = find.byKey(const ValueKey('add-battery'));
-    await visible(tester, button);
-    await tester.tap(button);
-    await tester.pumpAndSettle();
-    final option = find.byKey(ValueKey('battery-source-$source'));
-    await visible(tester, option);
-    await tester.tap(option);
-    await tester.pumpAndSettle();
+    await tap(tester, find.byKey(const ValueKey('add-battery')));
+    await tap(tester, find.byKey(ValueKey('battery-source-$source')));
   }
 
-  testWidgets('joining is primary and serial verification precedes consented sharing', (tester) async {
+  testWidgets('owner-first welcome has one primary action and no premature email signup', (tester) async {
     final opened = <Uri>[];
     await pump(
         tester,
         BatteryTrackerScreen(
-          readBluetooth: () async => [],
-          readNfc: () async => battery,
-          registrationEnabled: true,
-          openBrowser: (uri) async {
-            opened.add(uri);
-            return true;
-          },
-        ));
-    final join = find.byKey(const ValueKey('join-battery-tracker'));
-    expect(tester.getTopLeft(join).dy, lessThan(tester.getTopLeft(find.byKey(const ValueKey('add-battery'))).dy));
-    expect(find.byType(SwitchListTile), findsNothing);
+            readBluetooth: () async => [],
+            registrationEnabled: true,
+            openBrowser: (uri) async {
+              opened.add(uri);
+              return true;
+            }));
+    expect(find.text('Your batteries.\nNot gone without a trace.'), findsOneWidget);
+    expect(find.byType(FilledButton), findsOneWidget);
+    expect(find.text('Add a battery'), findsOneWidget);
+    expect(find.text('Join the shared tracker'), findsNothing);
+    expect(find.text('Confirm your email'), findsNothing);
     expect(opened, isEmpty);
+    await tap(tester, find.byKey(const ValueKey('add-battery')));
+    expect(find.byKey(const ValueKey('battery-source-bluetooth')), findsOneWidget);
+    expect(opened, isEmpty);
+  });
+
+  testWidgets('scan then explicit label match then sharing consent precede browser handoff', (tester) async {
+    final opened = <Uri>[];
+    await pump(
+        tester,
+        BatteryTrackerScreen(
+            readBluetooth: () async => [],
+            readNfc: () async => battery,
+            registrationEnabled: true,
+            openBrowser: (uri) async {
+              opened.add(uri);
+              return true;
+            }));
     await read(tester, 'nfc');
     expect(find.text(battery.serialNumber), findsOneWidget);
-    expect(preferences.reads, 0);
-    expect(preferences.writes, 0);
+    expect(find.text('Is this your battery?'), findsOneWidget);
+    expect(find.byKey(const ValueKey('battery-register-continue')), findsNothing);
     expect(opened, isEmpty);
-    final register = find.text('Register with the shared tracker');
-    await visible(tester, register);
-    await tester.tap(register);
-    await tester.pumpAndSettle();
-    final proceed = find.byKey(const ValueKey('battery-register-continue'));
-    expect(tester.widget<FilledButton>(proceed).onPressed, isNull);
-    expect(tester.getTopLeft(find.byKey(const ValueKey('battery-label-verification'))).dy,
-        lessThan(tester.getTopLeft(find.textContaining('Continuing opens the tracker')).dy));
-    expect(tester.getTopLeft(find.text('Not now')).dy, greaterThan(tester.getTopLeft(proceed).dy));
-    await tester.tap(find.text('Not now'));
-    await tester.pumpAndSettle();
+    await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
+    expect(find.byKey(const ValueKey('battery-sharing-disclosure')), findsOneWidget);
+    expect(find.textContaining('sunshine.rescoot.org'), findsOneWidget);
     expect(opened, isEmpty);
-    await tester.tap(register);
-    await tester.pumpAndSettle();
-    expect(tester.widget<FilledButton>(proceed).onPressed, isNull);
-    await tester.tap(find.byType(CheckboxListTile));
-    await tester.pumpAndSettle();
-    await tester.tap(proceed);
-    await tester.pumpAndSettle();
-    expect(opened.single, batteryRegistrationUri(battery));
-    expect(opened.single.host, 'sunshine.rescoot.org');
-    expect(find.text('Confirm your email and approve battery registration in your browser.'), findsOneWidget);
-  });
-
-  testWidgets('serial readings are transient, dismissible and never form a phone inventory', (tester) async {
-    await pump(tester, BatteryTrackerScreen(readBluetooth: () async => [battery]));
-    await read(tester, 'bluetooth');
-    expect(find.text(battery.serialNumber), findsOneWidget);
-    await visible(tester, find.byTooltip('Dismiss serial'));
-    await tester.tap(find.byTooltip('Dismiss serial'));
-    await tester.pumpAndSettle();
-    expect(find.text(battery.serialNumber), findsNothing);
-    await read(tester, 'bluetooth');
-    await tester.pumpWidget(const SizedBox());
-    await pump(tester, BatteryTrackerScreen(readBluetooth: () async => [battery]));
-    expect(find.text(battery.serialNumber), findsNothing);
+    await tap(tester, find.byKey(const ValueKey('battery-register-continue')));
+    expect(opened, [batteryRegistrationUri(battery)]);
+    expect(find.text('One last step in your browser.'), findsOneWidget);
+    expect(find.textContaining('only registered after you confirm'), findsOneWidget);
+    expect(find.textContaining('registered successfully'), findsNothing);
     expect(preferences.reads, 0);
     expect(preferences.writes, 0);
   });
 
-  testWidgets('working NFC comes before unsupported BLE and only BLE has a firmware marker', (tester) async {
-    await pump(tester,
-        BatteryTrackerScreen(readBluetooth: () async => [], readNfc: () async => battery, bluetoothSupported: false));
-    await visible(tester, find.byKey(const ValueKey('add-battery')));
-    await tester.tap(find.byKey(const ValueKey('add-battery')));
-    await tester.pumpAndSettle();
-    final nfc = find.byKey(const ValueKey('battery-source-nfc'));
-    final ble = find.byKey(const ValueKey('battery-source-bluetooth'));
-    expect(tester.getTopLeft(nfc).dy, lessThan(tester.getTopLeft(ble).dy));
-    expect(tester.widget<ListTile>(ble).enabled, isFalse);
-    expect(find.descendant(of: ble, matching: find.text('Librescoot')), findsOneWidget);
-    expect(find.descendant(of: nfc, matching: find.text('Librescoot')), findsNothing);
-    expect(find.textContaining('1.4'), findsNothing);
-  });
-
-  testWidgets('email verification and management never send a scanned serial', (tester) async {
+  testWidgets('back from sharing requires label confirmation again without uploading', (tester) async {
     final opened = <Uri>[];
     await pump(
         tester,
@@ -155,17 +133,82 @@ void main() {
               return true;
             }));
     await read(tester, 'bluetooth');
-    await visible(tester, find.byKey(const ValueKey('join-battery-tracker')));
-    await tester.tap(find.byKey(const ValueKey('join-battery-tracker')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Verify email / manage registrations'));
-    await tester.pumpAndSettle();
-    expect(opened, [batteryTrackerJoinUri(), batteryTrackerRegistrationsUri()]);
-    expect(opened.every((uri) => uri.host == 'sunshine.rescoot.org' && !uri.hasQuery), isTrue);
+    await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
+    await tap(tester, find.byType(BackButton));
+    expect(find.text('Is this your battery?'), findsOneWidget);
+    expect(find.byKey(const ValueKey('battery-register-continue')), findsNothing);
+    await tap(tester, find.byType(BackButton));
+    expect(find.text(battery.serialNumber), findsNothing);
+    expect(opened, isEmpty);
   });
 
-  testWidgets('a closed release gate blocks verification and registration until the service is deployed',
-      (tester) async {
+  testWidgets('multiple readings register only the explicitly selected and checked battery', (tester) async {
+    final opened = <Uri>[];
+    await pump(
+        tester,
+        BatteryTrackerScreen(
+            readBluetooth: () async => [battery, other],
+            registrationEnabled: true,
+            openBrowser: (uri) async {
+              opened.add(uri);
+              return true;
+            }));
+    await read(tester, 'bluetooth');
+    await tap(tester, find.byKey(ValueKey('battery-reading-${other.serialNumber}')));
+    await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
+    expect(find.text(other.serialNumber), findsOneWidget);
+    expect(find.text(battery.serialNumber), findsNothing);
+    await tap(tester, find.byKey(const ValueKey('battery-register-continue')));
+    expect(opened.single, batteryRegistrationUri(other));
+  });
+
+  testWidgets('mismatched serial restarts scanning, readings never become an inventory', (tester) async {
+    await pump(tester, BatteryTrackerScreen(readBluetooth: () async => [battery]));
+    await read(tester, 'bluetooth');
+    await tap(tester, find.text("Doesn't match? Read again"));
+    expect(find.text(battery.serialNumber), findsNothing);
+    await tap(tester, find.byKey(const ValueKey('battery-source-bluetooth')));
+    expect(find.text(battery.serialNumber), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await pump(tester, BatteryTrackerScreen(readBluetooth: () async => [battery]));
+    expect(find.text(battery.serialNumber), findsNothing);
+    expect(preferences.reads, 0);
+    expect(preferences.writes, 0);
+  });
+
+  testWidgets('NFC is first when BLE is unavailable and only BLE has firmware badge', (tester) async {
+    await pump(tester,
+        BatteryTrackerScreen(readBluetooth: () async => [], readNfc: () async => battery, bluetoothSupported: false));
+    await tap(tester, find.byKey(const ValueKey('add-battery')));
+    final nfc = find.byKey(const ValueKey('battery-source-nfc'));
+    final ble = find.byKey(const ValueKey('battery-source-bluetooth'));
+    expect(tester.getTopLeft(nfc).dy, lessThan(tester.getTopLeft(ble).dy));
+    expect(tester.widget<ListTile>(ble).enabled, isFalse);
+    expect(find.descendant(of: ble, matching: find.text('Librescoot')), findsOneWidget);
+    expect(find.descendant(of: nfc, matching: find.text('Librescoot')), findsNothing);
+    expect(find.textContaining('1.4'), findsNothing);
+  });
+
+  testWidgets('management sends no serial even after returning from a read', (tester) async {
+    final opened = <Uri>[];
+    await pump(
+        tester,
+        BatteryTrackerScreen(
+            readBluetooth: () async => [battery],
+            registrationEnabled: true,
+            openBrowser: (uri) async {
+              opened.add(uri);
+              return true;
+            }));
+    await read(tester, 'bluetooth');
+    await tap(tester, find.byType(BackButton));
+    await tap(tester, find.byType(BackButton));
+    await tap(tester, find.byKey(const ValueKey('manage-battery-tracker')));
+    expect(opened, [batteryTrackerRegistrationsUri()]);
+    expect(opened.single.hasQuery, isFalse);
+  });
+
+  testWidgets('closed rollout gate allows local checks but not sharing or management', (tester) async {
     final opened = <Uri>[];
     await pump(
         tester,
@@ -176,50 +219,98 @@ void main() {
               opened.add(uri);
               return true;
             }));
+    expect(find.byKey(const ValueKey('manage-battery-tracker')), findsNothing);
     await read(tester, 'bluetooth');
-    final registration = find
-        .ancestor(
-            of: find.text('Register with the shared tracker'),
-            matching: find.byWidgetPredicate((widget) => widget is FilledButton))
-        .first;
-    expect(tester.widget<FilledButton>(registration).onPressed, isNull);
-    expect(find.text('Verify email / manage registrations'), findsNothing);
-    final join = find.byKey(const ValueKey('join-battery-tracker'));
-    expect(tester.widget<FilledButton>(join).onPressed, isNull);
+    await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
+    expect(tester.widget<FilledButton>(find.byKey(const ValueKey('battery-register-continue'))).onPressed, isNull);
     expect(opened, isEmpty);
   });
 
-  for (final locale in [const Locale('en'), const Locale('de')]) {
-    testWidgets('firmware badge names hash capability ${locale.languageCode}', (tester) async {
-      await pump(tester, BatteryTrackerScreen(readBluetooth: () async => []), locale: locale);
-      final button = find.byKey(const ValueKey('add-battery'));
-      await visible(tester, button);
-      await tester.tap(button);
-      await tester.pumpAndSettle();
-      expect(find.byWidgetPredicate((widget) => widget is Tooltip && (widget.message?.contains('(hash=1)') ?? false)),
-          findsOneWidget);
-      expect(
-          find.byWidgetPredicate(
-              (widget) => widget is Semantics && (widget.properties.label?.contains('(hash=1)') ?? false)),
-          findsOneWidget);
-      expect(find.byWidgetPredicate((widget) => widget is Tooltip && (widget.message?.contains('battery=1') ?? false)),
-          findsNothing);
-    });
+  testWidgets('empty and failed reads retain the method choices for retry', (tester) async {
+    var calls = 0;
+    await pump(tester, BatteryTrackerScreen(readBluetooth: () async {
+      if (calls++ == 0) return [];
+      throw StateError('unavailable');
+    }));
+    await read(tester, 'bluetooth');
+    expect(find.textContaining('No battery serials'), findsOneWidget);
+    await tap(tester, find.byKey(const ValueKey('battery-source-bluetooth')));
+    expect(find.textContaining("Couldn't read the serial"), findsOneWidget);
+    expect(find.byKey(const ValueKey('battery-label-verification')), findsNothing);
+  });
 
-    testWidgets('registration preparation fits narrow large text ${locale.languageCode}', (tester) async {
-      await pump(tester, BatteryTrackerScreen(readBluetooth: () async => [], readNfc: () async => battery),
-          size: const Size(320, 568), textScale: 2, locale: locale, brightness: Brightness.dark);
-      expect(tester.takeException(), isNull);
-      final button = find.byKey(const ValueKey('add-battery'));
-      await visible(tester, button);
-      await tester.tap(button);
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      final nfc = find.byKey(const ValueKey('battery-source-nfc'));
-      await visible(tester, nfc);
-      await tester.tap(nfc);
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
+  testWidgets('cancelled NFC read cannot advance a later screen', (tester) async {
+    final reading = Completer<BatteryIdentity>();
+    await pump(tester, BatteryTrackerScreen(readBluetooth: () async => [], readNfc: () => reading.future));
+    await tap(tester, find.byKey(const ValueKey('add-battery')));
+    await tester.tap(find.byKey(const ValueKey('battery-source-nfc')));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    reading.complete(battery);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('add-battery')), findsOneWidget);
+    expect(find.text(battery.serialNumber), findsNothing);
+  });
+
+  testWidgets('browser failure remains retryable without pretending registration succeeded', (tester) async {
+    await pump(
+        tester,
+        BatteryTrackerScreen(
+            readBluetooth: () async => [battery], registrationEnabled: true, openBrowser: (_) async => false));
+    await read(tester, 'bluetooth');
+    await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
+    await tap(tester, find.byKey(const ValueKey('battery-register-continue')));
+    expect(find.textContaining('Could not open your browser'), findsOneWidget);
+    expect(find.text('One last step in your browser.'), findsNothing);
+    expect(find.byKey(const ValueKey('battery-register-continue')), findsOneWidget);
+  });
+
+  testWidgets('late browser completion cannot resurrect a dismissed sharing step', (tester) async {
+    final opening = Completer<bool>();
+    await pump(
+        tester,
+        BatteryTrackerScreen(
+            readBluetooth: () async => [battery], registrationEnabled: true, openBrowser: (_) => opening.future));
+    await read(tester, 'bluetooth');
+    await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
+    await tester.tap(find.byKey(const ValueKey('battery-register-continue')));
+    await tester.pump();
+    await tap(tester, find.byType(BackButton));
+    await tap(tester, find.byType(BackButton));
+    opening.complete(true);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('battery-source-bluetooth')), findsOneWidget);
+    expect(find.text(battery.serialNumber), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final locale in [const Locale('en'), const Locale('de')]) {
+    testWidgets('hash capability badge ${locale.languageCode}', (tester) async {
+      await pump(tester, BatteryTrackerScreen(readBluetooth: () async => [], startWithScan: true), locale: locale);
+      expect(find.byWidgetPredicate((w) => w is Tooltip && (w.message?.contains('(hash=1)') ?? false)), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is Tooltip && (w.message?.contains('battery=1') ?? false)), findsNothing);
     });
+    for (final brightness in [Brightness.light, Brightness.dark]) {
+      testWidgets('all steps fit narrow large text ${locale.languageCode} ${brightness.name}', (tester) async {
+        await pump(
+            tester,
+            BatteryTrackerScreen(
+                readBluetooth: () async => [battery], registrationEnabled: true, openBrowser: (_) async => true),
+            size: const Size(320, 568),
+            textScale: 2,
+            locale: locale,
+            brightness: brightness);
+        expect(tester.takeException(), isNull);
+        await read(tester, 'bluetooth');
+        expect(tester.takeException(), isNull);
+        await tap(tester, find.byKey(const ValueKey('battery-label-verification')));
+        expect(tester.takeException(), isNull);
+        await tap(tester, find.byKey(const ValueKey('battery-register-continue')));
+        expect(tester.takeException(), isNull);
+        expect(find.byKey(const ValueKey('battery-register-continue')), findsNothing);
+      });
+    }
   }
 }

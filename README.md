@@ -40,11 +40,11 @@ show the temporary-disarm settings action.
 
 ### Battery identification and registration
 
-Join the shared battery tracker to help identify stolen batteries by serial.
-The app reads serials through compatible scooter Bluetooth or battery NFC tags
-as transient registration input, without a separate phone inventory. Sharing
-requires label verification, an explicit upload confirmation and separate
-consent on the website after email confirmation with a verification code.
+Register your battery serials so they can be recognised after a theft.
+A guided flow reads the serial through compatible scooter Bluetooth or battery
+NFC, asks you to check the label, then explains sharing before opening the
+tracker. Readings are transient, without a separate phone inventory. Registration
+requires separate website consent after email confirmation with a code.
 No password or full account signup is required. Email verification and shared
 registration remain release-gated until the backend is available.
 Bluetooth reads use the reusable, permission-limited [BLE hash reader](docs/ble-hash-reads.md)

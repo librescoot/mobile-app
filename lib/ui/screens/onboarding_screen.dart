@@ -12,7 +12,6 @@ import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:appcheck/appcheck.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:scooter_core/battery_identity.dart';
 
 import 'package:unustasis/domain/scooter_candidate.dart';
 import 'package:unustasis/ui/theme/scooter_colors.dart';
@@ -36,7 +35,7 @@ class OnboardingScreen extends StatefulWidget {
     this.skipWelcome = false,
     this.permissionController,
     this.onboardingPreferences,
-    this.launchBatteryVerification,
+    this.openBatteryTracker,
     this.batteryTrackerEnabled = sunshineBatteryRegistrationEnabled,
     this.initialStep = 0,
     super.key,
@@ -45,7 +44,7 @@ class OnboardingScreen extends StatefulWidget {
   final bool skipWelcome;
   final OnboardingPermissionController? permissionController;
   final OnboardingPreferences? onboardingPreferences;
-  final Future<bool> Function(Uri)? launchBatteryVerification;
+  final Future<void> Function()? openBatteryTracker;
   final bool batteryTrackerEnabled;
   final int initialStep;
 
@@ -384,10 +383,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     setState(() => _savingBatteryIntro = true);
     try {
       if (join) {
-        final uri = batteryTrackerJoinUri();
-        final opened =
-            await (widget.launchBatteryVerification?.call(uri) ?? launchUrl(uri, mode: LaunchMode.externalApplication));
-        if (!opened) throw StateError('Email verification unavailable');
+        if (widget.openBatteryTracker != null) {
+          await widget.openBatteryTracker!();
+        } else {
+          await Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) =>
+                  BatteryTrackerScreen(startWithScan: true, registrationEnabled: widget.batteryTrackerEnabled)));
+        }
       }
       await _onboardingPreferences.markBatteryFeatureSeen();
       if (mounted) setState(() => _step = 1);
@@ -405,7 +407,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
         BatteryTrackingIntro(registrationEnabled: widget.batteryTrackerEnabled),
         const SizedBox(height: 24),
         _primaryButton(
-          text: FlutterI18n.translate(context, 'battery_tracker_join'),
+          text: FlutterI18n.translate(context, 'battery_tracker_add'),
           onPressed: () => _finishBatteryIntro(join: true),
           loading: _savingBatteryIntro,
         ),
