@@ -84,8 +84,8 @@ serial-bearing URLs. Nothing retries automatically.
 
 These endpoints authenticate the handoff and prevent mutation/reuse of a claim;
 they do not attest the reading hardware. No shared app signing secret, Play
-Integrity or App Attest is used. Older app links remain supported by the server
-as unverified serial/source handoffs, not as challenge-backed claims.
+Integrity or App Attest is used. New tracker registrations require this handoff;
+raw serial/source links and direct form values cannot create a registration.
 
 The website verifies the email with an expiring, browser-bound, single-use
 code, then requires separate consent before recording a claim. Codes have
