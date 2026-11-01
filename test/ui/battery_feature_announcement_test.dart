@@ -13,11 +13,13 @@ void main() {
   late SharedPreferencesAsyncPlatform? previous;
   var opened = 0;
   var finished = false;
+  var connected = true;
 
   setUp(() {
     previous = SharedPreferencesAsyncPlatform.instance;
     SharedPreferencesAsyncPlatform.instance = preferences = MemoryPreferences();
     finished = false;
+    connected = true;
     opened = 0;
   });
   tearDown(() => SharedPreferencesAsyncPlatform.instance = previous);
@@ -40,9 +42,12 @@ void main() {
               builder: (context) => TextButton(
                   onPressed: () async {
                     finished = false;
-                    await showBatteryFeatureAnnouncement(context, enabled: enabled, openTracker: () async {
-                      opened++;
-                    });
+                    await showBatteryFeatureAnnouncement(context,
+                        enabled: enabled,
+                        canShow: () => connected,
+                        openTracker: () async {
+                          opened++;
+                        });
                     finished = true;
                   },
                   child: const Text('Show announcement')))),
@@ -78,6 +83,30 @@ void main() {
     expect(finished, isTrue);
     expect(preferences.values, isEmpty);
     expect(find.textContaining('registered successfully'), findsNothing);
+  });
+
+  testWidgets('disconnected introduction is deferred without marking it seen', (tester) async {
+    connected = false;
+    await mount(tester);
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(preferences.ints[batteryFeatureOnboardingVersionKey], isNull);
+    connected = true;
+    await tester.tap(find.text('Show announcement'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+  });
+
+  testWidgets('disconnect during the introduction cannot start the automatic flow', (tester) async {
+    await mount(tester);
+    connected = false;
+    await tester.tap(find.text('Add a battery'));
+    await tester.pumpAndSettle();
+    expect(opened, 0);
+    expect(preferences.ints[batteryFeatureOnboardingVersionKey], isNull);
+    connected = true;
+    await tester.tap(find.text('Show announcement'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
   });
 
   testWidgets('unavailable email verification is not announced or marked seen', (tester) async {

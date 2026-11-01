@@ -6,15 +6,19 @@ import '../../feature_flags.dart';
 import '../widgets/battery_tracking_intro.dart';
 import '../screens/battery_tracker_screen.dart';
 
-Future<void> showBatteryFeatureAnnouncement(
+Future<bool> showBatteryFeatureAnnouncement(
   BuildContext context, {
+  required bool Function() canShow,
   OnboardingPreferences? preferences,
   Future<void> Function()? openTracker,
   bool enabled = sunshineBatteryRegistrationEnabled,
 }) async {
-  if (!enabled) return;
+  if (!enabled) return true;
+  if (!context.mounted || !canShow()) return false;
   final onboarding = preferences ?? OnboardingPreferences();
-  if (await onboarding.hasSeenBatteryFeature() || !context.mounted) return;
+  final alreadySeen = await onboarding.hasSeenBatteryFeature();
+  if (!context.mounted || !canShow()) return false;
+  if (alreadySeen) return true;
   final addBattery = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
@@ -33,8 +37,9 @@ Future<void> showBatteryFeatureAnnouncement(
       ],
     ),
   );
+  if (addBattery == true && (!context.mounted || !canShow())) return false;
   await onboarding.markBatteryFeatureSeen();
-  if (addBattery == true && context.mounted) {
+  if (addBattery == true && context.mounted && canShow()) {
     if (openTracker != null) {
       await openTracker();
     } else {
@@ -42,4 +47,5 @@ Future<void> showBatteryFeatureAnnouncement(
           builder: (_) => BatteryTrackerScreen(startWithScan: true, registrationEnabled: enabled)));
     }
   }
+  return true;
 }

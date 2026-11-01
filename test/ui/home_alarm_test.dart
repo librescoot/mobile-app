@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+import 'package:unustasis/service/onboarding_preferences.dart';
 import 'package:scooter_core/scooter_core.dart';
 import 'package:scooter_flutter/scooter_flutter.dart';
 import 'package:unustasis/domain/alarm_status.dart';
@@ -16,6 +18,7 @@ import 'package:unustasis/ui/screens/navigation_screen.dart';
 import 'package:unustasis/ui/widgets/state_circle.dart';
 
 import '../support/inline_asset_bundle.dart';
+import '../support/persistence_fakes.dart';
 
 class _Connection extends Fake implements SessionConnection {
   @override
@@ -100,7 +103,7 @@ class _Service extends ChangeNotifier implements ScooterService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Future<void> _mountHome(WidgetTester tester, _Service service) async {
+Future<void> _mountHome(WidgetTester tester, _Service service, {bool batteryTrackerEnabled = false}) async {
   tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
   addTearDown(() => tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed));
   await tester.pumpWidget(ChangeNotifierProvider<ScooterService>.value(
@@ -117,7 +120,7 @@ Future<void> _mountHome(WidgetTester tester, _Service service) async {
             ),
           ),
         ],
-        home: const HomeScreen(forceOpen: true),
+        home: HomeScreen(forceOpen: true, batteryTrackerEnabled: batteryTrackerEnabled),
       ),
     ),
   ));
@@ -126,6 +129,37 @@ Future<void> _mountHome(WidgetTester tester, _Service service) async {
 }
 
 void main() {
+  testWidgets('automatic battery introduction waits for connection and is shown only once', (tester) async {
+    final previous = SharedPreferencesAsyncPlatform.instance;
+    final preferences = MemoryPreferences();
+    SharedPreferencesAsyncPlatform.instance = preferences;
+    addTearDown(() => SharedPreferencesAsyncPlatform.instance = previous);
+    final service = _Service()..connected = false;
+    addTearDown(service.dispose);
+    await _mountHome(tester, service, batteryTrackerEnabled: true);
+    service.changed();
+    await tester.pumpAndSettle();
+    expect(find.text('New for your batteries'), findsNothing);
+    expect(preferences.ints[batteryFeatureOnboardingVersionKey], isNull);
+    service.connected = true;
+    service.changed();
+    service.changed();
+    await tester.pumpAndSettle();
+    expect(find.text('New for your batteries'), findsOneWidget);
+    service.changed();
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    await tester.tap(find.text('Not now'));
+    await tester.pumpAndSettle();
+    expect(preferences.ints[batteryFeatureOnboardingVersionKey], currentBatteryFeatureOnboardingVersion);
+    service.connected = false;
+    service.changed();
+    service.connected = true;
+    service.changed();
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
   test('only the sounding states count as a triggered alarm', () {
     expect(AlarmStatus.level1Triggered.isTriggered, isTrue);
     expect(AlarmStatus.level2Triggered.isTriggered, isTrue);

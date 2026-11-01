@@ -27,7 +27,6 @@ import 'package:unustasis/ui/widgets/scooter_visual.dart';
 import 'package:unustasis/ui/screens/support_screen.dart';
 import 'battery_tracker_screen.dart';
 import '../../feature_flags.dart';
-import '../widgets/battery_tracking_intro.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({
@@ -72,7 +71,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
   OnboardingPermissionSummary? _permissionSummary;
   bool _requestingPermissions = false;
   bool _savingOnlineServicesChoice = false;
-  bool _savingBatteryIntro = false;
   bool? _onlineServicesChoice;
   // Step 0: Welcome
   // Step -2: Explain and request permissions
@@ -182,9 +180,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
   Future<void> _continueFromWelcome() async {
     _warnOfOldApp();
     final alreadyCompleted = await _onboardingPreferences.isCurrent();
-    final batteryFeatureSeen = alreadyCompleted && await _onboardingPreferences.hasSeenBatteryFeature();
     if (!mounted) return;
-    setState(() => _step = alreadyCompleted ? (!widget.batteryTrackerEnabled || batteryFeatureSeen ? 1 : -3) : -2);
+    setState(() => _step = alreadyCompleted ? 1 : -2);
   }
 
   Future<void> _requestOnboardingPermissions() async {
@@ -309,7 +306,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     setState(() => _savingOnlineServicesChoice = true);
     try {
       await _onboardingPreferences.complete(onlineServicesEnabled: choice);
-      if (mounted) setState(() => _step = widget.batteryTrackerEnabled ? -3 : 1);
+      if (mounted) setState(() => _step = 1);
     } catch (error, stack) {
       log.warning('Could not save the online-services choice', error, stack);
       if (mounted) {
@@ -378,49 +375,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
           ),
       ];
 
-  Future<void> _finishBatteryIntro({required bool join}) async {
-    if (_savingBatteryIntro) return;
-    setState(() => _savingBatteryIntro = true);
-    try {
-      if (join) {
-        if (widget.openBatteryTracker != null) {
-          await widget.openBatteryTracker!();
-        } else {
-          await Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) =>
-                  BatteryTrackerScreen(startWithScan: true, registrationEnabled: widget.batteryTrackerEnabled)));
-        }
-      }
-      await _onboardingPreferences.markBatteryFeatureSeen();
-      if (mounted) setState(() => _step = 1);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(FlutterI18n.translate(context, 'battery_tracker_account_open_error'))));
-      }
-    } finally {
-      if (mounted) setState(() => _savingBatteryIntro = false);
+  Future<void> _openBatteryTracker() async {
+    if (widget.openBatteryTracker != null) {
+      await widget.openBatteryTracker!();
+    } else {
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => BatteryTrackerScreen(registrationEnabled: widget.batteryTrackerEnabled)));
     }
   }
 
-  List<Widget> _batteryTrackingStep() => [
-        BatteryTrackingIntro(registrationEnabled: widget.batteryTrackerEnabled),
-        const SizedBox(height: 24),
-        _primaryButton(
-          text: FlutterI18n.translate(context, 'battery_tracker_add'),
-          onPressed: () => _finishBatteryIntro(join: true),
-          loading: _savingBatteryIntro,
-        ),
-        TextButton(
-          onPressed: _savingBatteryIntro ? null : () => _finishBatteryIntro(join: false),
-          child: Text(FlutterI18n.translate(context, 'battery_tracker_setup_continue')),
-        ),
-      ];
-
   List<Widget> getWidgets(int step) {
     switch (step) {
-      case -3:
-        return _batteryTrackingStep();
       case -2:
         return _permissionsStep();
       case -1:
@@ -493,7 +458,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
           IconButton(
             icon: const Icon(Icons.battery_full),
             tooltip: FlutterI18n.translate(context, 'battery_tracker_title'),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BatteryTrackerScreen())),
+            onPressed: _openBatteryTracker,
           ),
           Padding(
             padding: EdgeInsets.only(right: cornerInset),

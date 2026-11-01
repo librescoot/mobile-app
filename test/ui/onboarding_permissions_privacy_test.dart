@@ -172,13 +172,9 @@ void main() {
       'osmConsent=false',
       '$firstRunOnboardingVersionKey=$currentFirstRunOnboardingVersion',
     ]);
-    expect(find.text('Your batteries.\nNot gone without a trace.'), findsOneWidget);
-    expect(preferences.values[batteryFeatureOnboardingVersionKey], isNull);
-    await tester.ensureVisible(find.text('Continue scooter setup'));
-    await tester.tap(find.text('Continue scooter setup'));
-    await tester.pump(const Duration(seconds: 1));
     expect(find.text('Find scooter'), findsOneWidget);
-    expect(preferences.values[batteryFeatureOnboardingVersionKey], currentBatteryFeatureOnboardingVersion);
+    expect(find.text('Your batteries.\nNot gone without a trace.'), findsNothing);
+    expect(preferences.values[batteryFeatureOnboardingVersionKey], isNull);
   });
 
   testWidgets('denied required access offers Settings and cannot advance', (tester) async {
@@ -280,7 +276,7 @@ void main() {
     gate.complete();
     await tester.pump(const Duration(seconds: 1));
     expect(preferences.values['osmConsent'], true);
-    expect(find.text('Your batteries.\nNot gone without a trace.'), findsOneWidget);
+    expect(find.text('Find scooter'), findsOneWidget);
   });
 
   testWidgets('a failed completion write re-enables the choice controls', (tester) async {
@@ -322,7 +318,7 @@ void main() {
     expect(preferences.writes, isEmpty);
   });
 
-  testWidgets('existing setup can learn about batteries without repeating permission prompts', (tester) async {
+  testWidgets('existing setup proceeds to connection without consuming the battery invitation', (tester) async {
     final service = _Service();
     final permissions = _PermissionController(_summary());
     final preferences = _Preferences()..values[firstRunOnboardingVersionKey] = currentFirstRunOnboardingVersion;
@@ -330,31 +326,26 @@ void main() {
     await _mount(tester, service, permissions, preferences);
     await tester.tap(find.byType(ElevatedButton));
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Your batteries.\nNot gone without a trace.'), findsOneWidget);
+    expect(find.text('Your batteries.\nNot gone without a trace.'), findsNothing);
     expect(permissions.requests, 0);
     expect(preferences.writes, isEmpty);
-    await tester.ensureVisible(find.text('Continue scooter setup'));
-    await tester.tap(find.text('Continue scooter setup'));
-    await tester.pump(const Duration(seconds: 1));
     expect(find.text('Find scooter'), findsOneWidget);
-    expect(preferences.writes, ['$batteryFeatureOnboardingVersionKey=$currentBatteryFeatureOnboardingVersion']);
+    expect(preferences.values[batteryFeatureOnboardingVersionKey], isNull);
   });
 
-  testWidgets('battery onboarding opens the native add flow before email verification', (tester) async {
+  testWidgets('manual battery entry remains available before connecting a scooter', (tester) async {
     final service = _Service();
     final permissions = _PermissionController(_summary());
     final preferences = _Preferences();
     var opened = 0;
     addTearDown(service.dispose);
-    await _mount(tester, service, permissions, preferences, initialStep: -3, openBatteryTracker: () async {
+    await _mount(tester, service, permissions, preferences, initialStep: 1, openBatteryTracker: () async {
       opened++;
     });
-    await tester.ensureVisible(find.text('Add a battery'));
-    await tester.pump();
-    await tester.tap(find.text('Add a battery'));
+    await tester.tap(find.byTooltip('Your batteries'));
     await tester.pump(const Duration(seconds: 1));
     expect(opened, 1);
-    expect(preferences.writes, ['$batteryFeatureOnboardingVersionKey=$currentBatteryFeatureOnboardingVersion']);
+    expect(preferences.writes, isEmpty);
     expect(find.text('Find scooter'), findsOneWidget);
   });
 
@@ -363,22 +354,19 @@ void main() {
     final permissions = _PermissionController(_summary());
     final preferences = _Preferences();
     addTearDown(service.dispose);
-    await _mount(tester, service, permissions, preferences, initialStep: -3);
-    await tester.ensureVisible(find.text('Add a battery'));
-    await tester.tap(find.text('Add a battery'));
+    await _mount(tester, service, permissions, preferences, initialStep: 1);
+    await tester.tap(find.byTooltip('Your batteries'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(BatteryTrackerScreen), findsOneWidget);
-    expect(find.byKey(const ValueKey('battery-source-nfc')), findsOneWidget);
-    await tester.tap(find.byType(BackButton));
-    await tester.pump(const Duration(seconds: 1));
+    expect(find.byKey(const ValueKey('add-battery')), findsOneWidget);
     await tester.tap(find.byType(BackButton));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     expect(find.byType(BatteryTrackerScreen), findsNothing);
     expect(find.text('Find scooter'), findsOneWidget);
-    expect(preferences.writes, ['$batteryFeatureOnboardingVersionKey=$currentBatteryFeatureOnboardingVersion']);
+    expect(preferences.writes, isEmpty);
   });
 
   testWidgets('unavailable email verification is not promoted or marked seen during onboarding', (tester) async {

@@ -28,6 +28,7 @@ import 'package:unustasis/ui/theme/icomoon.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
 import 'package:unustasis/ui/screens/onboarding_screen.dart';
 import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/feature_flags.dart';
 import 'package:unustasis/domain/alarm_status.dart';
 import 'package:unustasis/domain/saved_scooter.dart';
 import 'package:unustasis/domain/scooter_state.dart';
@@ -49,7 +50,8 @@ import 'package:unustasis/ui/dialogs/librescoot_notice.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool? forceOpen;
-  const HomeScreen({this.forceOpen, super.key});
+  final bool batteryTrackerEnabled;
+  const HomeScreen({this.forceOpen, this.batteryTrackerEnabled = sunshineBatteryRegistrationEnabled, super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -65,6 +67,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   ScooterService? _librescootService;
   bool _librescootNoticeHandled = false;
   bool _librescootNoticeRunning = false;
+  bool _connectionNoticesRunning = false;
+  bool _batteryNoticeHandled = false;
 
   @override
   void didChangeDependencies() {
@@ -124,6 +128,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       unawaited(SavedScooter.flushPendingWrites());
     } else if (state == AppLifecycleState.resumed) {
       _lockGuidanceBackgrounded = false;
+      _onScooterChanged();
     }
   }
 
@@ -190,19 +195,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_notificationFlowRunning || !mounted) return;
     _notificationFlowRunning = true;
     try {
-      await showBatteryFeatureAnnouncement(context);
-      if (mounted) await showServerNotifications(context);
+      await showServerNotifications(context);
     } catch (error, stack) {
       log.warning('Could not show startup announcements', error, stack);
     } finally {
       _notificationFlowRunning = false;
       _startupNoticesReady = true;
-      if (mounted) await _maybeShowLibrescootNotice();
+      if (mounted) await _maybeShowConnectionNotices();
     }
   }
 
   void _onScooterChanged() {
-    unawaited(_maybeShowLibrescootNotice());
+    unawaited(_maybeShowConnectionNotices());
+  }
+
+  bool get _canShowConnectionNotice =>
+      mounted &&
+      !_lockGuidanceBackgrounded &&
+      (ModalRoute.of(context)?.isCurrent ?? false) &&
+      context.read<ScooterService>().connected;
+
+  Future<void> _maybeShowConnectionNotices() async {
+    if (!_startupNoticesReady ||
+        _notificationFlowRunning ||
+        _connectionNoticesRunning ||
+        _librescootNoticeRunning ||
+        !_canShowConnectionNotice) {
+      return;
+    }
+    _connectionNoticesRunning = true;
+    try {
+      if (!_batteryNoticeHandled) {
+        _batteryNoticeHandled = await showBatteryFeatureAnnouncement(context,
+            enabled: widget.batteryTrackerEnabled, canShow: () => _canShowConnectionNotice);
+      }
+      if (_canShowConnectionNotice) await _maybeShowLibrescootNotice();
+    } catch (error, stack) {
+      log.warning('Could not show connection announcements', error, stack);
+    } finally {
+      _connectionNoticesRunning = false;
+    }
   }
 
   Future<void> _maybeShowLibrescootNotice() async {

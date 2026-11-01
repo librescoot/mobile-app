@@ -2,8 +2,8 @@
 
 The battery feature starts with the rider's own batteries: record their serial
 numbers so they can be recognised after a theft. "Add a battery" is the single
-primary entry in Your batteries, first-run onboarding and the once-only
-existing-user announcement. The shared matching benefit is explained in an
+primary entry in Your batteries and the once-only introduction after connecting
+a scooter. Setup finishes pairing before offering this introduction. The shared matching benefit is explained in an
 expandable section, rather than competing with that first action.
 
 The app has no phone-side battery inventory or history. Serial readings are
@@ -22,8 +22,11 @@ The app guides the rider through three steps:
    to the browser. The website verifies the email with a six-digit code if needed
    and separately asks for registration consent.
 
-Onboarding and the feature announcement enter this native flow directly, without
-an email-signup detour. Email verification creates tracker-only access, not a
+The automatic introduction waits until a scooter is connected, startup notices
+and authentication have finished, and the home screen is in the foreground.
+Deferral does not mark it seen. Its action enters the native flow directly,
+without an email-signup detour. Manual entry, including NFC during setup, remains
+available without a scooter connection. Email verification creates tracker-only access, not a
 Sunshine account or full-account login. Existing account data remains separate,
 even if its email matches. The phone shows a browser-completion reminder, never
 registration success based only on launching the browser.
