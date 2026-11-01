@@ -4,12 +4,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:provider/provider.dart';
+import 'package:logging/logging.dart';
 import 'package:scooter_core/battery_identity.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../feature_flags.dart';
 import '../../scooter_service.dart';
 import '../../service/battery_nfc_reader.dart';
+import '../../service/battery_read_failure.dart';
 import '../widgets/battery_tracking_intro.dart';
 
 enum _TrackerStep { welcome, read, verify, share, browser }
@@ -108,8 +110,12 @@ class _BatteryTrackerScreenState extends State<BatteryTrackerScreen> {
           _step = _TrackerStep.verify;
         }
       });
-    } catch (_) {
-      if (mounted && generation == _readGeneration) setState(() => _error = 'error');
+    } catch (error) {
+      if (mounted && generation == _readGeneration) {
+        final reason = batteryReadFailureReason(error);
+        Logger('BatteryTracker').warning('Battery read failed: source=${nfc ? 'nfc' : 'ble'} reason=$reason');
+        setState(() => _error = batteryReadFailureMessage(reason, nfc: nfc));
+      }
     } finally {
       if (mounted && generation == _readGeneration) {
         setState(() {

@@ -235,7 +235,7 @@ void main() {
     await read(tester, 'bluetooth');
     expect(find.textContaining('No battery serials'), findsOneWidget);
     await tap(tester, find.byKey(const ValueKey('battery-source-bluetooth')));
-    expect(find.textContaining("Couldn't read the serial"), findsOneWidget);
+    expect(find.textContaining('The connection was interrupted'), findsOneWidget);
     expect(find.byKey(const ValueKey('battery-label-verification')), findsNothing);
   });
 
