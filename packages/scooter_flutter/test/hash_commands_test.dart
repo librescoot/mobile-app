@@ -106,6 +106,65 @@ void main() {
     });
   }
 
+  for (final mtu in [23, 64, 247, 512]) {
+    test(
+        'zero-filled radio notifications at ATT MTU $mtu preserve the snapshot',
+        () async {
+      final h = _Harness();
+      h.device.attMtu = mtu;
+      final budget = mtu < 247 ? mtu - 3 : 244;
+      h.server.hashes['battery:0'] = {
+        'present': 'ä🛵\u0000',
+        'serial-number': ''
+      };
+      h.wire.onWrite = (text) async {
+        final bytes = ascii.encode(h.server.answer(text));
+        h.wire.raw([...bytes, ...List.filled(budget - bytes.length, 0)]);
+      };
+      expect(await h.read(), ['ä🛵\u0000', '']);
+      expect(h.wire.notifications.every((frame) => frame.length == budget),
+          isTrue);
+      expect(h.wire.values.hasListener, isFalse);
+    });
+  }
+  test('244-byte snapshot header with 230 trailing zeroes is valid framing',
+      () async {
+    final h = _Harness();
+    h.device.attMtu = 247;
+    h.server.rawSnapshot = ascii.encode('["true",null]');
+    h.wire.onWrite = (text) async {
+      final bytes = ascii.encode(h.server.answer(text));
+      if (text.startsWith('hash:read:')) expect(bytes.length, 14);
+      h.wire.raw([...bytes, ...List.filled(244 - bytes.length, 0)]);
+    };
+    expect(await h.read(), ['true', null]);
+  });
+  test('zero padding cannot hide an oversized notification', () async {
+    final h = _Harness();
+    h.wire.onWrite = (text) async {
+      final bytes = ascii.encode(h.server.answer(text));
+      h.wire.raw([...bytes, ...List.filled(21 - bytes.length, 0)]);
+    };
+    await expectLater(h.read(), throwsFormatException);
+  });
+  test('embedded NUL is not padding and cannot repair a malformed chunk',
+      () async {
+    final h = _Harness();
+    h.wire.onWrite = (text) async {
+      if (text.startsWith('hash:read:')) {
+        h.wire.reply(h.server.answer(text));
+      } else {
+        h.wire.raw([
+          ...ascii.encode('r:p:${text.split(':')[2]}:0:W'),
+          0,
+          ...ascii.encode('w'),
+          0
+        ]);
+      }
+    };
+    await expectLater(h.read(), throwsFormatException);
+  });
+
   test('raw strings, Unicode and escaped data survive byte-sized chunks',
       () async {
     final h = _Harness();

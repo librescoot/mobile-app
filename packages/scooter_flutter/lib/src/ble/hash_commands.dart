@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:logging/logging.dart';
 
 import 'characteristic_repository.dart';
 import 'command_transport.dart';
@@ -229,10 +230,17 @@ class _HashReplies {
       // Other extended replies can have a different budget and encoding. Only
       // inspect their raw header; validate the payload after exact correlation.
       if (!_correlates(bytes)) return;
-      if (bytes.length > budget || bytes.any((b) => b < 0x20 || b > 0x7e)) {
+      // The radio can zero-fill the notification to the negotiated payload
+      // size. Padding is transport framing, never part of the ASCII response.
+      final trailingZeros = bytes.reversed.takeWhile((b) => b == 0).length;
+      final frame = bytes.sublist(0, bytes.length - trailingZeros);
+      if (bytes.length > budget || frame.any((b) => b < 0x20 || b > 0x7e)) {
+        final nonPrintable = frame.where((b) => b < 0x20 || b > 0x7e).length;
+        Logger('BleHashRead').warning(
+            'Rejected hash frame: bytes=${bytes.length} budget=$budget nonPrintable=$nonPrintable trailingZeros=$trailingZeros');
         throw const FormatException('Invalid hash notification');
       }
-      final text = ascii.decode(bytes);
+      final text = ascii.decode(frame);
       final parts = text.split(':');
       if (parts[1] == 'x') {
         if (parts.length != 4 ||

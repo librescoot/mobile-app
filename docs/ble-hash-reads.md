@@ -14,7 +14,11 @@ caller must confirm the capability and supply a captured connection-generation
 ASCII requests are at most 100 bytes. ATT long writes carry commands larger than
 one ATT payload. The decimal notification budget is 20 through 244 and at most
 `ATT_MTU - 3`. ATT MTU 23 therefore uses budget 20. Each reply is one bounded
-notification; snapshot data can span many notifications.
+notification; snapshot data can span many notifications. The radio may fill the
+remaining notification bytes with zeroes. The client strips only trailing zero
+padding after ID correlation, while checking the raw notification against the
+budget. Embedded zeroes or other non-ASCII bytes remain errors; decoded JSON
+field contents are unchanged.
 
 ```
 hash:read:1234abcd:20:battery:0/present,serial-number
