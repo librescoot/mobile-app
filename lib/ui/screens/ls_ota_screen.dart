@@ -428,8 +428,13 @@ class _LsOtaScreenState extends State<LsOtaScreen> {
           else if (!otaAvailable)
             ListTile(
               leading: const Icon(Icons.info_outline),
-              title: Text(FlutterI18n.translate(context, "ls_ota_not_supported_title")),
-              subtitle: Text(FlutterI18n.translate(context, "ls_ota_not_supported_subtitle")),
+              title: Text(FlutterI18n.translate(context, "ls_ota_unavailable_title")),
+              subtitle: Text(FlutterI18n.translate(context, switch (_updates.otaAvailability) {
+                OtaAvailability.sessionNotReady => 'ls_ota_session_not_ready',
+                OtaAvailability.serviceMissing => 'ls_ota_service_missing',
+                OtaAvailability.firmwareUnsupported => 'ls_ota_firmware_unsupported',
+                OtaAvailability.ready => throw StateError('OTA is available'),
+              })),
             ),
           ListTile(
             leading: const Icon(Icons.info_outline),

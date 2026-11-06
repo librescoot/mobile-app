@@ -33,6 +33,23 @@ Widget screen(ScreenService service, {String locale = 'en'}) => ChangeNotifierPr
       ], home: const LsOtaScreen()),
     );
 void main() {
+  testWidgets('missing OTA service is not reported as unsupported firmware', (tester) async {
+    final h = shared.UpdateHarness();
+    await tester.runAsync(h.init);
+    h.repo.otaDataCharacteristic = null;
+    h.controller.transfer.state = OtaTransferState.failure;
+    final service = ScreenService(h.controller);
+    await tester.pumpWidget(screen(service));
+    await tester.pumpAndSettle();
+    expect(find.text('Bluetooth update unavailable'), findsOneWidget);
+    expect(find.text('The Bluetooth update service was not found on this connection. Check the Bluetooth version under System information.'), findsOneWidget);
+    expect(find.text('Wireless updates not supported'), findsNothing);
+    expect(h.repo.control.writes, isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+    service.dispose();
+    await tester.runAsync(h.close);
+  });
+
   testWidgets('screen detach/reattach retains actual shared download and install state', (tester) async {
     final h = shared.UpdateHarness();
     await tester.runAsync(h.init);
