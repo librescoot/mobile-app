@@ -201,9 +201,18 @@ void main() {
   tearDown(() async {
     await h.close();
   });
+  test('availability distinguishes a missing service and an unready session', () {
+    expect(h.controller.otaAvailability, OtaAvailability.ready);
+    h.repo.otaDataCharacteristic = null;
+    expect(h.controller.otaAvailability, OtaAvailability.serviceMissing);
+    expect(h.controller.otaAvailable, isFalse);
+    h.controller.invalidate();
+    expect(h.controller.otaAvailability, OtaAvailability.sessionNotReady);
+  });
   test('explicit unsupported capability blocks OTA status and installation',
       () async {
     h.firmwareSupported = false;
+    expect(h.controller.otaAvailability, OtaAvailability.firmwareUnsupported);
     expect(h.controller.otaAvailable, isFalse);
     await h.controller.refresh();
     expect(h.repo.control.writes, isEmpty);

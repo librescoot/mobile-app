@@ -27,6 +27,8 @@ class UpdateBundleDownload {
   final void Function() close;
 }
 
+enum OtaAvailability { ready, sessionNotReady, serviceMissing, firmwareUnsupported }
+
 /// One update workflow per existing application session, not per screen.
 /// Binding consumes the sole session's tokens; it never connects or retries BLE.
 class UpdateController extends ChangeNotifier {
@@ -72,10 +74,16 @@ class UpdateController extends ChangeNotifier {
       phase == UpdatePlanPhase.queryingVersions ||
       phase == UpdatePlanPhase.fetchingIndex;
   bool get busy => _working || transfer.active;
-  bool get otaAvailable =>
-      _connection?.isCurrent == true &&
-      _repository?.otaAvailable == true &&
-      (supportsFirmware?.call() ?? true);
+  OtaAvailability get otaAvailability {
+    if (_connection?.isCurrent != true || _repository == null) {
+      return OtaAvailability.sessionNotReady;
+    }
+    if (_repository!.otaAvailable != true) return OtaAvailability.serviceMissing;
+    if (supportsFirmware?.call() == false) return OtaAvailability.firmwareUnsupported;
+    return OtaAvailability.ready;
+  }
+
+  bool get otaAvailable => otaAvailability == OtaAvailability.ready;
 
   void _changed() {
     if (!_disposed) notifyListeners();
