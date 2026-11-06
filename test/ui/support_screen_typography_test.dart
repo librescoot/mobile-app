@@ -99,6 +99,19 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(SelectableText), findsWidgets);
       expect(tester.takeException(), isNull);
+      await tester.scrollUntilVisible(find.text('1.0 (1)'), 300, scrollable: find.byType(Scrollable).first);
+      await tester.ensureVisible(find.text('1.0 (1)'));
+      await tester.pumpAndSettle();
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') copied = (call.arguments as Map)['text'] as String?;
+        return null;
+      });
+      addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+      await tester.longPress(find.text('1.0 (1)'));
+      await tester.pumpAndSettle();
+      expect(copied, '1.0 (1)');
+      expect(find.text('App version copied'), findsOneWidget);
     });
   }
 }
