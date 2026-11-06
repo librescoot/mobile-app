@@ -727,6 +727,31 @@ class ScooterSession {
         continue;
       }
       if (invalid == null) {
+        if (isAndroid && !refreshAttempted && !repository.otaAvailable) {
+          final otaExpected = await repository.nrfMayHaveOtaService();
+          if (!attempt.isCurrentAttempt) throw const _SupersededConnectionAttempt();
+          if (scooter.isDisconnected) {
+            throw StateError('Scooter disconnected while checking Bluetooth version');
+          }
+          if (discoveryGeneration != servicesGeneration()) {
+            lastFailure = 'services changed during Bluetooth version check';
+            continue;
+          }
+          if (otaExpected) {
+            refreshAttempted = true;
+            try {
+              await _clearGattCache(scooter);
+              log.info('Requested Android service cache refresh for missing OTA service');
+            } catch (e) {
+              log.warning('Could not request Android service cache refresh: $e');
+            }
+            if (!attempt.isCurrentAttempt) throw const _SupersededConnectionAttempt();
+            if (scooter.isDisconnected) {
+              throw StateError('Scooter disconnected during service cache refresh');
+            }
+            continue;
+          }
+        }
         if (isIOS && !_pairingConfirmed) {
           await repository.confirmPairing(
               isCurrent: () => attempt.isCurrentAttempt);

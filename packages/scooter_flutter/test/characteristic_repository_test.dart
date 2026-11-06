@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scooter_flutter/scooter_flutter.dart';
@@ -24,6 +26,13 @@ class _Characteristic extends Fake implements BluetoothCharacteristic {
   final List<BluetoothDescriptor> descriptors;
   @override
   final CharacteristicProperties properties;
+}
+
+class _VersionCharacteristic extends Fake implements BluetoothCharacteristic {
+  _VersionCharacteristic(this.version);
+  final String version;
+  @override
+  Future<List<int>> read({int timeout = 15}) async => utf8.encode(version);
 }
 
 class _Service extends Fake implements BluetoothService {
@@ -64,6 +73,21 @@ class _Device extends Fake implements BluetoothDevice {
 }
 
 void main() {
+  test('nRF version is only a hint to retry service discovery', () async {
+    final repo = CharacteristicRepository(_Device([]));
+    for (final (version, expected) in [
+      ('v2.10.0-ls', true),
+      ('v2.14.0-ls', true),
+      ('v3.0.0-ls', true),
+      ('v2.9.0-ls', false),
+      ('v2.10.0', false),
+      ('unknown', false),
+    ]) {
+      repo.nrfVersionCharacteristic = _VersionCharacteristic(version);
+      expect(await repo.nrfMayHaveOtaService(), expected, reason: version);
+    }
+  });
+
   test('lookup requires both the service and characteristic IDs', () {
     final service = _Service('0500', ['0501']);
     final device = _Device([service]);

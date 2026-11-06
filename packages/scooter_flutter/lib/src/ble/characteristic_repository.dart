@@ -1,6 +1,8 @@
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
 
+import 'scooter_reader.dart' show readNrfVersion;
+
 class CharacteristicRepository {
   final log = Logger("CharacteristicRepository");
   BluetoothDevice scooter;
@@ -227,6 +229,20 @@ class CharacteristicRepository {
       otaDataCharacteristic != null &&
       otaControlCharacteristic != null &&
       otaStatusCharacteristic != null;
+
+  /// A hint to refresh Android's service cache, not proof that OTA is usable.
+  Future<bool> nrfMayHaveOtaService() async {
+    final characteristic = nrfVersionCharacteristic;
+    if (characteristic == null) return false;
+    String? version;
+    await readNrfVersion(characteristic, (value, _) => version = value)
+        .timeout(const Duration(seconds: 3), onTimeout: () => false);
+    final match = RegExp(r'^v?(\d+)\.(\d+)\.(\d+)-ls(?:[.+-].*)?$').firstMatch(version ?? '');
+    if (match == null) return false;
+    final major = int.tryParse(match[1]!);
+    final minor = int.tryParse(match[2]!);
+    return major != null && minor != null && (major > 2 || major == 2 && minor >= 10);
+  }
 
   /// Whether the connected firmware exposes the alarm state service.
   bool get alarmAvailable =>
