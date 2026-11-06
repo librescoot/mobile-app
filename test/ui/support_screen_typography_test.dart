@@ -23,6 +23,24 @@ class _FaqBundle extends CachingAssetBundle {
 }
 
 void main() {
+  testWidgets('dealer badge shows its label', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: [
+        FlutterI18nDelegate(
+          translationLoader: InlineFileTranslationLoader(
+            basePath: 'assets/i18n',
+            fallbackFile: 'en',
+            forcedLocale: const Locale('en'),
+          ),
+        ),
+      ],
+      home: const Scaffold(body: DealerBadge()),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Official unu dealer'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   test('support keeps GitHub issues and log-attached email as separate options', () {
     final source = File('lib/ui/screens/support_screen.dart').readAsStringSync();
     expect(source, contains("'support_send_debug_logs'"));

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -596,7 +595,10 @@ class _GarageTile extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 6),
                   Text('${garage.street}, ${garage.city}', maxLines: 2, overflow: TextOverflow.ellipsis),
-                  const Spacer(),
+                  if (garage.isDealer) ...[
+                    const SizedBox(height: 6),
+                    const DealerBadge(),
+                  ],
                   if (garage.distance != null) ...[
                     Text(
                       FlutterI18n.translate(
@@ -609,7 +611,8 @@ class _GarageTile extends StatelessWidget {
                           ),
                     ),
                     const SizedBox(height: 12),
-                  ],
+                  ] else
+                    const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -652,7 +655,6 @@ class _GarageTile extends StatelessWidget {
                 ],
               ),
             ),
-            if (garage.isDealer) const Positioned(top: 0, right: 0, child: _DealerRibbon()),
           ],
         ),
       ),
@@ -660,33 +662,15 @@ class _GarageTile extends StatelessWidget {
   }
 }
 
-class _DealerRibbon extends StatelessWidget {
-  const _DealerRibbon();
+class DealerBadge extends StatelessWidget {
+  const DealerBadge({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: FlutterI18n.translate(context, 'support_garage_dealer'),
-      child: SizedBox(
-        width: 56,
-        height: 56,
-        child: ClipRect(
-          child: Center(
-            child: Transform.translate(
-              // Shifts the rotated band so it crosses the top-right corner.
-              offset: const Offset(8, -8),
-              child: Transform.rotate(
-                angle: math.pi / 4,
-                child: Container(
-                  width: 80,
-                  height: 12,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
+    final colors = Theme.of(context).colorScheme;
+    return Text(
+      FlutterI18n.translate(context, 'support_garage_dealer'),
+      style: Theme.of(context).textTheme.labelMedium?.copyWith(color: colors.primary),
     );
   }
 }
