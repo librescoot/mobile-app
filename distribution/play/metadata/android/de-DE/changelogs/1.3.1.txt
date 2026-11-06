@@ -1,0 +1,1 @@
+Offizielle unu-Händler sind in der Werkstattliste erkennbar. App-Version und Buildnummer lassen sich unter Hilfe durch langes Drücken oder über die Kopieren-Schaltfläche kopieren.
