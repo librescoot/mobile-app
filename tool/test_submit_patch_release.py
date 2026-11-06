@@ -18,6 +18,19 @@ class SubmitPatchReleaseTest(unittest.TestCase):
                 module.submit('token', '123')
             request.assert_not_called()
 
+    def test_refuses_to_cancel_review_with_other_items(self):
+        old = {'id': 'old'}
+        replies = [
+            {'data': [{'id': 'review', 'attributes': {'state': 'WAITING_FOR_REVIEW'}}]},
+            {'data': [{'id': 'item1'}, {'id': 'item2'}], 'included': [
+                {'type': 'appStoreVersions', 'id': 'old'},
+            ]},
+        ]
+        with patch.object(module.asc, 'request', side_effect=replies), patch.object(module, 'send') as send:
+            with self.assertRaisesRegex(RuntimeError, 'only iOS 1.3.1'):
+                module.replace_waiting_version('token', old)
+            send.assert_not_called()
+
     def test_rejects_wrong_marketing_version_before_mutation(self):
         with patch.object(module.asc, 'resolve_app', return_value=module.APP), \
              patch.object(module.asc, 'await_build', return_value='build'), \

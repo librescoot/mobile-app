@@ -16,6 +16,37 @@ def send(token, method, path, data):
     return asc.request(token, method, f'{asc.API}/{path}', json.dumps({'data': data}).encode())['data']
 
 
+def replace_waiting_version(token, old):
+    query = urllib.parse.urlencode({'filter[app]': APP, 'filter[platform]': 'IOS', 'limit': 50})
+    submissions = asc.request(token, 'GET', f'{asc.API}/reviewSubmissions?{query}')['data']
+    candidates = []
+    for submission in submissions:
+        if submission['attributes']['state'] != 'WAITING_FOR_REVIEW':
+            continue
+        sid = submission['id']
+        items = asc.request(token, 'GET', f'{asc.API}/reviewSubmissions/{sid}/items?include=appStoreVersion&limit=100')
+        included = items.get('included', [])
+        if len(items['data']) == 1 and any(
+                item['type'] == 'appStoreVersions' and item['id'] == old['id'] for item in included):
+            candidates.append(submission)
+    if len(candidates) != 1:
+        raise RuntimeError('Expected one waiting review containing only iOS 1.3.1')
+    sid = candidates[0]['id']
+    send(token, 'PATCH', f'reviewSubmissions/{sid}', {
+        'type': 'reviewSubmissions', 'id': sid, 'attributes': {'canceled': True},
+    })
+    current = asc.request(token, 'GET', f"{asc.API}/appStoreVersions/{old['id']}")['data']
+    if current['attributes']['appStoreState'] not in ('DEVELOPER_REJECTED', 'PREPARE_FOR_SUBMISSION'):
+        raise RuntimeError('Cancelled version is not editable')
+    version = send(token, 'PATCH', f"appStoreVersions/{old['id']}", {
+        'type': 'appStoreVersions', 'id': old['id'],
+        'attributes': {'versionString': VERSION, 'releaseType': 'AFTER_APPROVAL'},
+    })
+    if version['attributes']['versionString'] != VERSION:
+        raise RuntimeError('Version change did not persist')
+    return version
+
+
 def submit(token, build_number):
     if asc.resolve_app(token, 'org.librescoot.mobile.unu') != APP:
         raise RuntimeError('Unexpected App Store app')
@@ -29,13 +60,19 @@ def submit(token, build_number):
     if len(matches) > 1:
         raise RuntimeError('Multiple matching App Store versions')
     if not matches:
-        if any(v['attributes']['appStoreState'] == 'PREPARE_FOR_SUBMISSION' for v in versions):
-            raise RuntimeError('Another editable App Store version exists')
-        version = send(token, 'POST', 'appStoreVersions', {
-            'type': 'appStoreVersions',
-            'attributes': {'platform': 'IOS', 'versionString': VERSION, 'releaseType': 'AFTER_APPROVAL'},
-            'relationships': {'app': {'data': {'type': 'apps', 'id': APP}}},
-        })
+        old = [v for v in versions if v['attributes']['versionString'] == '1.3.1'
+               and v['attributes']['appStoreState'] == 'WAITING_FOR_REVIEW']
+        if len(old) == 1:
+            version = replace_waiting_version(token, old[0])
+        elif any(v['attributes']['appStoreState'] in ('PREPARE_FOR_SUBMISSION', 'WAITING_FOR_REVIEW', 'IN_REVIEW')
+                 for v in versions):
+            raise RuntimeError('An unexpected iOS version is being prepared or reviewed')
+        else:
+            version = send(token, 'POST', 'appStoreVersions', {
+                'type': 'appStoreVersions',
+                'attributes': {'platform': 'IOS', 'versionString': VERSION, 'releaseType': 'AFTER_APPROVAL'},
+                'relationships': {'app': {'data': {'type': 'apps', 'id': APP}}},
+            })
     else:
         version = matches[0]
     vid = version['id']
@@ -43,7 +80,7 @@ def submit(token, build_number):
     if state in ('WAITING_FOR_REVIEW', 'IN_REVIEW', 'PENDING_DEVELOPER_RELEASE', 'PENDING_APPLE_RELEASE', 'READY_FOR_SALE'):
         print(f'App Store {VERSION} already submitted: {state}')
         return
-    if state != 'PREPARE_FOR_SUBMISSION':
+    if state not in ('PREPARE_FOR_SUBMISSION', 'DEVELOPER_REJECTED'):
         raise RuntimeError(f'Unexpected App Store version state: {state}')
     locales = asc.request(token, 'GET', f'{asc.API}/appStoreVersions/{vid}/appStoreVersionLocalizations?limit=200')['data']
     german = [item for item in locales if item['attributes']['locale'] == 'de-DE']
