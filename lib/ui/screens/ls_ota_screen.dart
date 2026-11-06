@@ -413,6 +413,8 @@ class _LsOtaScreenState extends State<LsOtaScreen> {
     final service = context.watch<ScooterService>();
     final connected = service.connected;
     final otaAvailable = _updates.otaAvailable;
+    final nrfVersion = service.identity.nrfVersion?.trim();
+    final nrfVersionKnown = nrfVersion != null && nrfVersion.isNotEmpty && nrfVersion.toLowerCase() != 'unknown';
     final actionable = connected && otaAvailable && !_updates.busy && !_transfer.awaitingReconnect;
 
     return Scaffold(
@@ -435,6 +437,12 @@ class _LsOtaScreenState extends State<LsOtaScreen> {
                 OtaAvailability.firmwareUnsupported => 'ls_ota_firmware_unsupported',
                 OtaAvailability.ready => throw StateError('OTA is available'),
               })),
+            ),
+          if (connected && !otaAvailable)
+            ListTile(
+              leading: const Icon(Icons.bluetooth),
+              title: Text(FlutterI18n.translate(context, 'system_info_nrf')),
+              subtitle: Text(nrfVersionKnown ? nrfVersion : FlutterI18n.translate(context, 'system_info_unavailable')),
             ),
           ListTile(
             leading: const Icon(Icons.info_outline),
