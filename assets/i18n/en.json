@@ -845,6 +845,8 @@
 "system_info_refresh": "Reload version info",
   "system_info_bluetooth_updates": "Bluetooth firmware updates",
 "system_info_copy": "Copy diagnostics",
+"support_version_copy": "Copy app version",
+"support_version_copied": "App version copied",
 "system_info_copied": "Diagnostics copied",
 "system_info_failed": "Could not read versions. Check the connection and try again.",
 "settings_scooter_disconnected": "Connect to the scooter to use this setting.",

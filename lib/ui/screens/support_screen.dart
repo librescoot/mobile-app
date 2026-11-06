@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -209,13 +210,31 @@ class _SupportScreenState extends State<SupportScreen> {
               ),
               FutureBuilder<PackageInfo>(
                 future: _packageInfoFuture,
-                builder: (context, packageInfo) => ListTile(
-                  leading: const Icon(Icons.info_outline_rounded),
-                  title: Text(FlutterI18n.translate(context, 'settings_app_version')),
-                  subtitle: Text(
-                    packageInfo.hasData ? '${packageInfo.data!.version} (${packageInfo.data!.buildNumber})' : '…',
-                  ),
-                ),
+                builder: (context, packageInfo) {
+                  final version = packageInfo.hasData
+                      ? '${packageInfo.data!.version} (${packageInfo.data!.buildNumber})'
+                      : null;
+                  Future<void> copyVersion() async {
+                    if (version == null) return;
+                    await Clipboard.setData(ClipboardData(text: version));
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(FlutterI18n.translate(context, 'support_version_copied'))),
+                    );
+                  }
+
+                  return ListTile(
+                    leading: const Icon(Icons.info_outline_rounded),
+                    title: Text(FlutterI18n.translate(context, 'settings_app_version')),
+                    subtitle: Text(version ?? '…'),
+                    onLongPress: version == null ? null : copyVersion,
+                    trailing: IconButton(
+                      tooltip: FlutterI18n.translate(context, 'support_version_copy'),
+                      icon: const Icon(Icons.copy_outlined),
+                      onPressed: version == null ? null : copyVersion,
+                    ),
+                  );
+                },
               ),
               FutureBuilder<PackageInfo>(
                 future: _packageInfoFuture,
