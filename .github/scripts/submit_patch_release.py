@@ -35,9 +35,13 @@ def replace_waiting_version(token, old):
     send(token, 'PATCH', f'reviewSubmissions/{sid}', {
         'type': 'reviewSubmissions', 'id': sid, 'attributes': {'canceled': True},
     })
+    return rename_editable_version(token, old)
+
+
+def rename_editable_version(token, old):
     current = asc.request(token, 'GET', f"{asc.API}/appStoreVersions/{old['id']}")['data']
     if current['attributes']['appStoreState'] not in ('DEVELOPER_REJECTED', 'PREPARE_FOR_SUBMISSION'):
-        raise RuntimeError('Cancelled version is not editable')
+        raise RuntimeError(f"Cancelled version is not editable: {current['attributes']['appStoreState']}")
     version = send(token, 'PATCH', f"appStoreVersions/{old['id']}", {
         'type': 'appStoreVersions', 'id': old['id'],
         'attributes': {'versionString': VERSION, 'releaseType': 'AFTER_APPROVAL'},
@@ -62,8 +66,12 @@ def submit(token, build_number):
     if not matches:
         old = [v for v in versions if v['attributes']['versionString'] == '1.3.1'
                and v['attributes']['appStoreState'] == 'WAITING_FOR_REVIEW']
+        rejected = [v for v in versions if v['attributes']['versionString'] == '1.3.1'
+                    and v['attributes']['appStoreState'] == 'DEVELOPER_REJECTED']
         if len(old) == 1:
             version = replace_waiting_version(token, old[0])
+        elif len(rejected) == 1:
+            version = rename_editable_version(token, rejected[0])
         elif any(v['attributes']['appStoreState'] in ('PREPARE_FOR_SUBMISSION', 'WAITING_FOR_REVIEW', 'IN_REVIEW')
                  for v in versions):
             raise RuntimeError('An unexpected iOS version is being prepared or reviewed')
