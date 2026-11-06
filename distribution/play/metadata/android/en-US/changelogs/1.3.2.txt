@@ -1,0 +1,1 @@
+Improves Bluetooth update service discovery on Android without deleting the pairing. Shows the Bluetooth version and a clearer explanation when updates are unavailable.

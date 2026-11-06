@@ -1,0 +1,1 @@
+Verbeterde detectie van de Bluetooth-updateservice op Android, zonder de koppeling te verwijderen. De app toont de Bluetooth-versie en een duidelijkere uitleg als updates niet beschikbaar zijn.

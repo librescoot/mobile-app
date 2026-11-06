@@ -1,0 +1,1 @@
+Amélioration de la détection du service de mise à jour Bluetooth sur Android sans supprimer l'association. La version Bluetooth et une explication plus précise s'affichent si les mises à jour sont indisponibles.
