@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:scooter_flutter/update_controller.dart';
 import 'package:scooter_core/update_planner.dart';
 import 'package:unustasis/scooter_service.dart';
+import 'package:unustasis/state/scooter_identity.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
 import '../../packages/scooter_flutter/test/update_controller_test.dart' as shared;
 import '../support/inline_asset_bundle.dart';
@@ -15,6 +16,13 @@ class ScreenService extends ChangeNotifier implements ScooterService {
   ScreenService(this.updateController);
   @override
   final UpdateController updateController;
+  @override
+  final ScooterIdentity identity = ScooterIdentity();
+  void setNrfVersion(String? version) {
+    identity.nrfVersion = version;
+    notifyListeners();
+  }
+
   @override
   bool get connected => true;
   @override
@@ -39,11 +47,18 @@ void main() {
     h.repo.otaDataCharacteristic = null;
     h.controller.transfer.state = OtaTransferState.failure;
     final service = ScreenService(h.controller);
+    service.identity.nrfVersion = '2.10.0-ls';
     await tester.pumpWidget(screen(service));
     await tester.pumpAndSettle();
+    expect(find.text('Bluetooth controller (nRF)'), findsOneWidget);
+    expect(find.text('2.10.0-ls'), findsOneWidget);
     expect(find.text('Bluetooth update unavailable'), findsOneWidget);
     expect(find.text('The Bluetooth update service was not found on this connection. Check the Bluetooth version under System information.'), findsOneWidget);
     expect(find.text('Wireless updates not supported'), findsNothing);
+    service.setNrfVersion(null);
+    await tester.pump();
+    expect(find.text('2.10.0-ls'), findsNothing);
+    expect(find.text('Unavailable'), findsWidgets);
     expect(h.repo.control.writes, isEmpty);
     await tester.pumpWidget(const SizedBox.shrink());
     service.dispose();
