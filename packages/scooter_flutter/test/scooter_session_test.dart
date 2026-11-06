@@ -186,6 +186,9 @@ class _Repository extends CharacteristicRepository {
   final List<String> trace;
   Completer<void>? gate;
   bool missing = false;
+  bool otaHint = false;
+  @override
+  Future<bool> nrfMayHaveOtaService() async => otaHint;
   String? invalidTable;
   Completer<void>? validationGate;
   void Function()? afterValidationHandoff;
@@ -633,6 +636,23 @@ void main() {
       'A.validate',
       'A.wire',
     ]));
+  });
+
+  sessionTest('Android retries a missing OTA service for a capable nRF without removing the bond',
+      (tester) async {
+    final h = create(android: true);
+    final first = _Repository(h.devices['A']!, h.trace)..otaHint = true;
+    h.repositories[h.devices['A']!] = first;
+    final result = h.connect('A');
+    await tester.pump();
+    h.devices['A']!.connections.single.complete();
+    await tester.pump();
+    expect(await result, isNull);
+    expect(h.repositoryHistory, hasLength(2));
+    expect(h.effects.repositories.single.otaAvailable, isFalse);
+    expect(h.trace.where((event) => event == 'A.refresh'), hasLength(1));
+    expect(h.trace, containsAllInOrder(['A.discover', 'A.validate', 'A.refresh', 'A.discover', 'A.validate', 'A.wire']));
+    expect(h.trace, isNot(contains('A.removeBond')));
   });
 
   sessionTest('iOS retries one transient incomplete table without cache refresh',
