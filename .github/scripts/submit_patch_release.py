@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare and submit the 1.3.1 iOS update using its exact processed build."""
+"""Prepare and submit the 1.3.2 iOS update using its exact processed build."""
 import argparse
 import json
 import os
@@ -9,7 +9,7 @@ import urllib.parse
 import testflight_notes as asc
 
 APP = '6811779595'
-VERSION = '1.3.1'
+VERSION = '1.3.2'
 
 
 def send(token, method, path, data):
@@ -23,7 +23,7 @@ def submit(token, build_number):
     build_data = asc.request(token, 'GET', f'{asc.API}/builds/{build_id}?include=preReleaseVersion')
     pre = [item for item in build_data.get('included', []) if item['type'] == 'preReleaseVersions']
     if len(pre) != 1 or pre[0]['attributes'].get('version') != VERSION:
-        raise RuntimeError('Build marketing version is not 1.3.1')
+        raise RuntimeError('Build marketing version is not 1.3.2')
     versions = asc.request(token, 'GET', f'{asc.API}/apps/{APP}/appStoreVersions?filter[platform]=IOS&limit=50')['data']
     matches = [v for v in versions if v['attributes']['versionString'] == VERSION]
     if len(matches) > 1:
@@ -56,7 +56,7 @@ def submit(token, build_number):
         raise RuntimeError('No inherited screenshots; refusing submission')
     send(token, 'PATCH', f'appStoreVersionLocalizations/{loc}', {
         'type': 'appStoreVersionLocalizations', 'id': loc,
-        'attributes': {'whatsNew': 'Offizielle unu-Händler sind in der Werkstattliste erkennbar. App-Version und Buildnummer lassen sich unter Hilfe kopieren.'},
+        'attributes': {'whatsNew': 'Wenn Bluetooth-Updates nicht verfügbar sind, zeigt die App die Bluetooth-Version und eine genauere Erklärung. Offizielle unu-Händler sind erkennbar; die App-Version lässt sich unter Hilfe kopieren.'},
     })
     asc.request(token, 'PATCH', f'{asc.API}/appStoreVersions/{vid}/relationships/build',
                 json.dumps({'data': {'type': 'builds', 'id': build_id}}).encode())
