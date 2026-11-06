@@ -11,6 +11,7 @@ import 'package:scooter_core/scooter_core.dart';
 import '../ble/action_commands.dart' as commands;
 import '../ble/firmware_queries.dart' as queries;
 import '../ble/sms_commands.dart' as sms;
+import '../ble/trip_history_commands.dart' as history;
 import '../ble/hash_commands.dart' as hashes;
 import '../ble/command_transport.dart' as transport;
 import '../ble/characteristic_repository.dart';
@@ -530,6 +531,13 @@ class ScooterActions {
     final value = await getSetting(key);
     return value == null ? null : value == 'true';
   }
+
+  Future<history.TripHistoryPage> readTripHistory({String? cursor, bool Function()? isActive}) => _command(
+      _capture(), (d, r, c) => history.readTripHistoryPage(d, r, cursor: cursor, isCurrent: () => c() && (isActive?.call() ?? true)));
+  Future<history.TripHistoryEntry> readTripHistoryEntry(String id, {bool Function()? isActive}) => _command(
+      _capture(), (d, r, c) => history.readTripHistoryEntry(d, r, id, isCurrent: () => c() && (isActive?.call() ?? true)));
+  Future<history.TripHistoryPointsPage> readTripHistoryPoints(String id, {int afterId = 0, bool Function()? isActive}) => _command(
+      _capture(), (d, r, c) => history.readTripHistoryPoints(d, r, id, afterId: afterId, isCurrent: () => c() && (isActive?.call() ?? true)));
 
   Future<sms.SmsInbox> readSmsInbox() => _command(
       _capture(), (d, r, c) => sms.readSmsInboxCommand(d, r, isCurrent: c));

@@ -10,6 +10,7 @@ import '../../domain/saved_scooter.dart';
 import '../../scooter_service.dart';
 import '../widgets/header.dart';
 import '../wide_layout.dart';
+import 'trip_history_screen.dart';
 
 class TripCounterScreen extends StatefulWidget {
   const TripCounterScreen({super.key});
@@ -111,6 +112,15 @@ class _TripCounterScreenState extends State<TripCounterScreen> {
             base: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewPaddingOf(context).bottom),
           ),
           children: [
+            if (connected)
+              ListTile(
+                leading: const Icon(Icons.history),
+                title: Text(switch (Localizations.localeOf(context).languageCode) {
+                  'de' => 'Fahrtenverlauf', 'nl' => 'Ritgeschiedenis', 'fr' => 'Historique des trajets', _ => 'Trip history'
+                }),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TripHistoryScreen())),
+              ),
             if (!hasData && !connected)
               _StateMessage(
                 icon: Icons.bluetooth_disabled,
