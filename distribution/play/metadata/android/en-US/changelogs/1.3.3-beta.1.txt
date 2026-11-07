@@ -1,0 +1,1 @@
+Test smaller Bluetooth firmware updates on compatible scooters, trip history, and improved Bluetooth update discovery. Battery identification guidance has also been improved.

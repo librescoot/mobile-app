@@ -1,0 +1,1 @@
+Teste kleinere Firmware-Updates über Bluetooth auf kompatiblen Scootern, die Fahrtenübersicht und die verbesserte Erkennung von Bluetooth-Updates. Auch die Anleitung zur Akkuidentifikation wurde verbessert.

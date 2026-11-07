@@ -1,0 +1,1 @@
+Test kleinere firmware-updates via Bluetooth op compatibele scooters, de ritgeschiedenis en verbeterde detectie van updates. Ook de uitleg voor batterij-identificatie is verbeterd.
