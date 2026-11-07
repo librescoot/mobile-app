@@ -71,6 +71,21 @@ class FirmwareRelease {
 
   FirmwareAsset? deltaAsset(String variant) => _asset(variant, delta: true);
   bool hasHdelta(String variant) => assets.any((a) => a.name.contains(variant) && a.isHdelta);
+
+  FirmwareAsset? usableDelta(String variant, bool supportsHdelta) {
+    final normal = deltaAsset(variant);
+    if (!supportsHdelta) return normal;
+    FirmwareAsset? hd;
+    for (final asset in assets) {
+      if (asset.name.contains(variant) && asset.isHdelta && asset.size > 0 &&
+          asset.name.length <= 64 && RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*$').hasMatch(asset.name)) {
+        hd = asset;
+        break;
+      }
+    }
+    if (hd != null && (normal == null || normal.size <= 0 || hd.size < normal.size)) return hd;
+    return normal;
+  }
   FirmwareAsset? menderAsset(String variant) => _asset(variant, delta: false);
 
   FirmwareAsset? _asset(String variant, {required bool delta}) {
@@ -260,10 +275,10 @@ class UpdatePlanner {
   /// Finds the next delta after [normalizedCurrent] in the chain. The current
   /// version must itself appear in the chain, otherwise the implicit
   /// source-version contract is broken and a full image is required. An
-  /// hdelta-only hop also stops the chain: decoder support is not advertised.
+  /// hdelta-only hop stops the chain unless the board confirmed decoder support.
   static NextDelta nextDelta(
       List<FirmwareRelease> candidates, String normalizedCurrent, String channel,
-      {required String variant}) {
+      {required String variant, bool supportsHdelta = false}) {
     final current = normalizedCurrent.toLowerCase();
     var currentFound = false;
     for (final r in candidates) {
@@ -273,7 +288,7 @@ class UpdatePlanner {
         continue;
       }
       if (currentFound && compareTags(tag, current, channel) > 0) {
-        return NextDelta(currentFound: true, next: r.deltaAsset(variant) == null ? null : r);
+        return NextDelta(currentFound: true, next: r.usableDelta(variant, supportsHdelta) == null ? null : r);
       }
     }
     return NextDelta(currentFound: currentFound);
@@ -309,7 +324,11 @@ class UpdatePlanner {
     required String? mdbVersion,
     required String? dbcVersion,
     bool channelSwitch = false,
+    bool mdbSupportsHdelta = false,
+    bool dbcSupportsHdelta = false,
   }) {
+    bool supportsHdelta(int component) => component == OtaProtocol.componentDbc
+        ? dbcSupportsHdelta : mdbSupportsHdelta;
     final steps = <UpdateStep>[];
     final warnings = <PlanWarning>[];
 
@@ -360,7 +379,7 @@ class UpdatePlanner {
 
     if (!dbcKnown) {
       warnings.add(const PlanWarning("ls_ota_warn_dbc_unknown"));
-      _addBoardSteps(steps, warnings, releases, channel, OtaProtocol.componentMdb, normMdb);
+      _addBoardSteps(steps, warnings, releases, channel, OtaProtocol.componentMdb, normMdb, mdbSupportsHdelta);
       return UpdatePlan(
           steps: steps, warnings: warnings, upToDate: steps.isEmpty && warnings.length == 1);
     }
@@ -386,7 +405,7 @@ class UpdatePlanner {
       } else {
         warnings.add(PlanWarning("ls_ota_warn_no_dbc_image", {"channel": channel}));
       }
-      _addBoardSteps(steps, warnings, releases, channel, OtaProtocol.componentMdb, normMdb);
+      _addBoardSteps(steps, warnings, releases, channel, OtaProtocol.componentMdb, normMdb, mdbSupportsHdelta);
       return UpdatePlan(steps: steps, warnings: warnings, upToDate: false);
     }
 
@@ -402,7 +421,8 @@ class UpdatePlanner {
       final variant = variantFor(olderComponent);
 
       final chain = deltaCandidates(releases, channel, variant);
-      final nd = nextDelta(chain, olderNorm, channel, variant: variant);
+      final nd = nextDelta(chain, olderNorm, channel, variant: variant,
+          supportsHdelta: supportsHdelta(olderComponent));
       var olderAssumed = olderNorm;
 
       if (nd.next != null) {
@@ -414,7 +434,7 @@ class UpdatePlanner {
         for (final r in chain) {
           final tag = r.tagName.toLowerCase();
           if (compareTags(tag, olderNorm, channel) <= 0) continue;
-          if (compareTags(tag, newerNorm, channel) > 0 || r.deltaAsset(variant) == null) break;
+          if (compareTags(tag, newerNorm, channel) > 0 || r.usableDelta(variant, supportsHdelta(olderComponent)) == null) break;
           hops.add(r);
         }
         if (hops.isEmpty) {
@@ -427,7 +447,7 @@ class UpdatePlanner {
           steps.add(UpdateStep(
             component: olderComponent,
             release: hop,
-            asset: hop.deltaAsset(variant)!,
+            asset: hop.usableDelta(variant, supportsHdelta(olderComponent))!,
             kind: StepKind.convergeDelta,
           ));
         }
@@ -473,8 +493,8 @@ class UpdatePlanner {
     // above). Updates run one at a time, so after the MDB step completes and
     // the scooter reboots, the app reconnects, re-plans and then offers the
     // dashboard step.
-    _addBoardSteps(steps, warnings, releases, channel, OtaProtocol.componentMdb, mdbAssumed);
-    _addBoardSteps(steps, warnings, releases, channel, OtaProtocol.componentDbc, dbcAssumed);
+    _addBoardSteps(steps, warnings, releases, channel, OtaProtocol.componentMdb, mdbAssumed, mdbSupportsHdelta);
+    _addBoardSteps(steps, warnings, releases, channel, OtaProtocol.componentDbc, dbcAssumed, dbcSupportsHdelta);
 
     return UpdatePlan(
       steps: steps,
@@ -493,16 +513,17 @@ class UpdatePlanner {
     String channel,
     int component,
     String normalizedCurrent,
+    bool supportsHdelta,
   ) {
     final variant = variantFor(component);
     final chain = deltaCandidates(releases, channel, variant);
-    final nd = nextDelta(chain, normalizedCurrent, channel, variant: variant);
+    final nd = nextDelta(chain, normalizedCurrent, channel, variant: variant, supportsHdelta: supportsHdelta);
 
     if (nd.next != null) {
       steps.add(UpdateStep(
         component: component,
         release: nd.next!,
-        asset: nd.next!.deltaAsset(variant)!,
+        asset: nd.next!.usableDelta(variant, supportsHdelta)!,
         kind: StepKind.delta,
       ));
       return;

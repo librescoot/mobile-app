@@ -192,6 +192,31 @@ void main() {
       }
     });
 
+    test("hdelta selection requires the specific board and selects smaller assets", () {
+      final target = release(n2);
+      final assets = target["assets"] as List<Map<String, dynamic>>;
+      for (final variant in ["unu-mdb", "unu-dbc"]) {
+        assets.add({"name": "librescoot-$variant-$n2.hdelta", "url": "https://dl/$variant.hdelta", "size": 1});
+      }
+      final releases = parseIndex([target, release(n1)]);
+      final plan = UpdatePlanner.buildPlan(releases: releases, channel: "nightly",
+          mdbVersion: n1, dbcVersion: n1, mdbSupportsHdelta: true);
+      expect(plan.steps.first.asset.isHdelta, isTrue);
+      expect(plan.steps.last.asset.isHdelta, isFalse);
+      expect(plan.steps.first.bundleId, endsWith('.hdelta'));
+      final dbc = UpdatePlanner.buildPlan(releases: releases, channel: "nightly",
+          mdbVersion: n1, dbcVersion: n1, dbcSupportsHdelta: true);
+      expect(dbc.steps.first.asset.isHdelta, isFalse);
+      expect(dbc.steps.last.asset.isHdelta, isTrue);
+      final only = release(n2, delta: false);
+      (only["assets"] as List<Map<String, dynamic>>).add({
+        "name": "librescoot-unu-mdb-$n2.hdelta", "url": "https://dl/only.hdelta", "size": 1
+      });
+      final onlyPlan = UpdatePlanner.buildPlan(releases: parseIndex([only, release(n1)]),
+          channel: "nightly", mdbVersion: n1, dbcVersion: n1, mdbSupportsHdelta: true);
+      expect(onlyPlan.steps.first.asset.isHdelta, isTrue);
+    });
+
     test("normal delta wins when hdelta is also present", () {
       final target = release(n2);
       final assets = target["assets"] as List<Map<String, dynamic>>;

@@ -20,6 +20,7 @@ class UpdateRepository extends nav.Repository {
     otaStatusCharacteristic = status;
     wire.onWrite = (v) async {
       if (v.startsWith('status:version:')) wire.reply('$v:$version');
+      if (v.startsWith('status:hdelta:')) wire.reply('$v:$hdelta');
     };
     control.onWrite = (v) async {
       if (v[0] == 5) status.values.add([0x84, probePhase, 42, 0]);
@@ -42,6 +43,7 @@ class UpdateRepository extends nav.Repository {
   int probePhase = 6;
   int? installPhase = 4;
   String version = 'v1.0.0';
+  bool hdelta = false;
 }
 
 class UpdateEffects implements ScooterSessionEffects {
@@ -225,6 +227,29 @@ void main() {
     expect(h.repo.control.writes, [
       [5]
     ]);
+  });
+
+  test('hdelta selection is rechecked immediately before transfer', () async {
+    h.repo.hdelta = true;
+    h.repo.version = 'nightly-20260101T000000';
+    FirmwareRelease nightly(String tag) => FirmwareRelease.fromJson({
+      'tag_name': tag, 'prerelease': true, 'assets': [
+        {'name': 'librescoot-unu-mdb-$tag.delta', 'url': 'https://dl/$tag.delta', 'size': 4},
+        {'name': 'librescoot-unu-mdb-$tag.hdelta', 'url': 'https://dl/$tag.hdelta', 'size': 3},
+        {'name': 'librescoot-unu-mdb-$tag.mender', 'url': 'https://dl/$tag.mender', 'size': 10},
+      ]});
+    h.provider.releases = [nightly('nightly-20260102T000000'), nightly('nightly-20260101T000000')];
+    await h.controller.refresh();
+    final step = h.controller.plan!.steps.first;
+    expect(step.asset.isHdelta, isTrue);
+    h.repo.hdelta = false;
+    await h.controller.executeStep(step);
+    expect(h.controller.error, isA<StateError>());
+    expect(h.repo.data.writes, isEmpty);
+    h.repo.hdelta = true;
+    await h.controller.executeStep(step);
+    expect(h.controller.transfer.state, OtaTransferState.success);
+    expect(h.repo.data.writes, isNotEmpty);
   });
 
   test('query index plan prune download exact asset URL transfer', () async {

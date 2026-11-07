@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:scooter_core/update_planner.dart';
+import 'package:scooter_core/ota_protocol.dart';
 
 import 'firmware_queries.dart';
 import 'ota_transfer_service.dart';
@@ -187,6 +188,7 @@ class UpdateController extends ChangeNotifier {
       error = null;
       _changed();
       String? mdb, dbc;
+      var mdbHdelta = false, dbcHdelta = false;
       if (connection != null && repo != null) {
         try {
           if (!current()) return;
@@ -201,6 +203,18 @@ class UpdateController extends ChangeNotifier {
               isCurrent: current);
         } catch (e) {
           _log.warning('DBC version query failed: $e');
+        }
+        if (!current()) return;
+        try {
+          mdbHdelta = await supportsHdeltaCommand(connection.device, repo, 'mdb', isCurrent: current);
+        } catch (e) {
+          _log.fine('MDB hdelta probe unavailable: $e');
+        }
+        if (!current()) return;
+        try {
+          dbcHdelta = await supportsHdeltaCommand(connection.device, repo, 'dbc', isCurrent: current);
+        } catch (e) {
+          _log.fine('DBC hdelta probe unavailable: $e');
         }
       }
       if (!current()) return;
@@ -218,7 +232,9 @@ class UpdateController extends ChangeNotifier {
           channel: channel,
           mdbVersion: mdb,
           dbcVersion: dbc,
-          channelSwitch: channelSwitch);
+          channelSwitch: channelSwitch,
+          mdbSupportsHdelta: mdbHdelta,
+          dbcSupportsHdelta: dbcHdelta);
       // Keep cache maintenance in the same operation: it cannot race a newly
       // started download and delete its file after publishing a ready plan.
       await _pruneDownloads(nextPlan, current);
@@ -278,6 +294,13 @@ class UpdateController extends ChangeNotifier {
       if (!current()) return;
       downloading = false;
       _changed();
+      if (!current()) return;
+      if (step.asset.isHdelta) {
+        final board = step.component == OtaProtocol.componentDbc ? 'dbc' : 'mdb';
+        if (!await supportsHdeltaCommand(connection.device, repo, board, isCurrent: current)) {
+          throw StateError('Board no longer confirms hdelta support; refresh the update plan');
+        }
+      }
       if (!current()) return;
       await transfer.transfer(connection.device, repo, bundle,
           bundleId: bundleId, component: step.component, isCurrent: current);

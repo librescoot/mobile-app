@@ -162,6 +162,19 @@ Future<String?> getInstalledVersionCommand(
   return response.substring(prefix.length);
 }
 
+/// True only for a fresh positive response from the target board's updater.
+Future<bool> supportsHdeltaCommand(
+  BluetoothDevice? scooter,
+  CharacteristicRepository repo,
+  String component, {
+  bool Function()? isCurrent,
+}) async {
+  if (component != 'mdb' && component != 'dbc') return false;
+  final response = await sendLsExtendedCommand(
+      scooter, repo, 'status:hdelta:$component', isCurrent: isCurrent);
+  return response == 'status:hdelta:$component:true';
+}
+
 /// Queries the scooter's power-management capabilities (e.g. "hibernate-for",
 /// "hibernate-cancel").
 Future<Set<String>> getPmCapabilitiesCommand(
