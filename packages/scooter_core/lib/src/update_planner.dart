@@ -31,6 +31,7 @@ class FirmwareAsset {
   });
 
   bool get isDelta => name.endsWith(".delta");
+  bool get isHdelta => name.endsWith(".hdelta");
   bool get isMender => name.endsWith(".mender");
 
   static FirmwareAsset? fromJson(Map<String, dynamic> json) {
@@ -69,6 +70,7 @@ class FirmwareRelease {
   }
 
   FirmwareAsset? deltaAsset(String variant) => _asset(variant, delta: true);
+  bool hasHdelta(String variant) => assets.any((a) => a.name.contains(variant) && a.isHdelta);
   FirmwareAsset? menderAsset(String variant) => _asset(variant, delta: false);
 
   FirmwareAsset? _asset(String variant, {required bool delta}) {
@@ -242,14 +244,14 @@ class UpdatePlanner {
     }
   }
 
-  /// Channel-and-variant-filtered releases carrying a delta asset, sorted
-  /// ascending — the delta chain (mirrors buildDeltaChain). A delta's
+  /// Channel-and-variant-filtered releases carrying a delta or hdelta, sorted
+  /// ascending. A delta's
   /// filename names its target; its implicit source is the chain predecessor.
   static List<FirmwareRelease> deltaCandidates(
       List<FirmwareRelease> releases, String channel, String variant) {
     final candidates = [
       for (final r in releases)
-        if (channelMatches(r, channel) && r.deltaAsset(variant) != null) r
+        if (channelMatches(r, channel) && (r.deltaAsset(variant) != null || r.hasHdelta(variant))) r
     ];
     candidates.sort((a, b) => compareTags(a.tagName, b.tagName, channel));
     return candidates;
@@ -257,9 +259,11 @@ class UpdatePlanner {
 
   /// Finds the next delta after [normalizedCurrent] in the chain. The current
   /// version must itself appear in the chain, otherwise the implicit
-  /// source-version contract is broken and a full image is required.
+  /// source-version contract is broken and a full image is required. An
+  /// hdelta-only hop also stops the chain: decoder support is not advertised.
   static NextDelta nextDelta(
-      List<FirmwareRelease> candidates, String normalizedCurrent, String channel) {
+      List<FirmwareRelease> candidates, String normalizedCurrent, String channel,
+      {required String variant}) {
     final current = normalizedCurrent.toLowerCase();
     var currentFound = false;
     for (final r in candidates) {
@@ -269,7 +273,7 @@ class UpdatePlanner {
         continue;
       }
       if (currentFound && compareTags(tag, current, channel) > 0) {
-        return NextDelta(currentFound: true, next: r);
+        return NextDelta(currentFound: true, next: r.deltaAsset(variant) == null ? null : r);
       }
     }
     return NextDelta(currentFound: currentFound);
@@ -398,7 +402,7 @@ class UpdatePlanner {
       final variant = variantFor(olderComponent);
 
       final chain = deltaCandidates(releases, channel, variant);
-      final nd = nextDelta(chain, olderNorm, channel);
+      final nd = nextDelta(chain, olderNorm, channel, variant: variant);
       var olderAssumed = olderNorm;
 
       if (nd.next != null) {
@@ -410,7 +414,7 @@ class UpdatePlanner {
         for (final r in chain) {
           final tag = r.tagName.toLowerCase();
           if (compareTags(tag, olderNorm, channel) <= 0) continue;
-          if (compareTags(tag, newerNorm, channel) > 0) break;
+          if (compareTags(tag, newerNorm, channel) > 0 || r.deltaAsset(variant) == null) break;
           hops.add(r);
         }
         if (hops.isEmpty) {
@@ -492,7 +496,7 @@ class UpdatePlanner {
   ) {
     final variant = variantFor(component);
     final chain = deltaCandidates(releases, channel, variant);
-    final nd = nextDelta(chain, normalizedCurrent, channel);
+    final nd = nextDelta(chain, normalizedCurrent, channel, variant: variant);
 
     if (nd.next != null) {
       steps.add(UpdateStep(

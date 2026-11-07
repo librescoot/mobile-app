@@ -6,7 +6,10 @@ import 'package:scooter_core/update_planner.dart';
 
 /// Builds a release-index entry the way downloads.librescoot.org serves it.
 Map<String, dynamic> release(String tag,
-    {bool prerelease = true, List<String> variants = const ["unu-mdb", "unu-dbc"], bool delta = true, bool mender = true}) {
+    {bool prerelease = true,
+    List<String> variants = const ["unu-mdb", "unu-dbc"],
+    bool delta = true,
+    bool mender = true}) {
   final assets = <Map<String, dynamic>>[];
   for (final v in variants) {
     if (mender) {
@@ -50,8 +53,8 @@ void main() {
           "nightly-20260101t000000");
     });
     test("prefixes bare nightly timestamps", () {
-      expect(UpdatePlanner.normalizeVersion("20260101T000000", "nightly"),
-          "nightly-20260101t000000");
+      expect(
+          UpdatePlanner.normalizeVersion("20260101T000000", "nightly"), "nightly-20260101t000000");
     });
     test("prefixes stable without v", () {
       expect(UpdatePlanner.normalizeVersion("1.2.3", "stable"), "v1.2.3");
@@ -90,21 +93,22 @@ void main() {
       final chain = UpdatePlanner.deltaCandidates(nightlyIndex, "nightly", "unu-mdb");
       expect([for (final r in chain) r.tagName], [n1, n2, n3]);
 
-      final nd = UpdatePlanner.nextDelta(chain, n1, "nightly");
+      final nd = UpdatePlanner.nextDelta(chain, n1, "nightly", variant: "unu-mdb");
       expect(nd.currentFound, true);
       expect(nd.next?.tagName, n2);
     });
 
     test("up to date at latest", () {
       final chain = UpdatePlanner.deltaCandidates(nightlyIndex, "nightly", "unu-mdb");
-      final nd = UpdatePlanner.nextDelta(chain, n3, "nightly");
+      final nd = UpdatePlanner.nextDelta(chain, n3, "nightly", variant: "unu-mdb");
       expect(nd.currentFound, true);
       expect(nd.next, null);
     });
 
     test("current not in chain", () {
       final chain = UpdatePlanner.deltaCandidates(nightlyIndex, "nightly", "unu-mdb");
-      final nd = UpdatePlanner.nextDelta(chain, "nightly-20251231t000000", "nightly");
+      final nd =
+          UpdatePlanner.nextDelta(chain, "nightly-20251231t000000", "nightly", variant: "unu-mdb");
       expect(nd.currentFound, false);
       expect(nd.next, null);
     });
@@ -164,6 +168,43 @@ void main() {
   });
 
   group("buildPlan", () {
+    test("hdelta-only hop cannot be skipped, for either board", () {
+      final middle = release(n2, delta: false);
+      final assets = middle["assets"] as List<Map<String, dynamic>>;
+      for (final variant in ["unu-mdb", "unu-dbc"]) {
+        assets.add({
+          "name": "librescoot-$variant-$n2.hdelta",
+          "url": "https://dl/$n2/$variant.hdelta",
+          "size": 1
+        });
+      }
+      final index = parseIndex([release(n3), middle, release(n1)]);
+      for (final versions in [
+        [n1, n1],
+        [n1, n3],
+        [n3, n1]
+      ]) {
+        final plan = UpdatePlanner.buildPlan(
+            releases: index, channel: "nightly", mdbVersion: versions[0], dbcVersion: versions[1]);
+        expect(plan.steps.where((s) => s.release.tagName == n3 && !s.isFullImage), isEmpty);
+        expect(plan.steps.any((s) => s.isFullImage), isTrue);
+        expect(plan.steps.every((s) => !s.asset.isHdelta), isTrue);
+      }
+    });
+
+    test("normal delta wins when hdelta is also present", () {
+      final target = release(n2);
+      final assets = target["assets"] as List<Map<String, dynamic>>;
+      assets.add({"name": "librescoot-unu-mdb-$n2.hdelta", "url": "https://dl/hdelta", "size": 1});
+      final plan = UpdatePlanner.buildPlan(
+          releases: parseIndex([target, release(n1)]),
+          channel: "nightly",
+          mdbVersion: n1,
+          dbcVersion: n1);
+      expect(plan.steps.first.asset.name, endsWith(".delta"));
+      expect(plan.steps.first.asset.isHdelta, isFalse);
+    });
+
     test("both boards one behind: MDB delta first, then DBC", () {
       final plan = UpdatePlanner.buildPlan(
         releases: nightlyIndex,
