@@ -88,7 +88,7 @@ def submit(token, build_number):
     if state in ('WAITING_FOR_REVIEW', 'IN_REVIEW', 'PENDING_DEVELOPER_RELEASE', 'PENDING_APPLE_RELEASE', 'READY_FOR_SALE'):
         print(f'App Store {VERSION} already submitted: {state}')
         return
-    if state not in ('PREPARE_FOR_SUBMISSION', 'DEVELOPER_REJECTED'):
+    if state not in ('PREPARE_FOR_SUBMISSION', 'DEVELOPER_REJECTED', 'REJECTED'):
         raise RuntimeError(f'Unexpected App Store version state: {state}')
     locales = asc.request(token, 'GET', f'{asc.API}/appStoreVersions/{vid}/appStoreVersionLocalizations?limit=200')['data']
     german = [item for item in locales if item['attributes']['locale'] == 'de-DE']
@@ -99,10 +99,6 @@ def submit(token, build_number):
     images = [item for item in sets.get('included', []) if item['type'] == 'appScreenshots']
     if not images:
         raise RuntimeError('No inherited screenshots; refusing submission')
-    send(token, 'PATCH', f'appStoreVersionLocalizations/{loc}', {
-        'type': 'appStoreVersionLocalizations', 'id': loc,
-        'attributes': {'whatsNew': 'Wenn Bluetooth-Updates nicht verfügbar sind, zeigt die App die Bluetooth-Version und eine genauere Erklärung. Offizielle unu-Händler sind erkennbar; die App-Version lässt sich unter Hilfe kopieren.'},
-    })
     asc.request(token, 'PATCH', f'{asc.API}/appStoreVersions/{vid}/relationships/build',
                 json.dumps({'data': {'type': 'builds', 'id': build_id}}).encode())
     linked = asc.request(token, 'GET', f'{asc.API}/appStoreVersions/{vid}/build')['data']
@@ -113,7 +109,7 @@ def submit(token, build_number):
         raise RuntimeError('Review contact not inherited; inspect before submission')
     query = urllib.parse.urlencode({'filter[app]': APP, 'filter[platform]': 'IOS', 'limit': 50})
     submissions = asc.request(token, 'GET', f'{asc.API}/reviewSubmissions?{query}')['data']
-    active = [s for s in submissions if s['attributes']['state'] == 'READY_FOR_REVIEW']
+    active = [s for s in submissions if s['attributes']['state'] in ('READY_FOR_REVIEW', 'UNRESOLVED_ISSUES')]
     if len(active) > 1:
         raise RuntimeError('Multiple editable review submissions')
     submission = active[0] if active else send(token, 'POST', 'reviewSubmissions', {
@@ -122,13 +118,21 @@ def submit(token, build_number):
     })
     sid = submission['id']
     items = asc.request(token, 'GET', f'{asc.API}/reviewSubmissions/{sid}/items?include=appStoreVersion&limit=100')
-    if items['data'] and not any(i['id'] == vid and i['type'] == 'appStoreVersions' for i in items.get('included', [])):
+    if items['data'] and (len(items['data']) != 1 or not any(
+            i['id'] == vid and i['type'] == 'appStoreVersions' for i in items.get('included', []))):
         raise RuntimeError('Review submission contains other items')
     if not items['data']:
         send(token, 'POST', 'reviewSubmissionItems', {'type': 'reviewSubmissionItems', 'relationships': {
             'reviewSubmission': {'data': {'type': 'reviewSubmissions', 'id': sid}},
             'appStoreVersion': {'data': {'type': 'appStoreVersions', 'id': vid}},
         }})
+    elif submission['attributes']['state'] == 'UNRESOLVED_ISSUES':
+        item = items['data'][0]
+        if item.get('attributes', {}).get('state') != 'REJECTED':
+            raise RuntimeError('Unexpected unresolved review item state')
+        send(token, 'PATCH', f"reviewSubmissionItems/{item['id']}", {
+            'type': 'reviewSubmissionItems', 'id': item['id'], 'attributes': {'resolved': True},
+        })
     result = send(token, 'PATCH', f'reviewSubmissions/{sid}', {
         'type': 'reviewSubmissions', 'id': sid, 'attributes': {'submitted': True},
     })
