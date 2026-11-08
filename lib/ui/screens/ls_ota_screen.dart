@@ -8,6 +8,7 @@ import 'package:unustasis/domain/ota_protocol.dart';
 import 'package:unustasis/domain/update_planner.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/service/ota_transfer_service.dart';
+import 'package:unustasis/ui/screens/ls_ota_files_screen.dart';
 import 'package:unustasis/ui/screens/system_information_screen.dart';
 
 import 'package:scooter_flutter/update_controller.dart';
@@ -361,6 +362,11 @@ class _LsOtaScreenState extends State<LsOtaScreen> {
             ),
           ],
         );
+      case OtaTransferState.staged:
+        return ListTile(
+          leading: const Icon(Icons.cloud_done),
+          title: Text(FlutterI18n.translate(context, "ls_ota_staged")),
+        );
       case OtaTransferState.success:
         return Column(
           children: [
@@ -450,6 +456,19 @@ class _LsOtaScreenState extends State<LsOtaScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SystemInformationScreen())),
           ),
+          if (otaAvailable)
+            ListTile(
+              leading: const Icon(Icons.folder_open),
+              title: Text(FlutterI18n.translate(context, "ls_ota_files_open")),
+              subtitle: Text(FlutterI18n.translate(context, "ls_ota_files_open_subtitle")),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _updates.busy || _transfer.awaitingReconnect
+                  ? null
+                  : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LsOtaFilesScreen()),
+                      ),
+            ),
           // After an app restart into a recovered session the versions were
           // never queried — hide the tiles instead of showing bogus warnings.
           if (_mdbVersion != null ||

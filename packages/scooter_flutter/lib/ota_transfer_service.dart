@@ -88,7 +88,8 @@ class OtaTransferService extends ChangeNotifier {
   bool get busy =>
       state != OtaTransferState.idle &&
       state != OtaTransferState.success &&
-      state != OtaTransferState.failure;
+      state != OtaTransferState.failure &&
+      state != OtaTransferState.staged;
 
   /// Whether a transfer or install is actively running. [pendingReboot] is a
   /// settled outcome — the bundle has been consumed by the scooter — so a
@@ -150,6 +151,40 @@ class OtaTransferService extends ChangeNotifier {
     File bundle, {
     required String bundleId,
     int component = OtaProtocol.componentMdb,
+    bool Function()? isCurrent,
+  }) =>
+      _upload(scooter, repo, bundle,
+          bundleId: bundleId,
+          component: component,
+          isCurrent: isCurrent,
+          staged: false);
+
+  /// Uploads [bundle] and leaves it staged on the scooter instead of installing
+  /// it. Several artifacts can be staged in a row and then installed together
+  /// with [applyStaged], which is what a delta chain or a two-board update
+  /// needs: the scooter resolves what belongs together at apply time.
+  /// [bundleId] follows the same rules as [transfer].
+  Future<void> stage(
+    BluetoothDevice scooter,
+    CharacteristicRepository repo,
+    File bundle, {
+    required String bundleId,
+    int component = OtaProtocol.componentMdb,
+    bool Function()? isCurrent,
+  }) =>
+      _upload(scooter, repo, bundle,
+          bundleId: bundleId,
+          component: component,
+          isCurrent: isCurrent,
+          staged: true);
+
+  Future<void> _upload(
+    BluetoothDevice scooter,
+    CharacteristicRepository repo,
+    File bundle, {
+    required String bundleId,
+    required int component,
+    required bool staged,
     bool Function()? isCurrent,
   }) async {
     if (_disposed) throw StateError("transfer disposed");
@@ -234,6 +269,7 @@ class OtaTransferService extends ChangeNotifier {
         totalSize: totalSize,
         sha256: Uint8List.fromList(digest.bytes),
         bundleId: bundleId,
+        staged: staged,
         checkCurrent: checkCurrent,
       );
 
@@ -268,11 +304,14 @@ class OtaTransferService extends ChangeNotifier {
 
       checkCurrent();
       // Subscribe before COMPLETE: firmware may emit terminal progress in the
-      // same notification burst as its acknowledgement.
-      installation = StreamController<OtaStatusMessage>();
-      installSub = messages.stream.listen((m) {
-        if (m is OtaInstallProgress) installation!.add(m);
-      }, onError: (Object e, StackTrace s) => installation!.addError(e, s));
+      // same notification burst as its acknowledgement. A staged transfer has
+      // no install to follow, so nothing is buffered for one.
+      if (!staged) {
+        installation = StreamController<OtaStatusMessage>();
+        installSub = messages.stream.listen((m) {
+          if (m is OtaInstallProgress) installation!.add(m);
+        }, onError: (Object e, StackTrace s) => installation!.addError(e, s));
+      }
       // completion: the scooter hashes the staged file, then queues the install
       _set(OtaTransferState.verifying, "Verifying on scooter...");
       final completeAck = await _request<OtaCompleteAck>(messages.stream, () {
@@ -291,9 +330,15 @@ class OtaTransferService extends ChangeNotifier {
       }
 
       accepted = true;
+      if (staged) {
+        // Nothing is installed: the artifact is verified and waiting in the
+        // component's update directory for a later apply.
+        _set(OtaTransferState.staged, "Uploaded to the scooter");
+        return;
+      }
       // install phase: follow INSTALL_PROGRESS until a terminal phase
       _set(OtaTransferState.installing, "Installing...");
-      await _followInstall(installation.stream);
+      await _followInstall(installation!.stream);
     } catch (e) {
       if (accepted && e is _OtaLinkLost) {
         awaitingReconnect = true;
@@ -331,9 +376,21 @@ class OtaTransferService extends ChangeNotifier {
       Stream<OtaStatusMessage> messages,
       Future<void> Function() write,
       Duration timeout) async {
-    final result = Completer<T>();
+    final value = await _requestMatching(messages, (m) => m is T, write, timeout);
+    return value as T;
+  }
+
+  /// Sends [write] and completes with the first status message matching
+  /// [matches]. Used where more than one reply is legitimate, e.g. an install
+  /// request that the scooter can either start or reject with an error.
+  Future<OtaStatusMessage> _requestMatching(
+      Stream<OtaStatusMessage> messages,
+      bool Function(OtaStatusMessage) matches,
+      Future<void> Function() write,
+      Duration timeout) async {
+    final result = Completer<OtaStatusMessage>();
     final sub = messages.listen((m) {
-      if (m is T && !result.isCompleted) result.complete(m);
+      if (matches(m) && !result.isCompleted) result.complete(m);
     }, onError: (Object e, StackTrace s) {
       if (!result.isCompleted) result.completeError(e, s);
     });
@@ -352,10 +409,123 @@ class OtaTransferService extends ChangeNotifier {
       if (value is (Object, StackTrace)) {
         Error.throwWithStackTrace(value.$1, value.$2);
       }
-      return value as T;
+      return value as OtaStatusMessage;
     } finally {
       timer.cancel();
       await sub.cancel();
+    }
+  }
+
+  /// Installs everything staged for [component] and follows the install to a
+  /// terminal phase, exactly like the install half of [transfer]. The scooter
+  /// resolves what to install from what is staged: one image, or a whole delta
+  /// chain applied in one go.
+  ///
+  /// Only one board can install at a time — the scooter rejects a second
+  /// request while the first runs — so callers apply boards one after another.
+  Future<void> applyStaged(
+    BluetoothDevice scooter,
+    CharacteristicRepository repo, {
+    int component = OtaProtocol.componentMdb,
+    bool Function()? isCurrent,
+  }) async {
+    if (_disposed) throw StateError("transfer disposed");
+    if (active || awaitingReconnect) {
+      throw StateError("transfer already running");
+    }
+    final ctrlChar = repo.otaControlCharacteristic;
+    final statusChar = repo.otaStatusCharacteristic;
+    if (ctrlChar == null || statusChar == null) {
+      throw "OTA characteristics not available (firmware too old?)";
+    }
+
+    void checkCurrent() {
+      if (scooter.isDisconnected) throw const _OtaLinkLost();
+      if (_disposed || isCurrent?.call() == false) {
+        throw "Update session replaced";
+      }
+    }
+
+    _abortRequested = false;
+    resumable = false;
+    awaitingReconnect = false;
+    installPercent = 0;
+    progress = 0;
+    throughput = 0;
+    StreamController<OtaStatusMessage>? installation;
+    StreamSubscription<List<int>>? sub;
+    StreamSubscription<OtaStatusMessage>? installSub;
+    StreamSubscription<BluetoothConnectionState>? connSub;
+    final messages = StreamController<OtaStatusMessage>.broadcast();
+    var accepted = false;
+    _interrupt = () {
+      if (!messages.isClosed) messages.addError(const _OtaLinkLost());
+    };
+    try {
+      checkCurrent();
+      await statusChar.setNotifyValue(true);
+      checkCurrent();
+      sub = statusChar.onValueReceived.listen((v) {
+        final m = OtaStatusMessage.parse(v);
+        if (m != null) messages.add(m);
+      });
+      connSub = scooter.connectionState.listen((s) {
+        if (s == BluetoothConnectionState.disconnected && !messages.isClosed) {
+          messages.addError(const _OtaLinkLost());
+        }
+      });
+
+      // Subscribe before the request: the scooter answers the request itself
+      // with a progress frame or an error, and the answer must not race the
+      // install that follows it.
+      installation = StreamController<OtaStatusMessage>();
+      installSub = messages.stream.listen((m) {
+        if (m is OtaInstallProgress) installation!.add(m);
+      }, onError: (Object e, StackTrace s) => installation!.addError(e, s));
+
+      _set(OtaTransferState.installing, "Starting the install...");
+      final reply = await _requestMatching(
+          messages.stream,
+          (m) => m is OtaInstallProgress || m is OtaErrorMessage,
+          () {
+            checkCurrent();
+            return ctrlChar.write(OtaProtocol.encodeApplyStaged(component),
+                allowLongWrite: true);
+          },
+          _startAckTimeout);
+      if (reply is OtaErrorMessage) {
+        throw reply.message.isNotEmpty
+            ? reply.message
+            : "The scooter could not start the install";
+      }
+      accepted = true;
+      installPercent = (reply as OtaInstallProgress).percent;
+      await _followInstall(installation.stream);
+    } catch (e) {
+      if (accepted && e is _OtaLinkLost) {
+        awaitingReconnect = true;
+        _set(OtaTransferState.installing,
+            "Connection lost — installation continues on the scooter");
+        return;
+      }
+      if (state != OtaTransferState.failure) {
+        resumable = false;
+        _set(OtaTransferState.failure, e.toString());
+      }
+      rethrow;
+    } finally {
+      _interrupt = null;
+      await installSub?.cancel();
+      if (installation != null && !accepted) {
+        installation.stream.listen((_) {}, onError: (_) {});
+      }
+      await installation?.close();
+      await sub?.cancel();
+      await connSub?.cancel();
+      await messages.close();
+      try {
+        if (scooter.isConnected) await statusChar.setNotifyValue(false);
+      } catch (_) {}
     }
   }
 
@@ -377,6 +547,7 @@ class OtaTransferService extends ChangeNotifier {
     required int totalSize,
     required Uint8List sha256,
     required String bundleId,
+    required bool staged,
     required void Function() checkCurrent,
   }) async {
     final start = OtaProtocol.encodeStart(
@@ -385,6 +556,7 @@ class OtaTransferService extends ChangeNotifier {
       totalSize: totalSize,
       sha256: sha256,
       bundleId: bundleId,
+      staged: staged,
     );
 
     for (var attempt = 0; attempt < 3; attempt++) {
@@ -565,6 +737,9 @@ class OtaTransferService extends ChangeNotifier {
         case OtaProtocol.phaseSuccess:
           _set(OtaTransferState.success, "Update installed");
           return;
+        case OtaProtocol.phaseUpToDate:
+          _set(OtaTransferState.success, "Already up to date");
+          return;
         case OtaProtocol.phaseFailure:
           resumable = false;
           _set(OtaTransferState.failure,
@@ -677,6 +852,7 @@ class OtaTransferService extends ChangeNotifier {
         idle ||
         (!recovering &&
             (probe.phase == OtaProtocol.phaseSuccess ||
+                probe.phase == OtaProtocol.phaseUpToDate ||
                 probe.phase == OtaProtocol.phaseFailure))) {
       await release();
       return false;
@@ -699,6 +875,7 @@ class OtaTransferService extends ChangeNotifier {
         "Adopting scooter OTA session: phase ${probe.phase} (${probe.percent}%)");
     switch (probe.phase) {
       case OtaProtocol.phaseSuccess:
+      case OtaProtocol.phaseUpToDate:
         _set(OtaTransferState.success, "Update installed");
       case OtaProtocol.phaseFailure:
         _set(OtaTransferState.failure,

@@ -30,6 +30,43 @@ class UpdateBundleDownload {
 
 enum OtaAvailability { ready, sessionNotReady, serviceMissing, firmwareUnsupported }
 
+/// Lifecycle of one artifact the user picked to push over Bluetooth.
+enum ManualUploadStatus { pending, uploading, staged, applied, failed }
+
+/// One local artifact queued for a Bluetooth upload, with the board it belongs
+/// to. Full images are uploaded in staging mode and installed only when the user
+/// asks for it, so several artifacts — a delta chain, both boards — can be
+/// uploaded in one sitting, the way a USB update directory is filled.
+class ManualUpload {
+  ManualUpload({required this.file, required this.name, required this.component});
+
+  final File file;
+  final String name;
+  final int component;
+  ManualUploadStatus status = ManualUploadStatus.pending;
+  double progress = 0;
+  String? error;
+
+  bool get isMender => name.endsWith('.mender');
+
+  /// The bundle ID sent in START: a full image drops the ".mender" extension
+  /// (the scooter appends it when staging), a delta keeps its own so
+  /// update-service dispatches on it. Mirrors UpdateStep.bundleId and
+  /// bluetooth-service's staging rules.
+  String get bundleId => isMender
+      ? name.substring(0, name.length - '.mender'.length)
+      : name;
+
+  /// Whether the scooter would accept this name as a bundle ID at all. A file
+  /// that fails this is reported before a single byte is sent.
+  bool get usableName {
+    final id = bundleId;
+    return id.isNotEmpty &&
+        id.length <= 64 &&
+        RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*$').hasMatch(id);
+  }
+}
+
 /// One update workflow per existing application session, not per screen.
 /// Binding consumes the sole session's tokens; it never connects or retries BLE.
 class UpdateController extends ChangeNotifier {
@@ -71,6 +108,21 @@ class UpdateController extends ChangeNotifier {
   bool downloading = false;
   double downloadProgress = 0;
   Object? error;
+
+  /// Artifacts the user picked for a manual upload, in upload order. Kept here
+  /// rather than in the screen so leaving and reopening it does not lose a
+  /// queue that is still being pushed.
+  final List<ManualUpload> manualUploads = [];
+  bool manualUploading = false;
+
+  /// Component whose staged artifacts are being installed, if any.
+  int? manualApplyingComponent;
+  Object? manualError;
+
+  bool manualHasStaged(int component) => manualUploads
+      .any((u) => u.component == component && u.status == ManualUploadStatus.staged);
+
+  bool get manualHasAnyStaged => manualUploads.any((u) => u.status == ManualUploadStatus.staged);
   bool get refreshing =>
       phase == UpdatePlanPhase.queryingVersions ||
       phase == UpdatePlanPhase.fetchingIndex;
@@ -87,7 +139,17 @@ class UpdateController extends ChangeNotifier {
   bool get otaAvailable => otaAvailability == OtaAvailability.ready;
 
   void _changed() {
-    if (!_disposed) notifyListeners();
+    if (_disposed) return;
+    // Mirror the live transfer into the entry it belongs to, so the queue shows
+    // per-artifact progress without the screen having to correlate them.
+    if (manualUploading) {
+      for (final upload in manualUploads) {
+        if (upload.status == ManualUploadStatus.uploading) {
+          upload.progress = transfer.progress;
+        }
+      }
+    }
+    notifyListeners();
   }
 
   void bind(SessionConnection connection, CharacteristicRepository repository) {
@@ -337,6 +399,153 @@ class UpdateController extends ChangeNotifier {
         release: release,
         asset: asset,
         kind: StepKind.full);
+  }
+
+  /// The board an artifact belongs to, read from its filename. Release assets
+  /// carry the variant (librescoot-unu-mdb-…, librescoot-unu-dbc-…); anything
+  /// ambiguous stays on [fallback], which the caller sets from the user's
+  /// choice.
+  static int componentForName(String name, int fallback) {
+    if (name.contains('unu-dbc')) return OtaProtocol.componentDbc;
+    if (name.contains('unu-mdb')) return OtaProtocol.componentMdb;
+    return fallback;
+  }
+
+  /// Adds local artifacts to the manual upload queue. Names the scooter cannot
+  /// accept are queued as failures so the list explains itself instead of
+  /// silently dropping a file.
+  void addManualUploads(List<File> files,
+      {int fallbackComponent = OtaProtocol.componentMdb}) {
+    if (_disposed) return;
+    manualError = null;
+    for (final file in files) {
+      final name = file.uri.pathSegments.last;
+      manualUploads.add(ManualUpload(
+        file: file,
+        name: name,
+        component: componentForName(name, fallbackComponent),
+      ));
+    }
+    _changed();
+  }
+
+  void removeManualUpload(ManualUpload upload) {
+    if (_disposed || manualUploading) return;
+    manualUploads.remove(upload);
+    _changed();
+  }
+
+  void clearManualUploads() {
+    if (_disposed || manualUploading) return;
+    manualUploads.clear();
+    manualError = null;
+    _changed();
+  }
+
+  /// Pushes every queued artifact to the scooter, one after another. Each one
+  /// is verified by the scooter on completion and left staged; nothing is
+  /// installed until [applyManualUploads] is called for its board.
+  ///
+  /// Failures are recorded per artifact and the queue continues: one bad file
+  /// should not cost the user the rest of the evening's uploads, and a resumed
+  /// transfer picks up where the scooter left it.
+  Future<void> uploadManualUploads() async {
+    if (_disposed || busy || manualUploading || manualUploads.isEmpty) return;
+    final connection = _connection;
+    final repo = _repository;
+    if (connection == null || repo == null || !otaAvailable) return;
+    bool current() =>
+        !_disposed &&
+        identical(connection, _connection) &&
+        connection.isCurrent &&
+        otaAvailable;
+
+    manualUploading = true;
+    manualError = null;
+    _working = true;
+    _changed();
+    try {
+      targetId = connection.id;
+      onTargetCaptured?.call(connection.id);
+      for (final upload in manualUploads) {
+        if (!current()) return;
+        if (upload.status == ManualUploadStatus.staged ||
+            upload.status == ManualUploadStatus.applied) {
+          continue;
+        }
+        upload.status = ManualUploadStatus.uploading;
+        upload.error = null;
+        upload.progress = 0;
+        _changed();
+        try {
+          if (!upload.usableName) {
+            throw StateError('The scooter cannot accept this file name');
+          }
+          if (!await upload.file.exists()) {
+            throw StateError('File no longer available');
+          }
+          await transfer.stage(connection.device, repo, upload.file,
+              bundleId: upload.bundleId,
+              component: upload.component,
+              isCurrent: current);
+          if (!current()) return;
+          upload.status = ManualUploadStatus.staged;
+          upload.progress = 1;
+        } catch (e) {
+          upload.status = ManualUploadStatus.failed;
+          upload.error = e.toString();
+        }
+        _changed();
+      }
+    } finally {
+      manualUploading = false;
+      _working = false;
+      _changed();
+      if (_refreshOnReady) {
+        _refreshOnReady = false;
+        sessionReady();
+      }
+    }
+  }
+
+  /// Installs everything staged for [component]. Retries are possible from the
+  /// same button: a failed apply leaves its artifacts staged.
+  Future<void> applyManualUploads(int component) async {
+    if (_disposed || busy || manualUploading) return;
+    final connection = _connection;
+    final repo = _repository;
+    if (connection == null || repo == null || !otaAvailable) return;
+    bool current() =>
+        !_disposed &&
+        identical(connection, _connection) &&
+        connection.isCurrent &&
+        otaAvailable;
+
+    manualApplyingComponent = component;
+    manualError = null;
+    _working = true;
+    _changed();
+    try {
+      await transfer.applyStaged(connection.device, repo,
+          component: component, isCurrent: current);
+      if (!current()) return;
+      for (final upload in manualUploads) {
+        if (upload.component == component &&
+            upload.status == ManualUploadStatus.staged) {
+          upload.status = ManualUploadStatus.applied;
+        }
+      }
+    } catch (e) {
+      manualError = e;
+    } finally {
+      manualApplyingComponent = null;
+      _working = false;
+      _changed();
+      if (_refreshOnReady) {
+        _refreshOnReady = false;
+        sessionReady();
+      }
+    }
   }
 
   Future<void> _pruneDownloads(UpdatePlan plan, bool Function() current) async {

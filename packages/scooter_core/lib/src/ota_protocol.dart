@@ -16,6 +16,14 @@ class OtaProtocol {
   static const int opAbort = 0x04;
   static const int opStatusReq = 0x05;
 
+  /// START with staging semantics: the payload is identical, but the scooter
+  /// keeps the verified artifact in the component's update directory instead
+  /// of installing it. A later [encodeApplyStaged] installs what was staged.
+  static const int opStartStaged = 0x02;
+
+  /// Installs everything staged for one component. Payload: [op][component].
+  static const int opApplyStaged = 0x06;
+
   // Scooter -> phone opcodes.
   static const int opStartAck = 0x81;
   static const int opAck = 0x82;
@@ -51,6 +59,10 @@ class OtaProtocol {
   static const int phaseFailure = 0x05;
   static const int phaseIdle = 0x06;
 
+  /// A staged install had nothing to install: the staged set resolved to
+  /// nothing newer than what the board already runs. Not a failure.
+  static const int phaseUpToDate = 0x07;
+
   // ERROR codes (1 and 2 originate on the nRF tunnel itself).
   static const int errSuspendedCode = 0x01;
   static const int errOverflowCode = 0x02;
@@ -80,12 +92,13 @@ class OtaProtocol {
     required Uint8List sha256,
     required String bundleId,
     int version = 1,
+    bool staged = false,
   }) {
     assert(sha256.length == 32);
     final id = bundleId.codeUnits;
     assert(id.isNotEmpty && id.length <= 64);
     final b = BytesBuilder();
-    b.addByte(opStart);
+    b.addByte(staged ? opStartStaged : opStart);
     b.addByte(version);
     b.addByte(component);
     b.add(_u16(chunkSize));
@@ -108,6 +121,9 @@ class OtaProtocol {
   static Uint8List encodeAbort(int reason) => Uint8List.fromList([opAbort, reason]);
 
   static Uint8List encodeStatusReq() => Uint8List.fromList([opStatusReq]);
+
+  static Uint8List encodeApplyStaged(int component) =>
+      Uint8List.fromList([opApplyStaged, component]);
 
   static Uint8List _u16(int v) {
     final b = ByteData(2)..setUint16(0, v, Endian.little);

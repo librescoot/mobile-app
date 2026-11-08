@@ -88,10 +88,18 @@ class OtaHarness {
     configure();
   }
 
+  String? applyError;
+  int applyPercent = 0;
+
+  /// Set when the last START asked for staging: a staged transfer has no
+  /// install to report, so the harness must not schedule install progress.
+  bool stagedStart = false;
+
   void configure() {
     transfer.addListener(() => phases.add(transfer.state));
     control.onWrite = (v) async {
-      if (v[0] == 1) {
+      if (v[0] == 1 || v[0] == 2) {
+        stagedStart = v[0] == 2;
         final ack = ByteData(11)
           ..setUint8(0, 0x81)
           ..setUint8(1, startStatus)
@@ -100,9 +108,20 @@ class OtaHarness {
           ..setUint8(8, 1)
           ..setUint16(9, maxChunk, Endian.little);
         status.values.add(ack.buffer.asUint8List());
+      } else if (v[0] == 6) {
+        final error = applyError;
+        if (error != null) {
+          status.values.add(
+              [0x86, 0x03, error.length, ...error.codeUnits]);
+          return;
+        }
+        status.values
+            .add([0x84, 1, applyPercent, 0]);
+        Timer(const Duration(milliseconds: 10),
+            () => status.values.add([0x84, phase, 100, 0]));
       } else if (v[0] == 3) {
         status.values.add([0x83, completeStatus]);
-        if (completeStatus != 0) return;
+        if (completeStatus != 0 || stagedStart) return;
         if (immediateInstall) {
           status.values.add([0x84, phase, 100, 0]);
         } else {
@@ -128,6 +147,10 @@ class OtaHarness {
 
   Future<void> run() =>
       transfer.transfer(device, repo, file, bundleId: 'bundle.delta');
+  Future<void> runStaged() =>
+      transfer.stage(device, repo, file, bundleId: 'bundle.delta');
+  Future<void> runApply({int component = 0}) =>
+      transfer.applyStaged(device, repo, component: component);
   Future<void> close() async {
     transfer.dispose();
     await data.values.close();
@@ -197,6 +220,35 @@ void main() {
     h.window = 0;
     await h.run();
     expect(h.data.writes.first.length, 15);
+  });
+  test('a staged upload keeps the artifact and installs nothing', () async {
+    await h.runStaged();
+    // START with staging semantics, not an install request.
+    expect(h.control.writes.first[0], 0x02);
+    expect(h.transfer.state, OtaTransferState.staged);
+    expect(h.transfer.busy, false);
+    expect(h.transfer.progress, 1);
+    expect(h.data.writes.map(OtaHarness.offset), [0, 240, 480]);
+  });
+  test('a staged install follows the install to a terminal phase', () async {
+    h.immediateInstall = true;
+    h.phase = 4; // PhaseSuccess
+    await h.runApply();
+    expect(h.control.writes.last.sublist(0, 2), [0x06, 0x00]);
+    expect(h.transfer.state, OtaTransferState.success);
+  });
+  test('a staged set with nothing to install ends as up to date', () async {
+    h.immediateInstall = true;
+    h.phase = 7; // PhaseUpToDate
+    await h.runApply();
+    expect(h.transfer.state, OtaTransferState.success);
+    expect(h.transfer.busy, false);
+  });
+  test('a refused staged install fails instead of waiting', () async {
+    h.applyError = 'an install is already running';
+    await expectLater(h.runApply(), throwsA(contains('already running')));
+    expect(h.transfer.state, OtaTransferState.failure);
+    expect(h.transfer.busy, false);
   });
   test('an idle install phase ends the install wait instead of hanging',
       () async {

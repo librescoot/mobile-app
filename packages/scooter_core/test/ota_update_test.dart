@@ -9,6 +9,7 @@ void main() {
       'handshaking',
       'transferring',
       'verifying',
+      'staged',
       'installing',
       'pendingReboot',
       'success',

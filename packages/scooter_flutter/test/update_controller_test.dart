@@ -24,11 +24,25 @@ class UpdateRepository extends nav.Repository {
     };
     control.onWrite = (v) async {
       if (v[0] == 5) status.values.add([0x84, probePhase, 42, 0]);
-      if (v[0] == 1) status.values.add([0x81, 1, 0, 0, 0, 0, 2, 0, 1, 240, 0]);
+      if (v[0] == 1 || v[0] == 2) {
+        stagedStart = v[0] == 2;
+        status.values.add([0x81, 1, 0, 0, 0, 0, 2, 0, 1, 240, 0]);
+      }
       if (v[0] == 3) {
         status.values.add([0x83, 0]);
-        if (installPhase != null) {
+        if (installPhase != null && !stagedStart) {
           status.values.add([0x84, installPhase!, 100, 0]);
+        }
+      }
+      if (v[0] == 6) {
+        final error = applyError;
+        if (error != null) {
+          status.values.add([0x86, 3, error.length, ...error.codeUnits]);
+        } else {
+          status.values.add([0x84, 1, 0, 0]);
+          if (installPhase != null) {
+            status.values.add([0x84, installPhase!, 100, 0]);
+          }
         }
       }
     };
@@ -44,6 +58,13 @@ class UpdateRepository extends nav.Repository {
   int? installPhase = 4;
   String version = 'v1.0.0';
   bool hdelta = false;
+
+  /// Set by the last START: a staged transfer has no install to report, so the
+  /// harness must not push an install phase for it.
+  bool stagedStart = false;
+
+  /// Set to make an APPLY_STAGED request answer with an error frame.
+  String? applyError;
 }
 
 class UpdateEffects implements ScooterSessionEffects {

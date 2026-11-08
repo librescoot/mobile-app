@@ -4,6 +4,11 @@ enum OtaTransferState {
   handshaking,
   transferring,
   verifying,
+
+  /// A staged upload finished: the artifact is verified and on the scooter,
+  /// waiting for an install to be requested. Settled, like success and
+  /// failure, because nothing is running anywhere.
+  staged,
   installing,
   pendingReboot,
   success,
