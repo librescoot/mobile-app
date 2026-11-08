@@ -10,6 +10,7 @@ void main() {
     final screen = File('lib/ui/screens/ls_keycard_screen.dart').readAsStringSync();
 
     expect(build, contains('manifestPlaceholders.phoneKeyEnabled = "false"'));
+    expect(build, matches(RegExp(r'release\s*\{[^}]*buildConfigField "boolean", "PHONE_KEY_ENABLED", "true"')));
     expect(build, isNot(contains('manifestPlaceholders.phoneKeyEnabled = "true"')));
     expect(manifest, contains('android:enabled="\${phoneKeyEnabled}"'));
     expect(native, contains('"serviceEnabled" ->'));

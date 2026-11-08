@@ -73,6 +73,9 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   bool _changingPhoneKeyService = false;
   static const _phoneKeyChannel = MethodChannel('org.librescoot.mobile/phone_key');
 
+  String _phoneKeyErrorMessageKey(Object error) =>
+      error is PlatformException && error.code == 'NFC_UNAVAILABLE' ? 'phone_key_nfc_unavailable' : 'phone_key_error';
+
   Future<void> _loadPhoneKeyService() async {
     try {
       final enabled = await _phoneKeyChannel.invokeMethod<bool>('serviceEnabled');
@@ -81,7 +84,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
         if (enabled == true) _stopBackgroundNfcScan();
       }
     } catch (e) {
-      if (mounted) setState(() => _phoneKeyError = e.toString());
+      if (mounted) setState(() => _phoneKeyError = _phoneKeyErrorMessageKey(e));
     }
   }
 
@@ -97,7 +100,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
         if (enabled) _stopBackgroundNfcScan();
       }
     } catch (e) {
-      if (mounted) setState(() => _phoneKeyError = e.toString());
+      if (mounted) setState(() => _phoneKeyError = _phoneKeyErrorMessageKey(e));
     } finally {
       if (mounted) setState(() => _changingPhoneKeyService = false);
     }
@@ -128,7 +131,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
       setState(() => _phoneFingerprint = id);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _phoneKeyError = e.toString());
+      setState(() => _phoneKeyError = _phoneKeyErrorMessageKey(e));
       _startBackgroundNfcScan();
     } finally {
       if (mounted) setState(() => _creatingPhoneKey = false);
@@ -227,28 +230,31 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
                 child: ExpansionTile(
                   key: const ValueKey('phone-key-expansion'),
                   initiallyExpanded: false,
-                  title: Text('Use this Android phone as a key', style: Theme.of(context).textTheme.titleMedium),
+                  title: Text(FlutterI18n.translate(context, 'phone_key_title'),
+                      style: Theme.of(context).textTheme.titleMedium),
                   childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   children: [
                     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Set up a device-bound key, then tap your master card to enter learn mode. '
-                          'Hold the unlocked phone against the scooter reader, and tap the master card again to save it. '
-                          'The phone screen and NFC must be on for future taps.'),
+                      Text(FlutterI18n.translate(context, 'phone_key_instructions')),
                       const SizedBox(height: 8),
-                      if (_phoneFingerprint != null) SelectableText('Phone key: $_phoneFingerprint'),
+                      if (_phoneFingerprint != null)
+                        SelectableText(FlutterI18n.translate(context, 'phone_key_fingerprint',
+                            translationParams: {'fingerprint': _phoneFingerprint!})),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Provide NFC phone key'),
-                        subtitle: const Text('Turn this off to keep this app out of the NFC key chooser. '
-                            'The phone key remains on this device.'),
+                        title: Text(FlutterI18n.translate(context, 'phone_key_enable')),
+                        subtitle: Text(FlutterI18n.translate(context, 'phone_key_enable_description')),
                         value: _phoneKeyServiceEnabled ?? false,
                         onChanged:
                             _phoneKeyServiceEnabled == null || _changingPhoneKeyService ? null : _setPhoneKeyService,
                       ),
-                      if (_phoneKeyError != null) Text(_phoneKeyError!, style: const TextStyle(color: Colors.red)),
+                      if (_phoneKeyError != null)
+                        Text(FlutterI18n.translate(context, _phoneKeyError!),
+                            style: TextStyle(color: Theme.of(context).colorScheme.error)),
                       TextButton(
                         onPressed: _creatingPhoneKey ? null : _setUpPhoneKey,
-                        child: Text(_creatingPhoneKey ? 'Setting up…' : 'Set up / show phone key'),
+                        child: Text(FlutterI18n.translate(
+                            context, _creatingPhoneKey ? 'phone_key_setting_up' : 'phone_key_setup')),
                       ),
                     ]),
                   ],

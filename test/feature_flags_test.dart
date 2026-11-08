@@ -8,13 +8,11 @@ void main() {
     expect(sunshineBatteryRegistrationEnabled, expected);
   });
 
-  test('phone keys are limited to Android debug and profile builds', () {
-    expect(phoneKeyFeatureEnabledFor(platform: TargetPlatform.android, releaseMode: false), isTrue);
-    expect(phoneKeyFeatureEnabledFor(platform: TargetPlatform.android, releaseMode: true), isFalse);
+  test('phone keys are available on Android only', () {
+    expect(phoneKeyFeatureEnabledFor(platform: TargetPlatform.android), isTrue);
 
     for (final platform in TargetPlatform.values.where((value) => value != TargetPlatform.android)) {
-      expect(phoneKeyFeatureEnabledFor(platform: platform, releaseMode: false), isFalse);
-      expect(phoneKeyFeatureEnabledFor(platform: platform, releaseMode: true), isFalse);
+      expect(phoneKeyFeatureEnabledFor(platform: platform), isFalse);
     }
   });
 }

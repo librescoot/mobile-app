@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -42,7 +43,7 @@ class _Service extends ChangeNotifier implements ScooterService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Widget _screen(_Service service) => ChangeNotifierProvider<ScooterService>.value(
+Widget _screen(_Service service, {Locale locale = const Locale('en')}) => ChangeNotifierProvider<ScooterService>.value(
       value: service,
       child: MaterialApp(
         localizationsDelegates: [
@@ -50,7 +51,7 @@ Widget _screen(_Service service) => ChangeNotifierProvider<ScooterService>.value
             translationLoader: InlineFileTranslationLoader(
               basePath: 'assets/i18n',
               fallbackFile: 'en',
-              forcedLocale: const Locale('en'),
+              forcedLocale: locale,
             ),
           ),
         ],
@@ -58,8 +59,8 @@ Widget _screen(_Service service) => ChangeNotifierProvider<ScooterService>.value
       ),
     );
 
-Future<void> _mount(WidgetTester tester, _Service service) async {
-  await tester.pumpWidget(_screen(service));
+Future<void> _mount(WidgetTester tester, _Service service, {Locale locale = const Locale('en')}) async {
+  await tester.pumpWidget(_screen(service, locale: locale));
   for (var attempt = 0; attempt < 20 && find.byType(LsKeycardScreen).evaluate().isEmpty; attempt++) {
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
     await tester.pump();
@@ -86,11 +87,35 @@ void main() {
     final panel = find.byKey(const ValueKey('phone-key-expansion'));
     expect(panel, findsOneWidget);
     expect(tester.widget<ExpansionTile>(panel).initiallyExpanded, isFalse);
-    expect(find.text('Provide NFC phone key'), findsNothing);
+    expect(find.text('Enable NFC phone key'), findsNothing);
 
     await tester.tap(find.text('Use this Android phone as a key'));
     await tester.pumpAndSettle();
-    expect(find.text('Provide NFC phone key'), findsOneWidget);
+    expect(find.text('Enable NFC phone key'), findsOneWidget);
+    expect(find.textContaining('phone must be unlocked'), findsOneWidget);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('phone key setup instructions and NFC errors are available in German', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    const channel = MethodChannel('org.librescoot.mobile/phone_key');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'serviceEnabled') return false;
+      throw PlatformException(code: 'NFC_UNAVAILABLE');
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
+    final service = _Service();
+    addTearDown(service.dispose);
+
+    await _mount(tester, service, locale: const Locale('de'));
+    await tester.tap(find.text('Dieses Android-Handy als Schlüssel nutzen'));
+    await tester.pumpAndSettle();
+    expect(find.text('NFC-Handyschlüssel aktivieren'), findsOneWidget);
+    expect(find.textContaining('Handy entsperrt sein'), findsOneWidget);
+    await tester.tap(find.text('NFC-Handyschlüssel aktivieren'));
+    await tester.pumpAndSettle();
+    expect(find.text('Schalte NFC ein. Dein Handy muss außerdem NFC-Kartenemulation unterstützen.'), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
   });
 
