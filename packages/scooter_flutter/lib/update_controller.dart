@@ -77,6 +77,7 @@ class UpdateController extends ChangeNotifier {
       required this.channel,
       this.onTargetCaptured,
       this.supportsFirmware,
+      this.supportsStagedUploads,
       OtaTransferService? transfer})
       : transfer = transfer ?? OtaTransferService() {
     this.transfer.addListener(_changed);
@@ -90,6 +91,12 @@ class UpdateController extends ChangeNotifier {
   /// before state publication. Reconnection recovery retains that capture.
   final void Function(String id)? onTargetCaptured;
   final bool Function()? supportsFirmware;
+
+  /// Whether the scooter can stage artifacts and install them on request (OTA
+  /// capability version 2). Older software answers a staging request with
+  /// nothing, so the file queue must not use it there; it uploads and installs
+  /// one artifact at a time instead, which is the only route that exists.
+  final bool Function()? supportsStagedUploads;
   final _log = Logger('UpdateController');
   SessionConnection? _connection;
   CharacteristicRepository? _repository;
@@ -119,10 +126,19 @@ class UpdateController extends ChangeNotifier {
   int? manualApplyingComponent;
   Object? manualError;
 
+  /// Set when the queue stopped because the scooter has an install pending: a
+  /// reboot (MDB) or its next power cycle (DBC) has to happen before the next
+  /// artifact can apply, so the rest waits for the user to continue.
+  bool manualQueueHalted = false;
+
   bool manualHasStaged(int component) => manualUploads
       .any((u) => u.component == component && u.status == ManualUploadStatus.staged);
 
   bool get manualHasAnyStaged => manualUploads.any((u) => u.status == ManualUploadStatus.staged);
+
+  /// Conservative: unknown means the scooter cannot be shown to accept a
+  /// staging request, so the queue uses the mode that always works.
+  bool get stagedSupported => supportsStagedUploads?.call() == true;
   bool get refreshing =>
       phase == UpdatePlanPhase.queryingVersions ||
       phase == UpdatePlanPhase.fetchingIndex;
@@ -446,6 +462,12 @@ class UpdateController extends ChangeNotifier {
   /// is verified by the scooter on completion and left staged; nothing is
   /// installed until [applyManualUploads] is called for its board.
   ///
+  /// A scooter without the staged-upload capability cannot be asked to hold an
+  /// artifact, so there each file is uploaded and installed straight away.
+  /// That install ends in a pending reboot or power cycle, so the queue stops
+  /// after it and the remaining files wait for the scooter to come back: a
+  /// second artifact cannot apply on top of an image that has not been booted.
+  ///
   /// Failures are recorded per artifact and the queue continues: one bad file
   /// should not cost the user the rest of the evening's uploads, and a resumed
   /// transfer picks up where the scooter left it.
@@ -462,11 +484,13 @@ class UpdateController extends ChangeNotifier {
 
     manualUploading = true;
     manualError = null;
+    manualQueueHalted = false;
     _working = true;
     _changed();
     try {
       targetId = connection.id;
       onTargetCaptured?.call(connection.id);
+      final staged = stagedSupported;
       for (final upload in manualUploads) {
         if (!current()) return;
         if (upload.status == ManualUploadStatus.staged ||
@@ -484,18 +508,31 @@ class UpdateController extends ChangeNotifier {
           if (!await upload.file.exists()) {
             throw StateError('File no longer available');
           }
-          await transfer.stage(connection.device, repo, upload.file,
-              bundleId: upload.bundleId,
-              component: upload.component,
-              isCurrent: current);
-          if (!current()) return;
-          upload.status = ManualUploadStatus.staged;
+          if (staged) {
+            await transfer.stage(connection.device, repo, upload.file,
+                bundleId: upload.bundleId,
+                component: upload.component,
+                isCurrent: current);
+            if (!current()) return;
+            upload.status = ManualUploadStatus.staged;
+          } else {
+            await transfer.transfer(connection.device, repo, upload.file,
+                bundleId: upload.bundleId,
+                component: upload.component,
+                isCurrent: current);
+            if (!current()) return;
+            upload.status = ManualUploadStatus.applied;
+          }
           upload.progress = 1;
         } catch (e) {
           upload.status = ManualUploadStatus.failed;
           upload.error = e.toString();
         }
         _changed();
+        if (!staged && upload.status == ManualUploadStatus.applied) {
+          manualQueueHalted = true;
+          return;
+        }
       }
     } finally {
       manualUploading = false;
@@ -505,6 +542,81 @@ class UpdateController extends ChangeNotifier {
         _refreshOnReady = false;
         sessionReady();
       }
+    }
+  }
+
+  /// Downloads every delta hop between each board's installed version and the
+  /// newest release on the channel, and adds them to the file queue ready to be
+  /// uploaded and installed as one chain.
+  ///
+  /// This is the release index doing the choosing and the app doing the
+  /// fetching, so nobody has to hold the files locally. Staging the whole chain
+  /// first costs one upload round and one install, where the regular plan
+  /// installs hop by hop because it re-plans after every install. A chain the
+  /// scooter cannot resolve by payload checksum is refused there, so a stale
+  /// list cannot install a broken image.
+  Future<void> loadUpdateChain() async {
+    if (_disposed || busy || manualUploading || !otaAvailable) return;
+    final connection = _connection;
+    final repo = _repository;
+    if (connection == null || repo == null || !connection.isCurrent) return;
+    bool current() =>
+        !_disposed && identical(connection, _connection) && connection.isCurrent;
+
+    _working = true;
+    manualError = null;
+    downloading = true;
+    downloadProgress = 0;
+    _changed();
+    var queued = 0;
+    try {
+      final channel = UpdatePlanner.inferChannel(mdbVersion) ?? this.channel;
+      final releases = await provider.fetchIndex(channel);
+      if (!current()) return;
+      for (final component in [
+        OtaProtocol.componentMdb,
+        OtaProtocol.componentDbc,
+      ]) {
+        final version =
+            component == OtaProtocol.componentDbc ? dbcVersion : mdbVersion;
+        if (!UpdatePlanner.isKnownVersion(version)) continue;
+        final board =
+            component == OtaProtocol.componentDbc ? 'dbc' : 'mdb';
+        var supportsHdelta = false;
+        try {
+          supportsHdelta = await supportsHdeltaCommand(connection.device, repo,
+              board,
+              isCurrent: current);
+        } catch (e) {
+          _log.fine('hdelta probe unavailable for the chain: $e');
+        }
+        if (!current()) return;
+        final steps = UpdatePlanner.chainToLatest(
+          releases: releases,
+          channel: channel,
+          component: component,
+          normalizedCurrent:
+              UpdatePlanner.normalizeVersion(version!, channel),
+          supportsHdelta: supportsHdelta,
+        );
+        for (final step in steps) {
+          if (!current()) return;
+          final file = await _downloadBundle(step.asset, current);
+          if (!current()) return;
+          addManualUploads([file], fallbackComponent: component);
+          queued++;
+        }
+      }
+      if (queued == 0) {
+        manualError =
+            'No delta path from the installed version; a full image would be needed';
+      }
+    } catch (e) {
+      if (current()) manualError = e;
+    } finally {
+      downloading = false;
+      _working = false;
+      _changed();
     }
   }
 
@@ -552,7 +664,12 @@ class UpdateController extends ChangeNotifier {
     try {
       final dir = await cacheDirectory();
       if (!current() || !await dir.exists()) return;
-      final keep = {for (final step in plan.steps) step.asset.name};
+      // Downloaded chain hops wait in the file queue until the user uploads
+      // them, so they must survive a re-check that no longer lists them.
+      final keep = {
+        for (final step in plan.steps) step.asset.name,
+        for (final upload in manualUploads) upload.name,
+      };
       await for (final entry in dir.list()) {
         if (!current()) return;
         if (entry is! File || keep.contains(entry.uri.pathSegments.last)) {

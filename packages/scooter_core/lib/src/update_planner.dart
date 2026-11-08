@@ -294,6 +294,46 @@ class UpdatePlanner {
     return NextDelta(currentFound: currentFound);
   }
 
+  /// Every delta hop from [normalizedCurrent] to the newest release on the
+  /// channel, in order. [buildPlan] only makes the first hop actionable because
+  /// it is recomputed after each install; a caller that stages a whole chain
+  /// before installing it needs the full list.
+  ///
+  /// Empty when there is no delta path: the installed version is not in the
+  /// chain, so the implicit "delta follows its predecessor" contract does not
+  /// hold for it, or a release in between carries no usable delta and the chain
+  /// cannot cross that gap. A chain the scooter cannot resolve by payload
+  /// checksum is refused there, so a discontinuous list never installs.
+  static List<UpdateStep> chainToLatest({
+    required List<FirmwareRelease> releases,
+    required String channel,
+    required int component,
+    required String normalizedCurrent,
+    bool supportsHdelta = false,
+  }) {
+    final variant = variantFor(component);
+    final chain = deltaCandidates(releases, channel, variant);
+    final current = normalizedCurrent.toLowerCase();
+    if (!chain.any((release) => release.tagName.toLowerCase() == current)) {
+      return const [];
+    }
+    final hops = <UpdateStep>[];
+    for (final release in chain) {
+      if (compareTags(release.tagName.toLowerCase(), current, channel) <= 0) {
+        continue;
+      }
+      final asset = release.usableDelta(variant, supportsHdelta);
+      if (asset == null) break;
+      hops.add(UpdateStep(
+        component: component,
+        release: release,
+        asset: asset,
+        kind: StepKind.delta,
+      ));
+    }
+    return hops;
+  }
+
   /// The newest channel release carrying a full image for [variant].
   static FirmwareRelease? latestFull(
       List<FirmwareRelease> releases, String channel, String variant) {

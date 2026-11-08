@@ -157,6 +157,7 @@ class UpdateHarness {
         provider: provider,
         onTargetCaptured: onTargetCaptured,
         supportsFirmware: () => firmwareSupported,
+        supportsStagedUploads: () => stagedSupported,
         channel: 'stable',
         cacheDirectory: () async {
           await cacheGate?.future;
@@ -175,6 +176,7 @@ class UpdateHarness {
   Completer<void>? cacheGate;
   bool autoReady = false;
   bool firmwareSupported = true;
+  bool stagedSupported = true;
   UpdateRepository get repo => repos[session.device!.remoteId.str]!;
   Future<void> init() async {
     dir = await Directory.systemTemp.createTemp('update-controller');

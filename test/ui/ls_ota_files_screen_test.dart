@@ -88,6 +88,44 @@ void main() {
     await tester.runAsync(h.close);
   });
 
+  testWidgets('older software offers upload-and-install and stops the queue',
+      (tester) async {
+    final h = shared.UpdateHarness();
+    await tester.runAsync(h.init);
+    h.stagedSupported = false;
+    final service = ScreenService(h.controller);
+    final mender = File('${h.dir.path}/librescoot-unu-mdb-v2.0.0.mender')
+      ..writeAsBytesSync([1, 2, 3, 4]);
+    h.repo.installPhase = 4;
+
+    await tester.pumpWidget(screen(service, [mender]));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Add files'));
+      await tester.pump();
+    });
+    await tester.pumpAndSettle();
+
+    // No staged set can be collected on this scooter, so there is no separate
+    // install step and the button says what it does.
+    expect(find.text('Upload and install'), findsOneWidget);
+    expect(find.textContaining('cannot keep uploads for later'), findsOneWidget);
+    expect(find.text('Install Main board (MDB)'), findsNothing);
+
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Upload and install'));
+      await shared.until(() => h.controller.manualQueueHalted);
+      await tester.pump();
+    });
+    await tester.pumpAndSettle();
+    expect(find.textContaining('install pending'), findsOneWidget);
+    expect(h.repo.control.writes.first[0], 0x01);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    service.dispose();
+    await tester.runAsync(h.close);
+  });
+
   testWidgets('a disconnected scooter blocks adding and uploading',
       (tester) async {
     final h = shared.UpdateHarness();

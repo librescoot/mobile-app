@@ -211,6 +211,7 @@ class ScooterService with ChangeNotifier, WidgetsBindingObserver {
         provider: AppUpdateReleaseProvider(),
         channel: 'stable',
         supportsFirmware: () => identity.supportsFirmwareUpdates != false,
+        supportsStagedUploads: () => identity.supportsStagedUpdates == true,
         cacheDirectory: () async => Directory('${(await getApplicationSupportDirectory()).path}/ota'),
         onTargetCaptured: (id) => updateTargetName = savedScooters[id]?.name ?? id);
     fileTransfers = FileTransferController(

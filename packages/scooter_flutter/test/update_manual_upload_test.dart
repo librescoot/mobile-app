@@ -5,6 +5,7 @@ import 'package:scooter_core/ota_protocol.dart';
 import 'package:scooter_flutter/update_controller.dart';
 
 import 'update_controller_test.dart';
+import 'update_controller_test.dart' as shared;
 
 void main() {
   late UpdateHarness h;
@@ -74,6 +75,91 @@ void main() {
             .every((u) => u.status == ManualUploadStatus.applied),
         true);
     expect(h.controller.manualHasAnyStaged, false);
+  });
+
+  test('the release index fills the queue with the whole delta chain',
+      () async {
+    // Nobody has to hold the files: the channel index names the hops between
+    // the installed version and the newest one, and the app fetches them.
+    h.provider.releases = [
+      shared.release('v1.2.0'),
+      shared.release('v1.1.0'),
+      shared.release('v1.0.0', full: true),
+    ];
+    await h.controller.refresh();
+    expect(h.controller.plan, isNotNull);
+
+    await h.controller.loadUpdateChain();
+
+    expect(h.controller.manualError, isNull);
+    // The test index carries main-board artifacts only, so the dashboard chain
+    // is empty and no DBC file is fetched.
+    expect(h.controller.manualUploads.map((u) => u.name), [
+      'librescoot-unu-mdb-v1.1.0.delta',
+      'librescoot-unu-mdb-v1.2.0.delta',
+    ]);
+    expect(
+        h.controller.manualUploads
+            .every((u) => u.bundleId == u.name),
+        true);
+    // Downloaded, not uploaded yet.
+    expect(h.repo.control.writes.where((w) => w[0] == 0x02), isEmpty);
+    expect(h.provider.urls.length, 2);
+
+    await h.controller.uploadManualUploads();
+    expect(
+        h.controller.manualUploads
+            .every((u) => u.status == ManualUploadStatus.staged),
+        true);
+
+    // Both MDB hops go out as one staged set and are installed by one request,
+    // so the scooter resolves the chain and reboots once.
+    h.repo.installPhase = 4;
+    await h.controller.applyManualUploads(OtaProtocol.componentMdb);
+    expect(h.repo.control.writes.last.sublist(0, 2),
+        [0x06, OtaProtocol.componentMdb]);
+    expect(
+        h.controller.manualUploads
+            .every((u) => u.status == ManualUploadStatus.applied),
+        true);
+  });
+
+  test('a chain is not offered when the installed version is not in the index',
+      () async {
+    h.provider.releases = [shared.release('v2.0.0')];
+    await h.controller.refresh();
+
+    await h.controller.loadUpdateChain();
+
+    expect(h.controller.manualUploads, isEmpty);
+    expect(h.controller.manualError, isNotNull);
+    expect(h.provider.urls, isEmpty);
+  });
+
+  test('older software installs each file right away and stops the queue',
+      () async {
+    // Without the staged-upload capability the scooter answers a staging
+    // request with nothing at all, so the queue has to use the transfer that
+    // exists there. That install ends in a pending reboot, and a second file
+    // cannot apply on top of an image that has not been booted.
+    h.stagedSupported = false;
+    h.repo.installPhase = 4; // PhaseSuccess
+    h.controller.addManualUploads([
+      artifact('librescoot-unu-mdb-v2.0.0.mender'),
+      artifact('librescoot-unu-mdb-v2.0.1.delta'),
+    ]);
+
+    await h.controller.uploadManualUploads();
+
+    expect(h.controller.manualUploads.first.status,
+        ManualUploadStatus.applied);
+    expect(h.controller.manualUploads.last.status,
+        ManualUploadStatus.pending);
+    expect(h.controller.manualQueueHalted, true);
+    // START, not START_STAGED: nothing was left on the scooter for later.
+    expect(h.repo.control.writes.first[0], 0x01);
+    expect(h.repo.control.writes.every((w) => w[0] != 0x02), true);
+    expect(h.controller.stagedSupported, false);
   });
 
   test('a refused apply keeps the artifacts staged for a retry', () async {

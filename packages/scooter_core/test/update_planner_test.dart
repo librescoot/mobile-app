@@ -167,6 +167,83 @@ void main() {
     });
   });
 
+  group("chainToLatest", () {
+    test("lists every hop from the installed version to the newest", () {
+      final hops = UpdatePlanner.chainToLatest(
+        releases: nightlyIndex,
+        channel: "nightly",
+        component: OtaProtocol.componentMdb,
+        normalizedCurrent: n1,
+      );
+      expect(hops.map((s) => s.release.tagName), [n2, n3]);
+      expect(hops.every((s) => s.kind == StepKind.delta), true);
+      expect(hops.every((s) => s.asset.isDelta), true);
+      // The chain is applied from the installed version, so the first hop is
+      // the one directly after it and the last is the newest release.
+      expect(hops.first.asset.name, contains(n2));
+      expect(hops.last.asset.name, contains(n3));
+    });
+
+    test("empty when the installed version is not in the chain", () {
+      final hops = UpdatePlanner.chainToLatest(
+        releases: nightlyIndex,
+        channel: "nightly",
+        component: OtaProtocol.componentMdb,
+        normalizedCurrent: "nightly-20251231T000000",
+      );
+      expect(hops, isEmpty);
+    });
+
+    test("empty at the newest release", () {
+      final hops = UpdatePlanner.chainToLatest(
+        releases: nightlyIndex,
+        channel: "nightly",
+        component: OtaProtocol.componentMdb,
+        normalizedCurrent: n3,
+      );
+      expect(hops, isEmpty);
+    });
+
+    test("stops at a release without a usable delta", () {
+      // n2 carries only an hdelta, so without a decoder the chain cannot cross
+      // it, and n3 must not be proposed on top of n1.
+      final middle = release(n2, delta: false);
+      (middle["assets"] as List<Map<String, dynamic>>).add({
+        "name": "librescoot-unu-mdb-$n2.hdelta",
+        "url": "https://dl/$n2.hdelta",
+        "size": 1,
+      });
+      final index = parseIndex([release(n3), middle, release(n1)]);
+      final withoutHdelta = UpdatePlanner.chainToLatest(
+        releases: index,
+        channel: "nightly",
+        component: OtaProtocol.componentMdb,
+        normalizedCurrent: n1,
+      );
+      expect(withoutHdelta, isEmpty);
+      final withHdelta = UpdatePlanner.chainToLatest(
+        releases: index,
+        channel: "nightly",
+        component: OtaProtocol.componentMdb,
+        normalizedCurrent: n1,
+        supportsHdelta: true,
+      );
+      expect(withHdelta.map((s) => s.release.tagName), [n2, n3]);
+    });
+
+    test("the chain is per board", () {
+      final hops = UpdatePlanner.chainToLatest(
+        releases: nightlyIndex,
+        channel: "nightly",
+        component: OtaProtocol.componentDbc,
+        normalizedCurrent: n2,
+      );
+      expect(hops.map((s) => s.component),
+          [OtaProtocol.componentDbc]);
+      expect(hops.single.asset.name, contains("unu-dbc"));
+    });
+  });
+
   group("buildPlan", () {
     test("hdelta-only hop cannot be skipped, for either board", () {
       final middle = release(n2, delta: false);

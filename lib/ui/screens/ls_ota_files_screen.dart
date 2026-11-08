@@ -143,6 +143,7 @@ class _LsOtaFilesScreenState extends State<LsOtaFilesScreen> {
   }
 
   Widget _installRow() {
+    if (!_updates.stagedSupported) return const SizedBox.shrink();
     final busy = _updates.busy;
     final applying = _updates.manualApplyingComponent;
     return Column(
@@ -227,6 +228,34 @@ class _LsOtaFilesScreenState extends State<LsOtaFilesScreen> {
             enabled: ready && !_updates.manualUploading,
             onTap: ready && !_updates.manualUploading ? _add : null,
           ),
+          ListTile(
+            leading: const Icon(Icons.cloud_download),
+            title: Text(_t('ls_ota_files_fetch')),
+            subtitle: Text(_t('ls_ota_files_fetch_subtitle')),
+            enabled: ready && !_updates.busy,
+            onTap: ready && !_updates.busy
+                ? () => _updates.loadUpdateChain()
+                : null,
+          ),
+          if (_updates.downloading)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ListTile(
+                  title: Text(_t('ls_ota_files_fetching')),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: LinearProgressIndicator(
+                    value: _updates.downloadProgress,
+                    minHeight: 8,
+                    borderRadius: BorderRadius.circular(8),
+                    backgroundColor:
+                        Theme.of(context).colorScheme.surfaceContainer,
+                  ),
+                ),
+              ],
+            ),
           if (uploads.isEmpty)
             ListTile(
               leading: const Icon(Icons.info_outline),
@@ -244,13 +273,30 @@ class _LsOtaFilesScreenState extends State<LsOtaFilesScreen> {
             for (final upload in uploads) _uploadTile(upload),
             ListTile(
               leading: const Icon(Icons.cloud_upload),
-              title: Text(_t('ls_ota_files_upload')),
-              subtitle: Text(_t('ls_ota_files_upload_subtitle')),
+              title: Text(_t(_updates.stagedSupported
+                  ? 'ls_ota_files_upload'
+                  : 'ls_ota_files_install_now')),
+              subtitle: Text(_t(_updates.stagedSupported
+                  ? 'ls_ota_files_upload_subtitle'
+                  : 'ls_ota_files_install_now_subtitle')),
               enabled: ready && !_updates.busy && staged < uploads.length,
               onTap: ready && !_updates.busy
                   ? () => _updates.uploadManualUploads()
                   : null,
             ),
+            if (!_updates.stagedSupported)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                child: Text(
+                  _t('ls_ota_files_legacy_note'),
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            if (_updates.manualQueueHalted)
+              ListTile(
+                leading: const Icon(Icons.hourglass_empty),
+                title: Text(_t('ls_ota_files_halted')),
+              ),
             _installRow(),
             ListTile(
               leading: const Icon(Icons.delete_outline),

@@ -49,6 +49,12 @@ class FirmwareIdentity {
   bool? supportsDataBrowser;
   bool? supportsFirmwareUpdates;
 
+  /// Whether the scooter can stage several artifacts and install them on
+  /// request (OTA capability version 2). Without it the only route is upload
+  /// and install one artifact at a time, so the app must know before it picks
+  /// an upload mode.
+  bool? supportsStagedUpdates;
+
   /// Group capabilities come from one complete `cap:ext` answer. The runtime
   /// seeds them from that last confirmed answer until a newer answer replaces
   /// it, so transient connection failures do not hide available features.
@@ -78,6 +84,7 @@ class FirmwareIdentity {
     supportsFileTransfer = null;
     supportsDataBrowser = null;
     supportsFirmwareUpdates = null;
+    supportsStagedUpdates = null;
     supportsServiceMode = null;
     supportsNavigation = null;
     navigationCapabilityVersion = null;

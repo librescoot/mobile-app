@@ -1108,6 +1108,22 @@ void main() {
     expect(h.telemetry.otaAvailable, isFalse);
   });
 
+  test('the staged-upload capability follows the ota group version', () async {
+    for (final (version, supported) in [(null, false), (1, false), (2, true)]) {
+      final h = _Harness(
+        capabilityGroups: () async =>
+            LsCapabilityGroups({'ota': version}, usedFallback: false),
+      );
+      addTearDown(h.dispose);
+      final r = await h.connect('A');
+      _wireExtended(r);
+      _firmware(r);
+      await _flush();
+      expect(h.telemetry.identity.supportsStagedUpdates, supported,
+          reason: 'ota group version $version');
+    }
+  });
+
   test('legacy group lists retain confirmed versions and failed detail probes',
       () async {
     final h = _Harness(
@@ -1134,6 +1150,9 @@ void main() {
     expect(identity.supportsScheduledHibernation, isTrue);
     expect(identity.supportsBatteryKeepActive, isTrue);
     expect(identity.supportsFirmwareUpdates, isTrue);
+    // A group without a version is the build that can only upload and install
+    // one artifact at a time; staging arrived with capability version 2.
+    expect(identity.supportsStagedUpdates, isFalse);
     expect(
         h.effects.patches
             .where((p) => p.$2.supportsScheduledHibernation == false),

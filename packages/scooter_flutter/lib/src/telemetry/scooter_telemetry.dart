@@ -201,6 +201,7 @@ class ScooterTelemetry {
     identity.supportsFileTransfer = (groups['files'] ?? 0) >= 1;
     identity.supportsDataBrowser = (groups['data'] ?? 0) >= 1;
     identity.supportsFirmwareUpdates = groups.containsKey('ota');
+    identity.supportsStagedUpdates = (groups['ota'] ?? 0) >= 2;
   }
 
   void refreshOdometer() {
@@ -459,6 +460,7 @@ class ScooterTelemetry {
     identity.supportsFileTransfer = false;
     identity.supportsDataBrowser = false;
     identity.supportsFirmwareUpdates = false;
+    identity.supportsStagedUpdates = false;
     identity.supportsServiceMode = false;
     identity.supportsNavigation = false;
     identity.navigationCapabilityVersion = null;
