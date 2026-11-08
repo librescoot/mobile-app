@@ -19,15 +19,24 @@ void main() {
 
   test('artifacts are staged one after another and applied per board',
       () async {
+    // The dashboard set is a base image plus two deltas, uploaded in one run:
+    // nothing is installed until each board is asked for.
     h.controller.addManualUploads([
       artifact('librescoot-unu-mdb-v2.0.0.mender'),
+      artifact('librescoot-unu-mdb-v2.0.1.delta'),
       artifact('librescoot-unu-dbc-v2.0.0.hdelta'),
     ]);
-    expect(h.controller.manualUploads.map((u) => u.component),
-        [OtaProtocol.componentMdb, OtaProtocol.componentDbc]);
+    expect(h.controller.manualUploads.map((u) => u.component), [
+      OtaProtocol.componentMdb,
+      OtaProtocol.componentMdb,
+      OtaProtocol.componentDbc,
+    ]);
+    // A full image drops the extension, a delta keeps it so update-service
+    // dispatches on it.
     expect(h.controller.manualUploads.first.bundleId,
         'librescoot-unu-mdb-v2.0.0');
-    // A delta keeps its extension so update-service dispatches on it.
+    expect(h.controller.manualUploads[1].bundleId,
+        'librescoot-unu-mdb-v2.0.1.delta');
     expect(h.controller.manualUploads.last.bundleId,
         'librescoot-unu-dbc-v2.0.0.hdelta');
 
@@ -37,9 +46,9 @@ void main() {
         h.controller.manualUploads
             .every((u) => u.status == ManualUploadStatus.staged),
         true);
-    // Both went out as staged transfers, so nothing was installed.
+    // All three went out as staged transfers, so nothing was installed.
     final starts = h.repo.control.writes.where((w) => w[0] == 0x02).toList();
-    expect(starts.length, 2);
+    expect(starts.length, 3);
     expect(h.repo.control.writes.where((w) => w[0] == 0x01), isEmpty);
     expect(h.controller.manualHasStaged(OtaProtocol.componentMdb), true);
     expect(h.controller.manualHasStaged(OtaProtocol.componentDbc), true);
@@ -54,6 +63,17 @@ void main() {
     expect(h.repo.control.writes.last.sublist(0, 2),
         [0x06, OtaProtocol.componentMdb]);
     expect(h.controller.manualError, isNull);
+
+    // The dashboard is applied by its own request, so the scooter can hand the
+    // staged set to the board that owns it.
+    await h.controller.applyManualUploads(OtaProtocol.componentDbc);
+    expect(h.repo.control.writes.last.sublist(0, 2),
+        [0x06, OtaProtocol.componentDbc]);
+    expect(
+        h.controller.manualUploads
+            .every((u) => u.status == ManualUploadStatus.applied),
+        true);
+    expect(h.controller.manualHasAnyStaged, false);
   });
 
   test('a refused apply keeps the artifacts staged for a retry', () async {
