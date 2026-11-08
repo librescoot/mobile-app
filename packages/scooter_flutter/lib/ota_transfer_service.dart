@@ -118,6 +118,13 @@ class OtaTransferService extends ChangeNotifier {
   /// with a clean slate. No-op while a transfer or install is running.
   void reset() {
     if (active || awaitingReconnect) return;
+    _settle();
+  }
+
+  /// Drops every trace of the current attempt and returns to idle. The guards
+  /// live in [reset]; callers that know the attempt is over (a scooter that
+  /// reports no install) settle directly.
+  void _settle() {
     state = OtaTransferState.idle;
     statusMessage = "";
     progress = 0;
@@ -548,6 +555,9 @@ class OtaTransferService extends ChangeNotifier {
         case OtaProtocol.phaseInstalling:
           installPercent = m.percent;
           _set(OtaTransferState.installing, "Installing... ${m.percent}%");
+        case OtaProtocol.phaseRebooting:
+          installPercent = 100;
+          _set(OtaTransferState.installing, "Restarting...");
         case OtaProtocol.phasePendingReboot:
           _set(OtaTransferState.pendingReboot,
               "Installed — the scooter reboots after 3 minutes in standby");
@@ -560,6 +570,18 @@ class OtaTransferService extends ChangeNotifier {
           _set(OtaTransferState.failure,
               m.message.isNotEmpty ? m.message : "Installation failed");
           throw "Installation failed: ${m.message}";
+        case OtaProtocol.phaseIdle:
+          // The scooter reports the install as over without an outcome: the
+          // updater dropped the request, a newer session superseded it, or it
+          // gave up. The staged bundle is gone either way, so this ends the
+          // wait as a failure instead of leaving the screen on "Installing".
+          resumable = false;
+          _set(
+              OtaTransferState.failure,
+              m.message.isNotEmpty
+                  ? m.message
+                  : "The scooter did not start the installation");
+          return;
       }
     }
     // notification stream ended (disconnect) while installing: the install
@@ -638,10 +660,21 @@ class OtaTransferService extends ChangeNotifier {
     // context — active step, resume — is gone after an app restart anyway).
     // Only running installs and a pending reboot are worth re-attaching to;
     // for settled outcomes the fresh plan re-offers the step instead.
+    final idle = probe != null && probe.phase == OtaProtocol.phaseIdle;
+    if (idle && recovering) {
+      // Nothing is running on the scooter, so the lost-link wait is over and
+      // there is no outcome left to confirm. Settle here rather than leaving a
+      // state that the caller's guarded [reset] would refuse to clear, then let
+      // the caller re-plan: an update that did land shows up as up to date, and
+      // one that did not is offered again.
+      awaitingReconnect = false;
+      _settle();
+    }
+
     if (_disposed ||
         isCurrent?.call() == false ||
         probe == null ||
-        probe.phase == OtaProtocol.phaseIdle ||
+        idle ||
         (!recovering &&
             (probe.phase == OtaProtocol.phaseSuccess ||
                 probe.phase == OtaProtocol.phaseFailure))) {

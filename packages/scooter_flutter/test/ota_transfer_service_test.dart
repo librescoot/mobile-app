@@ -198,6 +198,18 @@ void main() {
     await h.run();
     expect(h.data.writes.first.length, 15);
   });
+  test('an idle install phase ends the install wait instead of hanging',
+      () async {
+    // The scooter answers INSTALL_PROGRESS with phase idle when it stopped
+    // tracking the install without a terminal outcome (the updater dropped the
+    // request, or its watchdog expired). Waiting for a terminal phase that will
+    // never come left the screen on "Installing" with no way out.
+    h.immediateInstall = true;
+    h.phase = 6; // PhaseIdle
+    await h.run().timeout(const Duration(seconds: 2));
+    expect(h.transfer.state, OtaTransferState.failure);
+    expect(h.transfer.busy, false);
+  });
   test('too small MTU fails with cleanup', () async {
     h.device.negotiatedMtu = 7;
     await expectLater(h.run(), throwsA(contains('too small')));

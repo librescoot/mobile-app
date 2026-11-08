@@ -39,6 +39,24 @@ void main() {
     expect(h.repo.data.writes, isEmpty);
   });
 
+  test('an idle probe ends a lost-link confirmation and re-plans instead of blocking',
+      () async {
+    // The install outlived the link, then the scooter finished it (or never
+    // started it) and reports idle. Staying in awaitingReconnect left every
+    // action disabled, so only restarting the app or the scooter helped.
+    h.repo.probePhase = 1; // installing
+    await h.controller.refresh();
+    expect(h.controller.transfer.state, OtaTransferState.installing);
+    h.devices['A']!.drop();
+    await until(() => h.controller.transfer.awaitingReconnect);
+    await h.connect('A');
+    h.repo.probePhase = 6; // idle
+    await h.controller.refresh();
+    expect(h.controller.transfer.awaitingReconnect, false);
+    expect(h.controller.transfer.state, OtaTransferState.idle);
+    expect(h.controller.plan, isNotNull);
+  });
+
   test('previous completed B cannot own or confirm newly adopted A', () async {
     await h.connect('B');
     await h.controller.executeStep(stepFor(release('v2.0.0')));
