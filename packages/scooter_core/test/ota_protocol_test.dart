@@ -65,6 +65,28 @@ void main() {
       expect((m as OtaCompleteAck).status, OtaProtocol.completeOk);
     });
 
+    test('start_staged differs from start only in the opcode', () {
+      final sha = Uint8List.fromList(List.generate(32, (i) => i));
+      Uint8List encode({required bool staged}) => OtaProtocol.encodeStart(
+            component: OtaProtocol.componentMdb,
+            chunkSize: 240,
+            totalSize: 0x01020304,
+            sha256: sha,
+            bundleId: 'bundle-v1',
+            staged: staged,
+          );
+      final plain = hexOf(encode(staged: false));
+      final staged = hexOf(encode(staged: true));
+      expect(plain, startsWith('01'));
+      expect(staged, startsWith('02'));
+      expect(staged.substring(2), plain.substring(2));
+    });
+
+    test('apply_staged encoding', () {
+      expect(hexOf(OtaProtocol.encodeApplyStaged(OtaProtocol.componentMdb)), '0600');
+      expect(hexOf(OtaProtocol.encodeApplyStaged(OtaProtocol.componentDbc)), '0601');
+    });
+
     test('install_progress parse', () {
       final m = OtaStatusMessage.parse(fromHex('84012a026f6b'));
       expect(m, isA<OtaInstallProgress>());
