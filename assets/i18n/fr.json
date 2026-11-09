@@ -776,6 +776,7 @@
     "ls_ota_files_fetch": "Télécharger tous les deltas jusqu'à la dernière version",
     "ls_ota_files_fetch_subtitle": "Récupère chaque delta entre la version installée et la plus récente de ce canal et l'ajoute à la liste.",
     "ls_ota_files_fetching": "Téléchargement des deltas...",
+    "ls_ota_files_up_to_date": "Les deux cartes sont à jour. Aucun fichier n'a été ajouté.",
     "ls_ota_files_install_now_subtitle": "Envoie le fichier suivant et l'installe aussitôt.",
     "ls_ota_files_legacy_note": "Le logiciel de ce scooter ne peut pas conserver les envois pour plus tard : chaque fichier est installé dès son arrivée. Le scooter doit redémarrer avant que le fichier suivant puisse suivre.",
     "ls_ota_files_halted": "Le scooter a une installation en attente. Poursuivez avec les fichiers restants une fois qu'il a redémarré.",

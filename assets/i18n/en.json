@@ -828,6 +828,7 @@
 "ls_ota_files_fetch": "Download all deltas up to the latest version",
 "ls_ota_files_fetch_subtitle": "Fetches every delta between the installed version and the newest one on this channel and adds it to the list.",
 "ls_ota_files_fetching": "Downloading deltas...",
+"ls_ota_files_up_to_date": "Both boards are up to date. No files were added.",
 "ls_ota_files_install_now_subtitle": "Uploads the next file and installs it right away.",
 "ls_ota_files_legacy_note": "This scooter's software cannot keep uploads for later, so each file is installed as soon as it arrives. The scooter has to restart before the next file can follow.",
 "ls_ota_files_halted": "The scooter has an install pending. Continue with the remaining files once it has restarted.",

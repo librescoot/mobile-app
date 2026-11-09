@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scooter_core/ota_protocol.dart';
+import 'package:scooter_core/update_planner.dart';
 import 'package:scooter_flutter/update_controller.dart';
 
 import 'update_controller_test.dart';
@@ -122,6 +123,34 @@ void main() {
         h.controller.manualUploads
             .every((u) => u.status == ManualUploadStatus.applied),
         true);
+  });
+
+  test('the latest installed version is reported as up to date', () async {
+    const latest = 'nightly-20261109T110233';
+    h.repo.version = latest;
+    h.provider.releases = [
+      FirmwareRelease.fromJson({
+        'tag_name': latest,
+        'prerelease': true,
+        'assets': [
+          for (final variant in ['unu-mdb', 'unu-dbc'])
+            for (final ext in ['delta', 'mender'])
+              {
+                'name': 'librescoot-$variant-$latest.$ext',
+                'url': 'https://dl/$latest/$variant.$ext',
+                'size': 30,
+              },
+        ],
+      }),
+    ];
+    await h.controller.refresh();
+
+    await h.controller.loadUpdateChain();
+
+    expect(h.controller.manualUploads, isEmpty);
+    expect(h.controller.manualError, isNull);
+    expect(h.controller.manualInfo, 'ls_ota_files_up_to_date');
+    expect(h.provider.urls, isEmpty);
   });
 
   test('a chain is not offered when the installed version is not in the index',

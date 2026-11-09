@@ -776,6 +776,7 @@
     "ls_ota_files_fetch": "Alle delta's tot de nieuwste versie downloaden",
     "ls_ota_files_fetch_subtitle": "Haalt elke delta tussen de geïnstalleerde versie en de nieuwste op dit kanaal op en zet die in de lijst.",
     "ls_ota_files_fetching": "Delta's worden gedownload...",
+    "ls_ota_files_up_to_date": "Beide boards zijn bijgewerkt. Er zijn geen bestanden toegevoegd.",
     "ls_ota_files_install_now_subtitle": "Uploadt het volgende bestand en installeert het meteen.",
     "ls_ota_files_legacy_note": "De software van deze scooter kan uploads niet bewaren voor later, dus elk bestand wordt geïnstalleerd zodra het binnen is. De scooter moet herstarten voordat het volgende bestand kan volgen.",
     "ls_ota_files_halted": "De scooter heeft een installatie in afwachting. Ga verder met de overige bestanden zodra hij is herstart.",

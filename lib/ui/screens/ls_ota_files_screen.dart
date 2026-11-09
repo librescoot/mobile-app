@@ -312,6 +312,11 @@ class _LsOtaFilesScreenState extends State<LsOtaFilesScreen> {
               leading: const Icon(Icons.warning_amber),
               title: Text('${_updates.manualError}'),
             ),
+          if (_updates.manualInfo != null)
+            ListTile(
+              leading: const Icon(Icons.check_circle_outline),
+              title: Text(_t(_updates.manualInfo!)),
+            ),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(

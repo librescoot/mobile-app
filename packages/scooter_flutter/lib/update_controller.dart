@@ -125,6 +125,7 @@ class UpdateController extends ChangeNotifier {
   /// Component whose staged artifacts are being installed, if any.
   int? manualApplyingComponent;
   Object? manualError;
+  String? manualInfo;
 
   /// Set when the queue stopped because the scooter has an install pending: a
   /// reboot (MDB) or its next power cycle (DBC) has to happen before the next
@@ -434,6 +435,7 @@ class UpdateController extends ChangeNotifier {
       {int fallbackComponent = OtaProtocol.componentMdb}) {
     if (_disposed) return;
     manualError = null;
+    manualInfo = null;
     for (final file in files) {
       final name = file.uri.pathSegments.last;
       manualUploads.add(ManualUpload(
@@ -455,6 +457,7 @@ class UpdateController extends ChangeNotifier {
     if (_disposed || manualUploading) return;
     manualUploads.clear();
     manualError = null;
+    manualInfo = null;
     _changed();
   }
 
@@ -484,6 +487,7 @@ class UpdateController extends ChangeNotifier {
 
     manualUploading = true;
     manualError = null;
+    manualInfo = null;
     manualQueueHalted = false;
     _working = true;
     _changed();
@@ -565,10 +569,13 @@ class UpdateController extends ChangeNotifier {
 
     _working = true;
     manualError = null;
+    manualInfo = null;
     downloading = true;
     downloadProgress = 0;
     _changed();
     var queued = 0;
+    var knownBoards = 0;
+    var allBoardsCurrent = true;
     try {
       final channel = UpdatePlanner.inferChannel(mdbVersion) ?? this.channel;
       final releases = await provider.fetchIndex(channel);
@@ -579,7 +586,21 @@ class UpdateController extends ChangeNotifier {
       ]) {
         final version =
             component == OtaProtocol.componentDbc ? dbcVersion : mdbVersion;
-        if (!UpdatePlanner.isKnownVersion(version)) continue;
+        if (!UpdatePlanner.isKnownVersion(version)) {
+          allBoardsCurrent = false;
+          continue;
+        }
+        knownBoards++;
+        final variant = UpdatePlanner.variantFor(component);
+        final normalizedVersion =
+            UpdatePlanner.normalizeVersion(version!, channel);
+        final latest = UpdatePlanner.latestFull(releases, channel, variant);
+        if (latest == null ||
+            UpdatePlanner.compareTags(
+                    latest.tagName, normalizedVersion, channel) >
+                0) {
+          allBoardsCurrent = false;
+        }
         final board =
             component == OtaProtocol.componentDbc ? 'dbc' : 'mdb';
         var supportsHdelta = false;
@@ -595,8 +616,7 @@ class UpdateController extends ChangeNotifier {
           releases: releases,
           channel: channel,
           component: component,
-          normalizedCurrent:
-              UpdatePlanner.normalizeVersion(version!, channel),
+          normalizedCurrent: normalizedVersion,
           supportsHdelta: supportsHdelta,
         );
         for (final step in steps) {
@@ -608,8 +628,12 @@ class UpdateController extends ChangeNotifier {
         }
       }
       if (queued == 0) {
-        manualError =
-            'No delta path from the installed version; a full image would be needed';
+        if (knownBoards == 2 && allBoardsCurrent) {
+          manualInfo = 'ls_ota_files_up_to_date';
+        } else {
+          manualError =
+              'No delta path from the installed version; a full image would be needed';
+        }
       }
     } catch (e) {
       if (current()) manualError = e;

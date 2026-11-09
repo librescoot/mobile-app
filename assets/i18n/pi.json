@@ -776,6 +776,7 @@
     "ls_ota_files_fetch": "Fetch all deltas up to the latest version",
     "ls_ota_files_fetch_subtitle": "Hauls every delta between the installed version and the newest on this route and adds it to the list.",
     "ls_ota_files_fetching": "Fetchin' deltas...",
+    "ls_ota_files_up_to_date": "Both boards be up to date. No files were added, arr.",
     "ls_ota_files_install_now_subtitle": "Sends the next file and installs it right away.",
     "ls_ota_files_legacy_note": "This vessel's software can't keep cargo for later, so each file gets installed as soon as it lands. The vessel has to reboot before the next file can follow.",
     "ls_ota_files_halted": "The vessel has an install pending. Carry on with the remainin' files once she has rebooted.",

@@ -855,6 +855,7 @@
     "ls_ota_files_fetch": "Alle Deltas bis zur neuesten Version laden",
     "ls_ota_files_fetch_subtitle": "Lädt jedes Delta zwischen der installierten und der neuesten Version im Kanal herunter und legt es in die Liste.",
     "ls_ota_files_fetching": "Deltas werden heruntergeladen...",
+    "ls_ota_files_up_to_date": "Beide Boards sind auf dem neuesten Stand. Es wurden keine Dateien hinzugefügt.",
     "ls_ota_files_install_now_subtitle": "Lädt die nächste Datei hoch und installiert sie sofort.",
     "ls_ota_files_legacy_note": "Die Software dieses Rollers kann Uploads nicht für später aufbewahren. Jede Datei wird deshalb gleich nach dem Hochladen installiert, und der Roller muss neu starten, bevor die nächste folgt.",
     "ls_ota_files_halted": "Der Roller hat eine Installation vorgemerkt. Mach mit den restlichen Dateien weiter, sobald er neu gestartet ist.",

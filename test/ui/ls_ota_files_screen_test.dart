@@ -5,6 +5,7 @@ import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:scooter_core/ota_protocol.dart';
+import 'package:scooter_core/update_planner.dart';
 import 'package:scooter_flutter/update_controller.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/ui/screens/ls_ota_files_screen.dart';
@@ -82,6 +83,46 @@ void main() {
     expect(find.textContaining('Installed'), findsWidgets);
     expect(h.repo.control.writes.last.sublist(0, 2),
         [OtaProtocol.opApplyStaged, OtaProtocol.componentMdb]);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    service.dispose();
+    await tester.runAsync(h.close);
+  });
+
+  testWidgets('latest versions show an up-to-date message, not a delta error',
+      (tester) async {
+    final h = shared.UpdateHarness();
+    await tester.runAsync(h.init);
+    const latest = 'nightly-20261109T110233';
+    h.repo.version = latest;
+    h.provider.releases = [
+      FirmwareRelease.fromJson({
+        'tag_name': latest,
+        'prerelease': true,
+        'assets': [
+          for (final variant in ['unu-mdb', 'unu-dbc'])
+            for (final ext in ['delta', 'mender'])
+              {
+                'name': 'librescoot-$variant-$latest.$ext',
+                'url': 'https://dl/$latest/$variant.$ext',
+                'size': 30,
+              },
+        ],
+      }),
+    ];
+    await tester.runAsync(h.controller.refresh);
+    final service = ScreenService(h.controller);
+
+    await tester.pumpWidget(screen(service, const []));
+    await tester.pumpAndSettle();
+    await tester.runAsync(h.controller.loadUpdateChain);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Both boards are up to date. No files were added.'),
+        findsOneWidget);
+    expect(find.textContaining('No delta path'), findsNothing);
+    expect(h.controller.manualError, isNull);
+    expect(h.provider.urls, isEmpty);
 
     await tester.pumpWidget(const SizedBox.shrink());
     service.dispose();
