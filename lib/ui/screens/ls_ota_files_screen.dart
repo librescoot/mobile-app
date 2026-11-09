@@ -9,6 +9,7 @@ import 'package:scooter_core/ota_protocol.dart';
 import 'package:scooter_flutter/update_controller.dart';
 
 import '../../scooter_service.dart';
+import '../widgets/ota_reboot_hint.dart';
 import '../wide_layout.dart';
 
 /// Pushes firmware artifacts picked from the phone to the scooter, for the
@@ -297,6 +298,7 @@ class _LsOtaFilesScreenState extends State<LsOtaFilesScreen> {
                 leading: const Icon(Icons.hourglass_empty),
                 title: Text(_t('ls_ota_files_halted')),
               ),
+            if (_updates.manualQueueHalted) const OtaRebootHint(),
             _installRow(),
             ListTile(
               leading: const Icon(Icons.delete_outline),

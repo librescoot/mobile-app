@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:scooter_flutter/update_controller.dart';
 import 'package:scooter_core/update_planner.dart';
+import 'package:unustasis/domain/scooter_state.dart';
 import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/state/scooter_identity.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
@@ -25,6 +26,9 @@ class ScreenService extends ChangeNotifier implements ScooterService {
 
   @override
   bool get connected => true;
+  ScooterState? stateValue = ScooterState.parked;
+  @override
+  ScooterState? get state => stateValue;
   @override
   String get updateTargetName => 'Captured A';
   @override

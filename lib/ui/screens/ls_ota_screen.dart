@@ -10,6 +10,7 @@ import 'package:unustasis/scooter_service.dart';
 import 'package:unustasis/service/ota_transfer_service.dart';
 import 'package:unustasis/ui/screens/ls_ota_files_screen.dart';
 import 'package:unustasis/ui/screens/system_information_screen.dart';
+import 'package:unustasis/ui/widgets/ota_reboot_hint.dart';
 
 import 'package:scooter_flutter/update_controller.dart';
 import '../wide_layout.dart';
@@ -354,6 +355,7 @@ class _LsOtaScreenState extends State<LsOtaScreen> {
               title: Text(FlutterI18n.translate(context, "ls_ota_installed_title")),
               subtitle: Text(FlutterI18n.translate(context, "ls_ota_installed_subtitle")),
             ),
+            const OtaRebootHint(),
             ListTile(
               leading: const Icon(Icons.refresh),
               title: Text(FlutterI18n.translate(context, "ls_ota_check_again")),
