@@ -616,6 +616,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   final keylessShown = keyless.armed && showsKeylessAction(state);
                                   final alarm = stoppableAlarm;
                                   return ScooterPowerButton(
+                                    holdDuration: alarm == null && state != null
+                                        ? const Duration(milliseconds: 600)
+                                        : const Duration(milliseconds: 800),
                                     action: alarm != null
                                         ? context.read<ScooterService>().disarmAlarm
                                         : state != null && state.isReadyForLockChange
@@ -979,6 +982,7 @@ class SeatButton extends StatelessWidget {
           icon: data.seatClosed == false ? Icomoon.seat_open : Icomoon.seat_closed,
           iconColor: data.seatClosed == false ? Theme.of(context).colorScheme.error : null,
           holdToTrigger: true,
+          holdDuration: const Duration(milliseconds: 400),
           holdInstruction: FlutterI18n.translate(context, "home_hold_to_open_seat"),
         );
       },
@@ -1503,6 +1507,7 @@ class ScooterPowerButton extends StatefulWidget {
     required IconData icon,
     required String label,
     required String instruction,
+    this.holdDuration = const Duration(milliseconds: 800),
     bool? easterEgg,
     bool keylessArmed = false,
     bool keylessPaused = false,
@@ -1525,6 +1530,7 @@ class ScooterPowerButton extends StatefulWidget {
         _onTap = onTap;
 
   final Future<void> Function()? _action;
+  final Duration holdDuration;
   final String _label;
   final String _instruction;
   final IconData _icon;
@@ -1558,7 +1564,7 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with TickerProv
   @override
   void initState() {
     super.initState();
-    _holdProgress = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))
+    _holdProgress = AnimationController(vsync: this, duration: widget.holdDuration)
       ..addStatusListener(_onHoldStatusChanged);
     _countdown = AnimationController(vsync: this, duration: actions.keylessApproachCountdown);
     _syncCountdown(null);
@@ -1567,6 +1573,11 @@ class _ScooterPowerButtonState extends State<ScooterPowerButton> with TickerProv
   @override
   void didUpdateWidget(covariant ScooterPowerButton oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.holdDuration != widget.holdDuration) {
+      _holdProgress.reset();
+      _holdActivated = true;
+      _holdProgress.duration = widget.holdDuration;
+    }
     _syncCountdown(oldWidget._keylessPendingSince);
   }
 

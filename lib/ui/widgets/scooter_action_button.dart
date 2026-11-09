@@ -10,6 +10,7 @@ class ScooterActionButton extends StatefulWidget {
     this.showBubble = false,
     required this.label,
     this.holdToTrigger = false,
+    this.holdDuration = const Duration(milliseconds: 800),
     this.holdInstruction,
   });
 
@@ -19,6 +20,7 @@ class ScooterActionButton extends StatefulWidget {
   final Color? iconColor;
   final bool showBubble;
   final bool holdToTrigger;
+  final Duration holdDuration;
   final String? holdInstruction;
 
   @override
@@ -32,8 +34,18 @@ class _ScooterActionButtonState extends State<ScooterActionButton> with SingleTi
   @override
   void initState() {
     super.initState();
-    _holdProgress = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))
+    _holdProgress = AnimationController(vsync: this, duration: widget.holdDuration)
       ..addStatusListener(_onHoldStatusChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant ScooterActionButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.holdDuration != widget.holdDuration) {
+      _holdProgress.reset();
+      _holdActivated = true;
+      _holdProgress.duration = widget.holdDuration;
+    }
   }
 
   @override

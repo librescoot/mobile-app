@@ -17,6 +17,7 @@ Future<void> pumpButton(
   bool keylessPaused = false,
   DateTime? keylessPendingSince,
   VoidCallback? onTap,
+  Duration holdDuration = const Duration(milliseconds: 800),
   double textScale = 1,
 }) async {
   await tester.pumpWidget(MaterialApp(
@@ -29,6 +30,7 @@ Future<void> pumpButton(
             icon: Icons.lock_outline,
             label: 'Lock',
             instruction: 'Hold to lock',
+            holdDuration: holdDuration,
             keylessArmed: keylessArmed,
             keylessPaused: keylessPaused,
             keylessPendingSince: keylessPendingSince,
@@ -70,6 +72,44 @@ void main() {
     expect(showsKeylessAction(ScooterState.ready), isFalse);
     expect(showsKeylessAction(ScooterState.waitingSeatbox), isFalse);
     expect(showsKeylessAction(ScooterState.waitingHibernation), isFalse);
+  });
+
+  testWidgets('power action fires after 600 ms but not for an earlier release', (tester) async {
+    var calls = 0;
+    await pumpButton(tester, () async => calls++, holdDuration: const Duration(milliseconds: 600));
+    final center = tester.getCenter(find.byType(ElevatedButton));
+    var gesture = await tester.startGesture(center);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 599));
+    expect(calls, 0);
+    await gesture.cancel();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(calls, 0);
+
+    gesture = await tester.startGesture(center);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 601));
+    expect(calls, 1);
+    await gesture.up();
+    await tester.pump();
+  });
+
+  testWidgets('changing hold duration cancels a hold in progress', (tester) async {
+    var calls = 0;
+    Future<void> action() async { calls++; }
+    await pumpButton(tester, action);
+    final gesture = await tester.startGesture(tester.getCenter(find.byType(ElevatedButton)));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await pumpButton(tester, action, holdDuration: const Duration(milliseconds: 600));
+    await tester.pump(const Duration(seconds: 1));
+    await gesture.up();
+    await tester.pump();
+    expect(calls, 0);
   });
 
   testWidgets('hold hint is hidden and only short presses show its toast', (tester) async {

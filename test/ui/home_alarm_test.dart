@@ -16,6 +16,7 @@ import 'package:unustasis/state/scooter_identity.dart';
 import 'package:unustasis/ui/screens/home_screen.dart';
 import 'package:unustasis/ui/screens/navigation_screen.dart';
 import 'package:unustasis/ui/widgets/state_circle.dart';
+import 'package:unustasis/ui/widgets/scooter_action_button.dart';
 
 import '../support/inline_asset_bundle.dart';
 import '../support/persistence_fakes.dart';
@@ -195,6 +196,27 @@ void main() {
     final circle = find.descendant(of: find.byType(StateCircle), matching: find.byType(Container));
     final decoration = tester.widget<Container>(circle).decoration! as BoxDecoration;
     expect(decoration.gradient, isA<RadialGradient>());
+  });
+
+  testWidgets('seatbox, lock and unlock have shorter holds without changing alarm', (tester) async {
+    final service = _Service()..vehicle.alarmStatus = AlarmStatus.armed;
+    addTearDown(service.dispose);
+    await _mountHome(tester, service);
+    final seat = find.descendant(of: find.byType(SeatButton), matching: find.byType(ScooterActionButton));
+    expect(tester.widget<ScooterActionButton>(seat).holdDuration, const Duration(milliseconds: 400));
+    expect(tester.widget<ScooterPowerButton>(find.byType(ScooterPowerButton)).holdDuration,
+        const Duration(milliseconds: 600));
+    service.state = ScooterState.parked;
+    service.changed();
+    await tester.pump();
+    expect(tester.widget<ScooterPowerButton>(find.byType(ScooterPowerButton)).holdDuration,
+        const Duration(milliseconds: 600));
+    service.state = ScooterState.standby;
+    service.vehicle.alarmStatus = AlarmStatus.level2Triggered;
+    service.changed();
+    await tester.pump();
+    expect(tester.widget<ScooterPowerButton>(find.byType(ScooterPowerButton)).holdDuration,
+        const Duration(milliseconds: 800));
   });
 
   testWidgets('a sounding alarm pulses the circle and names it in the status line', (tester) async {
