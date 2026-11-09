@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -18,6 +19,11 @@ import '../support/persistence_fakes.dart';
 import '../support/inline_asset_bundle.dart';
 
 class _Actions implements ScooterActions {
+  final added = <String>[];
+
+  @override
+  Future<void> addKeycard(String uid) async => added.add(uid);
+
   @override
   Future<List<String>> listKeycards() async => ['AABBCCDD', '11223344'];
 
@@ -36,8 +42,9 @@ class _Service extends ChangeNotifier implements ScooterService {
   bool? get phoneKeyManagementSupported => false;
   @override
   bool? get keyAliasesSupported => false;
+  final _actions = _Actions();
   @override
-  ScooterActions get actions => _Actions();
+  ScooterActions get actions => _actions;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -91,31 +98,132 @@ void main() {
 
     await tester.tap(find.text('Use this Android phone as a key'));
     await tester.pumpAndSettle();
-    expect(find.text('Enable NFC phone key'), findsOneWidget);
+    expect(find.text('Enable NFC phone key'), findsNothing);
+    expect(find.textContaining('app settings'), findsOneWidget);
     expect(find.textContaining('phone must be unlocked'), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('phone key setup instructions and NFC errors are available in German', (tester) async {
+  testWidgets('phone key setup instructions are available in German', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
-    const channel = MethodChannel('org.librescoot.mobile/phone_key');
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
-      if (call.method == 'serviceEnabled') return false;
-      throw PlatformException(code: 'NFC_UNAVAILABLE');
-    });
-    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
     final service = _Service();
     addTearDown(service.dispose);
 
     await _mount(tester, service, locale: const Locale('de'));
     await tester.tap(find.text('Dieses Android-Handy als Schlüssel nutzen'));
     await tester.pumpAndSettle();
-    expect(find.text('NFC-Handyschlüssel aktivieren'), findsOneWidget);
+    expect(find.text('NFC-Handyschlüssel aktivieren'), findsNothing);
+    expect(find.textContaining('App-Einstellungen'), findsOneWidget);
     expect(find.textContaining('Handy entsperrt sein'), findsOneWidget);
-    await tester.tap(find.text('NFC-Handyschlüssel aktivieren'));
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('canceling card enrollment closes reader mode without changing phone key preference', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    const nfc = MethodChannel('flutter_nfc_kit/method');
+    const phoneKey = MethodChannel('org.librescoot.mobile/phone_key');
+    final poll = Completer<String>();
+    final nfcCalls = <String>[];
+    var finishes = 0;
+    var polls = 0;
+    var phoneKeyWrites = 0;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(nfc, (call) async {
+      nfcCalls.add(call.method);
+      switch (call.method) {
+        case 'getNFCAvailability':
+          return 'available';
+        case 'poll':
+          polls++;
+          return poll.future;
+        case 'finish':
+          finishes++;
+          return null;
+      }
+      return null;
+    });
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(phoneKey, (call) async {
+      if (call.method == 'serviceEnabled') return true;
+      if (call.method == 'setServiceEnabled') phoneKeyWrites++;
+      return null;
+    });
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(nfc, null);
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(phoneKey, null);
+    });
+    final service = _Service();
+    addTearDown(service.dispose);
+    await _mount(tester, service);
+    await tester.tap(find.byType(FloatingActionButton));
+    for (var attempt = 0; attempt < 20 && polls == 0; attempt++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final errors = tester.widgetList<Text>(find.byType(Text)).map((w) => w.data).whereType<String>().where((s) => s.contains('Failed to start NFC')).toList();
+    expect(polls, 1, reason: 'NFC calls: $nfcCalls; errors: $errors');
+    expect(poll.isCompleted, isFalse);
+    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(find.text('Schalte NFC ein. Dein Handy muss außerdem NFC-Kartenemulation unterstützen.'), findsOneWidget);
+    expect(finishes, greaterThanOrEqualTo(1));
+    expect(phoneKeyWrites, 0);
+    poll.completeError(PlatformException(code: 'cancelled'));
+    await tester.pump();
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('completed card enrollment closes reader mode without changing phone key preference', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async => null);
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+    const nfc = MethodChannel('flutter_nfc_kit/method');
+    const phoneKey = MethodChannel('org.librescoot.mobile/phone_key');
+    var polls = 0;
+    var finishes = 0;
+    var phoneKeyWrites = 0;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(nfc, (call) async {
+      switch (call.method) {
+        case 'getNFCAvailability':
+          return 'available';
+        case 'poll':
+          polls++;
+          return jsonEncode({'type': 'iso7816', 'id': 'FEEDCAFE', 'standard': 'ISO 14443-4'});
+        case 'finish':
+          finishes++;
+          return null;
+      }
+      return null;
+    });
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(phoneKey, (call) async {
+      if (call.method == 'serviceEnabled') return true;
+      if (call.method == 'setServiceEnabled') phoneKeyWrites++;
+      return null;
+    });
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(nfc, null);
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(phoneKey, null);
+    });
+    final service = _Service();
+    addTearDown(service.dispose);
+    await _mount(tester, service);
+    await tester.tap(find.byType(FloatingActionButton));
+    for (var attempt = 0; attempt < 80 && service._actions.added.isEmpty; attempt++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(polls, 2, reason: 'finishes=$finishes, lifecycle=${tester.binding.lifecycleState}, '
+        'text=${tester.widgetList<Text>(find.byType(Text)).map((w) => w.data).whereType<String>().toList()}');
+    expect(finishes, greaterThanOrEqualTo(2));
+    expect(phoneKeyWrites, 0);
+    expect(service._actions.added, ['FEEDCAFE']);
     debugDefaultTargetPlatformOverride = null;
   });
 

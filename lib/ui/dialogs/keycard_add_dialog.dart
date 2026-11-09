@@ -37,7 +37,9 @@ class _KeycardAddDialogState extends State<KeycardAddDialog> with WidgetsBinding
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _log.info('[enrolment] Dialog opened; existingUids=${widget.existingUids}');
-    _doFirstTap();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _doFirstTap();
+    });
   }
 
   @override

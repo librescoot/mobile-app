@@ -637,7 +637,7 @@
     "ls_keycard_delete_confirm": "Bist du sicher, dass du diese Keycard löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden.",
     "ls_keycard_delete_button": "Löschen",
     "phone_key_title": "Dieses Android-Handy als Schlüssel nutzen",
-    "phone_key_instructions": "Dein Roller benötigt Librescoot-Firmware mit Handyschlüssel-Unterstützung. Richte den Handyschlüssel ein und schalte ihn unten ein. Halte deine Masterkarte an den Leser am Roller, um den Anlernmodus zu starten. Halte dann dein entsperrtes Handy an den Leser und anschließend die Masterkarte erneut, um den Schlüssel zu speichern. Für spätere Nutzung muss NFC eingeschaltet und dein Handy entsperrt sein.",
+    "phone_key_instructions": "Dein Roller benötigt Librescoot-Firmware mit Handyschlüssel-Unterstützung. Richte den Handyschlüssel ein und prüfe, ob er in den App-Einstellungen aktiviert ist. Halte deine Masterkarte an den Leser am Roller, um den Anlernmodus zu starten. Halte dann dein entsperrtes Handy an den Leser und anschließend die Masterkarte erneut, um den Schlüssel zu speichern. Für spätere Nutzung muss NFC eingeschaltet und dein Handy entsperrt sein.",
     "phone_key_fingerprint": "Handyschlüssel: {fingerprint}",
     "phone_key_enable": "NFC-Handyschlüssel aktivieren",
     "phone_key_enable_description": "Wenn ausgeschaltet, erscheint Librescoot nicht in der NFC-Schlüsselauswahl. Der Schlüssel bleibt auf diesem Handy gespeichert.",

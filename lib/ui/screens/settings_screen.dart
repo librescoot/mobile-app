@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:easy_dynamic_theme/easy_dynamic_theme.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -22,6 +23,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:unustasis/background/tasker_bridge.dart';
 import 'package:unustasis/domain/alarm_status.dart';
+import 'package:unustasis/feature_flags.dart';
 import 'package:unustasis/ui/theme/theme_helper.dart';
 import 'package:unustasis/domain/scooter_keyless_distance.dart';
 import 'package:unustasis/ui/widgets/header.dart';
@@ -59,6 +61,11 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   ScooterKeylessDistance autoUnlockDistance = ScooterKeylessDistance.regular;
   bool osmConsent = false;
   bool _lsDataLoadStarted = false;
+  static const _phoneKeyChannel = MethodChannel('org.librescoot.mobile/phone_key');
+  bool? _phoneKeyServiceEnabled;
+  bool _changingPhoneKeyService = false;
+  String? _phoneKeyServiceError;
+  int _phoneKeyQueryGeneration = 0;
   bool _isSendingAutoLock = false;
   int? _autoLockDuration;
   bool _timerDurationsLoaded = false;
@@ -110,6 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     getInitialSettings();
     WidgetsBinding.instance.addObserver(this);
     refreshBatteryOptimization();
+    _refreshPhoneKeyService();
     if (widget.focusOnlineLocationServices) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_scrollController.hasClients) return;
@@ -127,7 +135,46 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Granting and revoking both happen in system screens that report nothing back.
-    if (state == AppLifecycleState.resumed) refreshBatteryOptimization();
+    if (state == AppLifecycleState.resumed) {
+      refreshBatteryOptimization();
+      _refreshPhoneKeyService();
+    }
+  }
+
+  Future<void> _refreshPhoneKeyService() async {
+    if (!phoneKeyFeatureEnabled || _changingPhoneKeyService) return;
+    final generation = ++_phoneKeyQueryGeneration;
+    try {
+      final enabled = await _phoneKeyChannel.invokeMethod<bool>('serviceEnabled');
+      if (!mounted || generation != _phoneKeyQueryGeneration) return;
+      setState(() {
+        _phoneKeyServiceEnabled = enabled;
+        _phoneKeyServiceError = null;
+      });
+    } catch (_) {
+      if (!mounted || generation != _phoneKeyQueryGeneration) return;
+      setState(() => _phoneKeyServiceError = 'phone_key_error');
+    }
+  }
+
+  Future<void> _setPhoneKeyService(bool enabled) async {
+    _phoneKeyQueryGeneration++;
+    setState(() {
+      _changingPhoneKeyService = true;
+      _phoneKeyServiceError = null;
+    });
+    try {
+      await _phoneKeyChannel.invokeMethod<void>('setServiceEnabled', {'enabled': enabled});
+      if (mounted) setState(() => _phoneKeyServiceEnabled = enabled);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _phoneKeyServiceError = error is PlatformException && error.code == 'NFC_UNAVAILABLE'
+            ? 'phone_key_nfc_unavailable'
+            : 'phone_key_error');
+      }
+    } finally {
+      if (mounted) setState(() => _changingPhoneKeyService = false);
+    }
   }
 
   Future<void> refreshBatteryOptimization() async {
@@ -1576,6 +1623,15 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             },
             leading: const Icon(Icons.history_outlined),
             trailing: const Icon(Icons.chevron_right),
+          ),
+        if (phoneKeyFeatureEnabled)
+          SwitchListTile(
+            key: const ValueKey('phone-key-service-setting'),
+            secondary: const Icon(Icons.nfc),
+            title: Text(FlutterI18n.translate(context, 'phone_key_enable')),
+            subtitle: Text(FlutterI18n.translate(context, _phoneKeyServiceError ?? 'phone_key_enable_description')),
+            value: _phoneKeyServiceEnabled ?? false,
+            onChanged: _phoneKeyServiceEnabled == null || _changingPhoneKeyService ? null : _setPhoneKeyService,
           ),
         Container(),
       ];

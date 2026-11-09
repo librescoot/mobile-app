@@ -58,7 +58,7 @@ android {
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
-        manifestPlaceholders.phoneKeyEnabled = "false"
+        manifestPlaceholders.phoneKeyEnabled = "true"
         buildConfigField "boolean", "PHONE_KEY_ENABLED", "false"
     }
 

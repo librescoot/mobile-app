@@ -30,17 +30,21 @@ class MainActivity : FlutterFragmentActivity() {
                                 result.error("KEY_ERROR", "Could not read phone key: ${e.message}", null)
                             }
                         }
-                        "serviceEnabled" -> result.success(
-                            packageManager.getComponentEnabledSetting(
-                                ComponentName(this, PhoneKeyService::class.java)
-                            ) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-                        )
+                        "serviceEnabled" -> {
+                            val component = ComponentName(this, PhoneKeyService::class.java)
+                            val enabled = when (packageManager.getComponentEnabledSetting(component)) {
+                                PackageManager.COMPONENT_ENABLED_STATE_DEFAULT ->
+                                    packageManager.getServiceInfo(component, 0).enabled
+                                PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
+                                else -> false
+                            }
+                            result.success(enabled)
+                        }
                         "setServiceEnabled" -> {
                             val enabled = call.argument<Boolean>("enabled")
                             if (enabled == null) {
                                 result.error("BAD_ARGUMENT", "Missing NFC service state", null)
-                            } else if (enabled && (!packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION) ||
-                                    NfcAdapter.getDefaultAdapter(this)?.isEnabled != true)) {
+                            } else if (enabled && !packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION)) {
                                 result.error("NFC_UNAVAILABLE", "Android NFC card emulation is unavailable", null)
                             } else {
                                 packageManager.setComponentEnabledSetting(

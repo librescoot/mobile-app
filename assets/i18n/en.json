@@ -953,7 +953,7 @@
 "ls_key_alias_invalid": "Name must be at most 32 bytes and contain no control characters.",
 "ls_key_alias_save_error": "Could not save the key name. Try again.",
 "phone_key_title": "Use this Android phone as a key",
-"phone_key_instructions": "Your scooter needs Librescoot firmware with phone-key support. Set up the phone key and turn it on below. Tap your master card on the scooter reader to start learning, then hold your unlocked phone against the reader. Tap the master card again to save the key. For future taps, NFC must be on and your phone must be unlocked.",
+"phone_key_instructions": "Your scooter needs Librescoot firmware with phone-key support. Set up the phone key and make sure it is enabled in the app settings. Tap your master card on the scooter reader to start learning, then hold your unlocked phone against the reader. Tap the master card again to save the key. For future taps, NFC must be on and your phone must be unlocked.",
 "phone_key_fingerprint": "Phone key: {fingerprint}",
 "phone_key_enable": "Enable NFC phone key",
 "phone_key_enable_description": "When off, Librescoot will not appear in the NFC key chooser. The key stays on this phone.",

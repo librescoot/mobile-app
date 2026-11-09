@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:easy_dynamic_theme/easy_dynamic_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -544,6 +545,67 @@ void main() {
       const MethodChannel('plugins.flutter.io/local_auth'),
       (call) async => <String>[],
     );
+  });
+
+  testWidgets('phone key is an offline app setting and retains its state', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    const channel = MethodChannel('org.librescoot.mobile/phone_key');
+    var enabled = true;
+    final writes = <bool>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'serviceEnabled') return enabled;
+      if (call.method == 'setServiceEnabled') {
+        enabled = (call.arguments as Map)['enabled'] as bool;
+        writes.add(enabled);
+        return null;
+      }
+      throw PlatformException(code: 'unknown');
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
+    final service = _Service()..connected = false;
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    final setting = find.byKey(const ValueKey('phone-key-service-setting'));
+    await _show(tester, setting);
+    expect(tester.widget<SwitchListTile>(setting).value, isTrue);
+    await tester.tap(setting);
+    await tester.pumpAndSettle();
+    expect(writes, [false]);
+    expect(tester.widget<SwitchListTile>(setting).value, isFalse);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(_screen(service));
+    await tester.pumpAndSettle();
+    await _show(tester, setting);
+    expect(tester.widget<SwitchListTile>(setting).value, isFalse);
+    await tester.tap(setting);
+    await tester.pumpAndSettle();
+    expect(writes, [false, true]);
+    expect(tester.widget<SwitchListTile>(setting).value, isTrue);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('phone key setting reports an unavailable NFC service', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    const channel = MethodChannel('org.librescoot.mobile/phone_key');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'serviceEnabled') return false;
+      throw PlatformException(code: 'NFC_UNAVAILABLE');
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
+    final service = _Service()..connected = false;
+    addTearDown(service.dispose);
+    await tester.pumpWidget(_screen(service, locale: 'de'));
+    await tester.pumpAndSettle();
+    final setting = find.byKey(const ValueKey('phone-key-service-setting'));
+    await _show(tester, setting);
+    await tester.tap(setting);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(setting).value, isFalse);
+    expect(find.text('Schalte NFC ein. Dein Handy muss außerdem NFC-Kartenemulation unterstützen.'), findsOneWidget);
+    debugDefaultTargetPlatformOverride = null;
   });
 
   for (final version in <String?>[null, 'v1.1.9', 'v1.2.0', 'nightly-20260802T235959', 'testing-20261002t153559']) {

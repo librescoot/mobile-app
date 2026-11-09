@@ -70,7 +70,6 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
   String? _phoneKeyError;
   bool _creatingPhoneKey = false;
   bool? _phoneKeyServiceEnabled;
-  bool _changingPhoneKeyService = false;
   static const _phoneKeyChannel = MethodChannel('org.librescoot.mobile/phone_key');
 
   String _phoneKeyErrorMessageKey(Object error) =>
@@ -81,28 +80,14 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
       final enabled = await _phoneKeyChannel.invokeMethod<bool>('serviceEnabled');
       if (mounted) {
         setState(() => _phoneKeyServiceEnabled = enabled);
-        if (enabled == true) _stopBackgroundNfcScan();
+        if (enabled == true) {
+          _stopBackgroundNfcScan();
+        } else if (enabled == false) {
+          _startBackgroundNfcScan();
+        }
       }
     } catch (e) {
       if (mounted) setState(() => _phoneKeyError = _phoneKeyErrorMessageKey(e));
-    }
-  }
-
-  Future<void> _setPhoneKeyService(bool enabled) async {
-    setState(() {
-      _changingPhoneKeyService = true;
-      _phoneKeyError = null;
-    });
-    try {
-      await _phoneKeyChannel.invokeMethod<void>('setServiceEnabled', {'enabled': enabled});
-      if (mounted) {
-        setState(() => _phoneKeyServiceEnabled = enabled);
-        if (enabled) _stopBackgroundNfcScan();
-      }
-    } catch (e) {
-      if (mounted) setState(() => _phoneKeyError = _phoneKeyErrorMessageKey(e));
-    } finally {
-      if (mounted) setState(() => _changingPhoneKeyService = false);
     }
   }
 
@@ -111,7 +96,7 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     try {
       final id = await _phoneKeyChannel.invokeMethod<String>('existingFingerprint');
       if (id != null && mounted) {
-        _stopBackgroundNfcScan();
+        if (_phoneKeyServiceEnabled != false) _stopBackgroundNfcScan();
         setState(() => _phoneFingerprint = id);
       }
     } catch (_) {
@@ -134,7 +119,10 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
       setState(() => _phoneKeyError = _phoneKeyErrorMessageKey(e));
       _startBackgroundNfcScan();
     } finally {
-      if (mounted) setState(() => _creatingPhoneKey = false);
+      if (mounted) {
+        setState(() => _creatingPhoneKey = false);
+        _startBackgroundNfcScan();
+      }
     }
   }
 
@@ -240,14 +228,6 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
                       if (_phoneFingerprint != null)
                         SelectableText(FlutterI18n.translate(context, 'phone_key_fingerprint',
                             translationParams: {'fingerprint': _phoneFingerprint!})),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(FlutterI18n.translate(context, 'phone_key_enable')),
-                        subtitle: Text(FlutterI18n.translate(context, 'phone_key_enable_description')),
-                        value: _phoneKeyServiceEnabled ?? false,
-                        onChanged:
-                            _phoneKeyServiceEnabled == null || _changingPhoneKeyService ? null : _setPhoneKeyService,
-                      ),
                       if (_phoneKeyError != null)
                         Text(FlutterI18n.translate(context, _phoneKeyError!),
                             style: TextStyle(color: Theme.of(context).colorScheme.error)),
@@ -506,15 +486,15 @@ class _LsKeycardScreenState extends State<LsKeycardScreen> {
     if (context.read<ScooterService>().demoMode) return;
     // Android reader mode prevents our HostApduService from handling a scooter
     // tap. Leave NFC card emulation available when a phone key is configured.
-    if (!Platform.isAndroid || _phoneFingerprint != null || _creatingPhoneKey || _phoneKeyServiceEnabled == true) {
+    if (!Platform.isAndroid || _creatingPhoneKey || _phoneKeyServiceEnabled != false) {
       return;
     }
     if (_isBackgroundScanning) return;
     final availability = await FlutterNfcKit.nfcAvailability;
     if (availability != NFCAvailability.available ||
         !mounted ||
-        _phoneFingerprint != null ||
-        _phoneKeyServiceEnabled == true) {
+        _creatingPhoneKey ||
+        _phoneKeyServiceEnabled != false) {
       return;
     }
     setState(() => _isBackgroundScanning = true);
