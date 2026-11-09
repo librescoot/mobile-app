@@ -27,7 +27,7 @@ Widget host(ScreenService service, {Future<void> Function()? onLock}) =>
     );
 
 void main() {
-  testWidgets('a parked scooter says it waits for the lock and offers to lock it',
+  testWidgets('a parked scooter is asked once, and later leaves a lock tile',
       (tester) async {
     final h = shared.UpdateHarness();
     await tester.runAsync(h.init);
@@ -36,12 +36,44 @@ void main() {
     await tester.pumpWidget(host(service, onLock: () async => locks++));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('restarts once it is locked'), findsOneWidget);
-    // Nothing is locked unless the user taps.
+    expect(find.text('Update installed'), findsOneWidget);
+    expect(find.text('To finish installing the update, the scooter has to be locked.'),
+        findsOneWidget);
+    // Nothing is locked unless the user confirms.
     expect(locks, 0);
+
+    await tester.tap(find.text('Later'));
+    await tester.pumpAndSettle();
+    expect(find.text('Update installed'), findsNothing);
+    expect(locks, 0);
+    expect(find.textContaining('restarts once it is locked'), findsOneWidget);
+
+    // Rebuilding does not ask again.
+    service.notifyListeners();
+    await tester.pumpAndSettle();
+    expect(find.text('Update installed'), findsNothing);
+
     await tester.tap(find.text('Lock now'));
     await tester.pump();
     expect(locks, 1);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    service.dispose();
+    await tester.runAsync(h.close);
+  });
+
+  testWidgets('confirming the dialog locks the scooter', (tester) async {
+    final h = shared.UpdateHarness();
+    await tester.runAsync(h.init);
+    final service = ScreenService(h.controller)..stateValue = ScooterState.ready;
+    var locks = 0;
+    await tester.pumpWidget(host(service, onLock: () async => locks++));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Lock scooter and apply update now'));
+    await tester.pumpAndSettle();
+    expect(locks, 1);
+    expect(find.text('Update installed'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     service.dispose();
@@ -57,6 +89,7 @@ void main() {
 
     expect(find.textContaining('restarts shortly'), findsOneWidget);
     expect(find.text('Lock now'), findsNothing);
+    expect(find.text('Update installed'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     service.dispose();
@@ -73,6 +106,7 @@ void main() {
 
     expect(find.textContaining('restarts once it is locked'), findsOneWidget);
     expect(find.text('Lock now'), findsNothing);
+    expect(find.text('Update installed'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     service.dispose();
