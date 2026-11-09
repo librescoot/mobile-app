@@ -223,7 +223,7 @@ class OtaTransferService extends ChangeNotifier {
       if (!messages.isClosed) messages.addError(const _OtaLinkLost());
     };
     try {
-      _set(OtaTransferState.hashing, "Preparing bundle...");
+      _set(OtaTransferState.hashing, "Preparing update...");
       checkCurrent();
       if (_isAndroid) {
         // The scooter renegotiates its power-friendly connection parameters
@@ -322,9 +322,9 @@ class OtaTransferService extends ChangeNotifier {
         case OtaProtocol.completeOk:
           break;
         case OtaProtocol.completeShaMismatch:
-          throw "Transfer corrupted (checksum mismatch) — please retry";
+          throw "Transfer corrupted (checksum mismatch). Please retry.";
         case OtaProtocol.completeSizeMismatch:
-          throw "Transfer incomplete (size mismatch) — please retry";
+          throw "Transfer incomplete (size mismatch). Please retry.";
         default:
           throw "Scooter could not queue the installation";
       }
@@ -343,7 +343,7 @@ class OtaTransferService extends ChangeNotifier {
       if (accepted && e is _OtaLinkLost) {
         awaitingReconnect = true;
         _set(OtaTransferState.installing,
-            "Connection lost — installation continues on the scooter");
+            "Connection lost. The installation continues on the scooter.");
         return;
       }
       if (state != OtaTransferState.failure) {
@@ -505,7 +505,7 @@ class OtaTransferService extends ChangeNotifier {
       if (accepted && e is _OtaLinkLost) {
         awaitingReconnect = true;
         _set(OtaTransferState.installing,
-            "Connection lost — installation continues on the scooter");
+            "Connection lost. The installation continues on the scooter.");
         return;
       }
       if (state != OtaTransferState.failure) {
@@ -762,7 +762,7 @@ class OtaTransferService extends ChangeNotifier {
     // notification stream ended (disconnect) while installing: the install
     // continues on the scooter; report the state we know
     _set(OtaTransferState.installing,
-        "Connection lost — installation continues on the scooter");
+        "Connection lost. The installation continues on the scooter.");
   }
 
   /// Recovers an installation that outlived the app. The scooter retains the
@@ -934,7 +934,7 @@ class OtaTransferService extends ChangeNotifier {
       if (e is _OtaLinkLost) {
         awaitingReconnect = true;
         _set(OtaTransferState.installing,
-            "Connection lost — installation continues on the scooter");
+            "Connection lost. The installation continues on the scooter.");
       }
       log.warning("Adopted OTA session follow ended: $e");
     } finally {

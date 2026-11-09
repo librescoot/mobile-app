@@ -100,7 +100,7 @@ void main() {
     service.dispose();
     await tester.runAsync(h.close);
   });
-  testWidgets('unconfirmed installation displays captured target with English key fallback', (tester) async {
+  testWidgets('unconfirmed installation displays the captured target in the UI language', (tester) async {
     final h = shared.UpdateHarness();
     await tester.runAsync(h.init);
     h.repo.installPhase = null;
@@ -114,7 +114,7 @@ void main() {
     final service = ScreenService(h.controller);
     await tester.pumpWidget(screen(service, locale: 'de'));
     await tester.pumpAndSettle();
-    expect(find.text('Reconnect to Captured A to confirm the installation before starting another update.'),
+    expect(find.text('Verbinde dich wieder mit Captured A, um die Installation zu bestätigen, bevor du ein weiteres Update startest.'),
         findsOneWidget);
     expect(find.text('ls_ota_awaiting_confirmation'), findsNothing);
     expect(h.controller.targetId, 'A');
