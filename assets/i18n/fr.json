@@ -358,7 +358,7 @@
     "controls_hibernate_wakes_at": "Réveil : {time}",
     "controls_hibernate_confirm": "Hiberner",
     "settings_report": "Signaler un problème avec l'application",
-    "settings_report_description": "Si l'application ne fonctionne pas comme prévu, vous pouvez envoyer un rapport aux développeurs.\n\nLe rapport inclura les journaux d'erreurs des dernières minutes, veuillez donc utiliser cette fonction juste après l'erreur.",
+    "settings_report_description": "Le rapport contient les détails de l'application et de l'appareil, les paramètres, les journaux de diagnostic des dernières 24 heures et les rapports de plantage Android disponibles. Ils peuvent contenir des identifiants du scooter ou d'autres données personnelles. Vérifiez l'e-mail et la pièce jointe avant l'envoi.",
     "settings_report_proceed": "Continuer",
     "settings_report_cancel": "Annuler",
     "report_subject": "Rapport de problème",

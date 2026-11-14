@@ -18,6 +18,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        ProcessExitDiagnostics.register(applicationContext, flutterEngine)
 
         if (BuildConfig.PHONE_KEY_ENABLED) {
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "org.librescoot.mobile/phone_key")

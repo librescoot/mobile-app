@@ -436,7 +436,7 @@
     "controls_hibernate_wakes_at": "Wacht auf: {time}",
     "controls_hibernate_confirm": "Tiefschlaf",
     "settings_report": "Fehler mit der App melden",
-    "settings_report_description": "Wenn die App nicht wie erwartet funktioniert, kannst du dies den Entwicklern melden.\n\nDer Bericht enthält Nutzungsdaten der letzten paar Minuten, also nutze diese Funktion bitte unmittelbar nachdem ein Fehler auftritt.",
+    "settings_report_description": "Der Bericht enthält App- und Gerätedaten, Einstellungen, Diagnoseprotokolle von bis zu 24 Stunden und verfügbare Android-Absturzberichte. Diese können Rollerkennungen oder andere persönliche Daten enthalten. Prüfe die E-Mail und den Anhang vor dem Senden.",
     "settings_report_proceed": "Fortsetzen",
     "settings_report_cancel": "Abbrechen",
     "report_subject": "Fehlerbericht",

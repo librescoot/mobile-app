@@ -358,7 +358,7 @@
     "controls_hibernate_wakes_at": "Wordt wakker: {time}",
     "controls_hibernate_confirm": "Sluimerstand",
     "settings_report": "Een probleem met de app melden",
-    "settings_report_description": "Als de app niet werkt zoals verwacht, kun je een melding sturen naar de ontwikkelaars.\n\nDe melding bevat foutlogs van de laatste paar minuten, gebruik deze functie dus direct na het optreden van de fout.",
+    "settings_report_description": "Het rapport bevat app- en apparaatgegevens, instellingen, diagnoselogboeken van maximaal 24 uur en beschikbare Android-crashrapporten. Deze kunnen scooter-ID's of andere persoonlijke gegevens bevatten. Controleer de e-mail en bijlage voordat je ze verzendt.",
     "settings_report_proceed": "Doorgaan",
     "settings_report_cancel": "Annuleren",
     "report_subject": "Probleemmelding",

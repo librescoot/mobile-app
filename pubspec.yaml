@@ -89,6 +89,7 @@ dev_dependencies:
   # Direct test imports for isolated persistence/background adapter fakes.
   flutter_background_service_platform_interface: ^5.1.2
   shared_preferences_platform_interface: ^2.4.1
+  path_provider_platform_interface: ^2.1.2
   flutter_test:
     sdk: flutter
   flutter_localizations:

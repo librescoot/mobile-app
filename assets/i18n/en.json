@@ -436,7 +436,7 @@
 "controls_hibernate_wakes_at": "Wakes {time}",
 "controls_hibernate_confirm": "Hibernate",
 "settings_report": "Report an issue with the app",
-"settings_report_description": "If the app doesn't work as expected, you can send a report to the developers.\n\nThe report will include error logs from the last few minutes, so please use this feature directly after the error occurs.",
+"settings_report_description": "The report includes app and device details, settings, diagnostic logs from up to the last 24 hours, and available Android crash traces. These may contain scooter identifiers or other personal information. Review the email and attachment before sending.",
 "settings_report_proceed": "Continue",
 "settings_report_cancel": "Cancel",
 "report_subject": "Issue report",
