@@ -64,9 +64,13 @@ Apple SDK build before release. See [wearable setup, builds and limitations](doc
 - **Over [Unustasis](https://github.com/reunu/unustasis):** Capability-gated multi-stop route planning, a ride counter with reset and retention settings, Android Tasker actions and a redesigned multi-scooter interface.
 - **Over [unu-app](https://github.com/reunu/unu-app):** All of the above, plus Librescoot-specific controls for keycards, alarms, power timers, APN and firmware updates, and navigation. Both apps provide basic BLE controls and keyless unlocking.
 
+## User guide
+
+See the [German user guide](docs/benutzerhandbuch.md) for setup, controls, navigation, scooter settings and troubleshooting.
+
 ## Installation
 
-Android APKs are available from this repository's [releases](https://github.com/librescoot/mobile-app/releases). Android testing builds are also distributed through Google Play, and iOS testing builds through TestFlight.
+The Android app is available on [Google Play](https://play.google.com/store/apps/details?id=org.librescoot.mobile.unu); APKs are available from this repository's [releases](https://github.com/librescoot/mobile-app/releases). iOS testing builds are distributed through TestFlight.
 
 The Android package and main iOS bundle use `org.librescoot.mobile.unu`, allowing installation alongside Unustasis.
 
