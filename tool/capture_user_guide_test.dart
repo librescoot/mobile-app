@@ -11,6 +11,8 @@ import 'package:flutter_background_service_platform_interface/flutter_background
 import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:scooter_core/navigation.dart' as scooter;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:unustasis/flutter/blue_plus_mockable.dart';
@@ -54,17 +56,29 @@ void main() {
     });
     final previous = SharedPreferencesAsyncPlatform.instance;
     SharedPreferences.setMockInitialValues({});
-    SharedPreferencesAsyncPlatform.instance = MemoryPreferences();
+    SharedPreferencesAsyncPlatform.instance = MemoryPreferences()..bools['osmConsent'] = true;
     FlutterBackgroundServicePlatform.instance = RecordingBackgroundService();
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       const MethodChannel('plugins.flutter.io/local_auth'),
       (_) async => <String>[],
+    );
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('flutter.baseflow.com/geolocator'),
+      (_) async => false,
     );
     addTearDown(() => SharedPreferencesAsyncPlatform.instance = previous);
     final service = ScooterService(_Ble(), initializeRuntime: false, isInBackgroundService: true)..addDemoData();
     service.savedScooters['12345']!.color = 7;
     service.identity.color = 7;
     service.identity.supportsPhoneKeyManagement = false;
+    await service.navigation.saveFavorite(scooter.NavigationDestination(
+      location: const LatLng(52.5163, 13.3777),
+      name: 'Brandenburger Tor',
+    ));
+    await service.navigation.saveFavorite(scooter.NavigationDestination(
+      location: const LatLng(52.5096, 13.3759),
+      name: 'Potsdamer Platz',
+    ));
     addTearDown(service.dispose);
     final boundaryKey = GlobalKey();
     await tester.pumpWidget(ChangeNotifierProvider<ScooterService>.value(
@@ -113,6 +127,9 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 500)));
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('Navigation'), findsOneWidget);
+    expect(find.text('Brandenburger Tor'), findsOneWidget);
+    expect(find.text('Potsdamer Platz'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
     await capture('navigation');
     await tester.tap(find.byIcon(Icons.close));
     await tester.pump(const Duration(seconds: 1));

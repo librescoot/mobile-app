@@ -103,7 +103,7 @@ Die App kann Hinweise zur Identifikation eines Akkus anzeigen. Die gemeinsame Re
 
 Wische auf dem Startbildschirm nach oben, um **Navigation** zu öffnen. Auf unterstützter Librescoot-Firmware kannst du Ziele auswählen und an den Roller senden.
 
-![Navigation mit ausgeschalteten Online-Standortdiensten und ohne gespeicherte Ziele](screenshots/navigation.png)
+![Navigation mit Suchfeld und gespeicherten Beispielzielen](screenshots/navigation.png)
 
 ### Ziel suchen und starten
 
@@ -183,7 +183,7 @@ Der APN betrifft die Mobilfunkverbindung des Rollers, nicht die des Telefons. Er
 
 ### Nachrichten und Servicemodus
 
-Auf unterstützten Rollern findest du unter **Verbindung > Messages** den SMS-Eingang und eine Option zum Weiterleiten neuer Nachrichten. Dieser Bereich ist derzeit auf Englisch beschriftet. Für Weiterleitungen können Mobilfunkkosten entstehen; die App nennt die geltenden Grenzen in der Ansicht.
+Auf unterstützten Rollern findest du unter **Verbindung > Nachrichten** den SMS-Eingang und eine Option zum Weiterleiten neuer Nachrichten. Für Weiterleitungen können Mobilfunkkosten entstehen; die App nennt die geltenden Grenzen in der Ansicht.
 
 Der **Servicemodus** hält den Roller wach und USB aktiv. Dabei sind Alarm und automatische Verriegelung deaktiviert. Schalte ihn nach der Wartung wieder aus. Nutze den **Update-Modus** nur für den vorgesehenen USB-Dateiaustausch und wirf das USB-Laufwerk am Computer sicher aus, bevor du den Modus beendest.
 
