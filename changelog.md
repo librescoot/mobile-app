@@ -1,8 +1,9 @@
-## Librescoot App for unu 1.3.3-beta.1
+## Librescoot App for unu 1.3.3
 
-- Firmware updates over Bluetooth can use smaller HDiffPatch deltas when the target board confirms support. Older firmware continues to use standard deltas or full images.
+- Diagnostic reports include recent logs, app version and available Android crash information.
+- Firmware updates over Bluetooth can use smaller HDiffPatch deltas on supported scooters.
 - View trip history on compatible scooters.
-- Improved Bluetooth service discovery and update availability messages.
-- Improved battery identification and registration guidance. Shared registration remains disabled until its service is available.
+- Android phone keys are available on supported devices and scooters.
+- Improved Bluetooth update discovery and battery identification guidance.
 
 Available features depend on the scooter hardware and installed firmware.

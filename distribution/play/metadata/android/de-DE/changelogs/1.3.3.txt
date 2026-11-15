@@ -1,0 +1,1 @@
+Supportberichte enthalten aktuelle Protokolle und verfügbare Android-Absturzinformationen. Kompatible Roller unterstützen kleinere Firmware-Updates per Bluetooth, die Fahrtenübersicht und Android-Telefonschlüssel. Die Erkennung von Bluetooth-Updates und die Anleitung zur Akkuidentifikation wurden verbessert.
