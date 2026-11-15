@@ -951,8 +951,8 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
       [
         ListTile(
           leading: const Icon(Icons.sms_outlined),
-          title: const Text('Messages'),
-          subtitle: const Text('Inbox and SMS forwarding'),
+          title: Text(FlutterI18n.translate(context, 'sms_title')),
+          subtitle: Text(FlutterI18n.translate(context, 'sms_settings_subtitle')),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SmsInboxScreen())),
         ),

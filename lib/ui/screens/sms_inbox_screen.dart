@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_i18n/flutter_i18n.dart';
 import 'package:provider/provider.dart';
 import 'package:scooter_flutter/sms_commands.dart';
 import 'package:unustasis/scooter_service.dart';
@@ -15,7 +16,16 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
   bool _connected = false;
   int _generation = 0;
   bool _loading = false;
-  String? _error;
+  String? _errorKey;
+
+  String _text(String key, {Map<String, String>? params}) =>
+      FlutterI18n.translate(context, key, translationParams: params);
+
+  String _forwardStatus(String status) {
+    const known = {'queued', 'sending', 'sent', 'unknown', 'expired', 'cancelled'};
+    return known.contains(status) ? _text('sms_status_$status') : status;
+  }
+
   SmsInbox? _inbox;
   String? _forward;
   final TextEditingController _forwardController = TextEditingController();
@@ -39,7 +49,7 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
     _generation++;
     _inbox = null;
     _forward = null;
-    _error = null;
+    _errorKey = null;
     _loading = false;
     if (mounted) setState(() {});
     if (_connected) _load();
@@ -59,7 +69,7 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
     final generation = ++_generation;
     setState(() {
       _loading = true;
-      _error = null;
+      _errorKey = null;
     });
     try {
       final inbox = await service.actions.readSmsInbox();
@@ -71,9 +81,7 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
       });
     } catch (e) {
       if (!mounted || generation != _generation) return;
-      setState(() => _error = e is UnsupportedError
-          ? 'Messages are not supported by this scooter firmware.'
-          : 'Could not read messages. Check the Bluetooth connection.');
+      setState(() => _errorKey = e is UnsupportedError ? 'sms_unsupported' : 'sms_read_error');
     } finally {
       if (mounted && generation == _generation) setState(() => _loading = false);
     }
@@ -84,25 +92,26 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
     final value = await showDialog<String>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-              title: const Text('SMS forwarding'),
+              title: Text(_text('sms_forwarding')),
               content: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Text(
-                    'Forward new messages to this number. Carrier charges may apply. Forwarding is limited to 10 SMS segments per day and is disabled while roaming.'),
+                Text(_text('sms_forwarding_description')),
                 TextField(
                     controller: controller,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(labelText: 'International number', hintText: '+4915112345678')),
+                    decoration:
+                        InputDecoration(labelText: _text('sms_international_number'), hintText: '+4915112345678')),
               ]),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-                TextButton(onPressed: () => Navigator.pop(dialogContext, 'off'), child: const Text('Disable')),
+                TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(_text('cancel'))),
+                TextButton(onPressed: () => Navigator.pop(dialogContext, 'off'), child: Text(_text('sms_disable'))),
                 TextButton(
-                    onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Save')),
+                    onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+                    child: Text(_text('sms_save'))),
               ],
             ));
     if (!mounted || value == null) return;
     if (value != 'off' && !RegExp(r'^\+[1-9][0-9]{7,14}$').hasMatch(value)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a full international number.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_text('sms_invalid_number'))));
       return;
     }
     final generation = _generation;
@@ -112,7 +121,7 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
       setState(() => _forward = value);
     } catch (_) {
       if (!mounted || generation != _generation) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not save forwarding.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_text('sms_save_error'))));
     }
   }
 
@@ -125,7 +134,7 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
     final delete = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-              title: Text(message.from.isEmpty ? 'Unknown sender' : message.from),
+              title: Text(message.from.isEmpty ? _text('sms_unknown_sender') : message.from),
               content: SingleChildScrollView(
                   child:
                       Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -134,12 +143,12 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
                 SelectableText(message.text),
                 if (message.forwardStatus.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  Text('Forwarding: ${message.forwardStatus}')
+                  Text(_text('sms_forwarding_status', params: {'status': _forwardStatus(message.forwardStatus)}))
                 ],
               ])),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Close')),
-                TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Delete'))
+                TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(_text('sms_close'))),
+                TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(_text('sms_delete')))
               ],
             ));
     if (!mounted || generation != _generation) return;
@@ -147,10 +156,10 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
       final confirmed = await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-                title: const Text('Delete message?'),
+                title: Text(_text('sms_delete_confirm')),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-                  TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Delete'))
+                  TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(_text('cancel'))),
+                  TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(_text('sms_delete')))
                 ],
               ));
       if (!mounted || generation != _generation || confirmed != true) return;
@@ -158,7 +167,7 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
         await _service!.actions.deleteSms(message.id);
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not delete message.')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_text('sms_delete_error'))));
         }
       }
     }
@@ -167,28 +176,28 @@ class _SmsInboxScreenState extends State<SmsInboxScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Messages'), actions: [
+        appBar: AppBar(title: Text(_text('sms_title')), actions: [
           IconButton(onPressed: _connected && !_loading ? _load : null, icon: const Icon(Icons.refresh)),
         ]),
         body: !_connected
-            ? const Center(child: Text('Connect to the scooter to read messages.'))
+            ? Center(child: Text(_text('sms_connect')))
             : ListView(children: [
                 ListTile(
-                    title: const Text('SMS forwarding'),
+                    title: Text(_text('sms_forwarding')),
                     subtitle: Text(_forward == null
-                        ? 'Unavailable'
+                        ? _text('sms_unavailable')
                         : _forward == 'off'
-                            ? 'Off'
+                            ? _text('sms_off')
                             : _forward!),
                     trailing: const Icon(Icons.chevron_right),
                     enabled: !_loading && _forward != null,
                     onTap: _configureForwarding),
                 if (_loading) const LinearProgressIndicator(),
-                if (_error != null) ListTile(title: Text(_error!)),
-                if (_inbox != null && _inbox!.messages.isEmpty) const ListTile(title: Text('No messages')),
+                if (_errorKey != null) ListTile(title: Text(_text(_errorKey!))),
+                if (_inbox != null && _inbox!.messages.isEmpty) ListTile(title: Text(_text('sms_empty'))),
                 for (final message in _inbox?.messages ?? <SmsMessage>[])
                   ListTile(
-                      title: Text(message.from.isEmpty ? 'Unknown sender' : message.from,
+                      title: Text(message.from.isEmpty ? _text('sms_unknown_sender') : message.from,
                           style: TextStyle(fontWeight: message.read ? FontWeight.normal : FontWeight.bold)),
                       subtitle: Text(message.text, maxLines: 2, overflow: TextOverflow.ellipsis),
                       onTap: () => _open(message)),
