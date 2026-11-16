@@ -285,7 +285,7 @@ Future<void> _show(WidgetTester tester, Finder finder) async {
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
     await tester.pump();
   }
-  await tester.scrollUntilVisible(finder, 180, scrollable: find.byType(Scrollable).first);
+  await tester.scrollUntilVisible(finder, 180, scrollable: find.byType(Scrollable).first, maxScrolls: 80);
   await tester.pumpAndSettle();
 }
 

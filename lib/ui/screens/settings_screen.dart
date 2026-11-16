@@ -37,6 +37,7 @@ import 'package:unustasis/ui/screens/ls_keycard_screen.dart';
 import 'package:unustasis/ui/screens/ls_ota_screen.dart';
 import 'package:unustasis/ui/screens/system_information_screen.dart';
 import 'package:unustasis/ui/screens/sms_inbox_screen.dart';
+import 'package:unustasis/ui/screens/cloud_pairing_screen.dart';
 import 'package:unustasis/ui/screens/ls_scheduled_hibernation_screen.dart';
 import 'package:unustasis/state/vehicle_status.dart';
 import 'package:unustasis/ui/screens/log_screen.dart';
@@ -947,8 +948,17 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
 
   List<Widget> _librescootConnectivitySettingsItems({
     required bool supportsApnConfig,
+    required bool demoMode,
   }) =>
       [
+        if (!demoMode)
+          ListTile(
+            leading: const Icon(Icons.cloud_outlined),
+            title: Text(FlutterI18n.translate(context, 'connect_pairing_title')),
+            subtitle: Text(FlutterI18n.translate(context, 'connect_pairing_subtitle')),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CloudPairingScreen())),
+          ),
         ListTile(
           leading: const Icon(Icons.sms_outlined),
           title: Text(FlutterI18n.translate(context, 'sms_title')),
@@ -1286,11 +1296,12 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           Header(FlutterI18n.translate(context, "ls_settings_section_alarm")),
           ..._connectionRequiredItems(alarmItems()),
         ],
-        if (Platform.isAndroid || (isLibrescoot && (!connected || supportsApnConfig))) ...[
+        if (Platform.isAndroid || isLibrescoot) ...[
           Header(FlutterI18n.translate(context, "settings_section_connectivity")),
           if (isLibrescoot)
             ..._connectionRequiredItems(_librescootConnectivitySettingsItems(
               supportsApnConfig: supportsApnConfig,
+              demoMode: demoMode,
             )),
         ],
         if (Platform.isAndroid)

@@ -11,6 +11,7 @@ import 'package:scooter_core/scooter_core.dart';
 import '../ble/action_commands.dart' as commands;
 import '../ble/firmware_queries.dart' as queries;
 import '../ble/sms_commands.dart' as sms;
+import '../ble/cloud_pairing_commands.dart' as pairing;
 import '../ble/trip_history_commands.dart' as history;
 import '../ble/hash_commands.dart' as hashes;
 import '../ble/command_transport.dart' as transport;
@@ -538,6 +539,11 @@ class ScooterActions {
       _capture(), (d, r, c) => history.readTripHistoryEntry(d, r, id, isCurrent: () => c() && (isActive?.call() ?? true)));
   Future<history.TripHistoryPointsPage> readTripHistoryPoints(String id, {int afterId = 0, bool Function()? isActive}) => _command(
       _capture(), (d, r, c) => history.readTripHistoryPoints(d, r, id, afterId: afterId, isCurrent: () => c() && (isActive?.call() ?? true)));
+
+  Future<bool> supportsCloudPairing() => _command(
+      _capture(), (d, r, c) => pairing.supportsCloudPairingCommand(d, r, isCurrent: c));
+  Future<pairing.CloudPairingStatus> cloudPairing(String action) => _command(
+      _capture(), (d, r, c) => pairing.cloudPairingCommand(d, r, action, isCurrent: c));
 
   Future<sms.SmsInbox> readSmsInbox() => _command(
       _capture(), (d, r, c) => sms.readSmsInboxCommand(d, r, isCurrent: c));
