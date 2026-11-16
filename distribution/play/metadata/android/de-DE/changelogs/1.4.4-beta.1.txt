@@ -1,0 +1,1 @@
+Librescoot Connect: Verbinde deinen Roller per Bluetooth mit einem unterstützten Online-Konto, ohne das Rollerdisplay zu bedienen. Die Nachrichtenansicht und SMS-Weiterleitung sind übersetzt. Für die Kopplung braucht der sicher abgestellte Roller eine Internetverbindung und unterstützte Firmware.

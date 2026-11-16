@@ -1,0 +1,1 @@
+Librescoot Connect: Pair your scooter with a supported online account over Bluetooth without using the scooter display. The messages screen and SMS forwarding settings are translated. Pairing requires compatible firmware and an internet connection on the safely parked scooter.
