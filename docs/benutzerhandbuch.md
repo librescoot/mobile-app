@@ -237,11 +237,9 @@ Verbinde den richtigen Roller und warte, bis die App dessen unterstützte Funkti
 
 Prüfe **Einstellungen > App > Online-Standortdienste**. Bei ausgeschalteter Online-Suche zeigt die App statt des Suchfelds einen Hinweis an. Für die Suche muss außerdem das Telefon online sein.
 
-### App stürzt beim Umbenennen ab
-
-Auf manchen Android-Geräten kann die App beim Antippen eines Umbenennen-Textfelds abstürzen. Falls das passiert, sende nach einem Neustart einen Fehlerbericht und beschreibe Telefonmodell, Android-Version und die Schritte.
-
 ### Fehlerbericht senden
+
+Wenn die App abstürzt oder ein anderes Problem auftritt, sende einen Fehlerbericht. Starte die App nach einem Absturz zunächst erneut.
 
 1. Öffne auf dem Startbildschirm das Fragezeichen und wähle unter **Hilfe & Info** den Eintrag **Debug-Protokolle senden**.
 2. Lies den Hinweis und wähle **Fortsetzen**. Deine E-Mail-App öffnet einen vorbereiteten Bericht.
